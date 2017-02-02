@@ -6,9 +6,13 @@ version := "0.1.1"
 
 scalaVersion := "2.11.8"
 
-jsDependencies += "org.webjars" % "esprima" % "13001.1.0-dev-harmony-fb" / "esprima.js"
+//jsDependencies += "org.webjars" % "esprima" % "13001.1.0-dev-harmony-fb" / "esprima.js"
 
-jsDependencies += "org.webjars.npm" % "escodegen" % "1.7.0" / "escodegen.js"
+//jsDependencies += "org.webjars.npm" % "estraverse" % "1.9.1" / "1.9.1/estraverse.js"
+
+//jsDependencies += "org.webjars.npm" % "escodegen" % "1.7.0" / "1.7.0/escodegen.js"
+
+jsDependencies += "org.webjars.npm" % "esprima" % "1.2.5" / "1.2.5/esprima.js"
 
 //jsDependencies += "org.webjars.npm" % "acorn" % "4.0.3" / "acorn.js"
 
