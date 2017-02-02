@@ -1,0 +1,10 @@
+# Created by .ignore support plugin (hsz.mobi)
+
+target/
+lib_managed/
+src_managed/
+project/boot/
+.cache
+.idea/
+project/project/
+
