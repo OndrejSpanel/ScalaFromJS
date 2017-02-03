@@ -7,9 +7,11 @@ version := "0.1.1"
 
 scalaVersion := "2.11.8"
 
-npmDependencies in Compile += "esprima" -> "2.7.2"
+npmDependencies in Compile += "esprima" -> "3.1.3"
 
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
+
+webpackConfigFile := Some(baseDirectory.value / "webpack.config.js")
 
 def generateIndexTask(index: String, suffix: String) = Def.task {
   val source = baseDirectory.value / "index-template.html"
@@ -33,6 +35,10 @@ Seq(
 }
 
 skip in packageJSDependencies := false
+
+requiresDOM in Test := true
+
+enableReloadWorkflow := true
 
 persistLauncher in Compile := false
 
