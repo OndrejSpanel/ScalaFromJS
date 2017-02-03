@@ -20,11 +20,15 @@ class MainTest extends org.scalatest.FunSuite {
         val n0 = n.body(0)
         info(n0.json)
         assert(n0.`type` == "ExpressionStatement")
-        n0.expression.exists(_.`type` == "AssignmentExpression")
-        val ae = n0.expression.get.asInstanceOf[AssignmentExpression]
+        val es = n0.asInstanceOf[ExpressionStatement]
+        assert(es.expression.`type` == "AssignmentExpression")
+        val ae = es.expression.asInstanceOf[AssignmentExpression]
         assert(ae.`operator` == "=")
         assert(ae.left.`type` == "Identifier")
         assert(ae.right.`type` == "Literal")
+        assert(ae.left.asInstanceOf[Identifier].name == "answer")
+        //noinspection ComparingUnrelatedTypes
+        assert(ae.right.asInstanceOf[Literal].value.toString == "42")
 
     }
   }
