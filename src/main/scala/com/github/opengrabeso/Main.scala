@@ -1,7 +1,10 @@
+package com.github.opengrabeso
+
+import com.github.opengrabeso.Esprima._
+import com.github.opengrabeso.JsonToString._
+
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
-import Esprima._
-import JsonToString._
 
 object Main extends js.JSApp {
   @JSExport
