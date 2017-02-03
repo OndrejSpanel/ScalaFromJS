@@ -1,4 +1,5 @@
 enablePlugins(ScalaJSPlugin)
+enablePlugins(ScalaJSBundlerPlugin)
 
 name := "ScalaFromJS"
 
@@ -6,20 +7,7 @@ version := "0.1.1"
 
 scalaVersion := "2.11.8"
 
-//jsDependencies += "org.webjars" % "esprima" % "13001.1.0-dev-harmony-fb" / "esprima.js"
-
-//jsDependencies += "org.webjars.npm" % "estraverse" % "1.9.1" / "1.9.1/estraverse.js"
-
-//jsDependencies += "org.webjars.npm" % "escodegen" % "1.7.0" / "1.7.0/escodegen.js"
-
-jsDependencies += "org.webjars.npm" % "esprima" % "2.7.2" / "esprima.js"
-
-//jsDependencies += "org.webjars.npm" % "acorn" % "4.0.3" / "acorn.js"
-
-//jsDependencies += "org.webjars" % "uglifyjs" % "2.7.4" / "bin/uglifyjs" minified "bin/uglifyjs"
-
-
-jsDependencies += "org.webjars" % "jquery" % "2.2.1" / "jquery.js" minified "jquery.min.js"
+npmDependencies in Compile += "esprima" -> "2.7.2"
 
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
 
@@ -41,11 +29,11 @@ Seq(
   (fullOptJS in Compile, "index.html", "opt")
 ).map {
   case (task, indexHtml, postfix) =>
-    task <<= task.dependsOn(generateIndexTask(indexHtml, postfix))
+    task := task.dependsOn(generateIndexTask(indexHtml, postfix)).value
 }
 
 skip in packageJSDependencies := false
 
-persistLauncher in Compile := true
+persistLauncher in Compile := false
 
 persistLauncher in Test := false
