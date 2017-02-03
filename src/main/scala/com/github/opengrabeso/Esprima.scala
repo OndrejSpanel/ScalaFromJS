@@ -2,6 +2,7 @@ package com.github.opengrabeso
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSName
+import ESTree._
 
 @JSName("esprima")
 @js.native
@@ -38,5 +39,5 @@ object Esprima extends js.Object {
 
   def tokenize(input: String, config: Config = js.native, delegate: String => String = js.native): js.Array[Token] = js.native
 
-  def parse(input: String, config: ParseConfig = js.native): js.Dynamic = js.native
+  def parse(input: String, config: ParseConfig = js.native): Node = js.native
 }
