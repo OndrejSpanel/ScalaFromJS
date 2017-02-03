@@ -14,7 +14,7 @@ object Esprima extends js.Object {
     // Annotate each node with its column and row-based location, default false
     var loc: Boolean = js.native
     // Collect every line and block comment, default false
-    // var comments: Boolean = js.native
+    var comments: Boolean = js.native
   }
 
   @js.native
