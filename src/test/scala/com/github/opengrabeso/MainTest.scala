@@ -16,7 +16,7 @@ class MainTest extends org.scalatest.FunSuite {
     tree match {
       case n: Program =>
         assert(n.sourceType == "script")
-        info(n.body.toString)
+        info(n.json)
 
     }
   }
