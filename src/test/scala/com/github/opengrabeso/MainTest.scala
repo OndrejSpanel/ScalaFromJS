@@ -16,7 +16,15 @@ class MainTest extends org.scalatest.FunSuite {
     tree match {
       case n: Program =>
         assert(n.sourceType == "script")
-        info(n.json)
+        assert(n.body.length == 1)
+        val n0 = n.body(0)
+        info(n0.json)
+        assert(n0.`type` == "ExpressionStatement")
+        n0.expression.exists(_.`type` == "AssignmentExpression")
+        val ae = n0.expression.get.asInstanceOf[AssignmentExpression]
+        assert(ae.`operator` == "=")
+        assert(ae.left.`type` == "Identifier")
+        assert(ae.right.`type` == "Literal")
 
     }
   }
