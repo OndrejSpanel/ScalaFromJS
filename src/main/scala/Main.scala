@@ -9,8 +9,8 @@ object Main extends js.JSApp {
     println("Testing ...")
     val code = "answer = 42"
     val tokens = tokenize(code)
-    val parsed = parse(code)
     println(s"Tokens: ${tokens.json}")
+    val parsed = parse(code)
     println(s"Parsed: ${parsed.json}")
     println("Done.")
   }
