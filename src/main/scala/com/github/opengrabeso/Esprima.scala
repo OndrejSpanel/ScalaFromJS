@@ -39,5 +39,5 @@ object Esprima extends js.Object {
 
   def tokenize(input: String, config: Config = js.native, delegate: String => String = js.native): js.Array[Token] = js.native
 
-  def parse(input: String, config: ParseConfig = js.native): Node = js.native
+  def parse(input: String, config: ParseConfig = js.native): Program = js.native
 }
