@@ -1,6 +1,6 @@
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
-import Esprima._
+import Uglify._
 import JsonToString._
 
 object Main extends js.JSApp {

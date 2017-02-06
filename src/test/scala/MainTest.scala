@@ -1,4 +1,4 @@
-import Esprima._
+import Uglify._
 import JsonToString._
 /**
   * Created by Ondra on 2.2.2017.

@@ -1,17 +1,10 @@
 import scala.scalajs.js
 import scala.scalajs.js.JSON
-import scala.scalajs.js.annotation.JSName
+import scala.scalajs.js.annotation.{JSImport, JSName}
 
-object JsonToString {
-  // from http://stackoverflow.com/q/40371353/16673
-  implicit class JsObjectExtensions(val target: js.Object) extends AnyVal {
-    def json: String = JSON.stringify(target)
-  }
-}
-
-@JSName("esprima")
+@JSImport("uglify-js", JSImport.Namespace)
 @js.native
-object Esprima extends js.Object {
+object Uglify extends js.Object {
 
   @js.native
   class Config extends js.Object {

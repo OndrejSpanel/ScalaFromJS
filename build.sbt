@@ -8,7 +8,7 @@ version := "0.1.1"
 
 scalaVersion := "2.11.8"
 
-npmDependencies in Compile += "uglify" -> "2.7.5"
+npmDependencies in Compile += "uglify-js" -> "2.7.5"
 
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
 
