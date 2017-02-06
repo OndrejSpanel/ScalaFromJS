@@ -1,6 +1,6 @@
 import scala.scalajs.js
 import scala.scalajs.js.JSON
-import scala.scalajs.js.annotation.JSName
+import scala.scalajs.js.annotation.JSImport
 
 object JsonToString {
   // from http://stackoverflow.com/q/40371353/16673
@@ -9,7 +9,7 @@ object JsonToString {
   }
 }
 
-@JSName("esprima")
+@JSImport("esprima", JSImport.Namespace)
 @js.native
 object Esprima extends js.Object {
 
