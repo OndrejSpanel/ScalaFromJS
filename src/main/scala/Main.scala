@@ -8,7 +8,7 @@ object Main extends js.JSApp {
   def main(): Unit = {
     println("Testing ...")
     val code = "answer = 42"
-    val m = minify(code)
+    val m = parse(code)
     println(s"minify: $m")
   }
 }

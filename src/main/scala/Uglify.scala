@@ -5,5 +5,5 @@ import scala.scalajs.js.annotation.JSImport
 @js.native
 object Uglify extends js.Object {
 
-  def minify(code: String): String = js.native
+  def parse(code: String): js.Object = js.native
 }
