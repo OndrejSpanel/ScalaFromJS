@@ -8,10 +8,7 @@ object Main extends js.JSApp {
   def main(): Unit = {
     println("Testing ...")
     val code = "answer = 42"
-    val tokens = tokenize(code)
-    val parsed = parse(code)
-    println(s"Tokens: ${tokens.json}")
-    println(s"Parsed: ${parsed.json}")
-    println("Done.")
+    val m = minify(code)
+    println(s"minify: $m")
   }
 }

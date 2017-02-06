@@ -1,41 +1,9 @@
 import scala.scalajs.js
-import scala.scalajs.js.JSON
-import scala.scalajs.js.annotation.{JSImport, JSName}
+import scala.scalajs.js.annotation.JSImport
 
-@JSImport("uglify-js", JSImport.Namespace)
+@JSImport("uglify-js", JSImport.Default)
 @js.native
 object Uglify extends js.Object {
 
-  @js.native
-  class Config extends js.Object {
-    // Annotate each node with its index-based location, default false
-    var range: Boolean = js.native
-    // Annotate each node with its column and row-based location, default false
-    var loc: Boolean = js.native
-    // Collect every line and block comment, default false
-    // var comments: Boolean = js.native
-  }
-
-  @js.native
-  class ParseConfig extends Config {
-    // Define the program type: a script or a module, default: "script"
-    var sourceType: String = js.native
-    // Support JSX syntax, default false
-    var jsx: Boolean = js.native
-    // 	Tolerate a few cases of syntax errors, default false
-    var tolerant: Boolean = js.native
-    // Collect every token, default false
-    var token: Boolean = js.native
-  }
-
-  @js.native
-  class Token extends js.Object {
-    val `type`: String = js.native
-    val value: String = js.native
-
-  }
-
-  def tokenize(input: String, config: Config = js.native, delegate: String => String = js.native): js.Array[Token] = js.native
-
-  def parse(input: String, config: ParseConfig = js.native): js.Dynamic = js.native
+  def minify(code: String): String = js.native
 }
