@@ -4,7 +4,7 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation.JSName
 import ESTree._
 
-@JSName("esprima")
+@JSImport("esprima", JSImport.Namespace)
 @js.native
 object Esprima extends js.Object {
 
