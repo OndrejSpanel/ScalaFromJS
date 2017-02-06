@@ -1,5 +1,4 @@
 enablePlugins(ScalaJSPlugin)
-
 enablePlugins(ScalaJSBundlerPlugin)
 
 name := "ScalaFromJS"
@@ -11,6 +10,9 @@ scalaVersion := "2.11.8"
 npmDependencies in Compile += "uglify-js" -> "2.7.5"
 
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
+
+webpackConfigFile := Some(baseDirectory.value / "webpack.config.js")
+
 
 def generateIndexTask(index: String, suffix: String) = Def.task {
   val source = baseDirectory.value / "index-template.html"
@@ -34,6 +36,10 @@ Seq(
 }
 
 skip in packageJSDependencies := false
+
+requiresDOM in Test := true
+
+enableReloadWorkflow := true
 
 persistLauncher in Compile := false
 
