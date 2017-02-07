@@ -2,16 +2,33 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExport
 import Uglify._
 import UglifyExt._
-import JsonToString._
 
 object Main extends js.JSApp {
+  implicit class AnyExt(val value: Any) {
+    def any: Any = value
+  }
+
   def tests(): Unit = {
     val code = "answer = 42"
-    val m = parse(code, defaultOptions.parse)
-    println(s"parse: ${m.json}")
 
     val u = uglify(code)
     assert(u == "answer=42;")
+
+    val m = parse(code, defaultOptions.parse)
+    assert(m.start.pos == 0)
+    assert(m.end.endpos == code.length)
+    m.body.head match {
+      case s: AST_SimpleStatement =>
+        s.body match {
+          case a: AST_Assign =>
+            assert(a.left.start.`type` == "name")
+            assert(a.left.name == "answer")
+            assert(a.operator == "=")
+            assert(a.right.start.`type` == "num")
+            assert(a.right.start.value == 42.any)
+        }
+
+    }
 
   }
 
