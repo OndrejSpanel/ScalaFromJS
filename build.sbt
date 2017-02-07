@@ -6,7 +6,7 @@ name := "ScalaFromJS"
 
 version := "0.1.1"
 
-scalaVersion := "2.11.8"
+scalaVersion := "2.12.1"
 
 npmDependencies in Compile += "uglify-js" -> "2.7.5"
 
