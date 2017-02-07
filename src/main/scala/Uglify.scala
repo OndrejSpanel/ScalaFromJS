@@ -1,7 +1,7 @@
 import scala.scalajs.js
-import scala.scalajs.js.annotation.JSImport
+import scala.scalajs.js.annotation.JSName
 
-@JSImport("uglify-js", JSImport.Default)
+@JSName("uglify")
 @js.native
 object Uglify extends js.Object {
 

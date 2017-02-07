@@ -11,7 +11,12 @@ scalaVersion := "2.11.8"
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
 
 def loadJSDependencies(s: String*): Seq[AbstractJSDep] = {
-  s.map(name => ProvidedJS / s"uglifyjs/lib/$name")
+  val head = ProvidedJS / s.head
+
+  val pairs = s.drop(1) zip s
+  head +: pairs.map { case (depName, prev) =>
+    ProvidedJS / s"uglifyjs/lib/$depName" dependsOn prev
+  }
 }
 
 jsDependencies ++= loadJSDependencies(
@@ -47,8 +52,8 @@ Seq(
 
 skip in packageJSDependencies := false
 
-scalaJSModuleKind in Test := ModuleKind.CommonJSModule
+//scalaJSModuleKind := ModuleKind.CommonJSModule
 
-persistLauncher in Compile := false
+persistLauncher in Compile := true
 
 persistLauncher in Test := false
