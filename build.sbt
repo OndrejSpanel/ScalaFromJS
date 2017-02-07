@@ -1,6 +1,6 @@
-enablePlugins(ScalaJSPlugin)
+import org.scalajs.sbtplugin.AbstractJSDep
 
-enablePlugins(ScalaJSBundlerPlugin)
+enablePlugins(ScalaJSPlugin)
 
 name := "ScalaFromJS"
 
@@ -8,9 +8,21 @@ version := "0.1.1"
 
 scalaVersion := "2.11.8"
 
-npmDependencies in Compile += "uglify-js" -> "2.7.5"
-
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
+
+def loadJSDependencies(s: String*): Seq[AbstractJSDep] = {
+  s.map(name => ProvidedJS / s"uglifyjs/lib/$name")
+}
+
+jsDependencies ++= loadJSDependencies(
+  "utils.js",
+  "ast.js",
+  "parse.js",
+  "transform.js",
+  "scope.js",
+  "output.js",
+  "compress.js"
+)
 
 def generateIndexTask(index: String, suffix: String) = Def.task {
   val source = baseDirectory.value / "index-template.html"
@@ -34,6 +46,8 @@ Seq(
 }
 
 skip in packageJSDependencies := false
+
+scalaJSModuleKind in Test := ModuleKind.CommonJSModule
 
 persistLauncher in Compile := false
 
