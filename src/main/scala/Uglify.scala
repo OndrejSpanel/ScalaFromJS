@@ -1,12 +1,32 @@
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSExport, JSGlobalScope, ScalaJSDefined}
-import js.Dynamic.literal
+import scala.scalajs.js.annotation.{ JSGlobalScope, ScalaJSDefined}
 import scala.scalajs.js.RegExp
 
-@JSExport("Config")
-@ScalaJSDefined
-object Config extends js.Object {
+@JSGlobalScope
+@js.native
+object Uglify extends js.Object {
 
+  @js.native
+  class Compressor(options: UglifyExt.Compress) extends js.Object
+
+  @js.native
+  class AST extends js.Object {
+    def figure_out_scope(): Unit = js.native
+    def transform(c: Compressor): AST = js.native
+    def compute_char_frequency(): Unit = js.native
+    def mangle_names(): Unit = js.native
+
+    def print_to_string(config: UglifyExt.Output): String = js.native
+  }
+
+  def parse(code: String, options: js.Any): AST = js.native
+
+
+}
+
+import Uglify._
+
+object UglifyExt {
   @ScalaJSDefined
   class Parse extends js.Object {
     var strict: Boolean = false
@@ -35,7 +55,7 @@ object Config extends js.Object {
     var negate_iife: Boolean = true
     var screw_ie8: Boolean = false
     var warnings: Boolean = true
-    var global_defs: js.Dynamic = literal()
+    var global_defs: Map[String, Any] = Map.empty
   }
 
   @ScalaJSDefined
@@ -64,35 +84,10 @@ object Config extends js.Object {
     var output: Output = new Output
   }
 
-  val default = new Options
-}
-
-@JSGlobalScope
-@js.native
-object Uglify extends js.Object {
-
-  @js.native
-  class Compressor(options: Config.Compress) extends js.Object
-
-  @js.native
-  class AST extends js.Object {
-    def figure_out_scope(): Unit = js.native
-    def transform(c: Compressor): AST = js.native
-    def compute_char_frequency(): Unit = js.native
-    def mangle_names(): Unit = js.native
-
-    def print_to_string(config: Config.Output): String = js.native
-  }
-
-  def parse(code: String, options: js.Any): AST = js.native
+  val defaultOptions = new Options
 
 
-}
-
-import Uglify._
-
-object UglifyExt {
-  def uglify(code: String, options: Config.Options): String = {
+  def uglify(code: String, options: Options = defaultOptions): String = {
 
     // 1. Parse
     var toplevel_ast = parse(code, options)
