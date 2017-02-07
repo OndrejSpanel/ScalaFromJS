@@ -8,6 +8,8 @@ version := "0.1.1"
 
 scalaVersion := "2.11.8"
 
+libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.0"
+
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
 
 def loadJSDependencies(s: String*): Seq[AbstractJSDep] = {
@@ -15,18 +17,19 @@ def loadJSDependencies(s: String*): Seq[AbstractJSDep] = {
 
   val pairs = s.drop(1) zip s
   head +: pairs.map { case (depName, prev) =>
-    ProvidedJS / s"uglifyjs/lib/$depName" dependsOn prev
+    ProvidedJS / depName dependsOn prev
   }
 }
 
 jsDependencies ++= loadJSDependencies(
-  "utils.js",
-  "ast.js",
-  "parse.js",
-  "transform.js",
-  "scope.js",
-  "output.js",
-  "compress.js"
+  "init.js",
+  "uglifyjs/lib/utils.js",
+  "uglifyjs/lib/ast.js",
+  "uglifyjs/lib/parse.js",
+  "uglifyjs/lib/transform.js",
+  "uglifyjs/lib/scope.js",
+  "uglifyjs/lib/output.js",
+  "uglifyjs/lib/compress.js"
 )
 
 def generateIndexTask(index: String, suffix: String) = Def.task {

@@ -1,5 +1,5 @@
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{ JSGlobalScope, ScalaJSDefined}
+import scala.scalajs.js.annotation.{JSExportTopLevel, JSGlobalScope, ScalaJSDefined}
 import scala.scalajs.js.RegExp
 
 @JSGlobalScope
