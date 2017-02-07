@@ -71,7 +71,46 @@ object Config extends js.Object {
 @js.native
 object Uglify extends js.Object {
 
-  def uglify(code: String, options: js.Any): js.Object = js.native
+  @js.native
+  class Compressor(options: Config.Compress) extends js.Object
 
-  def parse(code: String, options: js.Any): js.Object = js.native
+  @js.native
+  class AST extends js.Object {
+    def figure_out_scope(): Unit = js.native
+    def transform(c: Compressor): AST = js.native
+    def compute_char_frequency(): Unit = js.native
+    def mangle_names(): Unit = js.native
+
+    def print_to_string(config: Config.Output): String = js.native
+  }
+
+  def parse(code: String, options: js.Any): AST = js.native
+
+
+}
+
+import Uglify._
+
+object UglifyExt {
+  def uglify(code: String, options: Config.Options): String = {
+
+    // 1. Parse
+    var toplevel_ast = parse(code, options)
+    toplevel_ast.figure_out_scope()
+
+    // 2. Compress
+    var compressor = new Compressor(options.compress)
+    var compressed_ast = toplevel_ast.transform(compressor)
+
+    // 3. Mangle
+    compressed_ast.figure_out_scope()
+    compressed_ast.compute_char_frequency()
+    compressed_ast.mangle_names()
+
+    // 4. Generate output
+    val outCode = compressed_ast.print_to_string(options.output)
+
+    outCode
+  }
+
 }
