@@ -1,1 +1,3 @@
-window.exports = window.exports || { dummy: ""};
+if (typeof window !== 'undefined' && window) {
+    window.exports = window.exports || {dummy: ""};
+}
