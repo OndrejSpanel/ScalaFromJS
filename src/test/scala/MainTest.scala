@@ -6,7 +6,7 @@ import JsonToString._
 class MainTest extends org.scalatest.FunSuite {
   test("Basic test") {
     val code = "answer = 42"
-    val mCode = uglify(code, Options.default)
+    val mCode = parse(code, Config.default.parse)
     assert(mCode != "[{\"type\":\"Identifier\",\"value\":\"answer\"},{\"type\":\"Punctuator\",\"value\":\"=\"},{\"type\":\"Numeric\",\"value\":\"42\"}]")
   }
 }

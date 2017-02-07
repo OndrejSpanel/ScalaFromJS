@@ -1,57 +1,70 @@
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSExport, JSGlobalScope}
+import scala.scalajs.js.annotation.{JSExport, JSGlobalScope, ScalaJSDefined}
 import js.Dynamic.literal
 import scala.scalajs.js.RegExp
 
-@JSExport("Options")
-object Options {
-  val default = literal (
-    parse = literal(
-      strict = false
-    ),
+@JSExport("Config")
+@ScalaJSDefined
+object Config extends js.Object {
 
-    compress = literal (
-      sequences     = true,
-      properties    = true,
-      dead_code     = true,
-      drop_debugger = true,
-      unsafe        = true,
-      unsafe_comps  = true,
-      conditionals  = true,
-      comparisons   = true,
-      evaluate      = true,
-      booleans      = true,
-      loops         = true,
-      unused        = true,
-      hoist_funs    = true,
-      hoist_vars    = false,
-      if_return     = true,
-      join_vars     = true,
-      cascade       = true,
-      side_effects  = true,
-      negate_iife   = true,
-      screw_ie8     = false,
-      warnings      = true,
-      global_defs   = literal()
-    ),
-    output = literal (
-      indent_start  = 0,
-      indent_level  = 4,
-      quote_keys    = false,
-      space_colon   = true,
-      ascii_only    = false,
-      inline_script = true,
-      width         = 80,
-      max_line_len  = 32000,
-      beautify      = false,
-      source_map    = null,
-      bracketize    = false,
-      semicolons    = true,
-      comments      = RegExp("@license|@preserve|^!"),
-      preserve_line = false,
-      screw_ie8     = false
-    )
-  )
+  @ScalaJSDefined
+  class Parse extends js.Object {
+    var strict: Boolean = false
+  }
+
+  @ScalaJSDefined
+  class Compress extends js.Object {
+    var sequences: Boolean = true
+    var properties: Boolean = true
+    var dead_code: Boolean = true
+    var drop_debugger: Boolean = true
+    var unsafe: Boolean = true
+    var unsafe_comps: Boolean = true
+    var conditionals: Boolean = true
+    var comparisons: Boolean = true
+    var evaluate: Boolean = true
+    var booleans: Boolean = true
+    var loops: Boolean = true
+    var unused: Boolean = true
+    var hoist_funs: Boolean = true
+    var hoist_vars: Boolean = false
+    var if_return: Boolean = true
+    var join_vars: Boolean = true
+    var cascade: Boolean = true
+    var side_effects: Boolean = true
+    var negate_iife: Boolean = true
+    var screw_ie8: Boolean = false
+    var warnings: Boolean = true
+    var global_defs: js.Dynamic = literal()
+  }
+
+  @ScalaJSDefined
+  class Output extends js.Object {
+    var indent_start  : Int = 0
+    var indent_level  : Int = 4
+    var quote_keys    : Boolean = false
+    var space_colon   : Boolean = true
+    var ascii_only    : Boolean = false
+    var inline_script : Boolean = true
+    var width         : Int = 80
+    var max_line_len  : Int = 32000
+    var beautify      : Boolean = false
+    var source_map    : js.Dynamic = null
+    var bracketize    : Boolean = false
+    var semicolons    : Boolean = true
+    var comments      : RegExp = RegExp("@license|@preserve|^!")
+    var preserve_line : Boolean = false
+    var screw_ie8     : Boolean = false
+  }
+
+  @ScalaJSDefined
+  class Options extends js.Object {
+    var parse: Parse = new Parse
+    var compress: Compress = new Compress
+    var output: Output = new Output
+  }
+
+  val default = new Options
 }
 
 @JSGlobalScope
