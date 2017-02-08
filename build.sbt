@@ -22,7 +22,6 @@ def loadJSDependencies(s: String*): Seq[AbstractJSDep] = {
 }
 
 jsDependencies ++= loadJSDependencies(
-  "init.js",
   "uglifyjs/lib/utils.js",
   "uglifyjs/lib/ast.js",
   "uglifyjs/lib/parse.js",
