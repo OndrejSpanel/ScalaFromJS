@@ -1,8 +1,8 @@
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{ JSGlobalScope, ScalaJSDefined}
 import scala.scalajs.js.RegExp
+import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
 
-@JSGlobalScope
+@JSImport("uglify-js", JSImport.Namespace)
 @js.native
 object Uglify extends js.Object {
 
