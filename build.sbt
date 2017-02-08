@@ -10,7 +10,9 @@ scalaVersion := "2.12.1"
 
 npmDependencies in Compile += "uglify-js" -> "2.7.5"
 
-libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
+libraryDependencies += "com.lihaoyi" %%% "utest" % "0.4.5" % "test"
+
+testFrameworks += new TestFramework("utest.runner.Framework")
 
 def generateIndexTask(index: String, suffix: String) = Def.task {
   val source = baseDirectory.value / "index-template.html"
