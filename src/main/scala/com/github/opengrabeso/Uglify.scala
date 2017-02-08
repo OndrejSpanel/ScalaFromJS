@@ -1,3 +1,7 @@
+package com.github.opengrabeso
+
+import com.github.opengrabeso.Uglify.{Compressor, parse}
+
 import scala.scalajs.js
 import scala.scalajs.js.RegExp
 import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
@@ -110,8 +114,6 @@ object Uglify extends js.Object {
 
 
 }
-
-import Uglify._
 
 object UglifyExt {
   @ScalaJSDefined
