@@ -36,13 +36,33 @@ Seq(
     task := task.dependsOn(generateIndexTask(indexHtml, postfix)).value
 }
 
+def shortestRelName(dirs: Seq[File], file: File) = {
+  val parent = dirs maxBy { dir =>
+    if (file.toPath.startsWith(dir.toPath)) {
+      dir.length
+    } else 0
+  }
+  val r = parent.toPath.relativize(file.toPath).toString
+  r.replaceAllLiterally("\\", "/") // avoid backslashes in the relative paths
+}
+
+def dirRoots(dirs: Seq[File]): Seq[File] = {
+  // list of directories contains all subdirectories as well
+  // we want to get the list of the root directories only (typically this is one directory only)
+  Seq(dirs.head)
+}
+
 sourceGenerators in Test += Def.task {
+  val log = streams.value.log
+  val sourceDirs = dirRoots((unmanagedResources in Test).value filter ( _.isDirectory ))
+  log.info("SourceDirs " + sourceDirs.mkString(","))
   val sources = (unmanagedResources in Test).value filter ( _.isFile )
   val dir = (sourceManaged in Test).value
   sources map { src =>
-    val symName = ""
-    val f = dir / (src.name + ".scala")
-    IO.write(f, "object `" + src.name + "` {\nval str =\"\"\"" + IO.read(src) + "\"\"\"}\n")
+    val symName = shortestRelName(sourceDirs, src)
+    log.info("symName " + symName)
+    val f = dir / (symName + ".scala")
+    IO.write(f, "object `" + symName + "` {\nval str =\"\"\"" + IO.read(src) + "\"\"\"}\n")
     f
   }
 }.taskValue
