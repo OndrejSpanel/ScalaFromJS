@@ -25,6 +25,7 @@ def generateIndexTask(index: String, suffix: String) = Def.task {
   )
 
   log.info(s"Generate $index with suffix $suffix")
+  target
 }
 
 Seq(
@@ -34,6 +35,17 @@ Seq(
   case (task, indexHtml, postfix) =>
     task := task.dependsOn(generateIndexTask(indexHtml, postfix)).value
 }
+
+sourceGenerators in Test += Def.task {
+  val sources = (unmanagedResources in Test).value filter ( _.isFile )
+  val dir = (sourceManaged in Test).value
+  sources map { src =>
+    val symName = ""
+    val f = dir / (src.name + ".scala")
+    IO.write(f, "object `" + src.name + "` {\nval str =\"\"\"" + IO.read(src) + "\"\"\"}\n")
+    f
+  }
+}.taskValue
 
 skip in packageJSDependencies := false
 
