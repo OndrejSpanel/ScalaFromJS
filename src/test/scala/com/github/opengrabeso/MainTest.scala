@@ -31,9 +31,10 @@ object MainTest extends TestSuite {
         val m = parse(code, defaultUglifyOptions.parse)
         assert(m.start.pos == 0)
         assert(m.end.endpos == code.length)
-        m.body.head match {
+        (m.body.head: @unchecked) match {
           case s: AST_SimpleStatement =>
-            s.body match {
+
+            (s.body: @unchecked) match {
               case a: AST_Assign =>
                 assert(a.left.start.`type` == "name")
                 assert(a.left.name == "answer")
@@ -71,6 +72,7 @@ object MainTest extends TestSuite {
             println(result)
             assert(result == res)
           }
+
 
         }
 

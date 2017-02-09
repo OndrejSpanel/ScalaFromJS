@@ -7,7 +7,7 @@ import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
 @JSImport("uglify-js", JSImport.Namespace)
 @js.native
 object Uglify extends js.Object {
-
+  // http://lisperator.net/uglifyjs/ast
   @js.native
   class AST_Token extends js.Object {
     val col: Int = js.native
@@ -27,14 +27,14 @@ object Uglify extends js.Object {
     val value: js.Any = js.native
   }
 
-    @js.native
-  class AST_Node extends js.Object {
+  @js.native
+  sealed class AST_Node extends js.Object {
     val start: AST_Token = js.native
     val end: AST_Token = js.native
   }
 
   @js.native
-  class AST_Statement extends AST_Node
+  sealed abstract class AST_Statement extends AST_Node
 
   @js.native
   class AST_SimpleStatement extends AST_Statement {
