@@ -12,9 +12,7 @@ scalacOptions in ThisBuild ++= Seq("-unchecked", "-feature", "-deprecation")
 
 npmDependencies in Compile += "uglify-js" -> "2.7.5"
 
-libraryDependencies += "com.lihaoyi" %%% "utest" % "0.4.5" % "test"
-
-testFrameworks += new TestFramework("utest.runner.Framework")
+libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
 
 def rel(parent: File, file: File) = {
   val r = (file relativeTo parent).map(_.toString).getOrElse(file.name)
