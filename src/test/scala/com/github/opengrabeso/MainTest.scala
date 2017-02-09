@@ -63,14 +63,15 @@ object MainTest extends TestSuite {
 
       "Convert a file" - {
         "Simple functions" - {
-          textResource("simpleFunction/simpleFunctions.js").map { code =>
+          val testData = fileTestData("simpleFunction/simpleFunctions.js", "simpleFunction/simpleFunctions.scala")
+          testData.map { case (code, res) =>
             val mCode = parse(code, defaultOptions.parse)
             assert(mCode.body.nonEmpty)
           }
         }
 
         "Function parameters and calls" - {
-          val testData = fileTestData("simpleFunction/simpleFunctions.js", "simpleFunction/simpleFunctions.scala")
+          val testData = fileTestData("simpleFunction/callFunction.js", "simpleFunction/callFunction.scala")
           testData.map { case (code, res) =>
             val mCode = parse(code, defaultOptions.parse)
             assert(mCode.body.nonEmpty)
