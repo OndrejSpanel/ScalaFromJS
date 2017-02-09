@@ -47,20 +47,21 @@ def shortestRelName(dirs: Seq[File], file: File) = {
 }
 
 def dirRoots(dirs: Seq[File]): Seq[File] = {
+  val paths = dirs.map(_.toPath)
+  import java.nio.file.Path
   // list of directories contains all subdirectories as well
   // we want to get the list of the root directories only (typically this is one directory only)
-  Seq(dirs.head)
+  def isRoot(path: Path) = !paths.exists(p => p != path && (path startsWith p))
+
+  paths.filter(isRoot).map(_.toFile)
 }
 
 sourceGenerators in Test += Def.task {
-  val log = streams.value.log
   val sourceDirs = dirRoots((unmanagedResources in Test).value filter ( _.isDirectory ))
-  log.info("SourceDirs " + sourceDirs.mkString(","))
   val sources = (unmanagedResources in Test).value filter ( _.isFile )
   val dir = (sourceManaged in Test).value
   sources map { src =>
     val symName = shortestRelName(sourceDirs, src)
-    log.info("symName " + symName)
     val f = dir / (symName + ".scala")
     IO.write(f, "object `" + symName + "` {\nval str =\"\"\"" + IO.read(src) + "\"\"\"}\n")
     f
