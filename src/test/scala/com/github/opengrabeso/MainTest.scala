@@ -3,10 +3,10 @@ package com.github.opengrabeso
 import Uglify._
 import UglifyExt._
 import utest._
-
 import TestUtils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 object MainTest extends TestSuite {
 
@@ -47,6 +47,13 @@ object MainTest extends TestSuite {
     }
 
     "Test files" - {
+      def fileTestData(source: String, result: String) = {
+        val data = Future.sequence(Seq(textResource(source), textResource(result)))
+        data.map { case sData +: rData +: Seq() =>
+          (sData, rData)
+        }
+      }
+
       "Parse a file" - {
         textResource("answer42.js").map { code =>
           val mCode = parse(code, defaultOptions.parse)
@@ -63,14 +70,16 @@ object MainTest extends TestSuite {
         }
 
         "Function parameters and calls" - {
-          textResource("simpleFunction/simpleFunctions.js").map { code =>
+          val testData = fileTestData("simpleFunction/simpleFunctions.js", "simpleFunction/simpleFunctions.scala")
+          testData.map { case (code, res) =>
             val mCode = parse(code, defaultOptions.parse)
             assert(mCode.body.nonEmpty)
           }
         }
 
         "Simple class" - {
-          textResource("simpleClass/simpleClass.js").map { code =>
+          val testData = fileTestData("simpleClass/simpleClass.js", "simpleClass/simpleClass.scala")
+          testData.map { case (code, res) =>
             val mCode = parse(code, defaultOptions.parse)
             assert(mCode.body.nonEmpty)
           }
