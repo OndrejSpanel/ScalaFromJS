@@ -55,8 +55,15 @@ object MainTest extends TestSuite {
       }
 
       "Convert a file" - {
-        "Simple function" - {
-          textResource("simpleFunction/simpleFunction.js").map { code =>
+        "Simple functions" - {
+          textResource("simpleFunction/simpleFunctions.js").map { code =>
+            val mCode = parse(code, defaultOptions.parse)
+            assert(mCode.body.nonEmpty)
+          }
+        }
+
+        "Function parameters and calls" - {
+          textResource("simpleFunction/simpleFunctions.js").map { code =>
             val mCode = parse(code, defaultOptions.parse)
             assert(mCode.body.nonEmpty)
           }
