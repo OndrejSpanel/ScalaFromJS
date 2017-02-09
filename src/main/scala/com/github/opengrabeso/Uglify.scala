@@ -1,7 +1,5 @@
 package com.github.opengrabeso
 
-import com.github.opengrabeso.Uglify.{Compressor, parse}
-
 import scala.scalajs.js
 import scala.scalajs.js.RegExp
 import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
@@ -103,12 +101,12 @@ object Uglify extends js.Object {
     def compute_char_frequency(): Unit = js.native
     def mangle_names(): Unit = js.native
 
-    def print_to_string(config: UglifyExt.Output): String = js.native
+    def print_to_string(config: UglifyExt.Options.Output): String = js.native
   }
 
 
   @js.native
-  class Compressor(options: UglifyExt.Compress) extends js.Object
+  class Compressor(options: UglifyExt.Options.Compress) extends js.Object
 
   def parse(code: String, options: js.Any): AST_Toplevel = js.native
 
@@ -116,85 +114,123 @@ object Uglify extends js.Object {
 }
 
 object UglifyExt {
+  import Uglify._
+
   @ScalaJSDefined
   class Parse extends js.Object {
     var strict: Boolean = false
   }
 
-  @ScalaJSDefined
-  class Compress extends js.Object {
-    var sequences: Boolean = true
-    var properties: Boolean = true
-    var dead_code: Boolean = true
-    var drop_debugger: Boolean = true
-    var unsafe: Boolean = true
-    var unsafe_comps: Boolean = true
-    var conditionals: Boolean = true
-    var comparisons: Boolean = true
-    var evaluate: Boolean = true
-    var booleans: Boolean = true
-    var loops: Boolean = true
-    var unused: Boolean = true
-    var hoist_funs: Boolean = true
-    var hoist_vars: Boolean = false
-    var if_return: Boolean = true
-    var join_vars: Boolean = true
-    var cascade: Boolean = true
-    var side_effects: Boolean = true
-    var negate_iife: Boolean = true
-    var screw_ie8: Boolean = false
-    var warnings: Boolean = true
-    var global_defs: Map[String, Any] = Map.empty
-  }
+  object Options {
 
-  @ScalaJSDefined
-  class Output extends js.Object {
-    var indent_start  : Int = 0
-    var indent_level  : Int = 4
-    var quote_keys    : Boolean = false
-    var space_colon   : Boolean = true
-    var ascii_only    : Boolean = false
-    var inline_script : Boolean = true
-    var width         : Int = 80
-    var max_line_len  : Int = 32000
-    var beautify      : Boolean = false
-    var source_map    : js.Dynamic = null
-    var bracketize    : Boolean = false
-    var semicolons    : Boolean = true
-    var comments      : RegExp = RegExp("@license|@preserve|^!")
-    var preserve_line : Boolean = false
-    var screw_ie8     : Boolean = false
+    @ScalaJSDefined
+    class Compress extends js.Object {
+      // https://github.com/mishoo/UglifyJS2#compressor-options
+      var sequences: Boolean = true //  join consecutive simple statements using the comma operator
+      var properties: Boolean = true //  rewrite property access using the dot notation
+      var dead_code: Boolean = true //  remove unreachable code
+      var drop_debugger: Boolean = true // remove debugger; statements
+      var unsafe: Boolean = true
+      var unsafe_comps: Boolean = true
+      var conditionals: Boolean = true
+      var comparisons: Boolean = true
+      var evaluate: Boolean = true
+      var booleans: Boolean = true
+      var loops: Boolean = true
+      var unused: Boolean = true
+      var hoist_funs: Boolean = true
+      var hoist_vars: Boolean = false
+      var if_return: Boolean = true
+      var join_vars: Boolean = true
+      var cascade: Boolean = true
+      var side_effects: Boolean = true
+      var negate_iife: Boolean = true
+      var screw_ie8: Boolean = false
+      var warnings: Boolean = true
+      var global_defs: Map[String, Any] = Map.empty
+    }
+
+    @ScalaJSDefined
+    class Output extends js.Object {
+      var indent_start: Int = 0
+      var indent_level: Int = 4
+      var quote_keys: Boolean = false
+      var space_colon: Boolean = true
+      var ascii_only: Boolean = false
+      var inline_script: Boolean = true
+      var width: Int = 80
+      var max_line_len: Int = 32000
+      var beautify: Boolean = false
+      var source_map: js.Dynamic = null
+      var bracketize: Boolean = false
+      var semicolons: Boolean = true
+      var comments: RegExp = RegExp("@license|@preserve|^!")
+      var preserve_line: Boolean = false
+      var screw_ie8: Boolean = false
+    }
+
   }
 
   @ScalaJSDefined
   class Options extends js.Object {
-    var parse: Parse = new Parse
-    var compress: Compress = new Compress
-    var output: Output = new Output
+    import Options._
+
+    val parse: Parse = new Parse
+    val compress: Compress = new Compress
+    val output: Output = new Output
   }
 
-  val defaultOptions = new Options
+  val defaultUglifyOptions = new Options
 
+  // options for reasonable optimization
+  val defaultOptimizeOptions = new Options.Compress {
+    sequences = false
+    join_vars = false
+    hoist_vars = true
+  }
+  val defaultOutputOptions = new Options.Output {
+    beautify = true
+  }
 
-  def uglify(code: String, options: Options = defaultOptions): String = {
+  implicit class AST_ToplevelOps(val ast: AST_Toplevel) {
+    def optimize(options: Options.Compress = defaultOptimizeOptions): AST_Toplevel = {
+      ast.figure_out_scope()
 
-    // 1. Parse
-    var toplevel_ast = parse(code, options)
-    toplevel_ast.figure_out_scope()
+      val compressor = new Compressor(options)
+      val compressed_ast = ast.transform(compressor)
 
-    // 2. Compress
-    var compressor = new Compressor(options.compress)
-    var compressed_ast = toplevel_ast.transform(compressor)
+      compressed_ast.figure_out_scope()
+      compressed_ast
+    }
+
+    def source(options: Options.Output = defaultOutputOptions): String = {
+      ast.print_to_string(options)
+    }
+
+    def mangleNames(): AST_Toplevel = {
+      ast.figure_out_scope()
+      ast.compute_char_frequency()
+      ast.mangle_names()
+      ast
+    }
+
+  }
+
+  def uglify(code: String, options: Options = defaultUglifyOptions): String = {
+
+    val toplevel_ast = parse(code, options)
+
+    val compressed_ast = toplevel_ast.optimize(options.compress)
 
     // 3. Mangle
-    compressed_ast.figure_out_scope()
-    compressed_ast.compute_char_frequency()
-    compressed_ast.mangle_names()
+    compressed_ast.mangleNames()
 
     // 4. Generate output
-    val outCode = compressed_ast.print_to_string(options.output)
+    val outCode = compressed_ast.source(options.output)
 
     outCode
   }
+
+
 
 }
