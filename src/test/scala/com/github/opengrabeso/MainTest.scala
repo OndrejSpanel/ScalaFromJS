@@ -49,6 +49,7 @@ object MainTest extends TestSuite {
 
     "Test files" - {
       "Parse a file" - {
+        _root_.`answer42.js`
         textResource("answer42.js").map { code =>
           val mCode = parse(code, defaultUglifyOptions.parse)
           assert(mCode.body.nonEmpty)

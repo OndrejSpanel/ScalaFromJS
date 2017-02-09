@@ -14,54 +14,22 @@ libraryDependencies += "com.lihaoyi" %%% "utest" % "0.4.5" % "test"
 
 testFrameworks += new TestFramework("utest.runner.Framework")
 
-def generateIndexTask(index: String, suffix: String) = Def.task {
-  val source = baseDirectory.value / "index-template.html"
-  val target = (crossTarget in Compile).value / index
-  val log = streams.value.log
-  IO.writeLines(target,
-    IO.readLines(source).map {
-      line => line.replace("{{opt}}", suffix)
-    }
-  )
-
-  log.info(s"Generate $index with suffix $suffix")
-  target
-}
-
-Seq(
-  (fastOptJS in Compile, "index-dev.html", "fastOpt"),
-  (fullOptJS in Compile, "index.html", "opt")
-).map {
-  case (task, indexHtml, postfix) =>
-    task := task.dependsOn(generateIndexTask(indexHtml, postfix)).value
-}
-
-def shortestRelName(dirs: Seq[File], file: File) = {
-  val parent = dirs maxBy { dir =>
-    if (file.toPath.startsWith(dir.toPath)) {
-      dir.length
-    } else 0
-  }
-  val r = parent.toPath.relativize(file.toPath).toString
+def rel(parent: File, file: File) = {
+  val r = (file relativeTo parent).map(_.toString).getOrElse(file.name)
   r.replaceAllLiterally("\\", "/") // avoid backslashes in the relative paths
 }
 
-def dirRoots(dirs: Seq[File]): Seq[File] = {
-  val paths = dirs.map(_.toPath)
-  import java.nio.file.Path
-  // list of directories contains all subdirectories as well
-  // we want to get the list of the root directories only (typically this is one directory only)
-  def isRoot(path: Path) = !paths.exists(p => p != path && (path startsWith p))
+unmanagedResourceDirectories := Seq()
 
-  paths.filter(isRoot).map(_.toFile)
-}
+resourceDirectory in Test := (sourceDirectory in Test).value / "pretend-no-resources"
 
 sourceGenerators in Test += Def.task {
-  val sourceDirs = dirRoots((unmanagedResources in Test).value filter ( _.isDirectory ))
-  val sources = (unmanagedResources in Test).value filter ( _.isFile )
+  val log = streams.value.log
+  val sourceDir = (sourceDirectory in Test).value / "resources"
+  val sources = PathFinder(sourceDir).*** filter ( _.isFile )
   val dir = (sourceManaged in Test).value
-  sources map { src =>
-    val symName = shortestRelName(sourceDirs, src)
+  sources.get map { src =>
+    val symName = rel(sourceDir, src)
     val f = dir / (symName + ".scala")
     IO.write(f, "object `" + symName + "` {\nval str =\"\"\"" + IO.read(src) + "\"\"\"}\n")
     f
