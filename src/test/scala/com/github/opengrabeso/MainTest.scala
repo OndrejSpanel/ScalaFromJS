@@ -4,6 +4,7 @@ import Uglify._
 import UglifyExt._
 import org.scalatest.FunSuite
 import Resources.{getResource => rsc}
+import JsonToString._
 
 class MainTest extends FunSuite {
 
@@ -50,8 +51,7 @@ class MainTest extends FunSuite {
   def conversionTest(code: String, res: String) = {
     val ast = parse(code, defaultUglifyOptions.parse)
     val astOptimized = ast.optimize()
-    val result = ScalaOut.output(astOptimized)
-    //println(result)
+    val result = ScalaOut.output(astOptimized, code)
     assert(result == res)
   }
 
