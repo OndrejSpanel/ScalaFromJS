@@ -7,9 +7,9 @@ import scala.scalajs.js.annotation.{JSImport, ScalaJSDefined}
 @JSImport("uglify-js", JSImport.Namespace)
 @js.native
 object Uglify extends js.Object {
+
   // http://lisperator.net/uglifyjs/ast
-  @js.native
-  class AST_Token extends js.Object {
+  @js.native class AST_Token extends js.Object {
     val col: Int = js.native
     val line: Int = js.native
     val endcol: Int = js.native
@@ -27,78 +27,79 @@ object Uglify extends js.Object {
     val value: js.Any = js.native
   }
 
-  @js.native
-  sealed class AST_Node extends js.Object {
+  @js.native sealed class AST_Node extends js.Object {
     val start: AST_Token = js.native
     val end: AST_Token = js.native
   }
 
-  @js.native
-  sealed abstract class AST_Statement extends AST_Node
+  @js.native sealed abstract class AST_Statement extends AST_Node
 
-  @js.native
-  class AST_SimpleStatement extends AST_Statement {
+  @js.native class AST_SimpleStatement extends AST_Statement {
     val body: AST_Node = js.native // [AST_Node] an expression node (should not be instanceof AST_Statement)
   }
 
-  @js.native
-  class AST_Block extends AST_Statement {
+  @js.native class AST_Block extends AST_Statement {
     val body: js.Array[AST_Statement] = js.native
 
   }
 
-  @js.native
-  class AST_Binary extends AST_Node {
-    val left: AST_Node = js.native // [AST_Node] left-hand side expression
-    val operator: String = js.native // [string] the operator
+  @js.native class AST_Binary extends AST_Node {
+    val left: AST_Node = js.native
+    // [AST_Node] left-hand side expression
+    val operator: String = js.native
+    // [string] the operator
     val right: AST_Node = js.native // [AST_Node] right-hand side expression
   }
 
-  @js.native
-  class AST_Symbol extends AST_Node {
-    val name: String = js.native // "[string] name of this symbol",
-    val scope: js.UndefOr[AST_Scope] = js.native // "[AST_Scope/S] the current scope (not necessarily the definition scope)",
+  @js.native class AST_Symbol extends AST_Node {
+    val name: String = js.native
+    // "[string] name of this symbol",
+    val scope: js.UndefOr[AST_Scope] = js.native
+    // "[AST_Scope/S] the current scope (not necessarily the definition scope)",
     val thedef: js.UndefOr[js.Any] = js.native // "[SymbolDef/S] the definition of this symbol"
 
   }
 
-  @js.native
-  class AST_SymbolRef extends AST_Symbol
+  @js.native class AST_SymbolRef extends AST_Symbol
 
-  @js.native
-  class AST_Assign extends AST_Binary {
+  @js.native class AST_Assign extends AST_Binary {
     override val left: AST_SymbolRef = js.native
     override val right: AST_Node = js.native // TODO: more restrictive type should be possible
   }
 
-  @js.native
-  class AST_BlockStatement extends AST_Block
+  @js.native class AST_BlockStatement extends AST_Block
 
-  @js.native
-  class AST_EmptyStatement extends AST_Statement
+  @js.native class AST_EmptyStatement extends AST_Statement
 
-  @js.native
-  class AST_StatementWithBody extends AST_Statement {
+  @js.native class AST_StatementWithBody extends AST_Statement {
     val body: AST_Statement = js.native
   }
 
-  @js.native
-  class AST_Scope extends AST_Block {
-    val directives: js.UndefOr[js.Array[String]] = js.native // [string*/S] an array of directives declared in this scope
-    val variables: js.Dynamic = js.native // [Object/S] a map of name -> SymbolDef for all variables/functions defined in this scope
-    val functions: js.Dynamic = js.native // [Object/S] like `variables`, but only lists function declarations
-    val uses_with: js.UndefOr[Boolean] = js.native // [boolean/S] tells whether this scope uses the `with` statement
-    val uses_eval: js.UndefOr[Boolean] = js.native // [boolean/S] tells whether this scope contains a direct call to the global `eval`
-    val parent_scope: js.UndefOr[AST_Scope] = js.native // [AST_Scope?/S] link to the parent scope
-    val enclosed: js.Dynamic  = js.native // [SymbolDef*/S] a list of all symbol definitions that are accessed from this scope or any subscopes
-    val cname: js.UndefOr[Int]  = js.native // "[integer/S] current index for mangling variables (used internally by the mangler)
+  @js.native class AST_Scope extends AST_Block {
+    val directives: js.UndefOr[js.Array[String]] = js.native
+    // [string*/S] an array of directives declared in this scope
+    val variables: js.Dynamic = js.native
+    // [Object/S] a map of name -> SymbolDef for all variables/functions defined in this scope
+    val functions: js.Dynamic = js.native
+    // [Object/S] like `variables`, but only lists function declarations
+    val uses_with: js.UndefOr[Boolean] = js.native
+    // [boolean/S] tells whether this scope uses the `with` statement
+    val uses_eval: js.UndefOr[Boolean] = js.native
+    // [boolean/S] tells whether this scope contains a direct call to the global `eval`
+    val parent_scope: js.UndefOr[AST_Scope] = js.native
+    // [AST_Scope?/S] link to the parent scope
+    val enclosed: js.Dynamic = js.native
+    // [SymbolDef*/S] a list of all symbol definitions that are accessed from this scope or any subscopes
+    val cname: js.UndefOr[Int] = js.native // "[integer/S] current index for mangling variables (used internally by the mangler)
   }
 
-  @js.native
-  class AST_Toplevel extends AST_Scope {
+  @js.native class AST_Toplevel extends AST_Scope {
     def figure_out_scope(): Unit = js.native
+
     def transform(c: Compressor): AST_Toplevel = js.native
+
     def compute_char_frequency(): Unit = js.native
+
     def mangle_names(): Unit = js.native
 
     def print_to_string(config: UglifyExt.Options.Output): String = js.native
@@ -114,6 +115,7 @@ object Uglify extends js.Object {
 }
 
 object UglifyExt {
+
   import Uglify._
 
   @ScalaJSDefined
@@ -126,10 +128,14 @@ object UglifyExt {
     @ScalaJSDefined
     class Compress extends js.Object {
       // https://github.com/mishoo/UglifyJS2#compressor-options
-      var sequences: Boolean = true //  join consecutive simple statements using the comma operator
-      var properties: Boolean = true //  rewrite property access using the dot notation
-      var dead_code: Boolean = true //  remove unreachable code
-      var drop_debugger: Boolean = true // remove debugger; statements
+      var sequences: Boolean = true
+      //  join consecutive simple statements using the comma operator
+      var properties: Boolean = true
+      //  rewrite property access using the dot notation
+      var dead_code: Boolean = true
+      //  remove unreachable code
+      var drop_debugger: Boolean = true
+      // remove debugger; statements
       var unsafe: Boolean = true
       var unsafe_comps: Boolean = true
       var conditionals: Boolean = true
@@ -173,6 +179,7 @@ object UglifyExt {
 
   @ScalaJSDefined
   class Options extends js.Object {
+
     import Options._
 
     val parse: Parse = new Parse
@@ -230,7 +237,6 @@ object UglifyExt {
 
     outCode
   }
-
 
 
 }
