@@ -18,15 +18,17 @@ object ScalaOut {
     val statements = for (s <- ast.body) yield {
       s match {
         case s: AST_SimpleStatement =>
-          output(s.body, input)
+          "<ss>" + output(s.body, input)
         case s: AST_Block =>
-          "{\n" + output(s, input) + "}\n" // TODO: autoindent
+          "<block>{\n" + output(s, input) + "}\n" // TODO: autoindent
         case s: AST_EmptyStatement =>
-          ""
+          "<empty>"
         case s: AST_StatementWithBody =>
-          output(s.body, input)
+          "<sb>" + output(s.body, input)
         case _ =>
-          output(s, input)
+          val source = input.slice(ast.start.pos, ast.end.endpos)
+          "<" + nodeClassName(ast)+ ":" + source + ">"
+          //output(s, input)
       }
     }
     statements.mkString("\n")
