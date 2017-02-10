@@ -4,6 +4,7 @@ import Uglify._
 import UglifyExt._
 import utest._
 import TestUtils._
+import com.github.opengrabeso.Resources._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -49,11 +50,9 @@ object MainTest extends TestSuite {
 
     "Test files" - {
       "Parse a file" - {
-        _root_.`answer42.js`
-        textResource("answer42.js").map { code =>
-          val mCode = parse(code, defaultUglifyOptions.parse)
-          assert(mCode.body.nonEmpty)
-        }
+        val code = getResource("answer42.js")
+        val mCode = parse(code, defaultUglifyOptions.parse)
+        assert(mCode.body.nonEmpty)
       }
 
       "Convert a file" - {
