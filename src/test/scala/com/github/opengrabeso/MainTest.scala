@@ -3,11 +3,7 @@ package com.github.opengrabeso
 import Uglify._
 import UglifyExt._
 import utest._
-import TestUtils._
-import com.github.opengrabeso.Resources._
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import Resources.{getResource=>rsc}
 
 object MainTest extends TestSuite {
 
@@ -50,42 +46,28 @@ object MainTest extends TestSuite {
 
     "Test files" - {
       "Parse a file" - {
-        val code = getResource("answer42.js")
+        val code = rsc("answer42.js")
         val mCode = parse(code, defaultUglifyOptions.parse)
         assert(mCode.body.nonEmpty)
       }
-
       "Convert a file" - {
-        def fileTestData(source: String, result: String) = {
-          val data = Future.sequence(Seq(textResource(source), textResource(result)))
-          data.map { case sData +: rData +: Seq() =>
-            (sData, rData)
-          }
-        }
-
-        def conversionTest(sourceFile: String, resultFile: String): Future[Unit] = {
-          val testData = fileTestData(sourceFile, resultFile)
-          testData.map { case (code, res) =>
-            val ast = parse(code, defaultUglifyOptions.parse)
-            val astOptimized = ast.optimize()
-            val result = ScalaOut.output(astOptimized)
-            println(result)
-            assert(result == res)
-          }
-
-
+        def conversionTest(code: String, res: String) = {
+          val ast = parse(code, defaultUglifyOptions.parse)
+          val astOptimized = ast.optimize()
+          val result = ScalaOut.output(astOptimized)
+          assert(result == res)
         }
 
         "Simple functions" - {
-          conversionTest("simpleFunction/simpleFunctions.js", "simpleFunction/simpleFunctions.scala")
+          conversionTest(rsc("simpleFunction/simpleFunctions.js"), rsc("simpleFunction/simpleFunctions.scala"))
         }
 
         "Function parameters and calls" - {
-          conversionTest("simpleFunction/callFunction.js", "simpleFunction/callFunction.scala")
+          conversionTest(rsc("simpleFunction/callFunction.js"), rsc("simpleFunction/callFunction.scala"))
         }
 
         "Simple class" - {
-          conversionTest("simpleClass/simpleClass.js", "simpleClass/simpleClass.scala")
+          conversionTest(rsc("simpleClass/simpleClass.js"), rsc("simpleClass/simpleClass.scala"))
         }
       }
 
