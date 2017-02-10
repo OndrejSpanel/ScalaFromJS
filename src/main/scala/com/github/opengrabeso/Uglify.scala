@@ -34,63 +34,37 @@ object Uglify extends js.Object {
 
   @js.native sealed abstract class AST_Statement extends AST_Node
 
+  @js.native class AST_Debugger extends AST_Statement
+
+  @js.native class AST_Directive extends AST_Statement
+
   @js.native class AST_SimpleStatement extends AST_Statement {
     val body: AST_Node = js.native // [AST_Node] an expression node (should not be instanceof AST_Statement)
   }
 
   @js.native class AST_Block extends AST_Statement {
     val body: js.Array[AST_Statement] = js.native
-
-  }
-
-  @js.native class AST_Binary extends AST_Node {
-    val left: AST_Node = js.native
-    // [AST_Node] left-hand side expression
-    val operator: String = js.native
-    // [string] the operator
-    val right: AST_Node = js.native // [AST_Node] right-hand side expression
-  }
-
-  @js.native class AST_Symbol extends AST_Node {
-    val name: String = js.native
-    // "[string] name of this symbol",
-    val scope: js.UndefOr[AST_Scope] = js.native
-    // "[AST_Scope/S] the current scope (not necessarily the definition scope)",
-    val thedef: js.UndefOr[js.Any] = js.native // "[SymbolDef/S] the definition of this symbol"
-
-  }
-
-  @js.native class AST_SymbolRef extends AST_Symbol
-
-  @js.native class AST_Assign extends AST_Binary {
-    override val left: AST_SymbolRef = js.native
-    override val right: AST_Node = js.native // TODO: more restrictive type should be possible
   }
 
   @js.native class AST_BlockStatement extends AST_Block
 
-  @js.native class AST_EmptyStatement extends AST_Statement
-
-  @js.native class AST_StatementWithBody extends AST_Statement {
-    val body: AST_Statement = js.native
-  }
-
   @js.native class AST_Scope extends AST_Block {
-    val directives: js.UndefOr[js.Array[String]] = js.native
     // [string*/S] an array of directives declared in this scope
-    val variables: js.Dynamic = js.native
+    val directives: js.UndefOr[js.Array[String]] = js.native
     // [Object/S] a map of name -> SymbolDef for all variables/functions defined in this scope
-    val functions: js.Dynamic = js.native
+    val variables: js.Dynamic = js.native
     // [Object/S] like `variables`, but only lists function declarations
-    val uses_with: js.UndefOr[Boolean] = js.native
+    val functions: js.Dynamic = js.native
     // [boolean/S] tells whether this scope uses the `with` statement
-    val uses_eval: js.UndefOr[Boolean] = js.native
+    val uses_with: js.UndefOr[Boolean] = js.native
     // [boolean/S] tells whether this scope contains a direct call to the global `eval`
-    val parent_scope: js.UndefOr[AST_Scope] = js.native
+    val uses_eval: js.UndefOr[Boolean] = js.native
     // [AST_Scope?/S] link to the parent scope
-    val enclosed: js.Dynamic = js.native
+    val parent_scope: js.UndefOr[AST_Scope] = js.native
     // [SymbolDef*/S] a list of all symbol definitions that are accessed from this scope or any subscopes
-    val cname: js.UndefOr[Int] = js.native // "[integer/S] current index for mangling variables (used internally by the mangler)
+    val enclosed: js.Dynamic = js.native
+    // [integer/S] current index for mangling variables (used internally by the mangler)
+    val cname: js.UndefOr[Int] = js.native
   }
 
   @js.native class AST_Toplevel extends AST_Scope {
@@ -105,6 +79,285 @@ object Uglify extends js.Object {
     def print_to_string(config: UglifyExt.Options.Output): String = js.native
   }
 
+  @js.native class AST_Lambda extends AST_Scope {
+    val name: js.UndefOr[AST_SymbolDeclaration] = js.native
+    //[AST_SymbolDeclaration?] the name of this function
+    val argnames: js.Array[AST_SymbolFunarg] = js.native
+    // [AST_SymbolFunarg*] array of function arguments
+    val uses_arguments: js.UndefOr[Boolean] = js.native // "[boolean/S] tells whether this function accesses the arguments array"
+  }
+
+  @js.native class AST_Accessor extends AST_Lambda
+
+  @js.native class AST_Function extends AST_Lambda
+
+  @js.native class AST_Defun extends AST_Lambda
+
+  @js.native class AST_Switch extends AST_Scope {
+    val expression: AST_Node = js.native // [AST_Node] the `switch` “discriminant
+  }
+
+  @js.native abstract class AST_SwitchBranch extends AST_Scope
+
+  @js.native class AST_Default extends AST_SwitchBranch
+
+  @js.native class AST_Case extends AST_SwitchBranch {
+    // [AST_Node] the `case` expression
+    val expression: AST_Node = js.native
+  }
+
+  @js.native class AST_Try extends AST_Scope {
+    // [AST_Catch?] the catch block, or null if not present
+    val bcatch: js.UndefOr[AST_Catch] = js.native
+    // [AST_Finally?] the finally block, or null if not present
+    val bfinally: js.UndefOr[AST_Finally] = js.native
+  }
+
+  @js.native class AST_Catch extends AST_Scope {
+    // [AST_SymbolCatch] symbol for the exception
+    val argname: AST_SymbolCatch = js.native
+  }
+
+  @js.native class AST_Finally extends AST_Scope
+
+  @js.native class AST_EmptyStatement extends AST_Statement
+
+  @js.native class AST_StatementWithBody extends AST_Statement {
+    val body: AST_Statement = js.native
+  }
+
+  @js.native class AST_LabeledStatement extends AST_StatementWithBody {
+    // [AST_Label] a label definition
+    val label: AST_Label = js.native
+  }
+
+  @js.native class AST_IterationStatement extends AST_StatementWithBody
+
+  @js.native class AST_DWLoop extends AST_IterationStatement {
+    // [AST_Node] the loop condition.  Should not be instanceof AST_Statement
+    val condition: AST_Node = js.native
+  }
+
+  @js.native class AST_Do extends AST_DWLoop
+  @js.native class AST_While extends AST_DWLoop
+
+  @js.native class AST_For extends AST_IterationStatement {
+    // [AST_Node?] the `for` initialization code, or null if empty
+    var init: js.UndefOr[AST_Node] = js.native
+    // [AST_Node?] the `for` termination clause, or null if empty
+    var condition: js.UndefOr[AST_Node] = js.native
+    // [AST_Node?] the `for` update clause, or null if empty
+    var step: js.UndefOr[AST_Node] = js.native
+  }
+
+  @js.native class AST_ForIn extends AST_IterationStatement {
+    // [AST_Node] the `for/in` initialization code
+    var init: AST_Node = js.native
+    // [AST_SymbolRef?] the loop variable, only if `init` is AST_Var
+    var name: js.UndefOr[AST_SymbolRef] = js.native
+    // [AST_Node] the object that we're looping through
+    var `object`: AST_Node = js.native
+  }
+
+  @js.native class AST_With extends AST_StatementWithBody {
+    // [AST_Node] the `with` expression
+    val expression: AST_Node  = js.native
+
+  }
+
+  @js.native class AST_If extends AST_StatementWithBody {
+    // [AST_Node] the `if` condition
+    val expression: AST_Node  = js.native
+    // [AST_Statement?] the `else` part, or null if not present
+    val alternative: js.UndefOr[AST_Statement]  = js.native
+  }
+
+  @js.native abstract class AST_Jump extends AST_Statement
+
+  @js.native abstract class AST_Exit extends AST_Jump {
+    // [AST_Node?] the value returned or thrown by this statement; could be null for AST_Return
+    val value: js.UndefOr[AST_Node]  = js.native
+  }
+
+  @js.native class AST_Return extends AST_Statement
+  @js.native class AST_Throw extends AST_Statement
+
+  @js.native abstract class AST_LoopControl extends AST_Jump {
+    // [AST_LabelRef?] the label, or null if none
+    val label: js.UndefOr[AST_LabelRef] = js.native
+
+  }
+  @js.native class AST_Break extends AST_LoopControl
+  @js.native class AST_Continue extends AST_LoopControl
+
+  @js.native abstract class AST_Definitions extends AST_Statement {
+    // [AST_VarDef*] array of variable definitions
+    val definitions: js.Array[AST_VarDef] = js.native
+  }
+
+  @js.native class AST_Var extends AST_Definitions
+  @js.native class AST_Const extends AST_Definitions
+
+  @js.native class AST_VarDef extends AST_Node {
+    // [AST_SymbolVar|AST_SymbolConst] name of the variable
+    val name: AST_SymbolVarOrConst = js.native
+    // "[AST_Node?] initializer, or null of there's no initializer"
+    val value: js.UndefOr[AST_Node] = js.native
+  }
+
+  @js.native class AST_Call extends AST_Node {
+    //[AST_Node] expression to invoke as function
+    val expression: AST_Node = js.native
+    //[AST_Node*] array of arguments
+    val args: js.Array[AST_Node] = js.native
+  }
+
+  @js.native class AST_New extends AST_Call
+
+  @js.native class AST_Seq extends AST_Node {
+    // [AST_Node] first element in sequence
+    val car: AST_Node = js.native
+    // [AST_Node] second element in sequence
+    val cdr: AST_Node = js.native
+  }
+
+  @js.native abstract class AST_PropAccess extends AST_Node {
+    // [AST_Node] the “container” expression
+    val expression: AST_Node = js.native
+    // [AST_Node|string] the property to access.  For AST_Dot this is always a plain string, while for AST_Sub it's an arbitrary AST_Node
+    def property: Any = js.native
+  }
+
+  @js.native class AST_Dot extends AST_PropAccess {
+    override def property: String = js.native
+  }
+  @js.native class AST_Sub extends AST_PropAccess {
+    override val property: AST_Node = js.native
+  }
+
+  @js.native abstract class AST_Unary extends AST_Node {
+    // [string] the operator
+    val operator: String = js.native
+    // [AST_Node] expression that this unary operator applies to
+    val expression: AST_Node = js.native
+  }
+
+  @js.native class AST_UnaryPrefix extends AST_Unary
+  @js.native class AST_UnaryPostfix extends AST_Unary
+
+  @js.native class AST_Binary extends AST_Node {
+    // [AST_Node] left-hand side expression
+    val left: AST_Node = js.native
+    // [string] the operator
+    val operator: String = js.native
+    // [AST_Node] right-hand side expression
+    val right: AST_Node = js.native
+  }
+
+  @js.native class AST_Assign extends AST_Binary
+
+  @js.native class AST_Conditional extends AST_Node {
+    // [AST_Node]
+    val condition: AST_Node = js.native
+    // [AST_Node]
+    val consequent: AST_Node = js.native
+    // [AST_Node]
+    val alternative: AST_Node = js.native
+  }
+
+  @js.native class AST_Array extends AST_Node {
+    // [AST_Node*] array of elements
+    val elements: js.Array[AST_Node] = js.native
+  }
+
+  @js.native class AST_Object extends AST_Node {
+    // [AST_ObjectProperty*] array of properties
+    val properties: js.Array[AST_ObjectProperty] = js.native
+  }
+
+  @js.native abstract class AST_ObjectProperty extends AST_Node {
+    // [string] the property name converted to a string for ObjectKeyVal.  For setters and getters this is an arbitrary AST_Node.
+    def key: Any = js.native
+    // [AST_Node] property value.  For setters and getters this is an AST_Function.
+    val value: AST_Node = js.native
+  }
+
+  @js.native class AST_ObjectKeyVal extends AST_ObjectProperty {
+    // [string] the original quote character
+    val quote: String =  js.native
+  }
+
+  @js.native class AST_ObjectSetterOrGetter extends AST_ObjectProperty {
+    // [string] the property name converted to a string for ObjectKeyVal.  For setters and getters this is an arbitrary AST_Node.
+    override def key: AST_Node = js.native
+    // [AST_Node] property value.  For setters and getters this is an AST_Function.
+    override val value: AST_Function = js.native
+  }
+  @js.native class AST_ObjectSetter extends AST_ObjectSetterOrGetter
+  @js.native class AST_ObjectGetter extends AST_ObjectSetterOrGetter
+
+  @js.native class AST_Symbol extends AST_Node {
+    // [string] name of this symbol
+    val name: String = js.native
+    // [AST_Scope/S] the current scope (not necessarily the definition scope)
+    val scope: js.UndefOr[AST_Scope] = js.native
+    // [SymbolDef/S] the definition of this symbol
+    val thedef: js.UndefOr[js.Any] = js.native
+  }
+
+  @js.native class AST_SymbolAccessor extends AST_Symbol
+  @js.native class AST_SymbolDeclaration extends AST_Symbol {
+    // [AST_Node*/S] array of initializers for this declaration.
+    val init: js.UndefOr[js.Array[AST_Node]] = js.native
+  }
+
+  @js.native class AST_SymbolVarOrConst extends AST_SymbolDeclaration
+  @js.native class AST_SymbolVar extends AST_SymbolVarOrConst
+  @js.native class AST_SymbolFunarg extends AST_SymbolVar
+  @js.native class AST_SymbolConst extends AST_SymbolVarOrConst
+
+  @js.native class AST_SymbolDefun extends AST_SymbolDeclaration
+  @js.native class AST_SymbolLambda extends AST_SymbolDeclaration
+  @js.native class AST_SymbolCatch extends AST_SymbolDeclaration
+
+  @js.native class AST_Label extends AST_Symbol {
+    // [AST_LoopControl*] a list of nodes referring to this label
+    val references: js.Array[AST_LoopControl] = js.native
+  }
+
+  @js.native class AST_SymbolRef extends AST_Symbol
+  @js.native class AST_LabelRef extends AST_Symbol
+  @js.native class AST_This extends AST_Symbol
+
+  @js.native abstract class AST_Constant extends AST_Symbol
+
+  @js.native class AST_String extends AST_Constant {
+    // [string] the contents of this string
+    val value: String = js.native
+    // [string] the original quote character
+    val quote: String  = js.native
+  }
+  @js.native class AST_Number extends AST_Constant {
+    // [number] the numeric value
+    val value: Double = js.native
+    // [string] numeric value as string (optional)
+    val literal: js.UndefOr[String] = js.native
+  }
+
+  @js.native class AST_RegExp extends AST_Constant {
+    // [RegExp] the actual regexp
+    val value: RegExp  = js.native
+  }
+
+  @js.native abstract class AST_Atom extends AST_Constant
+  @js.native class AST_Null extends AST_Atom
+  @js.native class AST_NaN extends AST_Atom
+  @js.native class AST_Undefined extends AST_Atom
+  @js.native class AST_Hole extends AST_Atom
+  @js.native class AST_Infinity extends AST_Atom
+  @js.native abstract class AST_Boolean extends AST_Atom
+  @js.native class AST_False extends AST_Boolean
+  @js.native class AST_True extends AST_Boolean
 
   @js.native
   class Compressor(options: UglifyExt.Options.Compress) extends js.Object

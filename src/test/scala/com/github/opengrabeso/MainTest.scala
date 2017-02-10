@@ -32,7 +32,7 @@ class MainTest extends FunSuite {
         (s.body: @unchecked) match {
           case a: AST_Assign =>
             assert(a.left.start.`type` == "name")
-            assert(a.left.name == "answer")
+            assert(a.left.asInstanceOf[AST_SymbolRef].name == "answer")
             assert(a.operator == "=")
             assert(a.right.start.`type` == "num")
             assert(a.right.start.value == 42.any)
