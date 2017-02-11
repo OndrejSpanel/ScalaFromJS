@@ -71,8 +71,11 @@ object ScalaOut {
         }
       case tn: AST_Array => out("AST_Array")
       case tn: AST_Conditional => out("AST_Conditional")
-      case tn: AST_Assign => out("AST_Assign")
-      case tn: AST_Binary => out("AST_Binary")
+      //case tn: AST_Assign => out("AST_Assign")
+      case tn: AST_Binary =>
+        output(tn.left, input, out)
+        out(" " + tn.operator + " ")
+        output(tn.right, input, out)
       case tn: AST_UnaryPostfix => out("AST_UnaryPostfix")
       case tn: AST_UnaryPrefix => out("AST_UnaryPrefix")
       case tn: AST_Unary => out("AST_Unary")
@@ -96,8 +99,20 @@ object ScalaOut {
       case tn: AST_Continue => out("AST_Continue")
       case tn: AST_Break => out("AST_Break")
       case tn: AST_LoopControl => out("AST_LoopControl")
-      case tn: AST_Throw => out("AST_Throw")
-      case tn: AST_Return => out("AST_Return")
+      case tn: AST_Throw =>
+        out("throw")
+        tn.value.foreach { v =>
+          out(" ")
+          output(v, input, out)
+          out("\n")
+        }
+      case tn: AST_Return =>
+        out("return")
+        tn.value.foreach { v =>
+          out(" ") // TODO: remove return in trivial cases
+          output(v, input, out)
+          out("\n")
+        }
       case tn: AST_Exit => out("AST_Exit")
       case tn: AST_Jump => out("AST_Jump")
       case tn: AST_If => out("AST_If")
@@ -127,8 +142,10 @@ object ScalaOut {
           // TODO: parameter types
           out(": Any")
         }
-        out("): Any = \n")
+        out(") = ") // TODO: single statement without braces
+        out("{\n") // TODO: autoindent
         outputBlock(tn.body, input, out)
+        out("}\n")
       case tn: AST_Function => out("AST_Function")
       case tn: AST_Accessor => out("AST_Accessor")
       case tn: AST_Lambda => out("AST_Lambda")
@@ -145,7 +162,6 @@ object ScalaOut {
   private def outputBlock(body: js.Array[AST_Statement], input: String, out: String => Unit): Unit = {
     for (s <- body) {
       output(s, input, out)
-      out("\n")
     }
   }
 

@@ -179,8 +179,8 @@ object Uglify extends js.Object {
     val value: js.UndefOr[AST_Node]  = js.native
   }
 
-  @js.native class AST_Return extends AST_Statement
-  @js.native class AST_Throw extends AST_Statement
+  @js.native class AST_Return extends AST_Exit
+  @js.native class AST_Throw extends AST_Exit
 
   @js.native sealed abstract class AST_LoopControl extends AST_Jump {
     // [AST_LabelRef?] the label, or null if none
