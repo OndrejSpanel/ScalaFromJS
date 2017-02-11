@@ -362,7 +362,7 @@ object Uglify extends js.Object {
   @js.native
   class Compressor(options: UglifyExt.Options.Compress) extends js.Object
 
-  def parse(code: String, options: js.Any): AST_Toplevel = js.native
+  def parse(code: String, options: UglifyExt.Options.Parse): AST_Toplevel = js.native
 
 
 }
@@ -371,12 +371,13 @@ object UglifyExt {
 
   import Uglify._
 
-  @ScalaJSDefined
-  class Parse extends js.Object {
-    var strict: Boolean = false
-  }
 
   object Options {
+
+    @ScalaJSDefined
+    class Parse extends js.Object {
+      var strict: Boolean = false
+    }
 
     @ScalaJSDefined
     class Compress extends js.Object {
@@ -478,7 +479,7 @@ object UglifyExt {
 
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {
 
-    val toplevel_ast = parse(code, options)
+    val toplevel_ast = parse(code, options.parse)
 
     val compressed_ast = toplevel_ast.optimize(options.compress)
 

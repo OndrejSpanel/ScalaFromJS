@@ -50,7 +50,7 @@ class MainTest extends FunSuite {
 
   def conversionTest(code: String, res: String) = {
     val ast = parse(code, defaultUglifyOptions.parse)
-    val astOptimized = ast.optimize()
+    val astOptimized = ast.optimize(defaultOptimizeOptions)
     val result = ScalaOut.output(astOptimized, code)
     assert(result == res)
   }
