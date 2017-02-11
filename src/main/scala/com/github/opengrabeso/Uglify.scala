@@ -97,7 +97,7 @@ object Uglify extends js.Object {
     val expression: AST_Node = js.native // [AST_Node] the `switch` “discriminant
   }
 
-  @js.native abstract class AST_SwitchBranch extends AST_Scope
+  @js.native sealed abstract class AST_SwitchBranch extends AST_Scope
 
   @js.native class AST_Default extends AST_SwitchBranch
 
@@ -172,9 +172,9 @@ object Uglify extends js.Object {
     val alternative: js.UndefOr[AST_Statement]  = js.native
   }
 
-  @js.native abstract class AST_Jump extends AST_Statement
+  @js.native sealed abstract class AST_Jump extends AST_Statement
 
-  @js.native abstract class AST_Exit extends AST_Jump {
+  @js.native sealed abstract class AST_Exit extends AST_Jump {
     // [AST_Node?] the value returned or thrown by this statement; could be null for AST_Return
     val value: js.UndefOr[AST_Node]  = js.native
   }
@@ -182,7 +182,7 @@ object Uglify extends js.Object {
   @js.native class AST_Return extends AST_Statement
   @js.native class AST_Throw extends AST_Statement
 
-  @js.native abstract class AST_LoopControl extends AST_Jump {
+  @js.native sealed abstract class AST_LoopControl extends AST_Jump {
     // [AST_LabelRef?] the label, or null if none
     val label: js.UndefOr[AST_LabelRef] = js.native
 
@@ -190,7 +190,7 @@ object Uglify extends js.Object {
   @js.native class AST_Break extends AST_LoopControl
   @js.native class AST_Continue extends AST_LoopControl
 
-  @js.native abstract class AST_Definitions extends AST_Statement {
+  @js.native sealed abstract class AST_Definitions extends AST_Statement {
     // [AST_VarDef*] array of variable definitions
     val definitions: js.Array[AST_VarDef] = js.native
   }
@@ -221,7 +221,7 @@ object Uglify extends js.Object {
     val cdr: AST_Node = js.native
   }
 
-  @js.native abstract class AST_PropAccess extends AST_Node {
+  @js.native sealed abstract class AST_PropAccess extends AST_Node {
     // [AST_Node] the “container” expression
     val expression: AST_Node = js.native
     // [AST_Node|string] the property to access.  For AST_Dot this is always a plain string, while for AST_Sub it's an arbitrary AST_Node
@@ -235,7 +235,7 @@ object Uglify extends js.Object {
     override val property: AST_Node = js.native
   }
 
-  @js.native abstract class AST_Unary extends AST_Node {
+  @js.native sealed abstract class AST_Unary extends AST_Node {
     // [string] the operator
     val operator: String = js.native
     // [AST_Node] expression that this unary operator applies to
@@ -275,7 +275,7 @@ object Uglify extends js.Object {
     val properties: js.Array[AST_ObjectProperty] = js.native
   }
 
-  @js.native abstract class AST_ObjectProperty extends AST_Node {
+  @js.native sealed abstract class AST_ObjectProperty extends AST_Node {
     // [string] the property name converted to a string for ObjectKeyVal.  For setters and getters this is an arbitrary AST_Node.
     def key: Any = js.native
     // [AST_Node] property value.  For setters and getters this is an AST_Function.
@@ -296,7 +296,7 @@ object Uglify extends js.Object {
   @js.native class AST_ObjectSetter extends AST_ObjectSetterOrGetter
   @js.native class AST_ObjectGetter extends AST_ObjectSetterOrGetter
 
-  @js.native class AST_Symbol extends AST_Node {
+  @js.native sealed class AST_Symbol extends AST_Node {
     // [string] name of this symbol
     val name: String = js.native
     // [AST_Scope/S] the current scope (not necessarily the definition scope)
@@ -329,7 +329,7 @@ object Uglify extends js.Object {
   @js.native class AST_LabelRef extends AST_Symbol
   @js.native class AST_This extends AST_Symbol
 
-  @js.native abstract class AST_Constant extends AST_Symbol
+  @js.native sealed abstract class AST_Constant extends AST_Symbol
 
   @js.native class AST_String extends AST_Constant {
     // [string] the contents of this string
@@ -349,7 +349,7 @@ object Uglify extends js.Object {
     val value: RegExp  = js.native
   }
 
-  @js.native abstract class AST_Atom extends AST_Constant
+  @js.native sealed abstract class AST_Atom extends AST_Constant
   @js.native class AST_Null extends AST_Atom
   @js.native class AST_NaN extends AST_Atom
   @js.native class AST_Undefined extends AST_Atom
