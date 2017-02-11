@@ -59,11 +59,11 @@ class MainTest extends FunSuite {
     conversionTest(rsc("simpleFunction/simpleFunctions.js"), rsc("simpleFunction/simpleFunctions.scala"))
   }
 
-  ignore("Function parameters and calls") {
+  test("Function parameters and calls") {
     conversionTest(rsc("simpleFunction/callFunction.js"), rsc("simpleFunction/callFunction.scala"))
   }
 
-  ignore("Simple class") {
+  test("Simple class") {
     conversionTest(rsc("simpleClass/simpleClass.js"), rsc("simpleClass/simpleClass.scala"))
   }
 }

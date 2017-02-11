@@ -5,6 +5,10 @@ import com.github.opengrabeso.Uglify._
 import scala.scalajs.js
 
 object ScalaOut {
+  implicit class NonNull[T](val undef: js.UndefOr[T])(implicit ev: Null <:< T) {
+    def nonNull: Option[T] = Option[T](undef.orNull)
+  }
+
   private def nodeClassName(n: AST_Node): String = {
     val nd = n.asInstanceOf[js.Dynamic]
     val s = nd.constructor.name.asInstanceOf[String]
@@ -30,6 +34,23 @@ object ScalaOut {
         output(v, input, out)
         out("\n")
       }
+    }
+
+    def outputArgNames(tn: AST_Lambda) = {
+      out("(")
+      out(
+        tn.argnames.map { arg =>
+          nodeToString(arg, input) + ": Any"
+        }.mkString(", ")
+      )
+      out(")")
+    }
+
+    def outputCall(tn: AST_Call) = {
+      output(tn.expression, input, out)
+      out("(")
+      out(tn.args.map(a => nodeToString(a, input)).mkString(", "))
+      out(")")
     }
 
     n match {
@@ -79,15 +100,25 @@ object ScalaOut {
       case tn: AST_UnaryPostfix => out("AST_UnaryPostfix")
       case tn: AST_UnaryPrefix => out("AST_UnaryPrefix")
       case tn: AST_Unary => out("AST_Unary")
-      case tn: AST_Sub => out("AST_Sub")
-      case tn: AST_Dot => out("AST_Dot")
+      case tn: AST_Sub =>
+        output(tn.expression, input, out)
+        out("(")
+        output(tn.property, input, out)
+        out(")")
+      case tn: AST_Dot =>
+        output(tn.expression, input, out)
+        out(".")
+        out(tn.property)
       case tn: AST_PropAccess => out("AST_PropAccess")
       case tn: AST_Seq => out("AST_Seq")
-      case tn: AST_New => out("AST_New")
-      case tn: AST_Call => out("AST_Call")
+      case tn: AST_New =>
+        out("new ")
+        outputCall(tn)
+      case tn: AST_Call =>
+        outputCall(tn)
       case tn: AST_VarDef =>
         output(tn.name, input, out)
-        tn.value.foreach { v =>
+        tn.value.nonNull.foreach { v =>
           out(" = ")
           output(v, input, out)
         }
@@ -101,14 +132,14 @@ object ScalaOut {
       case tn: AST_LoopControl => out("AST_LoopControl")
       case tn: AST_Throw =>
         out("throw")
-        tn.value.foreach { v =>
+        tn.value.nonNull.foreach { v =>
           out(" ")
           output(v, input, out)
           out("\n")
         }
       case tn: AST_Return =>
         out("return")
-        tn.value.foreach { v =>
+        tn.value.nonNull.foreach { v =>
           out(" ") // TODO: remove return in trivial cases
           output(v, input, out)
           out("\n")
@@ -135,25 +166,27 @@ object ScalaOut {
       case tn: AST_Switch => out("AST_Switch")
       case tn: AST_Defun =>
         out("def ")
-        tn.name.foreach(n => output(n, input, out))
-        out("(")
-        tn.argnames.foreach { arg =>
-          output(arg, input, out)
-          // TODO: parameter types
-          out(": Any")
-        }
-        out(") = ") // TODO: single statement without braces
+        tn.name.nonNull.foreach(n => output(n, input, out))
+        outputArgNames(tn)
+        out(" = ") // TODO: single statement without braces
         out("{\n") // TODO: autoindent
         outputBlock(tn.body, input, out)
         out("}\n")
-      case tn: AST_Function => out("AST_Function")
+      case tn: AST_Function =>
+        outputArgNames(tn)
+        out(" = ")
+        out("{\n") // TODO: autoindent
+        outputBlock(tn.body, input, out)
+        out("}\n")
       case tn: AST_Accessor => out("AST_Accessor")
       case tn: AST_Lambda => out("AST_Lambda")
       case tn: AST_Toplevel => out("AST_Toplevel")
       case tn: AST_Scope => out("AST_Scope")
       case tn: AST_BlockStatement => out("AST_BlockStatement")
       case tn: AST_Block => out("AST_Block")
-      case tn: AST_SimpleStatement => out("AST_SimpleStatement")
+      case tn: AST_SimpleStatement =>
+        output(tn.body, input, out)
+        out("\n")
       case tn: AST_Directive => out("AST_Directive")
       case tn: AST_Debugger => out("AST_Debugger")
     }
