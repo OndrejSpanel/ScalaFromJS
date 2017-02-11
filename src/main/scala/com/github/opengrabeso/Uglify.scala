@@ -27,7 +27,7 @@ object Uglify extends js.Object {
     val value: js.Any = js.native
   }
 
-  @js.native sealed class AST_Node extends js.Object {
+  @js.native sealed abstract class AST_Node extends js.Object {
     val start: AST_Token = js.native
     val end: AST_Token = js.native
   }
