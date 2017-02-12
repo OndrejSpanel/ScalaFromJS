@@ -12,14 +12,7 @@ def control(a: Double, b: Boolean) = {
   }
   else {
     if (!b) aa = 100
-
-    {
-      var i = 0
-      while (i < 3) {
-        aa += 10
-        i += 1
-      }
-    }
+    for (i <- 0 until 3) a += 10
   }
   return aa
 }

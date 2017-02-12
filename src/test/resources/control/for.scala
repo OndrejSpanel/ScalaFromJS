@@ -4,17 +4,18 @@ def forShow() = {
   var b = 0
   while (b + 1 < 10) {
     yes()
-    b ++
+    b += 1
   }
   var c = 0
   while (s < 10) {
     no()
-    c ++
+    c += 1
   }
   var d = 0
   while (d < 10) {
     no()
-    d ++;
-    s ++
+    d += 1
+
+    s += 1
   }
 }
