@@ -131,9 +131,9 @@ object Uglify extends js.Object {
     val label: AST_Label = js.native
   }
 
-  @js.native class AST_IterationStatement extends AST_StatementWithBody
+  @js.native sealed abstract class AST_IterationStatement extends AST_StatementWithBody
 
-  @js.native class AST_DWLoop extends AST_IterationStatement {
+  @js.native sealed abstract class AST_DWLoop extends AST_IterationStatement {
     // [AST_Node] the loop condition.  Should not be instanceof AST_Statement
     val condition: AST_Node = js.native
   }
@@ -167,7 +167,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_If extends AST_StatementWithBody {
     // [AST_Node] the `if` condition
-    val expression: AST_Node  = js.native
+    val condition: js.UndefOr[AST_Node]  = js.native
     // [AST_Statement?] the `else` part, or null if not present
     val alternative: js.UndefOr[AST_Statement]  = js.native
   }
@@ -392,7 +392,7 @@ object UglifyExt {
       // remove debugger; statements
       var unsafe: Boolean = true
       var unsafe_comps: Boolean = true
-      var conditionals: Boolean = true
+      var conditionals: Boolean = false
       var comparisons: Boolean = true
       var evaluate: Boolean = true
       var booleans: Boolean = true
@@ -448,6 +448,8 @@ object UglifyExt {
     sequences = false
     join_vars = true
     hoist_vars = true
+    booleans = false
+    unsafe_comps = false
   }
   val defaultOutputOptions = new Options.Output {
     beautify = true

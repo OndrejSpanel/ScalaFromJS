@@ -66,4 +66,8 @@ class MainTest extends FunSuite {
   test("Simple class") {
     conversionTest(rsc("simpleClass/simpleClass.js"), rsc("simpleClass/simpleClass.scala"))
   }
+
+  test("Flow control") {
+    conversionTest(rsc("control/control.js"), rsc("control/control.scala"))
+  }
 }

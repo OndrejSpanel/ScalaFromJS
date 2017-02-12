@@ -91,15 +91,25 @@ object ScalaOut {
           out("\n")
         }
       case tn: AST_Array => out("AST_Array")
-      case tn: AST_Conditional => out("AST_Conditional")
+      case tn: AST_Conditional =>
+        out("if (")
+        output(tn.condition, input, out)
+        out(")")
+        output(tn.consequent, input, out)
+        out(" else ")
+        output(tn.alternative, input, out)
       //case tn: AST_Assign => out("AST_Assign")
       case tn: AST_Binary =>
         output(tn.left, input, out)
         out(" " + tn.operator + " ")
         output(tn.right, input, out)
-      case tn: AST_UnaryPostfix => out("AST_UnaryPostfix")
-      case tn: AST_UnaryPrefix => out("AST_UnaryPrefix")
-      case tn: AST_Unary => out("AST_Unary")
+      case tn: AST_UnaryPostfix =>
+        output(tn.expression, input, out)
+        out(tn.operator)
+      case tn: AST_UnaryPrefix =>
+        out(tn.operator)
+        output(tn.expression, input, out)
+      //case tn: AST_Unary => out("AST_Unary")
       case tn: AST_Sub =>
         output(tn.expression, input, out)
         out("(")
@@ -109,8 +119,11 @@ object ScalaOut {
         output(tn.expression, input, out)
         out(".")
         out(tn.property)
-      case tn: AST_PropAccess => out("AST_PropAccess")
-      case tn: AST_Seq => out("AST_Seq")
+      //case tn: AST_PropAccess => out("AST_PropAccess")
+      case tn: AST_Seq =>
+        output(tn.car, input, out)
+        out(";")
+        output(tn.cdr, input, out)
       case tn: AST_New =>
         out("new ")
         outputCall(tn)
@@ -144,16 +157,49 @@ object ScalaOut {
           output(v, input, out)
           out("\n")
         }
-      case tn: AST_Exit => out("AST_Exit")
-      case tn: AST_Jump => out("AST_Jump")
-      case tn: AST_If => out("AST_If")
+      //case tn: AST_Exit => out("AST_Exit")
+      //case tn: AST_Jump => out("AST_Jump")
+      case tn: AST_If =>
+        out("if (")
+        val exp = tn.condition.nonNull.fold(out("xxx"))(output(_, input, out))
+        out(") ")
+        output(tn.body, input, out)
+        tn.alternative.nonNull.foreach { a =>
+          out("else ")
+          output(a, input, out)
+        }
       case tn: AST_With => out("AST_With")
       case tn: AST_ForIn => out("AST_ForIn")
-      case tn: AST_For => out("AST_For")
-      case tn: AST_While => out("AST_While")
-      case tn: AST_Do => out("AST_Do")
-      case tn: AST_DWLoop => out("AST_DWLoop")
-      case tn: AST_IterationStatement => out("AST_IterationStatement")
+      case tn: AST_For =>
+        // TODO: handle a common special cases like for (var x = x0; x < x1; x++)
+        out("\n\n{\n")
+        tn.init.nonNull.foreach { init =>
+          output(init, input, out)
+        }
+        out("while (")
+        tn.condition.nonNull.fold(out("true")) { c =>
+          output(c, input, out)
+        }
+        out(") {\n")
+        output(tn.body, input, out)
+        tn.step.nonNull.fold(out("true")) { c =>
+          output(c, input, out)
+        }
+        out("}\n")
+        out("}\n")
+      case tn: AST_While =>
+        out(" while (")
+        output(tn.condition, input, out)
+        out(") ")
+        output(tn.body, input, out)
+      case tn: AST_Do =>
+        out("do ")
+        output(tn.body, input, out)
+        out(" while (")
+        output(tn.condition, input, out)
+        out(")\n")
+      //case tn: AST_DWLoop => out("AST_DWLoop")
+      //case tn: AST_IterationStatement => out("AST_IterationStatement")
       case tn: AST_LabeledStatement => out("AST_LabeledStatement")
       case tn: AST_StatementWithBody => out("AST_StatementWithBody")
       case tn: AST_EmptyStatement => out("AST_EmptyStatement")
@@ -182,7 +228,10 @@ object ScalaOut {
       case tn: AST_Lambda => out("AST_Lambda")
       case tn: AST_Toplevel => out("AST_Toplevel")
       case tn: AST_Scope => out("AST_Scope")
-      case tn: AST_BlockStatement => out("AST_BlockStatement")
+      case tn: AST_BlockStatement =>
+        out("{\n") // TODO: autoindent
+        outputBlock(tn.body, input, out)
+        out("}\n")
       case tn: AST_Block => out("AST_Block")
       case tn: AST_SimpleStatement =>
         output(tn.body, input, out)
