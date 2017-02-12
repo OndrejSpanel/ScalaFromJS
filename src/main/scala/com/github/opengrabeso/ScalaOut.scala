@@ -5,6 +5,7 @@ import com.github.opengrabeso.Uglify._
 import scala.scalajs.js
 
 object ScalaOut {
+
   implicit class NonNull[T](val undef: js.UndefOr[T])(implicit ev: Null <:< T) {
     def nonNull: Option[T] = Option[T](undef.orNull)
   }
@@ -15,6 +16,27 @@ object ScalaOut {
     if (s == "AST_Node" && nd.CTOR != null) {
       nd.CTOR.name.asInstanceOf[String]
     } else s
+  }
+
+  private def printlnNode(n: js.UndefOr[AST_Node]) = {
+    println(n.nonNull.map(n => nodeClassName(n) + ":" + nodeToString(n, "")).getOrElse(""))
+  }
+  object ForRange {
+
+    def unapply(arg: AST_For): Option[(String, AST_Node, AST_Node, Double)] = {
+      (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
+        case (Some(vv: AST_Var), Some(c: AST_Binary), Some(s: AST_Unary))
+          if vv.definitions.length == 1 && c.operator == "<" && s.operator == "++" =>
+          val v = vv.definitions(0)
+          val n = v.name.name
+          (c.left, s.expression) match {
+            case (l: AST_SymbolRef, s: AST_SymbolRef) if l.name == n && s.name == n =>
+              Some((n, v.value.get, c.right, 1.0))
+            case _ => None
+          }
+        case _ => None
+      }
+    }
   }
 
   def nodeToString(n: AST_Node, input: String): String = {
@@ -103,13 +125,25 @@ object ScalaOut {
         output(tn.left, input, out)
         out(" " + tn.operator + " ")
         output(tn.right, input, out)
-      case tn: AST_UnaryPostfix =>
-        output(tn.expression, input, out)
-        out(tn.operator)
-      case tn: AST_UnaryPrefix =>
-        out(tn.operator)
-        output(tn.expression, input, out)
-      //case tn: AST_Unary => out("AST_Unary")
+      case tn: AST_Unary =>
+        val adjusted = tn.operator match {
+          case "++" => Some(" += 1") // TODO: handle return value - beware of AST_UnaryPrefix / AST_UnaryPostfix
+          case "--" => Some(" -= 1")
+          case _ => None
+        }
+        adjusted.fold{
+          tn match {
+            case _: AST_UnaryPrefix =>
+              out(tn.operator)
+              output(tn.expression, input, out)
+            case _: AST_UnaryPostfix =>
+              output(tn.expression, input, out)
+              out(tn.operator)
+          }
+        } { a =>
+          output(tn.expression, input, out)
+          out(a)
+        }
       case tn: AST_Sub =>
         output(tn.expression, input, out)
         out("(")
@@ -122,7 +156,7 @@ object ScalaOut {
       //case tn: AST_PropAccess => out("AST_PropAccess")
       case tn: AST_Seq =>
         output(tn.car, input, out)
-        out(";")
+        out("\n")
         output(tn.cdr, input, out)
       case tn: AST_New =>
         out("new ")
@@ -172,21 +206,30 @@ object ScalaOut {
       case tn: AST_ForIn => out("AST_ForIn")
       case tn: AST_For =>
         // TODO: handle a common special cases like for (var x = x0; x < x1; x++)
-        out("\n\n{\n")
-        tn.init.nonNull.foreach { init =>
-          output(init, input, out)
+        tn match {
+          case ForRange(name, init, end, step) =>
+            val stepString = if (step !=1) s" by $step" else ""
+            out(s"for ($name <- ${nodeToString(init,input)} until ${nodeToString(end,input)}$stepString) ")
+            output(tn.body, input, out)
+          case _ => // generic solution using while - reliable, but ugly
+            // new scope never needed in classical JS, all variables exists on a function scope
+            //out("\n\n{\n")
+            tn.init.nonNull.foreach { init =>
+              output(init, input, out)
+            }
+            out("while (")
+            tn.condition.nonNull.fold(out("true")) { c =>
+              output(c, input, out)
+            }
+            out(") {\n")
+            output(tn.body, input, out)
+            tn.step.nonNull.fold(out("true")) { c =>
+              output(c, input, out)
+            }
+            out("}\n")
+            //out("}\n")
         }
-        out("while (")
-        tn.condition.nonNull.fold(out("true")) { c =>
-          output(c, input, out)
-        }
-        out(") {\n")
-        output(tn.body, input, out)
-        tn.step.nonNull.fold(out("true")) { c =>
-          output(c, input, out)
-        }
-        out("}\n")
-        out("}\n")
+
       case tn: AST_While =>
         out(" while (")
         output(tn.condition, input, out)

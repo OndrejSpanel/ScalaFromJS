@@ -70,4 +70,8 @@ class MainTest extends FunSuite {
   test("Flow control") {
     conversionTest(rsc("control/control.js"), rsc("control/control.scala"))
   }
+
+  test("For loop special form") {
+    conversionTest(rsc("control/for.js"), rsc("control/for.scala"))
+  }
 }

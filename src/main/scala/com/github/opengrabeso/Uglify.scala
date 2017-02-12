@@ -446,8 +446,8 @@ object UglifyExt {
   // options for reasonable optimization
   val defaultOptimizeOptions = new Options.Compress {
     sequences = false
-    join_vars = true
-    hoist_vars = true
+    join_vars = false
+    hoist_vars = false
     booleans = false
     unsafe_comps = false
   }
