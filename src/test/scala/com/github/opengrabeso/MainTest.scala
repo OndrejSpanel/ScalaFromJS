@@ -123,18 +123,48 @@ class MainTest extends FunSuite {
     )
   }
 
-  /*
-  test("Simple class") {
-    conversionTest(rsc("simpleClass/simpleClass.js"), rsc("simpleClass/simpleClass.scala"))
-  }
-
-
   test("For loop special form") {
-    conversionTest(rsc("control/for.js"), rsc("control/for.scala"))
+    ConversionCheck(
+      rsc("control/for.js"),
+      Seq(
+        "for (a <- 0 until 10)",
+        "while (s < 10)",
+        "while (d < 10)",
+        "var c = 0",
+        "var d = 0",
+        "c += 1",
+        "d += 1",
+        "s += 1"
+      ),
+      ConversionCheck.standardForbidden ++ Seq(
+        "for (b <-",
+        "for (c <-",
+        "for (d <-"
+      )
+    )
   }
 
-  test("Unsupported file handling") {
-    conversionTest(rsc("unsupported/unsupported.js"), rsc("unsupported/unsupported.scala"))
+  test("Unsupported code") {
+    ConversionCheck(
+      rsc("unsupported/unsupported.js"),
+      Seq(
+        "/* Unsupported: Break */ break"
+      ),
+      Seq()
+    )
   }
-  */
+
+  test("Simple class") {
+    ConversionCheck(
+      rsc("simpleClass/simpleClass.js"),
+      Seq(
+        "class Person",
+        """var person = new Person("Bob", "M")"""
+      ),
+      ConversionCheck.standardForbidden ++ Seq(
+        ".prototype."
+      )
+    )
+  }
+
 }
