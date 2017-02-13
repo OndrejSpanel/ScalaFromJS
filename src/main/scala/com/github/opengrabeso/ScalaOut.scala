@@ -6,6 +6,16 @@ import scala.scalajs.js
 
 object ScalaOut {
 
+  class Config {
+    // annotate unknown constructs with a comment (source is always passed through)
+    var unknowns = true
+  }
+
+  object Config {
+    val default = new Config
+  }
+
+
   implicit class NonNull[T](val undef: js.UndefOr[T])(implicit ev: Null <:< T) {
     def nonNull: Option[T] = Option[T](undef.orNull)
   }
@@ -18,7 +28,7 @@ object ScalaOut {
     } else s
   }
 
-  private def printlnNode(n: js.UndefOr[AST_Node])(implicit unknowns: Boolean) = {
+  private def printlnNode(n: js.UndefOr[AST_Node])(implicit outConfig: Config) = {
     println(n.nonNull.map(n => nodeClassName(n) + ":" + nodeToString(n, "")).getOrElse(""))
   }
 
@@ -40,13 +50,13 @@ object ScalaOut {
     }
   }
 
-  def nodeToString(n: AST_Node, input: String)(implicit unknowns: Boolean): String = {
+  def nodeToString(n: AST_Node, input: String)(implicit outConfig: Config): String = {
     val b = new StringBuilder
     nodeToOut(n, input, x => b append x)
     b.toString()
   }
 
-  def nodeToOut(n: AST_Node, input: String, out: String => Unit)(implicit unknowns: Boolean): Unit = {
+  def nodeToOut(n: AST_Node, input: String, out: String => Unit)(implicit outConfig: Config): Unit = {
     def source = input.slice(n.start.pos, n.end.endpos)
     // http://lisperator.net/uglifyjs/ast
     // listed in reverse order, so that most specific classes match first
@@ -82,7 +92,7 @@ object ScalaOut {
         if (n startsWith prefix) n.drop(prefix.length)
         else n
       }
-      if (unknowns) {
+      if (outConfig.unknowns) {
         out("/* " + shortNodeClassName(nodeClassName(tn)) + " */ ")
       }
       out(source)
@@ -300,15 +310,16 @@ object ScalaOut {
     }
   }
 
-  private def blockToOut(body: js.Array[AST_Statement], input: String, out: String => Unit)(implicit unknowns: Boolean): Unit = {
+  private def blockToOut(body: js.Array[AST_Statement], input: String, out: String => Unit)(implicit outConfig: Config): Unit = {
     for (s <- body) {
       nodeToOut(s, input, out)
     }
   }
 
-  def output(ast: AST_Block, input: String, unknowns: Boolean = true): String = {
+  def output(ast: AST_Block, input: String, outConfig: Config = Config.default): String = {
     val ret = new StringBuilder
-    blockToOut(ast.body, input, x => ret.append(x))(unknowns)
+    blockToOut(ast.body, input, x => ret.append(x))(outConfig)
     ret.toString()
   }
+
 }
