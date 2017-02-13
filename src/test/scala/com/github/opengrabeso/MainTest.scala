@@ -4,12 +4,38 @@ import Uglify._
 import UglifyExt._
 import org.scalatest.FunSuite
 import Resources.{getResource => rsc}
-import JsonToString._
+
+import scala.util.{Failure, Success, Try}
 
 class MainTest extends FunSuite {
 
   implicit class AnyExt(val value: Any) {
     def any: Any = value
+  }
+
+  case class ConversionCheck(code: String, mustHave: Seq[String], mustNotHave: Seq[String]) {
+    def checkResult(result: String): Try[Unit] = {
+      val missing = mustHave.filter(!result.contains(_))
+      val forbidden = mustNotHave.filter(result.contains(_))
+      if (missing.isEmpty & forbidden.isEmpty) Success(())
+      else Failure {
+        def stringList(ss: Seq[String]) = ss.map("  " + _ + "\n").mkString
+
+        val missingStr = if (missing.nonEmpty) "Missing: \n" + stringList(missing) else ""
+        val forbiddenStr = if (missing.nonEmpty) "Forbidden: \n" + stringList(missing) else ""
+
+        new UnsupportedOperationException(missingStr + forbiddenStr)
+      }
+    }
+
+    def check(): Unit = {
+      val ast = parse(code, defaultUglifyOptions.parse)
+      val astOptimized = ast.optimize(defaultOptimizeOptions)
+      val result = ScalaOut.output(astOptimized, code)
+
+      // TODO: better error reporting
+      checkResult(result).failed.foreach(throw _)
+    }
   }
 
   test("Basic test") {
@@ -56,13 +82,34 @@ class MainTest extends FunSuite {
   }
 
   test("Simple functions") {
-    conversionTest(rsc("simpleFunction/simpleFunctions.js"), rsc("simpleFunction/simpleFunctions.scala"))
+    ConversionCheck(
+      rsc("simpleFunction/simpleFunctions.js"),
+      Seq(
+        "def firstFunction()",
+        "def secondFunction()"
+      ),
+      Seq(
+        "function"
+      )
+    ).check()
   }
 
   test("Function parameters and calls") {
-    conversionTest(rsc("simpleFunction/callFunction.js"), rsc("simpleFunction/callFunction.scala"))
+    ConversionCheck(
+      rsc("simpleFunction/callFunction.js"),
+      Seq(
+        "full = first + last",
+        """result = concatenate("Zara", "Ali")""",
+        "def "
+      ),
+      Seq(
+        "def concatenate(",
+        "def secondFunction()"
+      )
+    )
   }
 
+  /*
   test("Simple class") {
     conversionTest(rsc("simpleClass/simpleClass.js"), rsc("simpleClass/simpleClass.scala"))
   }
@@ -78,4 +125,5 @@ class MainTest extends FunSuite {
   test("Unsupported file handling") {
     conversionTest(rsc("unsupported/unsupported.js"), rsc("unsupported/unsupported.scala"))
   }
+  */
 }
