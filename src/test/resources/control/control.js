@@ -9,7 +9,7 @@ function control(a, b) {
         do {
             a += 1
         } while (!b);
-        while (!b) {
+        while (a < 10) {
             a += 2
         }
     } else {

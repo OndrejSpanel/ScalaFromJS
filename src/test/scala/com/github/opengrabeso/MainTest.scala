@@ -13,7 +13,14 @@ class MainTest extends FunSuite {
     def any: Any = value
   }
 
-  case class ConversionCheck(code: String, mustHave: Seq[String], mustNotHave: Seq[String]) {
+  object ConversionCheck {
+    val standardForbidden = Seq(";", "/* Unsupported:")
+
+    def apply(code: String, mustHave: String*) = new ConversionCheck(code, mustHave)
+  }
+
+  case class ConversionCheck(code: String, mustHave: Seq[String], mustNotHave: Seq[String] = ConversionCheck.standardForbidden) {
+
     def checkResult(result: String): Try[Unit] = {
       val missing = mustHave.filter(!result.contains(_))
       val forbidden = mustNotHave.filter(result.contains(_))
@@ -22,20 +29,21 @@ class MainTest extends FunSuite {
         def stringList(ss: Seq[String]) = ss.map("  " + _ + "\n").mkString
 
         val missingStr = if (missing.nonEmpty) "Missing: \n" + stringList(missing) else ""
-        val forbiddenStr = if (missing.nonEmpty) "Forbidden: \n" + stringList(missing) else ""
+        val forbiddenStr = if (forbidden.nonEmpty) "Forbidden: \n" + stringList(forbidden) else ""
 
-        new UnsupportedOperationException(missingStr + forbiddenStr)
+        new UnsupportedOperationException(missingStr + forbiddenStr + "in \n" + result)
       }
     }
 
-    def check(): Unit = {
+    def produceResult = {
       val ast = parse(code, defaultUglifyOptions.parse)
       val astOptimized = ast.optimize(defaultOptimizeOptions)
-      val result = ScalaOut.output(astOptimized, code)
-
-      // TODO: better error reporting
-      checkResult(result).failed.foreach(throw _)
+      ScalaOut.output(astOptimized, code)
     }
+
+    val result = produceResult
+    // TODO: better error reporting
+    checkResult(result).failed.foreach(throw _)
   }
 
   test("Basic test") {
@@ -74,13 +82,6 @@ class MainTest extends FunSuite {
     assert(mCode.body.nonEmpty)
   }
 
-  def conversionTest(code: String, res: String) = {
-    val ast = parse(code, defaultUglifyOptions.parse)
-    val astOptimized = ast.optimize(defaultOptimizeOptions)
-    val result = ScalaOut.output(astOptimized, code)
-    assert(result == res)
-  }
-
   test("Simple functions") {
     ConversionCheck(
       rsc("simpleFunction/simpleFunctions.js"),
@@ -88,10 +89,10 @@ class MainTest extends FunSuite {
         "def firstFunction()",
         "def secondFunction()"
       ),
-      Seq(
+      ConversionCheck.standardForbidden ++ Seq(
         "function"
       )
-    ).check()
+    )
   }
 
   test("Function parameters and calls") {
@@ -100,12 +101,23 @@ class MainTest extends FunSuite {
       Seq(
         "full = first + last",
         """result = concatenate("Zara", "Ali")""",
-        "def "
-      ),
-      Seq(
         "def concatenate(",
         "def secondFunction()"
+      ),
+      ConversionCheck.standardForbidden ++ Seq(
+        "function"
       )
+    )
+  }
+
+  test("Flow control") {
+    ConversionCheck(
+      rsc("control/control.js"),
+      "if (b) {",
+      "} while (!b)",
+      "if (!b)",
+      "else {",
+      "for (i <- 0 until 3)"
     )
   }
 
@@ -114,9 +126,6 @@ class MainTest extends FunSuite {
     conversionTest(rsc("simpleClass/simpleClass.js"), rsc("simpleClass/simpleClass.scala"))
   }
 
-  test("Flow control") {
-    conversionTest(rsc("control/control.js"), rsc("control/control.scala"))
-  }
 
   test("For loop special form") {
     conversionTest(rsc("control/for.js"), rsc("control/for.scala"))

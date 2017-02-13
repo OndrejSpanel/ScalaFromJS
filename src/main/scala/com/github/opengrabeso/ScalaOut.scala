@@ -118,7 +118,7 @@ object ScalaOut {
         else n
       }
       if (outConfig.unknowns) {
-        out("/* " + shortNodeClassName(nodeClassName(tn)) + " */ ")
+        out("/* Unsupported: " + shortNodeClassName(nodeClassName(tn)) + " */ ")
       }
       out(source)
       if (statement) {
@@ -285,9 +285,9 @@ object ScalaOut {
         out(") ")
         nodeToOut(tn.body)
       case tn: AST_Do =>
-        out("do ")
+        out("do {\n")
         nodeToOut(tn.body)
-        out(" while (")
+        out("} while (")
         nodeToOut(tn.condition)
         out(")\n")
       //case tn: AST_DWLoop => outputUnknownNode(tn)
