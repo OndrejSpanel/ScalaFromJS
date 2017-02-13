@@ -76,16 +76,17 @@ object ScalaOut {
       out(")")
     }
 
-    def outputUnknownNode(tn: AST_Node) = {
+    def outputUnknownNode(tn: AST_Node, statement: Boolean = false) = {
       def shortNodeClassName(n: String) = {
         val prefix = "AST_"
         if (n startsWith prefix) n.drop(prefix.length)
         else n
       }
-      out("/* " + shortNodeClassName(nodeClassName(tn)) + "*/")
       if (unknowns) {
-        out(source)
+        out("/* " + shortNodeClassName(nodeClassName(tn)) + " */ ")
       }
+      out(source)
+      if (statement) out("\n")
     }
 
     n match {
@@ -186,10 +187,10 @@ object ScalaOut {
         outputDefinitions("val", tn)
       case tn: AST_Var =>
         outputDefinitions("var", tn)
-      case tn: AST_Definitions => outputUnknownNode(tn)
-      case tn: AST_Continue => outputUnknownNode(tn)
-      case tn: AST_Break => outputUnknownNode(tn)
-      case tn: AST_LoopControl => outputUnknownNode(tn)
+      //case tn: AST_Definitions => outputUnknownNode(tn)
+      case tn: AST_Continue => outputUnknownNode(tn, true)
+      case tn: AST_Break => outputUnknownNode(tn, true)
+      //case tn: AST_LoopControl => outputUnknownNode(tn)
       case tn: AST_Throw =>
         out("throw")
         tn.value.nonNull.foreach { v =>
@@ -215,8 +216,8 @@ object ScalaOut {
           out("else ")
           nodeToOut(a, input, out)
         }
-      case tn: AST_With => outputUnknownNode(tn)
-      case tn: AST_ForIn => outputUnknownNode(tn)
+      case tn: AST_With => outputUnknownNode(tn, true)
+      case tn: AST_ForIn => outputUnknownNode(tn, true)
       case tn: AST_For =>
         // TODO: handle a common special cases like for (var x = x0; x < x1; x++)
         tn match {
@@ -256,9 +257,11 @@ object ScalaOut {
         out(")\n")
       //case tn: AST_DWLoop => outputUnknownNode(tn)
       //case tn: AST_IterationStatement => outputUnknownNode(tn)
-      case tn: AST_LabeledStatement => outputUnknownNode(tn)
-      case tn: AST_StatementWithBody => outputUnknownNode(tn)
-      case tn: AST_EmptyStatement => outputUnknownNode(tn)
+      case tn: AST_LabeledStatement =>
+        out(s"/* label ${nodeToString(tn.label, input)} */")
+        nodeToOut(tn.body, input, out)
+      //case tn: AST_StatementWithBody => outputUnknownNode(tn)
+      case tn: AST_EmptyStatement =>
       case tn: AST_Finally => outputUnknownNode(tn)
       case tn: AST_Catch => outputUnknownNode(tn)
       case tn: AST_Try => outputUnknownNode(tn)
@@ -303,7 +306,7 @@ object ScalaOut {
     }
   }
 
-  def output(ast: AST_Block, input: String, unknowns: Boolean = false): String = {
+  def output(ast: AST_Block, input: String, unknowns: Boolean = true): String = {
     val ret = new StringBuilder
     blockToOut(ast.body, input, x => ret.append(x))(unknowns)
     ret.toString()

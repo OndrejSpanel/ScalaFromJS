@@ -122,7 +122,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_EmptyStatement extends AST_Statement
 
-  @js.native class AST_StatementWithBody extends AST_Statement {
+  @js.native abstract sealed class AST_StatementWithBody extends AST_Statement {
     val body: AST_Statement = js.native
   }
 
@@ -396,7 +396,7 @@ object UglifyExt {
       var comparisons: Boolean = true
       var evaluate: Boolean = true
       var booleans: Boolean = true
-      var loops: Boolean = true
+      var loops: Boolean = false
       var unused: Boolean = true
       var hoist_funs: Boolean = true
       var hoist_vars: Boolean = false

@@ -74,4 +74,8 @@ class MainTest extends FunSuite {
   test("For loop special form") {
     conversionTest(rsc("control/for.js"), rsc("control/for.scala"))
   }
+
+  test("Unsupported file handling") {
+    conversionTest(rsc("unsupported/unsupported.js"), rsc("unsupported/unsupported.scala"))
+  }
 }
