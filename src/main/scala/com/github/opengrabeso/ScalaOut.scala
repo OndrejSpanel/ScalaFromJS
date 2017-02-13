@@ -11,6 +11,23 @@ object ScalaOut {
     var unknowns = true
   }
 
+  abstract class Output extends ((String) => Unit) {
+    def out(x: String): Unit
+
+    var eolDone = true
+    def eol() = {
+      if (!eolDone) {
+        out("\n")
+        eolDone = true
+      }
+    }
+
+    def apply(v: String) = {
+      out(v)
+      eolDone = v.lastOption.contains('\n')
+    }
+  }
+
   object Config {
     val default = new Config
   }
@@ -52,17 +69,19 @@ object ScalaOut {
     }
   }
 
-  def nodeToString(n: AST_Node)(implicit outConfig: Config, input: InputContext): String = {
+
+  class OutToString extends Output {
     val b = new StringBuilder
-    nodeToOut(n)(outConfig, input, x => b append x)
-    b.toString()
+    def out(x: String) = b append x
+    def result = b.toString
+  }
+  def nodeToString(n: AST_Node)(implicit outConfig: Config, input: InputContext): String = {
+    val b = new OutToString
+    nodeToOut(n)(outConfig, input, b)
+    b.result
   }
 
-  def eol()(implicit out: String => Unit) = {
-    out("\n")
-  }
-
-  def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: String => Unit): Unit = {
+  def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
     def source = input.input.slice(n.start.pos, n.end.endpos)
     // http://lisperator.net/uglifyjs/ast
     // listed in reverse order, so that most specific classes match first
@@ -71,7 +90,7 @@ object ScalaOut {
       tn.definitions.foreach { v =>
         out(decl + " ")
         nodeToOut(v)
-        eol()
+        out.eol()
       }
     }
 
@@ -102,7 +121,9 @@ object ScalaOut {
         out("/* " + shortNodeClassName(nodeClassName(tn)) + " */ ")
       }
       out(source)
-      if (statement) eol()
+      if (statement) {
+        out.eol()
+      }
     }
 
     //noinspection ScalaUnusedSymbol
@@ -141,7 +162,7 @@ object ScalaOut {
         tn.properties.foreach { p =>
           out(p.key.toString + " = ")
           nodeToOut(p.value)
-          eol()
+          out.eol()
         }
       case tn: AST_Array => outputUnknownNode(tn)
       case tn: AST_Conditional =>
@@ -187,7 +208,7 @@ object ScalaOut {
       //case tn: AST_PropAccess => outputUnknownNode(tn)
       case tn: AST_Seq =>
         nodeToOut(tn.car)
-        eol()
+        out.eol()
         nodeToOut(tn.cdr)
       case tn: AST_New =>
         out("new ")
@@ -213,14 +234,14 @@ object ScalaOut {
         tn.value.nonNull.foreach { v =>
           out(" ")
           nodeToOut(v)
-          eol()
+          out.eol()
         }
       case tn: AST_Return =>
         out("return")
         tn.value.nonNull.foreach { v =>
           out(" ") // TODO: remove return in trivial cases
           nodeToOut(v)
-          eol()
+          out.eol()
         }
       //case tn: AST_Exit => outputUnknownNode(tn)
       //case tn: AST_Jump => outputUnknownNode(tn)
@@ -249,17 +270,12 @@ object ScalaOut {
               nodeToOut(init)
             }
             out("while (")
-            tn.condition.nonNull.fold(out("true")) { c =>
-              nodeToOut(c)
-            }
-            out(") {")
-            eol()
+            tn.condition.nonNull.fold(out("true"))(nodeToOut)
+            out(") {\n")
             nodeToOut(tn.body)
-            tn.step.nonNull.fold(out("true")) { c =>
-              nodeToOut(c)
-            }
-            out("}")
-            eol()
+            tn.step.nonNull.foreach(nodeToOut)
+            out.eol()
+            out("}\n")
             //out("}\n")
         }
 
@@ -273,8 +289,7 @@ object ScalaOut {
         nodeToOut(tn.body)
         out(" while (")
         nodeToOut(tn.condition)
-        out(")")
-        eol()
+        out(")\n")
       //case tn: AST_DWLoop => outputUnknownNode(tn)
       //case tn: AST_IterationStatement => outputUnknownNode(tn)
       case tn: AST_LabeledStatement =>
@@ -293,50 +308,45 @@ object ScalaOut {
         out("def ")
         tn.name.nonNull.foreach(n => nodeToOut(n))
         outputArgNames(tn)
-        out(" = ") // TODO: single statement without braces
-        out("{") // TODO: autoindent
-        eol()
-        blockToOut(tn.body)
-        out("}")
-        eol()
+        out(" = ")
+        blockBracedToOut(tn.body)
       case tn: AST_Function =>
         outputArgNames(tn)
         out(" = ")
-        out("{") // TODO: autoindent
-        eol
-        blockToOut(tn.body)
-        out("}")
-        eol()
+        blockBracedToOut(tn.body)
       case tn: AST_Accessor => outputUnknownNode(tn)
       case tn: AST_Lambda => outputUnknownNode(tn)
       //case tn: AST_Toplevel => outputUnknownNode(tn)
       //case tn: AST_Scope => outputUnknownNode(tn)
       case tn: AST_Block =>
-        out("{") // TODO: autoindent
-        eol()
-        blockToOut(tn.body)
-        out("}")
-        eol()
+        blockBracedToOut(tn.body)
       //case tn: AST_BlockStatement =>
       case tn: AST_SimpleStatement =>
         nodeToOut(tn.body)
-        eol()
+        out.eol()
       case tn: AST_Directive => outputUnknownNode(tn)
       case tn: AST_Debugger => outputUnknownNode(tn)
     }
   }
 
-  private def blockToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: String => Unit): Unit = {
+  private def blockBracedToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output) = {
+    // TODO: single statement without braces
+    out("{\n") // TODO: autoindent
+    blockToOut(body)
+    out("}\n")
+  }
+
+  private def blockToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
     for (s <- body) {
       nodeToOut(s)
     }
   }
 
   def output(ast: AST_Block, input: String, outConfig: Config = Config.default): String = {
-    val ret = new StringBuilder
+    val ret = new OutToString
     val inputContext = InputContext(input)
-    blockToOut(ast.body)(outConfig, inputContext, x => ret.append(x))
-    ret.toString()
+    blockToOut(ast.body)(outConfig, inputContext, ret)
+    ret.result
   }
 
 }

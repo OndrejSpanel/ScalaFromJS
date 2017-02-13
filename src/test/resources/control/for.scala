@@ -15,7 +15,6 @@ def forShow() = {
   while (d < 10) {
     no()
     d += 1
-
     s += 1
   }
 }
