@@ -29,6 +29,7 @@ object ScalaOut {
     } else s
   }
 
+  //noinspection ScalaUnusedSymbol
   private def printlnNode(n: js.UndefOr[AST_Node])(implicit outConfig: Config, input: InputContext) = {
     println(n.nonNull.map(n => nodeClassName(n) + ":" + nodeToString(n)).getOrElse(""))
   }
@@ -57,6 +58,10 @@ object ScalaOut {
     b.toString()
   }
 
+  def eol()(implicit out: String => Unit) = {
+    out("\n")
+  }
+
   def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: String => Unit): Unit = {
     def source = input.input.slice(n.start.pos, n.end.endpos)
     // http://lisperator.net/uglifyjs/ast
@@ -66,7 +71,7 @@ object ScalaOut {
       tn.definitions.foreach { v =>
         out(decl + " ")
         nodeToOut(v)
-        out("\n")
+        eol()
       }
     }
 
@@ -97,9 +102,10 @@ object ScalaOut {
         out("/* " + shortNodeClassName(nodeClassName(tn)) + " */ ")
       }
       out(source)
-      if (statement) out("\n")
+      if (statement) eol()
     }
 
+    //noinspection ScalaUnusedSymbol
     n match {
       case tn: AST_True => out("true")
       case tn: AST_False => out("false")
@@ -135,7 +141,7 @@ object ScalaOut {
         tn.properties.foreach { p =>
           out(p.key.toString + " = ")
           nodeToOut(p.value)
-          out("\n")
+          eol()
         }
       case tn: AST_Array => outputUnknownNode(tn)
       case tn: AST_Conditional =>
@@ -181,7 +187,7 @@ object ScalaOut {
       //case tn: AST_PropAccess => outputUnknownNode(tn)
       case tn: AST_Seq =>
         nodeToOut(tn.car)
-        out("\n")
+        eol()
         nodeToOut(tn.cdr)
       case tn: AST_New =>
         out("new ")
@@ -207,20 +213,20 @@ object ScalaOut {
         tn.value.nonNull.foreach { v =>
           out(" ")
           nodeToOut(v)
-          out("\n")
+          eol()
         }
       case tn: AST_Return =>
         out("return")
         tn.value.nonNull.foreach { v =>
           out(" ") // TODO: remove return in trivial cases
           nodeToOut(v)
-          out("\n")
+          eol()
         }
       //case tn: AST_Exit => outputUnknownNode(tn)
       //case tn: AST_Jump => outputUnknownNode(tn)
       case tn: AST_If =>
         out("if (")
-        val exp = tn.condition.nonNull.fold(out("xxx"))(nodeToOut(_))
+        val exp = tn.condition.nonNull.fold(out("xxx"))(nodeToOut)
         out(") ")
         nodeToOut(tn.body)
         tn.alternative.nonNull.foreach { a =>
@@ -246,12 +252,14 @@ object ScalaOut {
             tn.condition.nonNull.fold(out("true")) { c =>
               nodeToOut(c)
             }
-            out(") {\n")
+            out(") {")
+            eol()
             nodeToOut(tn.body)
             tn.step.nonNull.fold(out("true")) { c =>
               nodeToOut(c)
             }
-            out("}\n")
+            out("}")
+            eol()
             //out("}\n")
         }
 
@@ -265,7 +273,8 @@ object ScalaOut {
         nodeToOut(tn.body)
         out(" while (")
         nodeToOut(tn.condition)
-        out(")\n")
+        out(")")
+        eol()
       //case tn: AST_DWLoop => outputUnknownNode(tn)
       //case tn: AST_IterationStatement => outputUnknownNode(tn)
       case tn: AST_LabeledStatement =>
@@ -285,27 +294,33 @@ object ScalaOut {
         tn.name.nonNull.foreach(n => nodeToOut(n))
         outputArgNames(tn)
         out(" = ") // TODO: single statement without braces
-        out("{\n") // TODO: autoindent
+        out("{") // TODO: autoindent
+        eol()
         blockToOut(tn.body)
-        out("}\n")
+        out("}")
+        eol()
       case tn: AST_Function =>
         outputArgNames(tn)
         out(" = ")
-        out("{\n") // TODO: autoindent
+        out("{") // TODO: autoindent
+        eol
         blockToOut(tn.body)
-        out("}\n")
+        out("}")
+        eol()
       case tn: AST_Accessor => outputUnknownNode(tn)
       case tn: AST_Lambda => outputUnknownNode(tn)
       //case tn: AST_Toplevel => outputUnknownNode(tn)
       //case tn: AST_Scope => outputUnknownNode(tn)
       case tn: AST_Block =>
-        out("{\n") // TODO: autoindent
+        out("{") // TODO: autoindent
+        eol()
         blockToOut(tn.body)
-        out("}\n")
+        out("}")
+        eol()
       //case tn: AST_BlockStatement =>
       case tn: AST_SimpleStatement =>
         nodeToOut(tn.body)
-        out("\n")
+        eol()
       case tn: AST_Directive => outputUnknownNode(tn)
       case tn: AST_Debugger => outputUnknownNode(tn)
     }
