@@ -18,11 +18,12 @@ object ScalaOut {
     } else s
   }
 
-  private def printlnNode(n: js.UndefOr[AST_Node]) = {
+  private def printlnNode(n: js.UndefOr[AST_Node])(implicit unknowns: Boolean) = {
     println(n.nonNull.map(n => nodeClassName(n) + ":" + nodeToString(n, "")).getOrElse(""))
   }
-  object ForRange {
 
+  // exctactor for special cases of the for loop
+  object ForRange {
     def unapply(arg: AST_For): Option[(String, AST_Node, AST_Node, Double)] = {
       (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
         case (Some(vv: AST_Var), Some(c: AST_Binary), Some(s: AST_Unary))
@@ -39,13 +40,13 @@ object ScalaOut {
     }
   }
 
-  def nodeToString(n: AST_Node, input: String): String = {
+  def nodeToString(n: AST_Node, input: String)(implicit unknowns: Boolean): String = {
     val b = new StringBuilder
     nodeToOut(n, input, x => b append x)
     b.toString()
   }
 
-  def nodeToOut(n: AST_Node, input: String, out: String => Unit): Unit = {
+  def nodeToOut(n: AST_Node, input: String, out: String => Unit)(implicit unknowns: Boolean): Unit = {
     def source = input.slice(n.start.pos, n.end.endpos)
     // http://lisperator.net/uglifyjs/ast
     // listed in reverse order, so that most specific classes match first
@@ -75,6 +76,18 @@ object ScalaOut {
       out(")")
     }
 
+    def outputUnknownNode(tn: AST_Node) = {
+      def shortNodeClassName(n: String) = {
+        val prefix = "AST_"
+        if (n startsWith prefix) n.drop(prefix.length)
+        else n
+      }
+      out("/* " + shortNodeClassName(nodeClassName(tn)) + "*/")
+      if (unknowns) {
+        out(source)
+      }
+    }
+
     n match {
       case tn: AST_True => out("true")
       case tn: AST_False => out("false")
@@ -102,17 +115,17 @@ object ScalaOut {
       //case tn: AST_SymbolDeclaration => out(tn.name)
       //case tn: AST_SymbolAccessor => out("AST_SymbolAccessor")
       case tn: AST_Symbol => out(tn.name)
-      case tn: AST_ObjectGetter => out("AST_ObjectGetter")
-      case tn: AST_ObjectSetter => out("AST_ObjectSetter")
-      case tn: AST_ObjectKeyVal => out("AST_ObjectKeyVal")
-      case tn: AST_ObjectProperty => out("AST_ObjectProperty")
+      case tn: AST_ObjectGetter => outputUnknownNode(n)
+      case tn: AST_ObjectSetter => outputUnknownNode(tn)
+      case tn: AST_ObjectKeyVal => outputUnknownNode(tn)
+      case tn: AST_ObjectProperty => outputUnknownNode(tn)
       case tn: AST_Object =>
         tn.properties.foreach { p =>
           out(p.key.toString + " = ")
           nodeToOut(p.value, input, out)
           out("\n")
         }
-      case tn: AST_Array => out("AST_Array")
+      case tn: AST_Array => outputUnknownNode(tn)
       case tn: AST_Conditional =>
         out("if (")
         nodeToOut(tn.condition, input, out)
@@ -120,7 +133,7 @@ object ScalaOut {
         nodeToOut(tn.consequent, input, out)
         out(" else ")
         nodeToOut(tn.alternative, input, out)
-      //case tn: AST_Assign => out("AST_Assign")
+      //case tn: AST_Assign => outputUnknownNode(tn)
       case tn: AST_Binary =>
         nodeToOut(tn.left, input, out)
         out(" " + tn.operator + " ")
@@ -153,7 +166,7 @@ object ScalaOut {
         nodeToOut(tn.expression, input, out)
         out(".")
         out(tn.property)
-      //case tn: AST_PropAccess => out("AST_PropAccess")
+      //case tn: AST_PropAccess => outputUnknownNode(tn)
       case tn: AST_Seq =>
         nodeToOut(tn.car, input, out)
         out("\n")
@@ -173,10 +186,10 @@ object ScalaOut {
         outputDefinitions("val", tn)
       case tn: AST_Var =>
         outputDefinitions("var", tn)
-      case tn: AST_Definitions => out("AST_Definitions")
-      case tn: AST_Continue => out("AST_Continue")
-      case tn: AST_Break => out("AST_Break")
-      case tn: AST_LoopControl => out("AST_LoopControl")
+      case tn: AST_Definitions => outputUnknownNode(tn)
+      case tn: AST_Continue => outputUnknownNode(tn)
+      case tn: AST_Break => outputUnknownNode(tn)
+      case tn: AST_LoopControl => outputUnknownNode(tn)
       case tn: AST_Throw =>
         out("throw")
         tn.value.nonNull.foreach { v =>
@@ -191,8 +204,8 @@ object ScalaOut {
           nodeToOut(v, input, out)
           out("\n")
         }
-      //case tn: AST_Exit => out("AST_Exit")
-      //case tn: AST_Jump => out("AST_Jump")
+      //case tn: AST_Exit => outputUnknownNode(tn)
+      //case tn: AST_Jump => outputUnknownNode(tn)
       case tn: AST_If =>
         out("if (")
         val exp = tn.condition.nonNull.fold(out("xxx"))(nodeToOut(_, input, out))
@@ -202,8 +215,8 @@ object ScalaOut {
           out("else ")
           nodeToOut(a, input, out)
         }
-      case tn: AST_With => out("AST_With")
-      case tn: AST_ForIn => out("AST_ForIn")
+      case tn: AST_With => outputUnknownNode(tn)
+      case tn: AST_ForIn => outputUnknownNode(tn)
       case tn: AST_For =>
         // TODO: handle a common special cases like for (var x = x0; x < x1; x++)
         tn match {
@@ -241,18 +254,18 @@ object ScalaOut {
         out(" while (")
         nodeToOut(tn.condition, input, out)
         out(")\n")
-      //case tn: AST_DWLoop => out("AST_DWLoop")
-      //case tn: AST_IterationStatement => out("AST_IterationStatement")
-      case tn: AST_LabeledStatement => out("AST_LabeledStatement")
-      case tn: AST_StatementWithBody => out("AST_StatementWithBody")
-      case tn: AST_EmptyStatement => out("AST_EmptyStatement")
-      case tn: AST_Finally => out("AST_Finally")
-      case tn: AST_Catch => out("AST_Catch")
-      case tn: AST_Try => out("AST_Try")
-      case tn: AST_Case => out("AST_Case")
-      case tn: AST_Default => out("AST_Default")
-      case tn: AST_SwitchBranch => out("AST_SwitchBranch")
-      case tn: AST_Switch => out("AST_Switch")
+      //case tn: AST_DWLoop => outputUnknownNode(tn)
+      //case tn: AST_IterationStatement => outputUnknownNode(tn)
+      case tn: AST_LabeledStatement => outputUnknownNode(tn)
+      case tn: AST_StatementWithBody => outputUnknownNode(tn)
+      case tn: AST_EmptyStatement => outputUnknownNode(tn)
+      case tn: AST_Finally => outputUnknownNode(tn)
+      case tn: AST_Catch => outputUnknownNode(tn)
+      case tn: AST_Try => outputUnknownNode(tn)
+      case tn: AST_Case => outputUnknownNode(tn)
+      case tn: AST_Default => outputUnknownNode(tn)
+      case tn: AST_SwitchBranch => outputUnknownNode(tn)
+      case tn: AST_Switch => outputUnknownNode(tn)
       case tn: AST_Defun =>
         out("def ")
         tn.name.nonNull.foreach(n => nodeToOut(n, input, out))
@@ -267,10 +280,10 @@ object ScalaOut {
         out("{\n") // TODO: autoindent
         blockToOut(tn.body, input, out)
         out("}\n")
-      case tn: AST_Accessor => out("AST_Accessor")
-      case tn: AST_Lambda => out("AST_Lambda")
-      //case tn: AST_Toplevel => out("AST_Toplevel")
-      //case tn: AST_Scope => out("AST_Scope")
+      case tn: AST_Accessor => outputUnknownNode(tn)
+      case tn: AST_Lambda => outputUnknownNode(tn)
+      //case tn: AST_Toplevel => outputUnknownNode(tn)
+      //case tn: AST_Scope => outputUnknownNode(tn)
       case tn: AST_Block =>
         out("{\n") // TODO: autoindent
         blockToOut(tn.body, input, out)
@@ -279,20 +292,20 @@ object ScalaOut {
       case tn: AST_SimpleStatement =>
         nodeToOut(tn.body, input, out)
         out("\n")
-      case tn: AST_Directive => out("AST_Directive")
-      case tn: AST_Debugger => out("AST_Debugger")
+      case tn: AST_Directive => outputUnknownNode(tn)
+      case tn: AST_Debugger => outputUnknownNode(tn)
     }
   }
 
-  private def blockToOut(body: js.Array[AST_Statement], input: String, out: String => Unit): Unit = {
+  private def blockToOut(body: js.Array[AST_Statement], input: String, out: String => Unit)(implicit unknowns: Boolean): Unit = {
     for (s <- body) {
       nodeToOut(s, input, out)
     }
   }
 
-  def output(ast: AST_Block, input: String): String = {
+  def output(ast: AST_Block, input: String, unknowns: Boolean = false): String = {
     val ret = new StringBuilder
-    blockToOut(ast.body, input, x => ret.append(x))
+    blockToOut(ast.body, input, x => ret.append(x))(unknowns)
     ret.toString()
   }
 }
