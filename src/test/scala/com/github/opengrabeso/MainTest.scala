@@ -24,8 +24,10 @@ class MainTest extends FunSuite {
     def checkResult(result: String): Try[Unit] = {
       val missing = mustHave.filter(!result.contains(_))
       val forbidden = mustNotHave.filter(result.contains(_))
-      if (missing.isEmpty & forbidden.isEmpty) Success(())
-      else Failure {
+      if (missing.isEmpty & forbidden.isEmpty) {
+        info(result)
+        Success(())
+      } else Failure {
         def stringList(ss: Seq[String]) = ss.map("  " + _ + "\n").mkString
 
         val missingStr = if (missing.nonEmpty) "Missing: \n" + stringList(missing) else ""
