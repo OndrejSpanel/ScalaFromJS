@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ScalaFromJS</title>
+  <style>
+    div * {
+      vertical-align: middle;
+    }
+
+    body {
+      width: 99%;
+      height: 99%
+    }
+
+    table {
+      width: 99%;
+      height: 90%
+    }
+
+    tr {
+      width: 98%;
+      height: 100%
+    }
+
+    td {
+      width: 48%;
+      height: 99%
+    }
+
+    label {
+      float: left
+    }
+
+    .twrap {
+      overflow: hidden;
+      padding: 0 4px 0 4px
+    }
+
+    textarea {
+      width: 99%;
+      height: 99%;
+      white-space: pre;
+      overflow-wrap: normal;
+      overflow-x: scroll;
+      overflow-y: scroll
+    }
+
+  </style>
+</head>
+<body>
+
+<!-- Include JavaScript dependencies -->
+<script type="text/javascript" src="./ScalaFromJS-jsdeps.js"></script>
+<!-- Include Scala.js compiled code -->
+<script type="text/javascript" src="./ScalaFromJS-opt.js"></script>
+<!-- Run JSApp -->
+<script type="text/javascript" src="./ScalaFromJS-launcher.js"></script>
+
+<h1>ScalaFromJS: Online JavaScript to Scala converter</h1>
+
+<div id="container">
+  <table>
+    <tr>
+      <td>
+        <div class="twrap"><textarea id="in" name="in" cols="20" rows="40"></textarea></div>
+      </td>
+      <td>
+        <div class="twrap"><textarea id="out" name="out" cols="20" rows="40" readonly="readonly"></textarea></div>
+      </td>
+    </tr>
+
+  </table>
+
+</div>
+</body>
+</html>
