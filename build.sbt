@@ -10,6 +10,8 @@ scalacOptions in ThisBuild ++= Seq("-unchecked", "-feature", "-deprecation")
 
 jsDependencies += ProvidedJS / "uglifyjs.min.js"
 
+libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.1"
+
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
 
 def rel(parent: File, file: File) = {
