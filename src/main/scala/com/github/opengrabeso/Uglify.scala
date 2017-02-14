@@ -448,6 +448,7 @@ object UglifyExt {
     sequences = false
     join_vars = false
     hoist_vars = false
+    hoist_funs = false
     booleans = false
     unsafe_comps = false
   }
