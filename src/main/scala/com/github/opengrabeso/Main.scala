@@ -57,10 +57,17 @@ object Main extends js.JSApp {
     DelayedConversion.trigger(e.timeStamp, delayMs)
   }
 
+  private def onPaste(e: Event) = {
+    // no delay needed after paste
+    println("Paste")
+    DelayedConversion.trigger(e.timeStamp, 10)
+  }
 
-  def windowLoaded(e: Event) = {
+
+  private def windowLoaded(e: Event) = {
     //dom.window.alert("Hi from Scala-js-dom")
     in.addEventListener("input", onInput)
+    in.addEventListener("paste", onPaste)
   }
 
   @JSExport
