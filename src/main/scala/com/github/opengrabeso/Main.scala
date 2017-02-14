@@ -10,14 +10,23 @@ import org.scalajs.dom.Event
 
 object Main extends js.JSApp {
 
-  def onInput(e: Event) = {
-    println("Input changed")
+  private lazy val in = dom.document.getElementById("in")
+  private lazy val out = dom.document.getElementById("out")
+
+  private def onInput(e: Event) = {
+    val code = in.asInstanceOf[js.Dynamic].value.asInstanceOf[String]
+    val ast = parse(code, defaultUglifyOptions.parse)
+
+    val astOptimized = ast.optimize(defaultOptimizeOptions)
+    val scalaCode = ScalaOut.output(astOptimized, code)
+
+    out.asInstanceOf[js.Dynamic].value = scalaCode
   }
 
 
   def windowLoaded(e: Event) = {
     //dom.window.alert("Hi from Scala-js-dom")
-    dom.document.getElementById("in").addEventListener("input", onInput)
+    in.addEventListener("input", onInput)
   }
 
   @JSExport
