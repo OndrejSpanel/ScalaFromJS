@@ -392,8 +392,14 @@ object ScalaOut {
       case tn: AST_SimpleStatement =>
         nodeToOut(tn.body)
         out.eol()
-      case tn: AST_Directive => outputUnknownNode(tn)
-      case tn: AST_Debugger => outputUnknownNode(tn)
+      case tn: AST_Directive =>
+        if (source != """"use strict";""") { // east use strict silently
+          outputUnknownNode(tn)
+          out.eol()
+        }
+      case tn: AST_Debugger =>
+        outputUnknownNode(tn)
+        out.eol()
     }
   }
 
