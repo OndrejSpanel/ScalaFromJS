@@ -7,7 +7,7 @@
 function control(a, b) {
     if (x) {
         if (y) doY()
-    } else if (z) doZ
+    } else if (z) doZ()
 
 
     if (b) {

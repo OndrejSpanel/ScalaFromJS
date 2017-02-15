@@ -360,7 +360,7 @@ object ScalaOut {
       case tn: AST_Do =>
         out("do ")
         nodeToOut(tn.body)
-        out("while (")
+        out(" while (")
         nodeToOut(tn.condition)
         out(")\n")
       //case tn: AST_DWLoop => outputUnknownNode(tn)
@@ -371,10 +371,10 @@ object ScalaOut {
       //case tn: AST_StatementWithBody => outputUnknownNode(tn)
       case tn: AST_EmptyStatement =>
       case tn: AST_Finally =>
-        out("finally ")
+        out(" finally ")
         blockBracedToOut(tn.body)
       case tn: AST_Catch =>
-        out("catch {\n")
+        out(" catch {\n")
         out.indent()
         out("case ")
         out.indent()
