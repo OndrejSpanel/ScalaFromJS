@@ -217,11 +217,15 @@ object ScalaOut {
       case tn: AST_ObjectKeyVal => outputUnknownNode(tn)
       case tn: AST_ObjectProperty => outputUnknownNode(tn)
       case tn: AST_Object =>
+        out("js.Dynamic.literal {\n")
+        out.indent()
         tn.properties.foreach { p =>
           out(p.key.toString + " = ")
           nodeToOut(p.value)
           out.eol()
         }
+        out.unindent()
+        out("}\n")
       case tn: AST_Array =>
         out("Array(")
         outputNodes(tn.elements)(nodeToOut)
@@ -364,9 +368,25 @@ object ScalaOut {
         nodeToOut(tn.body)
       //case tn: AST_StatementWithBody => outputUnknownNode(tn)
       case tn: AST_EmptyStatement =>
-      case tn: AST_Finally => outputUnknownNode(tn)
-      case tn: AST_Catch => outputUnknownNode(tn)
-      case tn: AST_Try => outputUnknownNode(tn)
+      case tn: AST_Finally =>
+        out("finally ")
+        blockBracedToOut(tn.body)
+      case tn: AST_Catch =>
+        out("catch {\n")
+        out.indent()
+        out("case ")
+        out.indent()
+        nodeToOut(tn.argname)
+        out(" =>\n")
+        blockToOut(tn.body)
+        out.unindent()
+        out.unindent()
+        out("}\n")
+      case tn: AST_Try =>
+        out("try ")
+        blockBracedToOut(tn.body)
+        tn.bcatch.nonNull.foreach(nodeToOut)
+        tn.bfinally.nonNull.foreach(nodeToOut)
       case tn: AST_Case =>
         out("case ")
         nodeToOut(tn.expression)
