@@ -217,12 +217,19 @@ object ScalaOut {
       case tn: AST_ObjectKeyVal => outputUnknownNode(tn)
       case tn: AST_ObjectProperty => outputUnknownNode(tn)
       case tn: AST_Object =>
+        out("js.Dynamic.literal {\n")
+        out.indent()
         tn.properties.foreach { p =>
           out(p.key.toString + " = ")
           nodeToOut(p.value)
           out.eol()
         }
-      case tn: AST_Array => outputUnknownNode(tn)
+        out.unindent()
+        out("}\n")
+      case tn: AST_Array =>
+        out("Array(")
+        outputNodes(tn.elements)(nodeToOut)
+        out(")")
       case tn: AST_Conditional =>
         out("if (")
         nodeToOut(tn.condition)
@@ -361,13 +368,44 @@ object ScalaOut {
         nodeToOut(tn.body)
       //case tn: AST_StatementWithBody => outputUnknownNode(tn)
       case tn: AST_EmptyStatement =>
-      case tn: AST_Finally => outputUnknownNode(tn)
-      case tn: AST_Catch => outputUnknownNode(tn)
-      case tn: AST_Try => outputUnknownNode(tn)
-      case tn: AST_Case => outputUnknownNode(tn)
-      case tn: AST_Default => outputUnknownNode(tn)
-      case tn: AST_SwitchBranch => outputUnknownNode(tn)
-      case tn: AST_Switch => outputUnknownNode(tn)
+      case tn: AST_Finally =>
+        out("finally ")
+        blockBracedToOut(tn.body)
+      case tn: AST_Catch =>
+        out("catch {\n")
+        out.indent()
+        out("case ")
+        out.indent()
+        nodeToOut(tn.argname)
+        out(" =>\n")
+        blockToOut(tn.body)
+        out.unindent()
+        out.unindent()
+        out("}\n")
+      case tn: AST_Try =>
+        out("try ")
+        blockBracedToOut(tn.body)
+        tn.bcatch.nonNull.foreach(nodeToOut)
+        tn.bfinally.nonNull.foreach(nodeToOut)
+      case tn: AST_Case =>
+        out("case ")
+        nodeToOut(tn.expression)
+        out(" =>\n")
+        out.indent()
+        blockToOut(tn.body)
+        out.eol()
+        out.unindent()
+      case tn: AST_Default =>
+        out("case _ =>\n")
+        out.indent()
+        blockToOut(tn.body)
+        out.eol()
+        out.unindent()
+      //case tn: AST_SwitchBranch => outputUnknownNode(tn)
+      case tn: AST_Switch =>
+        nodeToOut(tn.expression)
+        out(" match ")
+        blockBracedToOut(tn.body, true)
       case tn: AST_Defun =>
         out.eol(2)
         out("def ")
@@ -389,12 +427,18 @@ object ScalaOut {
       case tn: AST_SimpleStatement =>
         nodeToOut(tn.body)
         out.eol()
-      case tn: AST_Directive => outputUnknownNode(tn)
-      case tn: AST_Debugger => outputUnknownNode(tn)
+      case tn: AST_Directive =>
+        if (source != """"use strict";""") { // east use strict silently
+          outputUnknownNode(tn)
+          out.eol()
+        }
+      case tn: AST_Debugger =>
+        outputUnknownNode(tn)
+        out.eol()
     }
   }
 
-  private def blockBracedToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output) = {
+  private def blockBracedToOut(body: js.Array[AST_Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
     // TODO: single statement without braces
     out("{\n") // TODO: autoindent
     out.indent()
