@@ -55,13 +55,11 @@ object Main extends js.JSApp {
     val code = in.asInstanceOf[js.Dynamic].value.asInstanceOf[String]
     // longer delay on a long code
     val delayMs = 10 max code.length / 100 min 1000
-    println(delayMs)
     DelayedConversion.trigger(e.timeStamp, delayMs)
   }
 
   private def onPaste(e: Event) = {
     // no delay needed after paste
-    println("Paste")
     DelayedConversion.trigger(e.timeStamp, 10)
   }
 
