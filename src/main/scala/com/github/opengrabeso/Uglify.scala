@@ -283,6 +283,8 @@ object Uglify extends js.Object {
   }
 
   @js.native class AST_ObjectKeyVal extends AST_ObjectProperty {
+    override def key: String = js.native
+
     // [string] the original quote character
     val quote: String =  js.native
   }

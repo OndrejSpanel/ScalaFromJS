@@ -221,18 +221,25 @@ object ScalaOut {
       //case tn: AST_SymbolDeclaration => out(tn.name)
       //case tn: AST_SymbolAccessor => out("AST_SymbolAccessor")
       case tn: AST_Symbol => out(tn.name)
-      case tn: AST_ObjectGetter => outputUnknownNode(n)
-      case tn: AST_ObjectSetter => outputUnknownNode(tn)
-      case tn: AST_ObjectKeyVal => outputUnknownNode(tn)
-      case tn: AST_ObjectProperty => outputUnknownNode(tn)
+      case tn: AST_ObjectGetter =>
+        out("def ")
+        nodeToOut(tn.key)
+        nodeToOut(tn.value)
+        out.eol()
+      case tn: AST_ObjectSetter =>
+        out("def ")
+        nodeToOut(tn.key)
+        nodeToOut(tn.value)
+        out.eol()
+      case tn: AST_ObjectKeyVal =>
+          out(tn.key + " = ")
+          nodeToOut(tn.value)
+          out.eol()
+      case tn: AST_ObjectProperty =>
       case tn: AST_Object =>
         out("js.Dynamic.literal {\n")
         out.indent()
-        tn.properties.foreach { p =>
-          out(p.key.toString + " = ")
-          nodeToOut(p.value)
-          out.eol()
-        }
+        tn.properties.foreach(nodeToOut)
         out.unindent()
         out("}")
       case tn: AST_Array =>
@@ -427,8 +434,9 @@ object ScalaOut {
         out(" => ")
         blockBracedToOut(tn.body)
       case tn: AST_Accessor =>
-        out("/* Unsupported: Accessor */ ")
-        blockToOut(tn.body)
+        outputArgNames(tn)
+        out(" = ")
+        blockBracedToOut(tn.body)
       case tn: AST_Lambda => outputUnknownNode(tn)
       //case tn: AST_Toplevel => outputUnknownNode(tn)
       //case tn: AST_Scope => outputUnknownNode(tn)
