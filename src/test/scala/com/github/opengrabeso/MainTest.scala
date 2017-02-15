@@ -113,11 +113,16 @@ class MainTest extends FunSuite {
   test("Flow control") {
     ConversionCheck(
       rsc("control/control.js"),
+      Seq(
       "if (b) {",
       "a += 1",
       "if (!b)",
       "else {",
       "for (i <- 0 until 3)"
+      ),
+      ConversionCheck.standardForbidden ++ Seq(
+        "if (x) if (y)"
+      )
     )
   }
 

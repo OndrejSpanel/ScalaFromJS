@@ -316,7 +316,7 @@ object ScalaOut {
         out(") ")
         nodeToOut(tn.body)
         tn.alternative.nonNull.foreach { a =>
-          out("else ")
+          out(" else ")
           nodeToOut(a)
         }
       case tn: AST_With => outputUnknownNode(tn, true)
@@ -445,7 +445,7 @@ object ScalaOut {
     blockToOut(body)
     out.unindent()
     out.eol()
-    out("}\n")
+    out("}")
   }
 
   private def blockToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
