@@ -58,7 +58,9 @@ object ScalaOut {
     val default = new Config
   }
 
-  case class InputContext(input: String)
+  case class InputContext(input: String) {
+    var commentsDumped = Set.empty[Int]
+  }
 
   implicit class NonNull[T](val undef: js.UndefOr[T])(implicit ev: Null <:< T) {
     def nonNull: Option[T] = Option[T](undef.orNull)
@@ -110,6 +112,25 @@ object ScalaOut {
     b.result
   }
 
+  def dumpComments(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output) = {
+    for (c <- n.start.comments_before) {
+      if (!(input.commentsDumped contains c.pos)) {
+        if (c.`type` == "comment2") {
+          out("/*")
+          out(c.value.toString)
+          out("*/")
+          out.eol()
+        } else {
+          out("//")
+          out(c.value.toString)
+          out.eol()
+        }
+
+        input.commentsDumped += c.pos
+      }
+    }
+  }
+
   def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
     def source = input.input.slice(n.start.pos, n.end.endpos)
     // http://lisperator.net/uglifyjs/ast
@@ -123,20 +144,26 @@ object ScalaOut {
       }
     }
 
+    def outputNodes[T](ns: Seq[T])(outOne: T => Unit, delimiter: String = ", ") = {
+      val markEnd = ns zip (ns.drop(1).map(x => true) :+ false)
+      for ((arg, delim) <- markEnd) {
+        outOne(arg) + ": Any"
+        if (delim) out(delimiter)
+      }
+    }
     def outputArgNames(tn: AST_Lambda) = {
       out("(")
-      out(
-        tn.argnames.map { arg =>
-          nodeToString(arg) + ": Any"
-        }.mkString(", ")
-      )
+      outputNodes(tn.argnames) { n =>
+        nodeToOut(n)
+        out(": Any")
+      }
       out(")")
     }
 
     def outputCall(tn: AST_Call) = {
       nodeToOut(tn.expression)
       out("(")
-      out(tn.args.map(nodeToString).mkString(", "))
+      outputNodes(tn.args)(nodeToOut)
       out(")")
     }
 
@@ -154,6 +181,8 @@ object ScalaOut {
         out.eol()
       }
     }
+
+    dumpComments(n)
 
     //noinspection ScalaUnusedSymbol
     n match {
@@ -289,8 +318,14 @@ object ScalaOut {
         // TODO: handle a common special cases like for (var x = x0; x < x1; x++)
         tn match {
           case ForRange(name, init, end, step) =>
-            val stepString = if (step !=1) s" by $step" else ""
-            out(s"for ($name <- ${nodeToString(init)} until ${nodeToString(end)}$stepString) ")
+            out("for (")
+            out(name)
+            out(" <- ")
+            nodeToOut(init)
+            out(" until ")
+            nodeToOut(end)
+            if (step != 1) out(s" by $step")
+            out(") ")
             nodeToOut(tn.body)
           case _ => // generic solution using while - reliable, but ugly
             // new scope never needed in classical JS, all variables exists on a function scope
@@ -365,6 +400,7 @@ object ScalaOut {
     out.indent()
     blockToOut(body)
     out.unindent()
+    out.eol()
     out("}\n")
   }
 
