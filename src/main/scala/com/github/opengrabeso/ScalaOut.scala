@@ -233,7 +233,7 @@ object ScalaOut {
       case tn: AST_Conditional =>
         out("if (")
         nodeToOut(tn.condition)
-        out(")")
+        out(") ")
         nodeToOut(tn.consequent)
         out(" else ")
         nodeToOut(tn.alternative)
