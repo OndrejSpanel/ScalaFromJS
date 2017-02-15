@@ -13,6 +13,8 @@ class MainTest extends FunSuite {
     def any: Any = value
   }
 
+  private def normalizeEol(str: String) = str.replace("\r\n", "\n")
+
   object ConversionCheck {
     val standardForbidden = Seq(";", "/* Unsupported:")
 
@@ -37,11 +39,7 @@ class MainTest extends FunSuite {
       }
     }
 
-    def produceResult = {
-      val ast = parse(code, defaultUglifyOptions.parse)
-      val astOptimized = ast.optimize(defaultOptimizeOptions)
-      ScalaOut.output(astOptimized, code)
-    }
+    def produceResult = Main.convert(code)
 
     val result = produceResult
     // TODO: better error reporting
@@ -116,7 +114,7 @@ class MainTest extends FunSuite {
     ConversionCheck(
       rsc("control/control.js"),
       "if (b) {",
-      "} while (!b)",
+      "do a += 1",
       "if (!b)",
       "else {",
       "for (i <- 0 until 3)"
@@ -154,7 +152,13 @@ class MainTest extends FunSuite {
     )
   }
 
+  test("Indenting") {
+    val result = Main.convert(rsc("control/indent.js"))
+    assert(result == normalizeEol(rsc("control/indent.scala")))
+  }
+
   test("Simple class") {
+    pending
     ConversionCheck(
       rsc("simpleClass/simpleClass.js"),
       Seq(
