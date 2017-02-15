@@ -14,7 +14,7 @@ object ScalaOut {
   abstract class Output extends ((String) => Unit) {
     def out(x: String): Unit
 
-    def eol(): Unit = out("\n")
+    def eol(num: Int = 1): Unit = out("\n")
 
     def changeIndent(ch: Int): Unit = ()
 
@@ -25,21 +25,22 @@ object ScalaOut {
   abstract class NiceOutput extends Output {
     def out(x: String): Unit
 
-    private var eolDone = false
+    private var eolDone = Int.MaxValue
     private var indentLevel = 0
 
     override def changeIndent(ch: Int): Unit = indentLevel += ch
 
     private def singleLine(line: String) = {
-      if (eolDone) out(" " * (indentLevel * 2))
+      if (eolDone > 0) out(" " * (indentLevel * 2))
       out(line)
-      eolDone = line.lastOption.contains('\n')
+      if (line == "\n") eolDone += 1
+      else eolDone = if (line.lastOption.contains('\n')) 1 else 0
     }
 
-    override def eol() = {
-      if (!eolDone) {
+    override def eol(num: Int) = {
+      while (eolDone < num) {
         out("\n")
-        eolDone = true
+        eolDone += 1
       }
     }
 
@@ -99,7 +100,7 @@ object ScalaOut {
     val b = new StringBuilder
     def out(x: String) = b append x
     // no smart eol handling - string will be processed when doing proper output
-    override def eol() = out("\n")
+    override def eol(num: Int) = out("\n")
     override def apply(x: String) = out(x)
     def result = b.toString
   }
@@ -333,6 +334,7 @@ object ScalaOut {
       case tn: AST_SwitchBranch => outputUnknownNode(tn)
       case tn: AST_Switch => outputUnknownNode(tn)
       case tn: AST_Defun =>
+        out.eol(2)
         out("def ")
         tn.name.nonNull.foreach(n => nodeToOut(n))
         outputArgNames(tn)

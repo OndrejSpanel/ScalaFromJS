@@ -1,5 +1,6 @@
 def foo() = {
 }
+
 def bar() = {
   foo()
   foo()
