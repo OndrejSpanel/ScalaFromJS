@@ -37,8 +37,10 @@ object Main extends js.JSApp {
     }
   }
 
-  def doConversion() {
+  def doConversion(persist: Boolean = true) {
     val code = in.asInstanceOf[js.Dynamic].value.asInstanceOf[String]
+
+    Persist.store("source", code)
 
     Try {
       val ast = parse(code, defaultUglifyOptions.parse)
@@ -69,6 +71,13 @@ object Main extends js.JSApp {
     in.addEventListener("keyup", onInput) // browser compatibility: some old browswer may be not supporting input
     in.addEventListener("input", onInput)
     in.addEventListener("paste", onPaste)
+
+    val previous = Persist.load("source")
+    for (p <- previous) {
+      in.asInstanceOf[js.Dynamic].value = p
+      doConversion(false)
+    }
+
   }
 
   @JSExport
