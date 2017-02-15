@@ -280,14 +280,14 @@ object ScalaOut {
         }
 
       case tn: AST_While =>
-        out(" while (")
+        out("while (")
         nodeToOut(tn.condition)
         out(") ")
         nodeToOut(tn.body)
       case tn: AST_Do =>
-        out("do {\n")
+        out("do ")
         nodeToOut(tn.body)
-        out("} while (")
+        out("while (")
         nodeToOut(tn.condition)
         out(")\n")
       //case tn: AST_DWLoop => outputUnknownNode(tn)
