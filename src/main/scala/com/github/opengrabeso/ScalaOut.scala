@@ -14,8 +14,29 @@ object ScalaOut {
   abstract class Output extends ((String) => Unit) {
     def out(x: String): Unit
 
-    var eolDone = true
-    def eol() = {
+    def eol(): Unit = out("\n")
+
+    def changeIndent(ch: Int): Unit = ()
+
+    def indent(): Unit = changeIndent(+1)
+    def unindent(): Unit = changeIndent(-1)
+  }
+
+  abstract class NiceOutput extends Output {
+    def out(x: String): Unit
+
+    private var eolDone = false
+    private var indentLevel = 0
+
+    override def changeIndent(ch: Int): Unit = indentLevel += ch
+
+    private def singleLine(line: String) = {
+      if (eolDone) out(" " * (indentLevel * 2))
+      out(line)
+      eolDone = line.lastOption.contains('\n')
+    }
+
+    override def eol() = {
       if (!eolDone) {
         out("\n")
         eolDone = true
@@ -23,9 +44,13 @@ object ScalaOut {
     }
 
     def apply(v: String) = {
-      out(v)
-      eolDone = v.lastOption.contains('\n')
+      val lines = v.linesWithSeparators
+      for (line <- lines) {
+        singleLine(line)
+      }
+
     }
+
   }
 
   object Config {
@@ -73,6 +98,9 @@ object ScalaOut {
   class OutToString extends Output {
     val b = new StringBuilder
     def out(x: String) = b append x
+    // no smart eol handling - string will be processed when doing proper output
+    override def eol() = out("\n")
+    override def apply(x: String) = out(x)
     def result = b.toString
   }
   def nodeToString(n: AST_Node)(implicit outConfig: Config, input: InputContext): String = {
@@ -332,7 +360,9 @@ object ScalaOut {
   private def blockBracedToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output) = {
     // TODO: single statement without braces
     out("{\n") // TODO: autoindent
+    out.indent()
     blockToOut(body)
+    out.unindent()
     out("}\n")
   }
 
@@ -343,10 +373,13 @@ object ScalaOut {
   }
 
   def output(ast: AST_Block, input: String, outConfig: Config = Config.default): String = {
-    val ret = new OutToString
+    val sb = new StringBuilder
+    val ret = new NiceOutput {
+      def out(x: String) = sb append x
+    }
     val inputContext = InputContext(input)
     blockToOut(ast.body)(outConfig, inputContext, ret)
-    ret.result
+    sb.result
   }
 
 }
