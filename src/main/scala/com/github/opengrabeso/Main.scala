@@ -37,16 +37,18 @@ object Main extends js.JSApp {
     }
   }
 
+  def convert(code: String): String = {
+    val ast = parse(code, defaultUglifyOptions.parse)
+    val astOptimized = ast.optimize(defaultOptimizeOptions)
+    ScalaOut.output(astOptimized, code)
+  }
+
   def doConversion(persist: Boolean = true) {
     val code = in.asInstanceOf[js.Dynamic].value.asInstanceOf[String]
 
     Persist.store("source", code)
 
-    Try {
-      val ast = parse(code, defaultUglifyOptions.parse)
-      val astOptimized = ast.optimize(defaultOptimizeOptions)
-      ScalaOut.output(astOptimized, code)
-    }.foreach { scalaCode =>
+    Try(convert(code)).foreach { scalaCode =>
       out.asInstanceOf[js.Dynamic].value = scalaCode
     }
   }
