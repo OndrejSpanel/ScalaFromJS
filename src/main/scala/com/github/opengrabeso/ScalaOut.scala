@@ -14,25 +14,53 @@ object ScalaOut {
   abstract class Output extends ((String) => Unit) {
     def out(x: String): Unit
 
-    var eolDone = true
-    def eol() = {
-      if (!eolDone) {
+    def eol(num: Int = 1): Unit = out("\n")
+
+    def changeIndent(ch: Int): Unit = ()
+
+    def indent(): Unit = changeIndent(+1)
+    def unindent(): Unit = changeIndent(-1)
+  }
+
+  abstract class NiceOutput extends Output {
+    def out(x: String): Unit
+
+    private var eolDone = Int.MaxValue
+    private var indentLevel = 0
+
+    override def changeIndent(ch: Int): Unit = indentLevel += ch
+
+    private def singleLine(line: String) = {
+      if (eolDone > 0) out(" " * (indentLevel * 2))
+      out(line)
+      if (line == "\n") eolDone += 1
+      else eolDone = if (line.lastOption.contains('\n')) 1 else 0
+    }
+
+    override def eol(num: Int) = {
+      while (eolDone < num) {
         out("\n")
-        eolDone = true
+        eolDone += 1
       }
     }
 
     def apply(v: String) = {
-      out(v)
-      eolDone = v.lastOption.contains('\n')
+      val lines = v.linesWithSeparators
+      for (line <- lines) {
+        singleLine(line)
+      }
+
     }
+
   }
 
   object Config {
     val default = new Config
   }
 
-  case class InputContext(input: String)
+  case class InputContext(input: String) {
+    var commentsDumped = Set.empty[Int]
+  }
 
   implicit class NonNull[T](val undef: js.UndefOr[T])(implicit ev: Null <:< T) {
     def nonNull: Option[T] = Option[T](undef.orNull)
@@ -73,12 +101,34 @@ object ScalaOut {
   class OutToString extends Output {
     val b = new StringBuilder
     def out(x: String) = b append x
+    // no smart eol handling - string will be processed when doing proper output
+    override def eol(num: Int) = out("\n")
+    override def apply(x: String) = out(x)
     def result = b.toString
   }
   def nodeToString(n: AST_Node)(implicit outConfig: Config, input: InputContext): String = {
     val b = new OutToString
     nodeToOut(n)(outConfig, input, b)
     b.result
+  }
+
+  def dumpComments(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output) = {
+    for (c <- n.start.comments_before) {
+      if (!(input.commentsDumped contains c.pos)) {
+        if (c.`type` == "comment2") {
+          out("/*")
+          out(c.value.toString)
+          out("*/")
+          out.eol()
+        } else {
+          out("//")
+          out(c.value.toString)
+          out.eol()
+        }
+
+        input.commentsDumped += c.pos
+      }
+    }
   }
 
   def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
@@ -94,20 +144,26 @@ object ScalaOut {
       }
     }
 
+    def outputNodes[T](ns: Seq[T])(outOne: T => Unit, delimiter: String = ", ") = {
+      val markEnd = ns zip (ns.drop(1).map(x => true) :+ false)
+      for ((arg, delim) <- markEnd) {
+        outOne(arg) + ": Any"
+        if (delim) out(delimiter)
+      }
+    }
     def outputArgNames(tn: AST_Lambda) = {
       out("(")
-      out(
-        tn.argnames.map { arg =>
-          nodeToString(arg) + ": Any"
-        }.mkString(", ")
-      )
+      outputNodes(tn.argnames) { n =>
+        nodeToOut(n)
+        out(": Any")
+      }
       out(")")
     }
 
     def outputCall(tn: AST_Call) = {
       nodeToOut(tn.expression)
       out("(")
-      out(tn.args.map(nodeToString).mkString(", "))
+      outputNodes(tn.args)(nodeToOut)
       out(")")
     }
 
@@ -125,6 +181,8 @@ object ScalaOut {
         out.eol()
       }
     }
+
+    dumpComments(n)
 
     //noinspection ScalaUnusedSymbol
     n match {
@@ -260,8 +318,14 @@ object ScalaOut {
         // TODO: handle a common special cases like for (var x = x0; x < x1; x++)
         tn match {
           case ForRange(name, init, end, step) =>
-            val stepString = if (step !=1) s" by $step" else ""
-            out(s"for ($name <- ${nodeToString(init)} until ${nodeToString(end)}$stepString) ")
+            out("for (")
+            out(name)
+            out(" <- ")
+            nodeToOut(init)
+            out(" until ")
+            nodeToOut(end)
+            if (step != 1) out(s" by $step")
+            out(") ")
             nodeToOut(tn.body)
           case _ => // generic solution using while - reliable, but ugly
             // new scope never needed in classical JS, all variables exists on a function scope
@@ -280,14 +344,14 @@ object ScalaOut {
         }
 
       case tn: AST_While =>
-        out(" while (")
+        out("while (")
         nodeToOut(tn.condition)
         out(") ")
         nodeToOut(tn.body)
       case tn: AST_Do =>
-        out("do {\n")
+        out("do ")
         nodeToOut(tn.body)
-        out("} while (")
+        out("while (")
         nodeToOut(tn.condition)
         out(")\n")
       //case tn: AST_DWLoop => outputUnknownNode(tn)
@@ -305,6 +369,7 @@ object ScalaOut {
       case tn: AST_SwitchBranch => outputUnknownNode(tn)
       case tn: AST_Switch => outputUnknownNode(tn)
       case tn: AST_Defun =>
+        out.eol(2)
         out("def ")
         tn.name.nonNull.foreach(n => nodeToOut(n))
         outputArgNames(tn)
@@ -332,7 +397,10 @@ object ScalaOut {
   private def blockBracedToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output) = {
     // TODO: single statement without braces
     out("{\n") // TODO: autoindent
+    out.indent()
     blockToOut(body)
+    out.unindent()
+    out.eol()
     out("}\n")
   }
 
@@ -343,10 +411,13 @@ object ScalaOut {
   }
 
   def output(ast: AST_Block, input: String, outConfig: Config = Config.default): String = {
-    val ret = new OutToString
+    val sb = new StringBuilder
+    val ret = new NiceOutput {
+      def out(x: String) = sb append x
+    }
     val inputContext = InputContext(input)
     blockToOut(ast.body)(outConfig, inputContext, ret)
-    ret.result
+    sb.result
   }
 
 }

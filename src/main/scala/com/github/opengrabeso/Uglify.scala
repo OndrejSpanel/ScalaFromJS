@@ -18,7 +18,7 @@ object Uglify extends js.Object {
     val pos: Int = js.native
     val endpos: Int = js.native
 
-    val comments_before: js.Array[js.Any] = js.native
+    val comments_before: js.Array[AST_Token] = js.native
     val file: js.Any = js.native
 
     val nlb: Boolean = js.native
