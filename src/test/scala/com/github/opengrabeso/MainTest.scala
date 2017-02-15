@@ -114,7 +114,7 @@ class MainTest extends FunSuite {
     ConversionCheck(
       rsc("control/control.js"),
       "if (b) {",
-      "do a += 1",
+      "a += 1",
       "if (!b)",
       "else {",
       "for (i <- 0 until 3)"

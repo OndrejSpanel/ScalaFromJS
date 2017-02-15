@@ -39,7 +39,9 @@ object Main extends js.JSApp {
 
   def convert(code: String): String = {
     val ast = parse(code, defaultUglifyOptions.parse)
-    val astOptimized = ast.optimize(defaultOptimizeOptions)
+    // optimization does more harm then good, source code is better for readability and maintenance
+    val astOptimized = ast // ast.optimize(defaultOptimizeOptions)
+    //val astOptimized = ast.optimize(defaultOptimizeOptions)
     ScalaOut.output(astOptimized, code)
   }
 
