@@ -426,7 +426,9 @@ object ScalaOut {
         outputArgNames(tn)
         out(" => ")
         blockBracedToOut(tn.body)
-      case tn: AST_Accessor => outputUnknownNode(tn)
+      case tn: AST_Accessor =>
+        out("/* Unsupported: Accessor */ ")
+        blockToOut(tn.body)
       case tn: AST_Lambda => outputUnknownNode(tn)
       //case tn: AST_Toplevel => outputUnknownNode(tn)
       //case tn: AST_Scope => outputUnknownNode(tn)
