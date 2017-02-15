@@ -72,3 +72,23 @@ lazy val rsc = (project in file("resource-objects")).
   )
 
 lazy val scalaFromJS = (project in file(".")).aggregate(rsc).dependsOn(rsc)
+
+
+lazy val deployTask = TaskKey[Unit]("deploy")
+
+deployTask := {
+  //(compile in scalaFromJS).value
+  (fullOptJS in scalaFromJS in Compile).value // build it first
+
+  val binVersion = scalaBinaryVersion.value
+  val baseName = name.value.toLowerCase
+  val buildDir = (target in Compile).value / ("scala-" + binVersion)
+  val deployDir = baseDirectory.value / "docs" / "live"
+  val toDeploy = Seq("-jsdeps.js", "-launcher.js", "-opt.js")
+  for (suffix <- toDeploy)  {
+    val builtFile = buildDir / (baseName + suffix)
+    val deployFile = deployDir / (baseName + suffix)
+    IO.copyFile(builtFile, deployFile)
+    println(s"Deployed $builtFile to $deployFile")
+  }
+}
