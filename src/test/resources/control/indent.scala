@@ -1,3 +1,5 @@
+// basic indenting and formatting
+
 def foo() = {
 }
 
