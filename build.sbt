@@ -47,6 +47,7 @@ def generateIndexTask(index: String, suffix: String) = Def.task {
   )
 
   log.info(s"Generate $index with suffix $suffix")
+  target
 }
 
 Seq(
