@@ -336,7 +336,13 @@ object ScalaOut {
           nodeToOut(a)
         }
       case tn: AST_With => outputUnknownNode(tn, true)
-      case tn: AST_ForIn => outputUnknownNode(tn, true)
+      case tn: AST_ForIn =>
+        out("for (")
+        tn.name.nonNull.fold(nodeToOut(tn.init))(nodeToOut)
+        out(" <- ")
+        nodeToOut(tn.`object`)
+        out(") ")
+        nodeToOut(tn.body)
       case tn: AST_For =>
         // TODO: handle a common special cases like for (var x = x0; x < x1; x++)
         tn match {
