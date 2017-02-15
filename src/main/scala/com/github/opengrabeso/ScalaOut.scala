@@ -222,7 +222,10 @@ object ScalaOut {
           nodeToOut(p.value)
           out.eol()
         }
-      case tn: AST_Array => outputUnknownNode(tn)
+      case tn: AST_Array =>
+        out("Array(")
+        outputNodes(tn.elements)(nodeToOut)
+        out(")")
       case tn: AST_Conditional =>
         out("if (")
         nodeToOut(tn.condition)
