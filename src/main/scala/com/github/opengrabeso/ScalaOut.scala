@@ -367,10 +367,25 @@ object ScalaOut {
       case tn: AST_Finally => outputUnknownNode(tn)
       case tn: AST_Catch => outputUnknownNode(tn)
       case tn: AST_Try => outputUnknownNode(tn)
-      case tn: AST_Case => outputUnknownNode(tn)
-      case tn: AST_Default => outputUnknownNode(tn)
+      case tn: AST_Case =>
+        out("case ")
+        nodeToOut(tn.expression)
+        out(" =>\n")
+        out.indent()
+        blockToOut(tn.body)
+        out.eol()
+        out.unindent()
+      case tn: AST_Default =>
+        out("case _ =>\n")
+        out.indent()
+        blockToOut(tn.body)
+        out.eol()
+        out.unindent()
       case tn: AST_SwitchBranch => outputUnknownNode(tn)
-      case tn: AST_Switch => outputUnknownNode(tn)
+      case tn: AST_Switch =>
+        nodeToOut(tn.expression)
+        out(" match ")
+        blockBracedToOut(tn.body, true)
       case tn: AST_Defun =>
         out.eol(2)
         out("def ")
@@ -403,7 +418,7 @@ object ScalaOut {
     }
   }
 
-  private def blockBracedToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output) = {
+  private def blockBracedToOut(body: js.Array[AST_Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
     // TODO: single statement without braces
     out("{\n") // TODO: autoindent
     out.indent()
