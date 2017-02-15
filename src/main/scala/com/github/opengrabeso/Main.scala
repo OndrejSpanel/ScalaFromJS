@@ -71,8 +71,6 @@ object Main extends js.JSApp {
 
 
   private def windowLoaded(e: Event) = {
-    //dom.window.alert("Hi from Scala-js-dom")
-    in.addEventListener("keyup", onInput) // browser compatibility: some old browswer may be not supporting input
     in.addEventListener("input", onInput)
     in.addEventListener("paste", onPaste)
 
