@@ -66,6 +66,9 @@ object ScalaOut {
     def nonNull: Option[T] = Option[T](undef.orNull)
   }
 
+  def markEnd[T](seq: Seq[T]) = seq zip (seq.drop(1).map(x => true) :+ false)
+
+
   private def nodeClassName(n: AST_Node): String = {
     val nd = n.asInstanceOf[js.Dynamic]
     val s = nd.constructor.name.asInstanceOf[String]
@@ -145,8 +148,7 @@ object ScalaOut {
     }
 
     def outputNodes[T](ns: Seq[T])(outOne: T => Unit, delimiter: String = ", ") = {
-      val markEnd = ns zip (ns.drop(1).map(x => true) :+ false)
-      for ((arg, delim) <- markEnd) {
+      for ((arg, delim) <- markEnd(ns)) {
         outOne(arg) + ": Any"
         if (delim) out(delimiter)
       }
@@ -449,8 +451,9 @@ object ScalaOut {
   }
 
   private def blockToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
-    for (s <- body) {
+    for ((s, notLast) <- markEnd(body)) {
       nodeToOut(s)
+      if (notLast) out.eol()
     }
   }
 
