@@ -401,7 +401,7 @@ object ScalaOut {
         blockToOut(tn.body)
         out.eol()
         out.unindent()
-      case tn: AST_SwitchBranch => outputUnknownNode(tn)
+      //case tn: AST_SwitchBranch => outputUnknownNode(tn)
       case tn: AST_Switch =>
         nodeToOut(tn.expression)
         out(" match ")
