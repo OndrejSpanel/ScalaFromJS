@@ -17,7 +17,7 @@ I have struggled a lot with including Uglify-js as a npm depencency in a way it 
 For the tests it was possible to use NPM (via [sbt-scalajs-bundler][1] plugin). I was however unable to make it
 work this way in the browser. I gave up eventually and included the Ugligy script obtained by using:
 
-`uglifyjs --self -c -m -o ./tmp/uglifyjs.js`, see [UglifyJS 2 browser build download Stack Overflow question]
+`uglifyjs --self -c -m -o ./tmp/uglifyjs.js`, see [UglifyJS 2 browser build download Stack Overflow question][2]
  
  [1]: https://github.com/scalacenter/scalajs-bundler
  [2]: http://stackoverflow.com/questions/20027492/uglifyjs-2-browser-build-download
