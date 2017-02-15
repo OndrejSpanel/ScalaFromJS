@@ -227,7 +227,7 @@ object ScalaOut {
           out.eol()
         }
         out.unindent()
-        out("}\n")
+        out("}")
       case tn: AST_Array =>
         out("Array(")
         outputNodes(tn.elements)(nodeToOut)
@@ -417,7 +417,7 @@ object ScalaOut {
         blockBracedToOut(tn.body)
       case tn: AST_Function =>
         outputArgNames(tn)
-        out(" = ")
+        out(" => ")
         blockBracedToOut(tn.body)
       case tn: AST_Accessor => outputUnknownNode(tn)
       case tn: AST_Lambda => outputUnknownNode(tn)
