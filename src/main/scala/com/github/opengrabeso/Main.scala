@@ -50,6 +50,8 @@ object Main extends js.JSApp {
 
     Persist.store("source", code)
 
+    convert(code)
+
     Try(convert(code)).foreach { scalaCode =>
       out.asInstanceOf[js.Dynamic].value = scalaCode
     }

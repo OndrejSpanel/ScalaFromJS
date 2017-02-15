@@ -28,8 +28,8 @@ object Uglify extends js.Object {
   }
 
   @js.native sealed abstract class AST_Node extends js.Object {
-    val start: AST_Token = js.native
-    val end: AST_Token = js.native
+    val start: js.UndefOr[AST_Token] = js.native
+    val end: js.UndefOr[AST_Token] = js.native
   }
 
   @js.native sealed abstract class AST_Statement extends AST_Node

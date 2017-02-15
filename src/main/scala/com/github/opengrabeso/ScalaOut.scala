@@ -116,7 +116,11 @@ object ScalaOut {
   }
 
   def dumpComments(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output) = {
-    for (c <- n.start.comments_before) {
+    // start is mostly defined, but not for accessor
+    for {
+      start <- n.start.nonNull
+      c <- start.comments_before
+    } {
       if (!(input.commentsDumped contains c.pos)) {
         if (c.`type` == "comment2") {
           out("/*")
@@ -135,7 +139,10 @@ object ScalaOut {
   }
 
   def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
-    def source = input.input.slice(n.start.pos, n.end.endpos)
+    def source = (for {
+      s <- n.start
+      e <- n.end
+    } yield input.input.slice(s.pos, e.endpos)).getOrElse("")
     // http://lisperator.net/uglifyjs/ast
     // listed in reverse order, so that most specific classes match first
     //noinspection ScalaUnusedSymbol
