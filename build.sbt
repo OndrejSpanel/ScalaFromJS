@@ -8,7 +8,27 @@ scalaVersion in ThisBuild  := "2.12.1"
 
 scalacOptions in ThisBuild ++= Seq("-unchecked", "-feature", "-deprecation")
 
-jsDependencies += ProvidedJS / "uglifyjs.min.js"
+//jsDependencies += ProvidedJS / "uglifyjs.js" minified "uglifyjs.min.js"
+
+
+def loadJSDependencies(s: String*) = {
+  val head = ProvidedJS / s.head
+
+  val pairs = s.drop(1) zip s
+  head +: pairs.map { case (depName, prev) =>
+    ProvidedJS / depName dependsOn prev
+  }
+}
+
+jsDependencies ++= loadJSDependencies(
+  "js/utils.js",
+  "js/ast.js",
+  "js/parse.js",
+  "js/transform.js",
+  "js/scope.js",
+  "js/output.js",
+  "js/compress.js"
+)
 
 libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.1"
 

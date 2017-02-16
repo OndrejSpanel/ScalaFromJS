@@ -2,9 +2,9 @@ package com.github.opengrabeso
 
 import scala.scalajs.js
 import scala.scalajs.js.RegExp
-import scala.scalajs.js.annotation.{JSImport, JSName, ScalaJSDefined}
+import scala.scalajs.js.annotation.{JSGlobalScope, JSImport, JSName, ScalaJSDefined}
 
-@JSName("UglifyJS")
+@JSGlobalScope
 @js.native
 object Uglify extends js.Object {
 
