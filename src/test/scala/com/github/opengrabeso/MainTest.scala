@@ -27,7 +27,6 @@ class MainTest extends FunSuite {
       val missing = mustHave.filter(!result.contains(_))
       val forbidden = mustNotHave.filter(result.contains(_))
       if (missing.isEmpty & forbidden.isEmpty) {
-        info(result)
         Success(())
       } else Failure {
         def stringList(ss: Seq[String]) = ss.map("  " + _ + "\n").mkString
@@ -60,17 +59,17 @@ class MainTest extends FunSuite {
     assert(u == "answer=42;")
 
     val m = parse(code, defaultUglifyOptions.parse)
-    assert(m.start.pos == 0)
-    assert(m.end.endpos == code.length)
+    assert(m.start.exists(_.pos == 0))
+    assert(m.end.exists(_.endpos == code.length))
     (m.body.head: @unchecked) match {
       case s: AST_SimpleStatement =>
         (s.body: @unchecked) match {
           case a: AST_Assign =>
-            assert(a.left.start.`type` == "name")
+            assert(a.left.start.exists(_.`type` == "name"))
             assert(a.left.asInstanceOf[AST_SymbolRef].name == "answer")
             assert(a.operator == "=")
-            assert(a.right.start.`type` == "num")
-            assert(a.right.start.value == 42.any)
+            assert(a.right.start.exists(_.`type` == "num"))
+            assert(a.right.start.exists(_.value == 42.any))
         }
 
     }
