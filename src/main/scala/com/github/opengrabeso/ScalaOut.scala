@@ -176,6 +176,22 @@ object ScalaOut {
       out(")")
     }
 
+    def quote (s: String): String = "\"" + escape(s) + "\""
+    def escape(s: String): String = s.flatMap(escapedChar)
+
+    def escapedChar(ch: Char): String = ch match {
+      case '\b' => "\\b"
+      case '\t' => "\\t"
+      case '\n' => "\\n"
+      case '\f' => "\\f"
+      case '\r' => "\\r"
+      case '"'  => "\\\""
+      case '\'' => "\\\'"
+      case '\\' => "\\\\"
+      case _    => if (ch.isControl) "\\0" + Integer.toOctalString(ch.toInt)
+      else              String.valueOf(ch)
+    }
+
     def outputUnknownNode(tn: AST_Node, statement: Boolean = false) = {
       def shortNodeClassName(n: String) = {
         val prefix = "AST_"
@@ -206,7 +222,7 @@ object ScalaOut {
       //case tn: AST_Atom => "AST_Atom"
       case tn: AST_RegExp => out("\"" + tn.value + "\".r")
       case tn: AST_Number => out(tn.value.toString)
-      case tn: AST_String => out("\"" + tn.value + "\"")
+      case tn: AST_String => out(quote(tn.value))
       //case tn: AST_Constant => "AST_Constant"
       case tn: AST_This => out("this") // TODO: handle differences between Scala and JS this
       //case tn: AST_LabelRef => out("AST_LabelRef")

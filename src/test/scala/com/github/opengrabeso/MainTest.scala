@@ -156,6 +156,14 @@ class MainTest extends FunSuite {
     )
   }
 
+  test("String escaping") {
+    ConversionCheck(
+      """"Multiple lines\nAnd some tabs\tas well\r\n"""",
+      Seq("\\n", "\\r", "\\t"),
+      Seq("\t")
+    )
+  }
+
   test("Indenting") {
     val result = Main.convert(rsc("control/indent.js"))
     assert(result == normalizeEol(rsc("control/indent.scala")))
