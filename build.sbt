@@ -8,7 +8,7 @@ scalaVersion in ThisBuild  := "2.12.1"
 
 scalacOptions in ThisBuild ++= Seq("-unchecked", "-feature", "-deprecation")
 
-jsDependencies += ProvidedJS / "uglifyjs.min.js"
+jsDependencies += ProvidedJS / "uglifyjs.js" minified "uglifyjs.min.js"
 
 libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.1"
 
