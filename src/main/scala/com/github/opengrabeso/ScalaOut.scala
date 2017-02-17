@@ -386,6 +386,7 @@ object ScalaOut {
             tn.condition.nonNull.fold(out("true"))(nodeToOut)
             out(") {\n")
             nodeToOut(tn.body)
+            out.eol()
             tn.step.nonNull.foreach(nodeToOut)
             out.eol()
             out("}\n")
