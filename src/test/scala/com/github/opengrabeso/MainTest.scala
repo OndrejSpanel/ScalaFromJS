@@ -183,4 +183,16 @@ class MainTest extends FunSuite {
     )
   }
 
+  test("Reserved words") {
+    ConversionCheck(
+      """function def()
+         |{
+         |    var val;
+         |    var match;
+         |    return yield
+         |}""".stripMargin,
+      "`def`","`val`","`match`","`yield`"
+    )
+  }
+
 }
