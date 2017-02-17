@@ -47,8 +47,8 @@ trait TestUtils {
     def unary_~ = execute()
   }
 
-  case class Execute(setup: ConversionCheck) {
-    setup.execute()
+  object execute {
+    def check(setup: ConversionCheck) = setup.execute()
   }
 
 }

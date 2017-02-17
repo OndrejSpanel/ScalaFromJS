@@ -6,25 +6,23 @@ import Resources.{getResource => rsc}
 class InferenceTests extends FunSuite with TestUtils {
   test("Detect vals") {
     pending
-    Execute(ConversionCheck(rsc("inference/variables.js"))
+    execute check ConversionCheck(rsc("inference/variables.js"))
       .required(
         "val i = 1",
         "val d = 1.2",
         "val i = 1"
       )
       .forbidden("function")
-    )
   }
 
   test("Infer var type") {
     pending
-    Execute(ConversionCheck(rsc("inference/variables.js"))
+    execute check ConversionCheck(rsc("inference/variables.js"))
       .required(
       "var ii = 1",
         "val di = 1.2",
         "var aa : Any = 1"
       )
-    )
   }
 
 }
