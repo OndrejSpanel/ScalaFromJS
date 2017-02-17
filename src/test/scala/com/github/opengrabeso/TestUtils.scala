@@ -1,5 +1,6 @@
 package com.github.opengrabeso
 
+import scala.language.implicitConversions
 import scala.util.{Failure, Success, Try}
 
 trait TestUtils {
@@ -11,11 +12,14 @@ trait TestUtils {
 
   object ConversionCheck {
     val standardForbidden = Seq(";", "/* Unsupported:")
-
-    def apply(code: String, mustHave: String*) = new ConversionCheck(code, mustHave)
   }
 
-  case class ConversionCheck(code: String, mustHave: Seq[String], mustNotHave: Seq[String] = ConversionCheck.standardForbidden) {
+  case class ConversionCheck(code: String, mustHave: Seq[String] = Seq(), mustNotHave: Seq[String] = ConversionCheck.standardForbidden) {
+    def requiredNothing = copy(mustHave = Seq())
+    def forbiddenNothing = copy(mustNotHave = Seq())
+
+    def required(add: String*) = copy(mustHave = mustHave ++ add)
+    def forbidden(add: String*) = copy(mustNotHave = mustNotHave ++ add)
 
     def checkResult(result: String): Try[Unit] = {
       val missing = mustHave.filter(!result.contains(_))
@@ -32,11 +36,19 @@ trait TestUtils {
       }
     }
 
-    def produceResult = Main.convert(code)
+    val convert = Main.convert(code)
 
-    val result = produceResult
-    // TODO: better error reporting
-    checkResult(result).failed.foreach(throw _)
+    def execute() = {
+      // TODO: better error reporting
+      checkResult(convert).failed.foreach(throw _)
+    }
+
+    //noinspection UnitMethodIsParameterless
+    def unary_~ = execute()
+  }
+
+  case class Execute(setup: ConversionCheck) {
+    setup.execute()
   }
 
 }
