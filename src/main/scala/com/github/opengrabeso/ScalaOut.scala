@@ -236,7 +236,11 @@ object ScalaOut {
       //case tn: AST_SymbolVar => out("AST_SymbolVar")
       //case tn: AST_SymbolDeclaration => out(tn.name)
       //case tn: AST_SymbolAccessor => out("AST_SymbolAccessor")
-      case tn: AST_Symbol => out(tn.name)
+      case tn: AST_Symbol =>
+        // TODO: other rules needed?
+        if (Keywords(tn.name)) {
+          out("`" + tn.name + "`")
+        } else out(tn.name)
       case tn: AST_ObjectGetter =>
         out("def ")
         nodeToOut(tn.key)
