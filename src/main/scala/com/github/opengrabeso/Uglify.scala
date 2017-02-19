@@ -27,9 +27,16 @@ object Uglify extends js.Object {
     val value: js.Any = js.native
   }
 
+  // f:  return true to abort the walk
+  @js.native class TreeWalker(f: js.Function1[AST_Node, Boolean]) extends js.Any
+
   @js.native sealed abstract class AST_Node extends js.Object {
     val start: js.UndefOr[AST_Token] = js.native
     val end: js.UndefOr[AST_Token] = js.native
+
+    def walk(walker: TreeWalker): Unit = js.native
+
+    override def clone(): AST_Node = js.native
   }
 
   @js.native sealed abstract class AST_Statement extends AST_Node
