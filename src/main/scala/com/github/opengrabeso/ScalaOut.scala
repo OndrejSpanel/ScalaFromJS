@@ -1,6 +1,7 @@
 package com.github.opengrabeso
 
-import com.github.opengrabeso.Uglify._
+import Uglify._
+import JsUtils._
 
 import scala.scalajs.js
 
@@ -60,10 +61,6 @@ object ScalaOut {
 
   case class InputContext(input: String) {
     var commentsDumped = Set.empty[Int]
-  }
-
-  implicit class NonNull[T](val undef: js.UndefOr[T])(implicit ev: Null <:< T) {
-    def nonNull: Option[T] = Option[T](undef.orNull)
   }
 
   def markEnd[T](seq: Seq[T]) = seq zip (seq.drop(1).map(x => true) :+ false)

@@ -1,8 +1,7 @@
 package com.github.opengrabeso
 
 import Uglify._
-import com.github.opengrabeso.AST_Doc.AST_Node.AST_VarDef
-
+import JsUtils._
 /**
   * Transform AST to perform optimizations or adjustments
   * */
@@ -15,12 +14,15 @@ object Transform {
 
   // individual sensible transformations
   def detectVals(n: AST_Node): AST_Node = {
-    val ret = n.clone().asInstanceOf[AST_Node]
+    val ret = n.clone()
     // walk the tree, check for possible val replacements and perform them
     val walker = new TreeWalker({ node =>
       node match {
         case v: AST_VarDef =>
-          println(s"Variable definition ${v.name.name} at ${v.start.map(_.line)},${v.start.map(_.col)}")
+          assert(v.name.thedef.map(_.name).get == v.name.name)
+          if (v.name.init.nonNull.isEmpty) {
+            println(s"Variable definition ${v.name.name} at ${v.start.map(_.line)},${v.start.map(_.col)}")
+          }
         case _ =>
       }
       false
