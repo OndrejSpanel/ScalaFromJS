@@ -28,6 +28,15 @@ object Transform {
     }
   }
 
+  def checkUnaryToReference(s: AST_Unary, df: SymbolDef) = {
+    s.expression match {
+      case sym: AST_SymbolRef =>
+        (s.operator == "++" || s.operator == "--") && sym.thedef.exists(_ == df)
+      case _ =>
+        false
+    }
+  }
+
   // individual sensible transformations
   def detectVals(n: AST_Node): AST_Node = {
     val ret = n.clone()
@@ -44,18 +53,22 @@ object Transform {
               // check if any reference is assignment target
               df._isVal = !df.references.exists { ref =>
                 assert(ref.thedef.exists(_ == df))
-                ref.scope.exists { scope =>
-                  scope.body.exists {
+                ref.scope.exists{ s =>
+                  var detect = false
+                  val walker = new TreeWalker({
                     case ss: AST_SimpleStatement =>
-                      checkAssignToReference(ss, df)
-                    case bs: AST_BlockStatement => // block statement is another scope, should be already handled
-                      false
-                    case s =>
-                      false
-                  }
+                      if (checkAssignToReference(ss, df)) detect = true
+                      detect
+                    case u: AST_Unary =>
+                      if (checkUnaryToReference(u, df)) detect = true
+                      detect
+                    case _ =>
+                      detect
+                  })
+                  s.walk(walker)
+                  detect
                 }
               }
-              println(s"${df.name} is ${df._isVal}")
             }
           }
         case _ =>
