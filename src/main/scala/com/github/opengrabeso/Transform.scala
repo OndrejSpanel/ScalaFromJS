@@ -38,6 +38,8 @@ object Transform {
   }
 
   // individual sensible transformations
+
+  // detect variables which can be declared as val instead of var
   def detectVals(n: AST_Node): AST_Node = {
     val ret = n.clone()
     // walk the tree, check for possible val replacements and perform them
@@ -80,7 +82,9 @@ object Transform {
   }
 
   // merge variable declaration and first assignment if possible
-  def varInitialization(n: AST_Node): AST_Node = n
+  def varInitialization(n: AST_Node): AST_Node = {
+    n
+  }
 
   def apply(n: AST_Toplevel): AST_Toplevel = {
     val init = varInitialization(n).asInstanceOf[AST_Toplevel]
