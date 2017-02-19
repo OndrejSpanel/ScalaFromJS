@@ -10,9 +10,11 @@ class VarsTest extends FunSuite with TestUtils {
     execute check ConversionCheck(rsc("variables/variables.js")).
     required(
       "val s",
-      "var x"
+      "var x",
+      "var y"
     ).forbidden(
-      "val x"
+      "val x",
+      "val y"
     )
   }
 }

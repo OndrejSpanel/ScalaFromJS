@@ -1,6 +1,7 @@
 package com.github.opengrabeso
 
 import Uglify._
+import UglifyExt._
 import JsUtils._
 /**
   * Transform AST to perform optimizations or adjustments
@@ -12,6 +13,21 @@ object Transform {
   def add(n: AST_Node) = ???
   def remove(n: AST_Node) = ???
 
+  def checkAssignToReference(s: AST_SimpleStatement, df: SymbolDef) = {
+    require(!s.body.isInstanceOf[AST_Statement])
+    s.body match {
+      case a: AST_Assign =>
+        a.left match {
+          case sym: AST_SymbolRef =>
+            sym.thedef.exists(_ == df)
+          case _ =>
+            false
+        }
+      case a =>
+        false
+    }
+  }
+
   // individual sensible transformations
   def detectVals(n: AST_Node): AST_Node = {
     val ret = n.clone()
@@ -19,9 +35,28 @@ object Transform {
     val walker = new TreeWalker({ node =>
       node match {
         case v: AST_VarDef =>
-          assert(v.name.thedef.map(_.name).get == v.name.name)
-          if (v.name.init.nonNull.isEmpty) {
-            println(s"Variable definition ${v.name.name} at ${v.start.map(_.line)},${v.start.map(_.col)}")
+          for (df <- v.name.thedef) {
+            assert(df.name == v.name.name)
+            if (v.name.init.nonNull.isEmpty) {
+              // without init it must be var -
+              // TODO: infer type
+
+              // check if any reference is assignment target
+              df._isVal = !df.references.exists { ref =>
+                assert(ref.thedef.exists(_ == df))
+                ref.scope.exists { scope =>
+                  scope.body.exists {
+                    case ss: AST_SimpleStatement =>
+                      checkAssignToReference(ss, df)
+                    case bs: AST_BlockStatement => // block statement is another scope, should be already handled
+                      false
+                    case s =>
+                      false
+                  }
+                }
+              }
+              println(s"${df.name} is ${df._isVal}")
+            }
           }
         case _ =>
       }

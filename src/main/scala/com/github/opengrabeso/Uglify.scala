@@ -47,6 +47,11 @@ object Uglify extends js.Object {
 
     //var index: js.Any = js.native
     //var id: js.Any = js.native
+
+    // our field: is value?
+    var _isVal: js.UndefOr[Boolean] = js.native
+    // inferred Scala type
+    var _type: js.UndefOr[String] = js.native
   }
 
 
@@ -512,6 +517,16 @@ object UglifyExt {
     }
 
   }
+
+  def nodeClassName(n: AST_Node): String = {
+    val nd = n.asInstanceOf[js.Dynamic]
+    val s = nd.constructor.name.asInstanceOf[String]
+    if (s == "AST_Node" && nd.CTOR != null) {
+      nd.CTOR.name.asInstanceOf[String]
+    } else s
+  }
+
+
 
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {
 
