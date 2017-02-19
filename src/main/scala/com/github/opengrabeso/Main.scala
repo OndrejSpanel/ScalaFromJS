@@ -37,6 +37,28 @@ object Main extends js.JSApp {
     }
   }
 
+  object DelayedOutput {
+    // when multiple conversions are pending, execute only the one triggered last
+    var lastTriggered = Option.empty[Double]
+
+    def trigger(timestamp: Double, delayMs: Int, result: String) = {
+      if (lastTriggered.isEmpty || lastTriggered.get < timestamp) {
+        lastTriggered = Some(timestamp)
+      }
+
+      setTimeout(delayMs) {
+        callback(timestamp, result)
+      }
+    }
+
+    def callback(timestamp: Double, result: String): Unit = {
+      if (lastTriggered.contains(timestamp)) {
+        out.asInstanceOf[js.Dynamic].value = result
+      }
+    }
+  }
+
+
   def convert(code: String): String = {
     val ast = parse(code, defaultUglifyOptions.parse)
     ast.figure_out_scope()
@@ -44,14 +66,20 @@ object Main extends js.JSApp {
     ScalaOut.output(astOptimized, code)
   }
 
-  def doConversion(persist: Boolean = true) {
+  def doConversion(persist: Boolean = true) = {
     val code = in.asInstanceOf[js.Dynamic].value.asInstanceOf[String]
 
     Persist.store("source", code)
 
-    val outputString = Try(convert(code)).fold(_.getLocalizedMessage, identity)
-
-    out.asInstanceOf[js.Dynamic].value = outputString
+    Try(convert(code)).fold(
+      { err =>
+        // if result is an error, wait before displaying it
+        // this prevents error flashing while typing
+        DelayedOutput.trigger(System.currentTimeMillis, 2000, err.getLocalizedMessage)
+      }, { scalaCode =>
+        DelayedOutput.trigger(System.currentTimeMillis, 0, scalaCode)
+      }
+    )
   }
 
   private def onInput(e: Event) = {
