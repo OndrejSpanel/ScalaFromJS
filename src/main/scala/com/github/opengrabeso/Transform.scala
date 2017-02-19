@@ -13,10 +13,10 @@ object Transform {
   def remove(n: AST_Node) = ???
 
   // individual sensible transformations
-  def detectVals(n: AST_Node): AST_Node = ???
+  def detectVals(n: AST_Node): AST_Node = n
 
   // merge variable declaration and first assignment if possible
-  def varInitialization(n: AST_Node): AST_Node = ???
+  def varInitialization(n: AST_Node): AST_Node = n
 
   def apply(n: AST_Toplevel): AST_Toplevel = {
     val init = varInitialization(n).asInstanceOf[AST_Toplevel]
