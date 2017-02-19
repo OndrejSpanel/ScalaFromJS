@@ -1,6 +1,8 @@
 package com.github.opengrabeso
 
-import com.github.opengrabeso.Uglify._
+import Uglify._
+import UglifyExt._
+import JsUtils._
 
 import scala.scalajs.js
 
@@ -62,20 +64,8 @@ object ScalaOut {
     var commentsDumped = Set.empty[Int]
   }
 
-  implicit class NonNull[T](val undef: js.UndefOr[T])(implicit ev: Null <:< T) {
-    def nonNull: Option[T] = Option[T](undef.orNull)
-  }
-
   def markEnd[T](seq: Seq[T]) = seq zip (seq.drop(1).map(x => true) :+ false)
 
-
-  private def nodeClassName(n: AST_Node): String = {
-    val nd = n.asInstanceOf[js.Dynamic]
-    val s = nd.constructor.name.asInstanceOf[String]
-    if (s == "AST_Node" && nd.CTOR != null) {
-      nd.CTOR.name.asInstanceOf[String]
-    } else s
-  }
 
   //noinspection ScalaUnusedSymbol
   private def printlnNode(n: js.UndefOr[AST_Node])(implicit outConfig: Config, input: InputContext) = {
@@ -146,8 +136,9 @@ object ScalaOut {
     // http://lisperator.net/uglifyjs/ast
     // listed in reverse order, so that most specific classes match first
     //noinspection ScalaUnusedSymbol
-    def outputDefinitions(decl: String, tn: AST_Definitions) = {
+    def outputDefinitions(isVal: Boolean, tn: AST_Definitions) = {
       tn.definitions.foreach { v =>
+        val decl = if (isVal || v.name.thedef.exists(_._isVal.exists(_ == true))) "val" else "var"
         out(decl + " ")
         nodeToOut(v)
         out.eol()
@@ -323,9 +314,9 @@ object ScalaOut {
           nodeToOut(v)
         }
       case tn: AST_Const =>
-        outputDefinitions("val", tn)
+        outputDefinitions(true, tn)
       case tn: AST_Var =>
-        outputDefinitions("var", tn)
+        outputDefinitions(false, tn)
       //case tn: AST_Definitions => outputUnknownNode(tn)
       case tn: AST_Continue => outputUnknownNode(tn, true)
       case tn: AST_Break => outputUnknownNode(tn, true)

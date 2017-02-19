@@ -27,9 +27,45 @@ object Uglify extends js.Object {
     val value: js.Any = js.native
   }
 
+  @js.native class SymbolDef extends js.Object {
+    // points to the AST_Scope where this is defined.
+    var scope: AST_Scope = js.native
+    // orig — an array of AST_SymbolDeclaration-s where this variable is defined
+    var orig: js.Array[AST_SymbolDeclaration] = js.native
+    // the original symbol name
+    var name: String = js.native
+    // an array of AST_SymbolRef nodes that were determined to point to this definition.
+    var references: js.Array[AST_SymbolRef] = js.native
+    // boolean, tells us if this is a global definition.
+    var global: Boolean = js.native
+    // the mangled name for this node, created by toplevel.mangle_names(). If present, the code generator will use this name when printing symbols.
+    var mangled_name: js.Any = js.native
+    // boolean, tells us if this is an undeclared definition (more below about undeclared names).
+    var undeclared: Boolean = js.native
+    // boolean, true if this is a constant definition (occurring in const).
+    var constant: Boolean = js.native
+
+    //var index: js.Any = js.native
+    //var id: js.Any = js.native
+
+    // our field: is value?
+    var _isVal: js.UndefOr[Boolean] = js.native
+    // inferred Scala type
+    var _type: js.UndefOr[String] = js.native
+  }
+
+
+
+  // f:  return true to abort the walk
+  @js.native class TreeWalker(f: js.Function1[AST_Node, Boolean]) extends js.Any
+
   @js.native sealed abstract class AST_Node extends js.Object {
     val start: js.UndefOr[AST_Token] = js.native
     val end: js.UndefOr[AST_Token] = js.native
+
+    def walk(walker: TreeWalker): Unit = js.native
+
+    override def clone(): AST_Node = js.native
   }
 
   @js.native sealed abstract class AST_Statement extends AST_Node
@@ -304,7 +340,7 @@ object Uglify extends js.Object {
     // [AST_Scope/S] the current scope (not necessarily the definition scope)
     val scope: js.UndefOr[AST_Scope] = js.native
     // [SymbolDef/S] the definition of this symbol
-    val thedef: js.UndefOr[js.Any] = js.native
+    val thedef: js.UndefOr[SymbolDef] = js.native
   }
 
   @js.native class AST_SymbolAccessor extends AST_Symbol
@@ -481,6 +517,16 @@ object UglifyExt {
     }
 
   }
+
+  def nodeClassName(n: AST_Node): String = {
+    val nd = n.asInstanceOf[js.Dynamic]
+    val s = nd.constructor.name.asInstanceOf[String]
+    if (s == "AST_Node" && nd.CTOR != null) {
+      nd.CTOR.name.asInstanceOf[String]
+    } else s
+  }
+
+
 
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {
 
