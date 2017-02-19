@@ -49,11 +49,9 @@ object Main extends js.JSApp {
 
     Persist.store("source", code)
 
-    convert(code)
+    val outputString = Try(convert(code)).fold(_.getLocalizedMessage, identity)
 
-    Try(convert(code)).foreach { scalaCode =>
-      out.asInstanceOf[js.Dynamic].value = scalaCode
-    }
+    out.asInstanceOf[js.Dynamic].value = outputString
   }
 
   private def onInput(e: Event) = {
