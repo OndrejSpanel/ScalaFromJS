@@ -58,6 +58,7 @@ object Transform {
                 ref.scope.exists{ s =>
                   var detect = false
                   val walker = new TreeWalker({
+                    case s: AST_Scope => s != ref.scope // do not descend into any other scopes, they are listed in references if needed
                     case ss: AST_SimpleStatement =>
                       if (checkAssignToReference(ss, df)) detect = true
                       detect
