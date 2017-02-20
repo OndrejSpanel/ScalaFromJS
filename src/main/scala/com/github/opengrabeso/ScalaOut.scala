@@ -531,4 +531,13 @@ object ScalaOut {
     sb.result
   }
 
+  def outputNode(ast: AST_Node, input: String, outConfig: Config = Config.default): String = {
+    val sb = new StringBuilder
+    val ret = new NiceOutput {
+      def out(x: String) = sb append x
+    }
+    val inputContext = InputContext(input)
+    nodeToOut(ast)(outConfig, inputContext, ret)
+    sb.result
+  }
 }

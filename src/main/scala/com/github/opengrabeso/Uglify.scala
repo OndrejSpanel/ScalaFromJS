@@ -71,7 +71,8 @@ object Uglify extends js.Object {
     @JSName("walk")
     def walk_js(walker: TreeWalker): Unit = js.native
 
-    def transform(transformer: TreeTransformer): AST_Node = js.native
+    @JSName("transform")
+    def transform_js(transformer: TreeTransformer): AST_Node = js.native
 
     override def clone(): AST_Node = js.native
   }
@@ -83,11 +84,11 @@ object Uglify extends js.Object {
   @js.native class AST_Directive extends AST_Statement
 
   @js.native class AST_SimpleStatement extends AST_Statement {
-    val body: AST_Node = js.native // [AST_Node] an expression node (should not be instanceof AST_Statement)
+    var body: AST_Node = js.native // [AST_Node] an expression node (should not be instanceof AST_Statement)
   }
 
   @js.native class AST_Block extends AST_Statement {
-    val body: js.Array[AST_Statement] = js.native
+    var body: js.Array[AST_Statement] = js.native
   }
 
   @js.native class AST_BlockStatement extends AST_Block
@@ -530,19 +531,26 @@ object UglifyExt {
 
   }
 
-  def createTransformer(transformer: (AST_Node, (AST_Node, TreeTransformer) => AST_Node) => AST_Node) = new TreeTransformer((node, descend) => transformer(node, descend))
-
   implicit class AST_NodeOps(val node: AST_Node) {
     def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
+
+    def transform(transformer: (AST_Node, (AST_Node, TreeTransformer) => AST_Node, TreeTransformer) => AST_Node): AST_Node = {
+      var tr: TreeTransformer = null
+      tr = new TreeTransformer((node, descend) => transformer(node, descend, tr))
+      node.transform_js(tr)
+    }
 
   }
 
   def nodeClassName(n: AST_Node): String = {
-    val nd = n.asInstanceOf[js.Dynamic]
-    val s = nd.constructor.name.asInstanceOf[String]
-    if (s == "AST_Node" && nd.CTOR != null) {
-      nd.CTOR.name.asInstanceOf[String]
-    } else s
+    if (js.isUndefined(n)) "undefined"
+    else {
+      val nd = n.asInstanceOf[js.Dynamic]
+      val s = nd.constructor.name.asInstanceOf[String]
+      if (s == "AST_Node" && nd.CTOR != null) {
+        nd.CTOR.name.asInstanceOf[String]
+      } else s
+    }
   }
 
 
