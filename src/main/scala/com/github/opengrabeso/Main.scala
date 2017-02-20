@@ -59,8 +59,6 @@ object Main extends js.JSApp {
 
     Persist.store("source", code)
 
-    convert(code)
-
     Try(convert(code)).fold(
       { err =>
         // if result is an error, wait before displaying it
