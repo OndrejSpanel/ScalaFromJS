@@ -60,13 +60,19 @@ object Uglify extends js.Object {
 
 
   // f:  return true to abort the walk
-  @js.native class TreeWalker(f: js.Function1[AST_Node, Boolean]) extends js.Any
+  @js.native class TreeWalker(f: js.Function2[AST_Node, js.Function0[Unit], Boolean]) extends js.Any
+
+  @js.native class TreeTransformer(f: js.Function2[AST_Node, js.Function0[Unit], AST_Node]) extends js.Any
 
   @js.native sealed abstract class AST_Node extends js.Object {
     val start: js.UndefOr[AST_Token] = js.native
     val end: js.UndefOr[AST_Token] = js.native
 
-    def walk(walker: TreeWalker): Unit = js.native
+    @JSName("walk")
+    def walk_js(walker: TreeWalker): Unit = js.native
+
+    @JSName("transform")
+    def transform_js(transformer: TreeTransformer): AST_Node = js.native
 
     override def clone(): AST_Node = js.native
   }
@@ -525,6 +531,13 @@ object UglifyExt {
 
   }
 
+  implicit class AST_NodeOps(val node: AST_Node) {
+    def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
+
+    def transform(transformer: (AST_Node, ()=>Unit) => AST_Node): AST_Node = node.transform_js(new TreeTransformer((node, descend) => transformer(node, descend)))
+
+  }
+
   def nodeClassName(n: AST_Node): String = {
     val nd = n.asInstanceOf[js.Dynamic]
     val s = nd.constructor.name.asInstanceOf[String]
@@ -533,7 +546,6 @@ object UglifyExt {
     } else s
   }
 
-  implicit def walkerFromFunction(f: AST_Node => Boolean): TreeWalker = new TreeWalker(f)
 
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {
 

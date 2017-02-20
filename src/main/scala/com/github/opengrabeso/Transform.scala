@@ -44,7 +44,7 @@ object Transform {
   def detectVals(n: AST_Node): AST_Node = {
     val ret = n.clone()
     // walk the tree, check for possible val replacements and perform them
-    val walker = new TreeWalker({ node =>
+    ret.walk{ node: AST_Node =>
       node match {
         case v: AST_VarDef =>
           for (df <- v.name.thedef) {
@@ -58,18 +58,20 @@ object Transform {
                 assert(ref.thedef.exists(_ == df))
                 ref.scope.exists{ s =>
                   var detect = false
-                  val walker = new TreeWalker({
-                    case s: AST_Scope => s != ref.scope // do not descend into any other scopes, they are listed in references if needed
-                    case ss: AST_SimpleStatement =>
-                      if (checkAssignToReference(ss, df)) detect = true
-                      detect
-                    case u: AST_Unary =>
-                      if (checkUnaryToReference(u, df)) detect = true
-                      detect
-                    case _ =>
-                      detect
-                  })
-                  s.walk(walker)
+                  //noinspection MatchToPartialFunction
+                  s.walk { node: AST_Node =>
+                    node match {
+                      case s: AST_Scope => s != ref.scope // do not descend into any other scopes, they are listed in references if needed
+                      case ss: AST_SimpleStatement =>
+                        if (checkAssignToReference(ss, df)) detect = true
+                        detect
+                      case u: AST_Unary =>
+                        if (checkUnaryToReference(u, df)) detect = true
+                        detect
+                      case _ =>
+                        detect
+                    }
+                  }
                   detect
                 }
               }
@@ -78,17 +80,14 @@ object Transform {
         case _ =>
       }
       false
-    })
-    ret.walk(walker)
+    }
     ret
   }
 
   // merge variable declaration and first assignment if possible
   def varInitialization(n: AST_Node): AST_Node = {
-
-    val ret = n.clone()
     // walk the tree, check for possible val replacements and perform them
-    val walker = new TreeWalker({ node =>
+    val ret = n.transform{ (node: AST_Node, descend: () => Unit) =>
       node match {
         case v: AST_VarDef =>
           for (df <- v.name.thedef) {
@@ -108,26 +107,13 @@ object Transform {
 
               }
 
-
-              /*
-              var nesting = 0
-              df.scope.walk {(n: AST_Node) =>
-                n match {
-                  case _: AST_If => nesting += 1
-                }
-                false
-              }
-              */
-
-              // JS scope is too relaxed, because of hoisting if, while ... are not considered a scope
             }
 
           }
         case _ =>
       }
-      false
-    })
-    ret.walk(walker)
+      node
+    }
     ret
   }
 
