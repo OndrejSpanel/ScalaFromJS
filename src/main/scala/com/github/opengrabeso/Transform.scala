@@ -94,17 +94,19 @@ object Transform {
     n.walk { node =>
       node match {
         case v: AST_VarDef =>
-          for (df <- v.name.thedef) {
-            assert(df.name == v.name.name)
-            if (df.references.nonEmpty) {
-              // find the first reference
-              val firstRef = df.references.minBy { ref =>
-                assert(ref.thedef.exists(_ == df))
-                ref.start.map(_.pos).getOrElse(Int.MaxValue)
-              }
-              // if the first ref is in the current scope, we might merge it with the declaration
-              if (firstRef.scope == df.scope) {
-                pairs += df -> firstRef
+          if (v.value.nonNull.isEmpty) {
+            for (df <- v.name.thedef) {
+              assert(df.name == v.name.name)
+              if (df.references.nonEmpty) {
+                // find the first reference
+                val firstRef = df.references.minBy { ref =>
+                  assert(ref.thedef.exists(_ == df))
+                  ref.start.map(_.pos).getOrElse(Int.MaxValue)
+                }
+                // if the first ref is in the current scope, we might merge it with the declaration
+                if (firstRef.scope == df.scope) {
+                  pairs += df -> firstRef
+                }
               }
             }
           }
