@@ -299,9 +299,25 @@ object ScalaOut {
         out(tn.property)
       //case tn: AST_PropAccess => outputUnknownNode(tn)
       case tn: AST_Seq =>
+        out("{\n")
+        out.indent()
         nodeToOut(tn.car)
         out.eol()
-        nodeToOut(tn.cdr)
+        // handle a special case - cdr also seq
+        def processCdr(cdr: AST_Node): Unit = {
+          cdr match {
+            case ss: AST_Seq =>
+              nodeToOut(ss.car)
+              out.eol()
+              processCdr(ss.cdr)
+            case _ =>
+              nodeToOut(cdr)
+          }
+        }
+        processCdr(tn.cdr)
+        out.unindent()
+        out.eol()
+        out("}")
       case tn: AST_New =>
         out("new ")
         outputCall(tn)

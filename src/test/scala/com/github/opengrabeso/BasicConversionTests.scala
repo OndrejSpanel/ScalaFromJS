@@ -95,4 +95,12 @@ class BasicConversionTests extends FunSuite with TestUtils {
     ).required("`def`", "`val`", "`match`", "`yield`")
   }
 
+  test("Sequences") {
+    execute check ConversionCheck(
+      """function f() {
+        |  return 0, 1, 2;
+        |}""".stripMargin
+    ).required("return {")
+  }
+
 }
