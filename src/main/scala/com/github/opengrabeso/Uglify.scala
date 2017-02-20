@@ -53,16 +53,21 @@ object Uglify extends js.Object {
     var _isVal: js.UndefOr[Boolean] = js.native
     // inferred Scala type
     var _type: js.UndefOr[String] = js.native
-    // ellided, merged with first assignment
-    var _isEllided: js.UndefOr[Boolean] = js.native
   }
 
 
 
   // f:  return true to abort the walk
-  @js.native class TreeWalker(f: js.Function2[AST_Node, js.Function0[Unit], Boolean]) extends js.Any
+  @js.native class TreeWalker(f: js.Function2[AST_Node, js.Function0[Unit], Boolean]) extends js.Any {
+    // returns the parent of the current node.
+    def parent: AST_Node = js.native
+    // an array holding all nodes that lead to current node. The last element in this array is the current node itself.
+    def stack: js.Array[AST_Node] = js.native
+    // finds the innermost parent of the given type. type must be a node constructor, i.e. AST_Scope.
+    def find_parent(tpe: js.Dynamic): AST_Node = js.native
+  }
 
-  @js.native class TreeTransformer(f: js.Function2[AST_Node, js.Function2[AST_Node, TreeTransformer, AST_Node], AST_Node]) extends js.Any
+  @js.native class TreeTransformer(f: js.Function2[AST_Node, js.Function2[AST_Node, TreeTransformer, AST_Node], AST_Node]) extends TreeWalker(js.native)
 
   @js.native sealed abstract class AST_Node extends js.Object {
     val start: js.UndefOr[AST_Token] = js.native
@@ -237,7 +242,7 @@ object Uglify extends js.Object {
 
   @js.native sealed abstract class AST_Definitions extends AST_Statement {
     // [AST_VarDef*] array of variable definitions
-    val definitions: js.Array[AST_VarDef] = js.native
+    var definitions: js.Array[AST_VarDef] = js.native
   }
 
   @js.native class AST_Var extends AST_Definitions
@@ -246,9 +251,9 @@ object Uglify extends js.Object {
 
   @js.native class AST_VarDef extends AST_Node {
     // [AST_SymbolVar|AST_SymbolConst] name of the variable
-    val name: AST_SymbolVarOrConst = js.native
+    var name: AST_SymbolVarOrConst = js.native
     // "[AST_Node?] initializer, or null of there's no initializer"
-    val value: js.UndefOr[AST_Node] = js.native
+    var value: js.UndefOr[AST_Node] = js.native
   }
 
   @js.native class AST_Call extends AST_Node {
@@ -346,17 +351,17 @@ object Uglify extends js.Object {
 
   @js.native sealed class AST_Symbol extends AST_Node {
     // [string] name of this symbol
-    val name: String = js.native
+    var name: String = js.native
     // [AST_Scope/S] the current scope (not necessarily the definition scope)
-    val scope: js.UndefOr[AST_Scope] = js.native
+    var scope: js.UndefOr[AST_Scope] = js.native
     // [SymbolDef/S] the definition of this symbol
-    val thedef: js.UndefOr[SymbolDef] = js.native
+    var thedef: js.UndefOr[SymbolDef] = js.native
   }
 
   @js.native class AST_SymbolAccessor extends AST_Symbol
   @js.native class AST_SymbolDeclaration extends AST_Symbol {
     // [AST_Node*/S] array of initializers for this declaration.
-    val init: js.UndefOr[js.Array[AST_Node]] = js.native
+    var init: js.UndefOr[js.Array[AST_Node]] = js.native
   }
 
   @js.native class AST_SymbolVarOrConst extends AST_SymbolDeclaration
@@ -373,10 +378,7 @@ object Uglify extends js.Object {
     val references: js.Array[AST_LoopControl] = js.native
   }
 
-  @js.native class AST_SymbolRef extends AST_Symbol {
-    // our extension: merge init into it
-    var _mergedInit: js.UndefOr[Boolean]= js.native
-  }
+  @js.native class AST_SymbolRef extends AST_Symbol
   @js.native class AST_LabelRef extends AST_Symbol
   @js.native class AST_This extends AST_Symbol
 

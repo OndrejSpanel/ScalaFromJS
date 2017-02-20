@@ -138,12 +138,10 @@ object ScalaOut {
     //noinspection ScalaUnusedSymbol
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions) = {
       tn.definitions.foreach { v =>
-        if (!v.name.thedef.exists(_._isEllided.getOrElse(false))) {
-          val decl = if (isVal || v.name.thedef.exists(_._isVal.getOrElse(false))) "val" else "var"
-          out(decl + " ")
-          nodeToOut(v)
-          out.eol()
-        }
+        val decl = if (isVal || v.name.thedef.exists(_._isVal.getOrElse(false))) "val" else "var"
+        out(decl + " ")
+        nodeToOut(v)
+        out.eol()
       }
     }
 
@@ -229,11 +227,7 @@ object ScalaOut {
       //case tn: AST_SymbolVar => out("AST_SymbolVar")
       //case tn: AST_SymbolDeclaration => out(tn.name)
       //case tn: AST_SymbolAccessor => out("AST_SymbolAccessor")
-      case tn: AST_SymbolRef =>
-        if (tn._mergedInit.getOrElse(false)) {
-          out("var ") // TODO: val / var
-        }
-        identifierToOut(out, tn.name)
+      //case tn: AST_SymbolRef => identifierToOut(out, tn.name)
       case tn: AST_Symbol =>
         identifierToOut(out, tn.name)
       case tn: AST_ObjectGetter =>

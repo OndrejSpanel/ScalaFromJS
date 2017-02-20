@@ -88,33 +88,61 @@ object Transform {
 
   // merge variable declaration and first assignment if possible
   def varInitialization(n: AST_Node): AST_Node = {
+
+    // walk the tree, check for first reference of each var
+    var pairs = Map.empty[SymbolDef, AST_SymbolRef]
+    n.walk { node =>
+      node match {
+        case v: AST_VarDef =>
+          for (df <- v.name.thedef) {
+            assert(df.name == v.name.name)
+            if (df.references.nonEmpty) {
+              // find the first reference
+              val firstRef = df.references.minBy { ref =>
+                assert(ref.thedef.exists(_ == df))
+                ref.start.map(_.pos).getOrElse(Int.MaxValue)
+              }
+              // if the first ref is in the current scope, we might merge it with the declaration
+              if (firstRef.scope == df.scope) {
+                pairs += df -> firstRef
+              }
+            }
+          }
+        case _ =>
+      }
+      false
+    }
+
+    // TODO: validate pairs values (AST_SymbolRef) - must be in a plain assignment
+    val refs = pairs.values.toSet
+    println(refs.map(_.name).mkString("[", ",", "]"))
+
     // walk the tree, check for possible val replacements and perform them
     val ret = n.transform { (node, descend, transformer) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
-        case b: AST_Block =>
-          println(b.body.map(nodeClassName).mkString("[",",","]"))
-          println("  " + b.body.length)
-          println(ScalaOut.output(b, ""))
-          val c = b.clone().asInstanceOf[AST_Block]
-          val newBody = for (s <- c.body) yield {
-            println(nodeClassName(s))
-            val sr = s match {
-              case ss: AST_SimpleStatement =>
-                ss.clone().asInstanceOf[AST_Statement] // descending into AST_SimpleStatement causes TypeError: node.transform is not a function
-              case _ =>
-                s.clone().asInstanceOf[AST_Statement]
-            }
-            println("SR " + nodeClassName(sr))
-            sr
+        case v: AST_Var =>
+          val defs = v.definitions.filter(!_.name.thedef.exists(pairs contains _))
+          val vv = v.clone().asInstanceOf[AST_Var]
+          vv.definitions = defs
+          vv
+        case vd: AST_Assign if vd.operator == "=" =>
+          vd.left match {
+            case sr: AST_SymbolRef if refs contains sr =>
+              val vr = new AST_Var
+              val vv = new AST_VarDef
+              vr.definitions = js.Array(vv)
+              vv.name = new AST_SymbolVar
+              vv.name.thedef = sr.thedef
+              vv.name.name = sr.name
+              vv.value = vd.right
+              vv.name.scope = sr.scope
+              println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
+              vr
+            case _ =>
+              vd.clone()
           }
-          println(newBody.map(nodeClassName).mkString("new [",",","]"))
-          c.body = newBody.toJSArray
-          descend(c, transformer)
-          c
         case c =>
-          println(nodeClassName(c))
-          println(ScalaOut.outputNode(c, ""))
           val cc = node.clone()
           descend(cc, transformer)
           cc
