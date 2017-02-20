@@ -1,5 +1,6 @@
 package com.github.opengrabeso
 
+import scala.language.implicitConversions
 import scala.scalajs.js
 import scala.scalajs.js.RegExp
 import scala.scalajs.js.annotation.{JSImport, JSName, ScalaJSDefined}
@@ -233,6 +234,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_Var extends AST_Definitions
   @js.native class AST_Const extends AST_Definitions
+  @js.native class AST_Let extends AST_Definitions
 
   @js.native class AST_VarDef extends AST_Node {
     // [AST_SymbolVar|AST_SymbolConst] name of the variable
@@ -526,7 +528,7 @@ object UglifyExt {
     } else s
   }
 
-
+  implicit def walkerFromFunction(f: AST_Node => Boolean): TreeWalker = new TreeWalker(f)
 
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {
 

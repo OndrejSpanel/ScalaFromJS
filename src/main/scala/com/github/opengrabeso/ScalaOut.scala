@@ -332,6 +332,8 @@ object ScalaOut {
       case tn: AST_Const =>
         outputDefinitions(true, tn)
       case tn: AST_Var =>
+        outputDefinitions(false, tn) // we assume scoping is reasonable, we do not try to handle hoisting
+      case tn: AST_Let =>
         outputDefinitions(false, tn)
       //case tn: AST_Definitions => outputUnknownNode(tn)
       case tn: AST_Continue => outputUnknownNode(tn, true)
