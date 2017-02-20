@@ -138,10 +138,12 @@ object ScalaOut {
     //noinspection ScalaUnusedSymbol
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions) = {
       tn.definitions.foreach { v =>
-        val decl = if (isVal || v.name.thedef.exists(_._isVal.exists(_ == true))) "val" else "var"
-        out(decl + " ")
-        nodeToOut(v)
-        out.eol()
+        if (!v.name.thedef.exists(_._isEllided.getOrElse(false))) {
+          val decl = if (isVal || v.name.thedef.exists(_._isVal.getOrElse(false))) "val" else "var"
+          out(decl + " ")
+          nodeToOut(v)
+          out.eol()
+        }
       }
     }
 
@@ -227,11 +229,13 @@ object ScalaOut {
       //case tn: AST_SymbolVar => out("AST_SymbolVar")
       //case tn: AST_SymbolDeclaration => out(tn.name)
       //case tn: AST_SymbolAccessor => out("AST_SymbolAccessor")
+      case tn: AST_SymbolRef =>
+        if (tn._mergedInit.getOrElse(false)) {
+          out("var ") // TODO: val / var
+        }
+        identifierToOut(out, tn.name)
       case tn: AST_Symbol =>
-        // TODO: other rules needed?
-        if (Keywords(tn.name)) {
-          out("`" + tn.name + "`")
-        } else out(tn.name)
+        identifierToOut(out, tn.name)
       case tn: AST_ObjectGetter =>
         out("def ")
         nodeToOut(tn.key)
@@ -491,6 +495,13 @@ object ScalaOut {
         outputUnknownNode(tn)
         out.eol()
     }
+  }
+
+  private def identifierToOut(out: Output, name: String) = {
+    // TODO: other rules needed?
+    if (Keywords(name)) {
+      out("`" + name + "`")
+    } else out(name)
   }
 
   private def blockBracedToOut(body: js.Array[AST_Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {

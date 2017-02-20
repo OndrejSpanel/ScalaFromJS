@@ -99,12 +99,14 @@ object Transform {
                 assert(ref.thedef.exists(_ == df))
                 ref.start.map(_.pos).getOrElse(Int.MaxValue)
               }
-              /*
-              println(s"First ref ${firstRef.name} at line ${firstRef.start.get.line}, ${firstRef.scope == df.scope}")
-              println(s"  First ref ${firstRef.name} at line ${firstRef.start.get.line}, ${firstRef.scope == df.scope}")
+              //println(s"  First ref ${firstRef.name} at line ${firstRef.start.get.line}, ${firstRef.scope == df.scope}")
               // if the first ref is in the current scope, we may merge it with the declaration
-              println(s"  ${firstRef.scope == df.scope}")
-              */
+              if (firstRef.scope == df.scope) {
+                // TODO: validate initialization merge is possible
+                firstRef._mergedInit = true
+                df._isEllided = true
+
+              }
 
 
               /*

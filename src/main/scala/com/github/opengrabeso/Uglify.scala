@@ -53,6 +53,8 @@ object Uglify extends js.Object {
     var _isVal: js.UndefOr[Boolean] = js.native
     // inferred Scala type
     var _type: js.UndefOr[String] = js.native
+    // ellided, merged with first assignment
+    var _isEllided: js.UndefOr[Boolean] = js.native
   }
 
 
@@ -365,7 +367,10 @@ object Uglify extends js.Object {
     val references: js.Array[AST_LoopControl] = js.native
   }
 
-  @js.native class AST_SymbolRef extends AST_Symbol
+  @js.native class AST_SymbolRef extends AST_Symbol {
+    // our extension: merge init into it
+    var _mergedInit: js.UndefOr[Boolean]= js.native
+  }
   @js.native class AST_LabelRef extends AST_Symbol
   @js.native class AST_This extends AST_Symbol
 
