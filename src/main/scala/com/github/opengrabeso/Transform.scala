@@ -155,6 +155,7 @@ object Transform {
 
   def apply(n: AST_Toplevel): AST_Toplevel = {
     val init = varInitialization(n).asInstanceOf[AST_Toplevel]
+    //init.figure_out_scope()
     val vals = detectVals(init).asInstanceOf[AST_Toplevel]
     vals
   }
