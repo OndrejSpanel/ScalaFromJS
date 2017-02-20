@@ -3,6 +3,7 @@ package com.github.opengrabeso
 import Uglify._
 import UglifyExt._
 import JsUtils._
+import com.github.opengrabeso.AST_Doc.AST_Node.AST_Statement.AST_StatementWithBody.AST_If
 /**
   * Transform AST to perform optimizations or adjustments
   * */
@@ -84,7 +85,48 @@ object Transform {
 
   // merge variable declaration and first assignment if possible
   def varInitialization(n: AST_Node): AST_Node = {
-    n
+
+    val ret = n.clone()
+    // walk the tree, check for possible val replacements and perform them
+    val walker = new TreeWalker({ node =>
+      node match {
+        case v: AST_VarDef =>
+          for (df <- v.name.thedef) {
+            assert(df.name == v.name.name)
+            if (df.references.nonEmpty) {
+              // find the first reference
+              val firstRef = df.references.minBy { ref =>
+                assert(ref.thedef.exists(_ == df))
+                ref.start.map(_.pos).getOrElse(Int.MaxValue)
+              }
+              /*
+              println(s"First ref ${firstRef.name} at line ${firstRef.start.get.line}, ${firstRef.scope == df.scope}")
+              println(s"  First ref ${firstRef.name} at line ${firstRef.start.get.line}, ${firstRef.scope == df.scope}")
+              // if the first ref is in the current scope, we may merge it with the declaration
+              println(s"  ${firstRef.scope == df.scope}")
+              */
+
+
+              /*
+              var nesting = 0
+              df.scope.walk {(n: AST_Node) =>
+                n match {
+                  case _: AST_If => nesting += 1
+                }
+                false
+              }
+              */
+
+              // JS scope is too relaxed, because of hoisting if, while ... are not considered a scope
+            }
+
+          }
+        case _ =>
+      }
+      false
+    })
+    ret.walk(walker)
+    ret
   }
 
   def apply(n: AST_Toplevel): AST_Toplevel = {
