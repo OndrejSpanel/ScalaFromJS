@@ -128,7 +128,6 @@ object Transform {
               val stackTail = transformer.stack.takeRight(3).toSeq
               stackTail match {
                 case Seq(_: AST_Block, _: AST_SimpleStatement, _: AST_Assign) =>
-                  val parent = transformer.parent()
                   val vr = new AST_Var
                   val vv = new AST_VarDef
                   vr.definitions = js.Array(vv)
