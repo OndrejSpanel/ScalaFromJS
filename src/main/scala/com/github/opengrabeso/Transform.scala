@@ -64,22 +64,20 @@ object Transform {
     var pairs = Map.empty[SymbolDef, AST_SymbolRef]
     n.walk { node =>
       node match {
-        case v: AST_VarDef =>
-          if (v.value.nonNull.isEmpty) {
-            for (df <- v.name.thedef) {
-              assert(df.name == v.name.name)
-              if (df.references.nonEmpty) {
-                // find the first reference
-                val firstRef = df.references.minBy { ref =>
-                  assert(ref.thedef.exists(_ == df))
-                  ref.start.map(_.pos).getOrElse(Int.MaxValue)
-                }
-                // if the first ref is in the current scope, we might merge it with the declaration
-                if (firstRef.scope == v.name.scope) {
-                  pairs += df -> firstRef
-                }
-
+        case AST_VarDef(name, value) if value.nonNull.isEmpty =>
+          for (df <- name.thedef) {
+            assert(df.name == name.name)
+            if (df.references.nonEmpty) {
+              // find the first reference
+              val firstRef = df.references.minBy { ref =>
+                assert(ref.thedef.exists(_ == df))
+                ref.start.map(_.pos).getOrElse(Int.MaxValue)
               }
+              // if the first ref is in the current scope, we might merge it with the declaration
+              if (firstRef.scope == name.scope) {
+                pairs += df -> firstRef
+              }
+
             }
           }
         case _ =>
