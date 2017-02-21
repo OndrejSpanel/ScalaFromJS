@@ -29,7 +29,7 @@ object Uglify extends js.Object {
   }
 
   @js.native class SymbolDef extends js.Object {
-    // points to the AST_Scope where this is defined.
+    // points to the AST_Scope where this is defined. Beware: for var this is a "hoisted" scope
     var scope: AST_Scope = js.native
     // orig — an array of AST_SymbolDeclaration-s where this variable is defined
     var orig: js.Array[AST_SymbolDeclaration] = js.native
@@ -118,6 +118,8 @@ object Uglify extends js.Object {
     val enclosed: js.Dynamic = js.native
     // [integer/S] current index for mangling variables (used internally by the mangler)
     val cname: js.UndefOr[Int] = js.native
+    // the nesting level of this scope (0 means toplevel)
+    val nesting: Int = js.native
   }
 
   @js.native class AST_Toplevel extends AST_Scope {

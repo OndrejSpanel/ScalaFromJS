@@ -97,6 +97,7 @@ object Transform {
         case v: AST_VarDef =>
           if (v.value.nonNull.isEmpty) {
             for (df <- v.name.thedef) {
+              println(s"Check var ${v.name.name}")
               assert(df.name == v.name.name)
               if (df.references.nonEmpty) {
                 // find the first reference
@@ -105,9 +106,13 @@ object Transform {
                   ref.start.map(_.pos).getOrElse(Int.MaxValue)
                 }
                 // if the first ref is in the current scope, we might merge it with the declaration
-                if (firstRef.scope == df.scope) {
+                if (firstRef.scope == v.name.scope) {
+                  println("  same scope")
                   pairs += df -> firstRef
+                } else {
+                  println(s"  different scope ${firstRef.scope.get.nesting} ${v.name.scope.get.nesting}")
                 }
+
               }
             }
           }
@@ -119,7 +124,7 @@ object Transform {
     val refs = pairs.values.toSet
     var replaced = Set.empty[SymbolDef]
 
-    println("transform")
+    println(s"transform, vars ${pairs.keys.map(_.name).mkString(",")}")
 
     // walk the tree, check for possible val replacements and perform them
     val changeAssignToVar = n.transformAfter {(node, transformer) =>
