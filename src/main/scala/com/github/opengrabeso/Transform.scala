@@ -18,7 +18,7 @@ object Transform {
   def remove(n: AST_Node) = ???
 
   def checkAssignToReference(s: AST_SimpleStatement, df: SymbolDef) = {
-    //assert(!s.body.isInstanceOf[AST_Statement]) // as per documentation of AST_SimpleStatement
+    assert(!s.body.isInstanceOf[AST_Statement]) // as per documentation of AST_SimpleStatement
     s.body match {
       case a: AST_Assign =>
         a.left match {
@@ -129,28 +129,22 @@ object Transform {
       // we need to descend into assignment definitions, as they may contain other assignments
       //val nodeAdj = node.clone()
       node match {
-        case AST_SimpleStatement(AST_Assign(left, "=", right)) =>
+        case AST_SimpleStatement(AST_Assign(sr@AST_SymbolRef(name, scope, thedef), "=", right)) if refs contains sr =>
           //println(s"ss match assign ${nodeClassName(left)} ${ScalaOut.outputNode(left, "")}")
-          left match {
-            case sr@AST_SymbolRef(name, scope, thedef) if refs contains sr =>
-              val stackTail = transformer.stack.takeRight(2).toSeq
-              stackTail match {
-                case Seq(_: AST_Block, _: AST_SimpleStatement) =>
-                  val vr = new AST_Var
-                  val vv = new AST_VarDef
-                  vr.definitions = js.Array(vv)
-                  vv.name = new AST_SymbolVar
-                  vv.name.thedef = thedef
-                  vv.name.name = name
-                  vv.value = right
-                  vv.name.scope = scope
-                  // TODO: we should replace AST_SimpleStatement with AST_Var (AST_Definitions)
-                  //println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
-                  replaced ++= thedef.nonNull
-                  vr
-                case _ =>
-                  node //.clone()
-              }
+          val stackTail = transformer.stack.takeRight(2).dropRight(1).toSeq
+          stackTail match {
+            case Seq(_: AST_Block) =>
+              val vr = new AST_Var
+              val vv = new AST_VarDef
+              vr.definitions = js.Array(vv)
+              vv.name = new AST_SymbolVar
+              vv.name.thedef = thedef
+              vv.name.name = name
+              vv.value = right
+              vv.name.scope = scope
+              //println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
+              replaced ++= thedef.nonNull
+              vr
             case _ =>
               node //.clone()
           }
@@ -160,7 +154,6 @@ object Transform {
     }
 
     //println(s"transform done, replaced ${replaced.map(_.name).mkString(",")}")
-
 
     pairs = pairs.filterKeys(replaced.contains)
 
