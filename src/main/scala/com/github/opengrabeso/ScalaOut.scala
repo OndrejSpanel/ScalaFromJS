@@ -165,9 +165,7 @@ object ScalaOut {
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions) = {
       tn.definitions.foreach { v =>
         val decl = if (isVal || v.name.thedef.exists(_._isVal.getOrElse(false))) "val" else "var"
-        out(decl + " ")
-        nodeToOut(v)
-        out.eol()
+        out"$decl $v\n"
       }
     }
 
@@ -237,8 +235,8 @@ object ScalaOut {
       case tn: AST_NaN => out("Double.NaN")
       case tn: AST_Null => out("null")
       //case tn: AST_Atom => "AST_Atom"
-      case tn: AST_RegExp => out("\"" + tn.value + "\".r")
-      case tn: AST_Number => out(tn.value.toString)
+      case tn: AST_RegExp => out""""${tn.value}".r"""
+      case tn: AST_Number => out"${tn.value}"
       case tn: AST_String => out(quote(tn.value))
       //case tn: AST_Constant => "AST_Constant"
       case tn: AST_This => out("this") // TODO: handle differences between Scala and JS this
@@ -257,37 +255,30 @@ object ScalaOut {
       case tn: AST_Symbol =>
         identifierToOut(out, tn.name)
       case tn: AST_ObjectGetter =>
-        out("def ")
-        nodeToOut(tn.key)
-        nodeToOut(tn.value)
         out.eol()
+        out"def ${tn.key}${tn.value}\n"
       case tn: AST_ObjectSetter =>
-        out("def ")
-        nodeToOut(tn.key)
-        nodeToOut(tn.value)
         out.eol()
+        out"def ${tn.key}${tn.value}\n"
       case tn: AST_ObjectKeyVal =>
-          out(tn.key + " = ")
-          nodeToOut(tn.value)
-          out.eol()
+        out"${tn.key} = ${tn.value}\n"
       case tn: AST_ObjectProperty =>
       case tn: AST_Object =>
         out("js.Dynamic.literal {\n")
         out.indent()
-        tn.properties.foreach(nodeToOut)
+        tn.properties.foreach{ n =>
+          nodeToOut(n)
+          out.eol()
+        }
         out.unindent()
+        out.eol()
         out("}")
       case tn: AST_Array =>
         out("Array(")
         outputNodes(tn.elements)(nodeToOut)
         out(")")
       case tn: AST_Conditional =>
-        out("if (")
-        nodeToOut(tn.condition)
-        out(") ")
-        nodeToOut(tn.consequent)
-        out(" else ")
-        nodeToOut(tn.alternative)
+        out"if (${tn.condition}) ${tn.consequent} else ${tn.alternative}"
       //case tn: AST_Assign => outputUnknownNode(tn)
       case tn: AST_Binary =>
         nodeToOut(tn.left)
