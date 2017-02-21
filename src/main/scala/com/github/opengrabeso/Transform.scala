@@ -170,10 +170,11 @@ object Transform {
     pairs = pairs.filterKeys(replaced.contains)
 
     // walk the tree, check for possible val replacements and perform them
-    val ret = changeAssignToVar.transformBefore { (node, descend, transformer) =>
+    val ret = changeAssignToVar.transformAfter{ (node, _) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
         case v: AST_Var =>
+          println(s"var defs ${v.definitions.map(_.name.name).mkString(",")}")
           // remove only the original declaration, not the one introduced by us
           // original declaration has no init value
           val af = v.definitions.filterNot { d =>
@@ -184,9 +185,7 @@ object Transform {
           vv.definitions = af
           vv
         case c =>
-          val cc = node.clone()
-          descend(cc, transformer)
-          cc
+          c
       }
     }
 
