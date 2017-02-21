@@ -28,12 +28,15 @@ object Transform {
             assert(ref.thedef.exists(_ == df))
             ref.scope.exists { s =>
               var detect = false
+              object UnaryModification {
+                def unapply(arg: String): Boolean = arg == "++" || arg == "--"
+              }
               s.walk {
                 case ss: AST_Scope => ss != ref.scope // do not descend into any other scopes, they are listed in references if needed
                 case AST_SimpleStatement(AST_Assign(AST_SymbolRef(_, _, `df`), _, _)) =>
                   detect = true
                   detect
-                case AST_Unary(op, AST_SymbolRef(nameSym, scope, `df`)) if op == "--" || op == "++" =>
+                case AST_Unary(UnaryModification(), AST_SymbolRef(_, _, `df`)) =>
                   detect = true
                   detect
                 case _ =>
