@@ -467,6 +467,10 @@ object ScalaOut {
         outputArgNames(tn)
         out(" => ")
         blockBracedToOut(tn.body)
+      case tn: AST_Arrow =>
+        outputArgNames(tn)
+        out(" => ")
+        blockBracedToOut(tn.body)
       case tn: AST_Accessor =>
         outputArgNames(tn)
         out(" = ")
