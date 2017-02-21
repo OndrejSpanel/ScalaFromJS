@@ -546,17 +546,21 @@ object UglifyExt {
 
   trait AST_Extractors {
     object AST_Binary {
-      def unapply(n: AST_Binary) = Some((n.left, n.operator, n.right))
+      def unapply(arg: AST_Binary) = Some((arg.left, arg.operator, arg.right))
     }
     object AST_Assign {
-      def unapply(n: AST_Assign) = AST_Binary.unapply(n)
+      def unapply(arg: AST_Assign) = AST_Binary.unapply(arg)
     }
 
     object AST_Symbol {
-      def unapply(n: AST_Symbol) = Some((n.name, n.scope, n.thedef))
+      def unapply(arg: AST_Symbol) = Some((arg.name, arg.scope, arg.thedef))
     }
     object AST_SymbolRef {
-      def unapply(n: AST_SymbolRef) = AST_Symbol.unapply(n)
+      def unapply(arg: AST_SymbolRef) = AST_Symbol.unapply(arg)
+    }
+
+    object AST_SimpleStatement {
+      def unapply(arg: AST_SimpleStatement) = Some(arg.body)
     }
   }
 
