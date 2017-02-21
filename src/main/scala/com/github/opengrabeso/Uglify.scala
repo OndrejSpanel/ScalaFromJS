@@ -67,7 +67,10 @@ object Uglify extends js.Object {
     val find_parent: (js.Dynamic) => AST_Node = js.native
   }
 
-  @js.native class TreeTransformer(f: js.Function2[AST_Node, js.Function2[AST_Node, TreeTransformer, AST_Node], AST_Node]) extends TreeWalker(js.native)
+  @js.native class TreeTransformer(
+    before: js.Function2[AST_Node, js.Function2[AST_Node, TreeTransformer, AST_Node], AST_Node],
+    after: js.Function1[AST_Node, AST_Node] = js.native
+  ) extends TreeWalker(js.native)
 
   @js.native sealed abstract class AST_Node extends js.Object {
     val start: js.UndefOr[AST_Token] = js.native
@@ -536,12 +539,17 @@ object UglifyExt {
   implicit class AST_NodeOps(val node: AST_Node) {
     def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
 
-    def transform(transformer: (AST_Node, (AST_Node, TreeTransformer) => AST_Node, TreeTransformer) => AST_Node): AST_Node = {
+    def transformBefore(before: (AST_Node, (AST_Node, TreeTransformer) => AST_Node, TreeTransformer) => AST_Node): AST_Node = {
       var tr: TreeTransformer = null
-      tr = new TreeTransformer((node, descend) => transformer(node, descend, tr))
+      tr = new TreeTransformer((node, descend) => before(node, descend, tr))
       node.transform_js(tr)
     }
 
+    def transformAfter(after: (AST_Node, TreeTransformer) => AST_Node = null): AST_Node = {
+      var tr: TreeTransformer = null
+      tr = new TreeTransformer(null, node => after(node, tr))
+      node.transform_js(tr)
+    }
   }
 
   trait AST_Extractors {

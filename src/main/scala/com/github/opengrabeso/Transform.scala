@@ -117,17 +117,25 @@ object Transform {
     }
 
     val refs = pairs.values.toSet
+    var replaced = Set.empty[SymbolDef]
+
+    println("transform")
 
     // walk the tree, check for possible val replacements and perform them
-    val changeAssignToVar = n.transform { (node, descend, transformer) =>
+    val changeAssignToVar = n.transformAfter {(node, transformer) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
+      //println(s"node ${nodeClassName(node)} ${ScalaOut.outputNode(node, "")}")
+      // we need to descend into assignment definitions, as they may contain other assignments
+      //val nodeAdj = node.clone()
       node match {
-        case AST_Assign(left, "=", right) =>
+        case AST_SimpleStatement(AST_Assign(left, "=", right)) =>
+          println(s"ss match assign ${nodeClassName(left)} ${ScalaOut.outputNode(left, "")}")
           left match {
             case sr@AST_SymbolRef(name, scope, thedef) if refs contains sr =>
-              val stackTail = transformer.stack.takeRight(3).toSeq
+              println(s"sr match $name")
+              val stackTail = transformer.stack.takeRight(2).toSeq
               stackTail match {
-                case Seq(_: AST_Block, _: AST_SimpleStatement, _: AST_Assign) =>
+                case Seq(_: AST_Block, _: AST_SimpleStatement) =>
                   val vr = new AST_Var
                   val vv = new AST_VarDef
                   vr.definitions = js.Array(vv)
@@ -136,25 +144,28 @@ object Transform {
                   vv.name.name = name
                   vv.value = right
                   vv.name.scope = scope
-                  // TODO: we should replace AST_SimpleStatement with AST_Definitions
+                  // TODO: we should replace AST_SimpleStatement with AST_Var (AST_Definitions)
                   println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
+                  replaced ++= thedef.nonNull
                   vr
                 case _ =>
-                  pairs -= thedef.get
-                  sr //.clone()
+                  node //.clone()
               }
             case _ =>
               node //.clone()
           }
         case c =>
-          val cc = c //.clone()
-          descend(cc, transformer)
-          cc
+          node //.clone()
       }
     }
 
+    println(s"transform done, replaced ${replaced.map(_.name).mkString(",")}")
+
+
+    pairs = pairs.filterKeys(replaced.contains)
+
     // walk the tree, check for possible val replacements and perform them
-    val ret = changeAssignToVar.transform { (node, descend, transformer) =>
+    val ret = changeAssignToVar.transformBefore { (node, descend, transformer) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
         case v: AST_Var =>
@@ -174,6 +185,7 @@ object Transform {
       }
     }
 
+    println("ret done")
 
     ret
   }
