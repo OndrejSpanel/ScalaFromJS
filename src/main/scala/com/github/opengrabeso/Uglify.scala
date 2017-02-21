@@ -1,5 +1,6 @@
 package com.github.opengrabeso
 
+import scala.language.implicitConversions
 import scala.scalajs.js
 import scala.scalajs.js.RegExp
 import scala.scalajs.js.annotation.{JSImport, JSName, ScalaJSDefined}
@@ -28,7 +29,7 @@ object Uglify extends js.Object {
   }
 
   @js.native class SymbolDef extends js.Object {
-    // points to the AST_Scope where this is defined.
+    // points to the AST_Scope where this is defined. Beware: for var this is a "hoisted" scope
     var scope: AST_Scope = js.native
     // orig — an array of AST_SymbolDeclaration-s where this variable is defined
     var orig: js.Array[AST_SymbolDeclaration] = js.native
@@ -57,13 +58,29 @@ object Uglify extends js.Object {
 
 
   // f:  return true to abort the walk
-  @js.native class TreeWalker(f: js.Function1[AST_Node, Boolean]) extends js.Any
+  @js.native class TreeWalker(f: js.Function2[AST_Node, js.Function0[Unit], Boolean]) extends js.Any {
+    // returns the parent of the current node.
+    def parent(n: Int = 0): AST_Node = js.native
+    // an array holding all nodes that lead to current node. The last element in this array is the current node itself.
+    def stack: js.Array[AST_Node] = js.native
+    // finds the innermost parent of the given type. type must be a node constructor, i.e. AST_Scope.
+    val find_parent: (js.Dynamic) => AST_Node = js.native
+  }
+
+  @js.native class TreeTransformer(
+    before: js.Function2[AST_Node, js.Function2[AST_Node, TreeTransformer, AST_Node], AST_Node],
+    after: js.Function1[AST_Node, AST_Node] = js.native
+  ) extends TreeWalker(js.native)
 
   @js.native sealed abstract class AST_Node extends js.Object {
     val start: js.UndefOr[AST_Token] = js.native
     val end: js.UndefOr[AST_Token] = js.native
 
-    def walk(walker: TreeWalker): Unit = js.native
+    @JSName("walk")
+    def walk_js(walker: TreeWalker): Unit = js.native
+
+    @JSName("transform")
+    def transform_js(transformer: TreeTransformer): AST_Node = js.native
 
     override def clone(): AST_Node = js.native
   }
@@ -75,11 +92,11 @@ object Uglify extends js.Object {
   @js.native class AST_Directive extends AST_Statement
 
   @js.native class AST_SimpleStatement extends AST_Statement {
-    val body: AST_Node = js.native // [AST_Node] an expression node (should not be instanceof AST_Statement)
+    var body: AST_Node = js.native // [AST_Node] an expression node (should not be instanceof AST_Statement)
   }
 
   @js.native class AST_Block extends AST_Statement {
-    val body: js.Array[AST_Statement] = js.native
+    var body: js.Array[AST_Statement] = js.native
   }
 
   @js.native class AST_BlockStatement extends AST_Block
@@ -101,6 +118,8 @@ object Uglify extends js.Object {
     val enclosed: js.Dynamic = js.native
     // [integer/S] current index for mangling variables (used internally by the mangler)
     val cname: js.UndefOr[Int] = js.native
+    // the nesting level of this scope (0 means toplevel)
+    val nesting: Int = js.native
   }
 
   @js.native class AST_Toplevel extends AST_Scope {
@@ -228,17 +247,18 @@ object Uglify extends js.Object {
 
   @js.native sealed abstract class AST_Definitions extends AST_Statement {
     // [AST_VarDef*] array of variable definitions
-    val definitions: js.Array[AST_VarDef] = js.native
+    var definitions: js.Array[AST_VarDef] = js.native
   }
 
   @js.native class AST_Var extends AST_Definitions
   @js.native class AST_Const extends AST_Definitions
+  @js.native class AST_Let extends AST_Definitions
 
   @js.native class AST_VarDef extends AST_Node {
     // [AST_SymbolVar|AST_SymbolConst] name of the variable
-    val name: AST_SymbolVarOrConst = js.native
+    var name: AST_SymbolVarOrConst = js.native
     // "[AST_Node?] initializer, or null of there's no initializer"
-    val value: js.UndefOr[AST_Node] = js.native
+    var value: js.UndefOr[AST_Node] = js.native
   }
 
   @js.native class AST_Call extends AST_Node {
@@ -336,17 +356,17 @@ object Uglify extends js.Object {
 
   @js.native sealed class AST_Symbol extends AST_Node {
     // [string] name of this symbol
-    val name: String = js.native
+    var name: String = js.native
     // [AST_Scope/S] the current scope (not necessarily the definition scope)
-    val scope: js.UndefOr[AST_Scope] = js.native
+    var scope: js.UndefOr[AST_Scope] = js.native
     // [SymbolDef/S] the definition of this symbol
-    val thedef: js.UndefOr[SymbolDef] = js.native
+    var thedef: js.UndefOr[SymbolDef] = js.native
   }
 
   @js.native class AST_SymbolAccessor extends AST_Symbol
   @js.native class AST_SymbolDeclaration extends AST_Symbol {
     // [AST_Node*/S] array of initializers for this declaration.
-    val init: js.UndefOr[js.Array[AST_Node]] = js.native
+    var init: js.UndefOr[js.Array[AST_Node]] = js.native
   }
 
   @js.native class AST_SymbolVarOrConst extends AST_SymbolDeclaration
@@ -518,14 +538,63 @@ object UglifyExt {
 
   }
 
-  def nodeClassName(n: AST_Node): String = {
-    val nd = n.asInstanceOf[js.Dynamic]
-    val s = nd.constructor.name.asInstanceOf[String]
-    if (s == "AST_Node" && nd.CTOR != null) {
-      nd.CTOR.name.asInstanceOf[String]
-    } else s
+  implicit class AST_NodeOps(val node: AST_Node) {
+    def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
+
+    def transformBefore(before: (AST_Node, (AST_Node, TreeTransformer) => AST_Node, TreeTransformer) => AST_Node): AST_Node = {
+      var tr: TreeTransformer = null
+      tr = new TreeTransformer((node, descend) => before(node, descend, tr))
+      node.transform_js(tr)
+    }
+
+    def transformAfter(after: (AST_Node, TreeTransformer) => AST_Node = null): AST_Node = {
+      var tr: TreeTransformer = null
+      tr = new TreeTransformer(null, node => after(node, tr))
+      node.transform_js(tr)
+    }
   }
 
+  trait AST_Extractors {
+    object AST_Binary {
+      def unapply(arg: AST_Binary) = Some((arg.left, arg.operator, arg.right))
+    }
+    object AST_Assign {
+      def unapply(arg: AST_Assign) = AST_Binary.unapply(arg)
+    }
+
+    object AST_Symbol {
+      def unapply(arg: AST_Symbol) = Some((arg.name, arg.scope, arg.thedef))
+    }
+    object AST_SymbolRef {
+      def unapply(arg: AST_SymbolRef) = AST_Symbol.unapply(arg)
+    }
+
+    object AST_SimpleStatement {
+      def unapply(arg: AST_SimpleStatement) = Some(arg.body)
+    }
+
+    object AST_VarDef {
+      def unapply(arg: AST_VarDef) = Some(arg.name, arg.value)
+    }
+
+    object AST_Unary {
+      def unapply(arg: AST_Unary) = Some(arg.operator, arg.expression)
+    }
+  }
+
+  object Import extends AST_Extractors
+
+  def nodeClassName(n: AST_Node): String = {
+    if (js.isUndefined(n)) "undefined"
+    else if (n == null) "null"
+    else {
+      val nd = n.asInstanceOf[js.Dynamic]
+      val s = nd.constructor.name.asInstanceOf[String]
+      if (s == "AST_Node" && nd.CTOR != null) {
+        nd.CTOR.name.asInstanceOf[String]
+      } else s
+    }
+  }
 
 
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {

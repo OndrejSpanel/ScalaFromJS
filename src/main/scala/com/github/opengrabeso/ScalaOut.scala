@@ -138,7 +138,7 @@ object ScalaOut {
     //noinspection ScalaUnusedSymbol
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions) = {
       tn.definitions.foreach { v =>
-        val decl = if (isVal || v.name.thedef.exists(_._isVal.exists(_ == true))) "val" else "var"
+        val decl = if (isVal || v.name.thedef.exists(_._isVal.getOrElse(false))) "val" else "var"
         out(decl + " ")
         nodeToOut(v)
         out.eol()
@@ -227,11 +227,9 @@ object ScalaOut {
       //case tn: AST_SymbolVar => out("AST_SymbolVar")
       //case tn: AST_SymbolDeclaration => out(tn.name)
       //case tn: AST_SymbolAccessor => out("AST_SymbolAccessor")
+      //case tn: AST_SymbolRef => identifierToOut(out, tn.name)
       case tn: AST_Symbol =>
-        // TODO: other rules needed?
-        if (Keywords(tn.name)) {
-          out("`" + tn.name + "`")
-        } else out(tn.name)
+        identifierToOut(out, tn.name)
       case tn: AST_ObjectGetter =>
         out("def ")
         nodeToOut(tn.key)
@@ -332,6 +330,8 @@ object ScalaOut {
       case tn: AST_Const =>
         outputDefinitions(true, tn)
       case tn: AST_Var =>
+        outputDefinitions(false, tn) // we assume scoping is reasonable, we do not try to handle hoisting
+      case tn: AST_Let =>
         outputDefinitions(false, tn)
       //case tn: AST_Definitions => outputUnknownNode(tn)
       case tn: AST_Continue => outputUnknownNode(tn, true)
@@ -491,6 +491,13 @@ object ScalaOut {
     }
   }
 
+  private def identifierToOut(out: Output, name: String) = {
+    // TODO: other rules needed?
+    if (Keywords(name)) {
+      out("`" + name + "`")
+    } else out(name)
+  }
+
   private def blockBracedToOut(body: js.Array[AST_Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
     // TODO: single statement without braces
     out("{\n") // TODO: autoindent
@@ -518,4 +525,13 @@ object ScalaOut {
     sb.result
   }
 
+  def outputNode(ast: AST_Node, input: String, outConfig: Config = Config.default): String = {
+    val sb = new StringBuilder
+    val ret = new NiceOutput {
+      def out(x: String) = sb append x
+    }
+    val inputContext = InputContext(input)
+    nodeToOut(ast)(outConfig, inputContext, ret)
+    sb.result
+  }
 }
