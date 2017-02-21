@@ -393,7 +393,7 @@ object ScalaOut {
           case _ => // generic solution using while - reliable, but ugly
             // new scope never needed in classical JS, all variables exists on a function scope
             val isScoped = tn.init.nonNull match {
-              case Some(AST_Let(_)) => true
+              case Some(AST_Let(_*)) => true
               case _ => false
             }
             if (isScoped) {
