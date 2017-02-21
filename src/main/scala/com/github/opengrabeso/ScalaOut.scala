@@ -2,6 +2,7 @@ package com.github.opengrabeso
 
 import Uglify._
 import UglifyExt._
+import UglifyExt.Import._
 import JsUtils._
 
 import scala.scalajs.js
@@ -74,15 +75,22 @@ object ScalaOut {
 
   // exctactor for special cases of the for loop
   object ForRange {
+    object VarOrLet {
+      def unapply(arg: AST_Definitions): Option[AST_Definitions] = arg match {
+        case _: AST_Var => Some(arg)
+        case _: AST_Let => Some(arg)
+        case _ => None
+      }
+    }
+
     def unapply(arg: AST_For): Option[(String, AST_Node, AST_Node, Double)] = {
       (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
-        case (Some(vv: AST_Var), Some(c: AST_Binary), Some(s: AST_Unary))
-          if vv.definitions.length == 1 && c.operator == "<" && s.operator == "++" =>
-          val v = vv.definitions(0)
+        case (Some(VarOrLet(AST_Definitions(v))), Some(AST_Binary(cLeft, "<", cRight)), Some(s: AST_Unary))
+          if s.operator == "++" =>
           val n = v.name.name
-          (c.left, s.expression) match {
-            case (l: AST_SymbolRef, s: AST_SymbolRef) if l.name == n && s.name == n =>
-              Some((n, v.value.get, c.right, 1.0))
+          (cLeft, s.expression) match {
+            case (AST_SymbolRef(`n`, _, _), AST_SymbolRef(`n`, _, _)) =>
+              Some((n, v.value.get, cRight, 1.0))
             case _ => None
           }
         case _ => None

@@ -582,6 +582,10 @@ object UglifyExt {
     object AST_Unary {
       def unapply(arg: AST_Unary) = Some(arg.operator, arg.expression)
     }
+
+    object AST_Definitions {
+      def unapplySeq(arg: AST_Definitions) = Some(arg.definitions.toSeq)
+    }
   }
 
   object Import extends AST_Extractors
