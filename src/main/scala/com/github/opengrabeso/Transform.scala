@@ -32,15 +32,6 @@ object Transform {
     }
   }
 
-  def checkUnaryToReference(s: AST_Unary, df: SymbolDef) = {
-    s.expression match {
-      case sym: AST_SymbolRef =>
-        (s.operator == "++" || s.operator == "--") && sym.thedef.exists(_ == df)
-      case _ =>
-        false
-    }
-  }
-
   // individual sensible transformations
 
   // detect variables which can be declared as val instead of var
@@ -62,8 +53,8 @@ object Transform {
                 case ss: AST_SimpleStatement =>
                   if (checkAssignToReference(ss, df)) detect = true
                   detect
-                case u: AST_Unary =>
-                  if (checkUnaryToReference(u, df)) detect = true
+                case AST_Unary(op, AST_SymbolRef(nameSym, scope, `df`)) if op == "--" || op == "++" =>
+                  detect = true
                   detect
                 case _ =>
                   detect
