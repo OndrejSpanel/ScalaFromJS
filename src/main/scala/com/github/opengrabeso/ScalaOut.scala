@@ -392,6 +392,15 @@ object ScalaOut {
             nodeToOut(tn.body)
           case _ => // generic solution using while - reliable, but ugly
             // new scope never needed in classical JS, all variables exists on a function scope
+            val isScoped = tn.init.nonNull match {
+              case Some(AST_Let(_)) => true
+              case _ => false
+            }
+            if (isScoped) {
+              out.eol()
+              out("{\n")
+              out.indent()
+            }
             //out("\n\n{\n")
             tn.init.nonNull.foreach { init =>
               nodeToOut(init)
@@ -404,6 +413,10 @@ object ScalaOut {
             out.eol()
             tn.step.nonNull.foreach(nodeToOut)
             out.eol()
+            if (isScoped) {
+              out.unindent()
+              out("}\n")
+            }
             //out("}\n")
         }
 
