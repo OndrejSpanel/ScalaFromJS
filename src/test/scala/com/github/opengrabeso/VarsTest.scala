@@ -12,8 +12,12 @@ class VarsTest extends FunSuite with TestUtils {
       "val s =",
       "var x =",
       "var y",
-      "var z"
+      "var z",
+      "val a =",
+      "val l ="
     ).forbidden(
+      "var a",
+      "var l",
       "val x",
       "val y",
       "var y =",

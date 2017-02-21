@@ -97,7 +97,6 @@ object Transform {
         case v: AST_VarDef =>
           if (v.value.nonNull.isEmpty) {
             for (df <- v.name.thedef) {
-              println(s"Check var ${v.name.name}")
               assert(df.name == v.name.name)
               if (df.references.nonEmpty) {
                 // find the first reference
@@ -107,10 +106,7 @@ object Transform {
                 }
                 // if the first ref is in the current scope, we might merge it with the declaration
                 if (firstRef.scope == v.name.scope) {
-                  println("  same scope")
                   pairs += df -> firstRef
-                } else {
-                  println(s"  different scope ${firstRef.scope.get.nesting} ${v.name.scope.get.nesting}")
                 }
 
               }
@@ -124,7 +120,7 @@ object Transform {
     val refs = pairs.values.toSet
     var replaced = Set.empty[SymbolDef]
 
-    println(s"transform, vars ${pairs.keys.map(_.name).mkString(",")}")
+    //println(s"transform, vars ${pairs.keys.map(_.name).mkString(",")}")
 
     // walk the tree, check for possible val replacements and perform them
     val changeAssignToVar = n.transformAfter {(node, transformer) =>
@@ -134,10 +130,9 @@ object Transform {
       //val nodeAdj = node.clone()
       node match {
         case AST_SimpleStatement(AST_Assign(left, "=", right)) =>
-          println(s"ss match assign ${nodeClassName(left)} ${ScalaOut.outputNode(left, "")}")
+          //println(s"ss match assign ${nodeClassName(left)} ${ScalaOut.outputNode(left, "")}")
           left match {
             case sr@AST_SymbolRef(name, scope, thedef) if refs contains sr =>
-              println(s"sr match $name")
               val stackTail = transformer.stack.takeRight(2).toSeq
               stackTail match {
                 case Seq(_: AST_Block, _: AST_SimpleStatement) =>
@@ -150,7 +145,7 @@ object Transform {
                   vv.value = right
                   vv.name.scope = scope
                   // TODO: we should replace AST_SimpleStatement with AST_Var (AST_Definitions)
-                  println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
+                  //println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
                   replaced ++= thedef.nonNull
                   vr
                 case _ =>
@@ -164,7 +159,7 @@ object Transform {
       }
     }
 
-    println(s"transform done, replaced ${replaced.map(_.name).mkString(",")}")
+    //println(s"transform done, replaced ${replaced.map(_.name).mkString(",")}")
 
 
     pairs = pairs.filterKeys(replaced.contains)
@@ -174,7 +169,6 @@ object Transform {
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
         case v: AST_Var =>
-          println(s"var defs ${v.definitions.map(_.name.name).mkString(",")}")
           // remove only the original declaration, not the one introduced by us
           // original declaration has no init value
           val af = v.definitions.filterNot { d =>
@@ -189,7 +183,6 @@ object Transform {
       }
     }
 
-    println("ret done")
 
     ret
   }
