@@ -12,26 +12,6 @@ import scala.scalajs.js
   * */
 object Transform {
 
-  // low-level operations, used to implement the rest
-
-  def add(n: AST_Node) = ???
-  def remove(n: AST_Node) = ???
-
-  def checkAssignToReference(s: AST_SimpleStatement, df: SymbolDef) = {
-    assert(!s.body.isInstanceOf[AST_Statement]) // as per documentation of AST_SimpleStatement
-    s.body match {
-      case a: AST_Assign =>
-        a.left match {
-          case sym: AST_SymbolRef =>
-            sym.thedef.exists(_ == df)
-          case _ =>
-            false
-        }
-      case a =>
-        false
-    }
-  }
-
   // individual sensible transformations
 
   // detect variables which can be declared as val instead of var
@@ -44,14 +24,14 @@ object Transform {
           assert(df.name == name.name)
           // TODO: infer type
           // check if any reference is assignment target
-          df._isVal = !df.references.exists { ref =>
+          val assignedInto = df.references.exists { ref =>
             assert(ref.thedef.exists(_ == df))
             ref.scope.exists { s =>
               var detect = false
               s.walk {
-                case s: AST_Scope => s != ref.scope // do not descend into any other scopes, they are listed in references if needed
-                case ss: AST_SimpleStatement =>
-                  if (checkAssignToReference(ss, df)) detect = true
+                case ss: AST_Scope => ss != ref.scope // do not descend into any other scopes, they are listed in references if needed
+                case AST_SimpleStatement(AST_Assign(AST_SymbolRef(_, _, `df`), _, _)) =>
+                  detect = true
                   detect
                 case AST_Unary(op, AST_SymbolRef(nameSym, scope, `df`)) if op == "--" || op == "++" =>
                   detect = true
@@ -62,6 +42,7 @@ object Transform {
               detect
             }
           }
+          df._isVal = !assignedInto
         }
         false
       case _ =>
