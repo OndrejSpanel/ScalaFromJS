@@ -65,6 +65,31 @@ object ScalaOut {
     var commentsDumped = Set.empty[Int]
   }
 
+  implicit class OutStringContext(val sc: StringContext)(implicit outConfig: Config, input: InputContext, output: Output) {
+    def out(args: Any*): Unit = {
+      val strings = sc.parts.iterator
+      val expressions = args.iterator
+
+      import StringContext.{treatEscapes=>escape}
+      output(escape(strings.next))
+      while(strings.hasNext) {
+        val ex = expressions.next
+        ex match {
+          case s: String =>
+            output(s)
+          case n: AST_Node =>
+            nodeToOut(n)
+          case any =>
+            output(any.toString)
+        }
+        output(escape(strings.next))
+      }
+      assert(!strings.hasNext)
+      assert(!expressions.hasNext)
+    }
+  }
+
+
   def markEnd[T](seq: Seq[T]) = seq zip (seq.drop(1).map(_ => true) :+ false)
 
 
@@ -120,16 +145,10 @@ object ScalaOut {
     } {
       if (!(input.commentsDumped contains c.pos)) {
         if (c.`type` == "comment2") {
-          out("/*")
-          out(c.value.toString)
-          out("*/")
-          out.eol()
+          out"/*${c.value}*/\n"
         } else {
-          out("//")
-          out(c.value.toString)
-          out.eol()
+          out"//${c.value}\n"
         }
-
         input.commentsDumped += c.pos
       }
     }
