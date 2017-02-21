@@ -488,6 +488,9 @@ object ScalaOut {
       case tn: AST_Debugger =>
         outputUnknownNode(tn)
         out.eol()
+      case tn =>
+        outputUnknownNode(tn)
+        out.eol()
     }
   }
 
@@ -499,13 +502,17 @@ object ScalaOut {
   }
 
   private def blockBracedToOut(body: js.Array[AST_Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
-    // TODO: single statement without braces
-    out("{\n") // TODO: autoindent
-    out.indent()
-    blockToOut(body)
-    out.unindent()
-    out.eol()
-    out("}")
+    if (!js.isUndefined(body)) { // harmony class may have undefined body
+      // TODO: single statement without braces
+      out("{\n") // TODO: autoindent
+      out.indent()
+      blockToOut(body)
+      out.unindent()
+      out.eol()
+      out("}")
+    } else {
+      out("/* body */ undefined")
+    }
   }
 
   private def blockToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
