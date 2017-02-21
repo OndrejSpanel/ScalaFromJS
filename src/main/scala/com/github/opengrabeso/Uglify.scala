@@ -544,6 +544,24 @@ object UglifyExt {
 
   }
 
+  trait AST_Extractors {
+    object AST_Binary {
+      def unapply(n: AST_Binary) = Some((n.left, n.operator, n.right))
+    }
+    object AST_Assign {
+      def unapply(n: AST_Assign) = AST_Binary.unapply(n)
+    }
+
+    object AST_Symbol {
+      def unapply(n: AST_Symbol) = Some((n.name, n.scope, n.thedef))
+    }
+    object AST_SymbolRef {
+      def unapply(n: AST_SymbolRef) = AST_Symbol.unapply(n)
+    }
+  }
+
+  object Import extends AST_Extractors
+
   def nodeClassName(n: AST_Node): String = {
     if (js.isUndefined(n)) "undefined"
     else if (n == null) "null"

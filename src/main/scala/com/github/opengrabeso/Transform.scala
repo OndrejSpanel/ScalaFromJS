@@ -3,6 +3,7 @@ package com.github.opengrabeso
 import com.github.opengrabeso.JsUtils._
 import com.github.opengrabeso.Uglify._
 import com.github.opengrabeso.UglifyExt._
+import com.github.opengrabeso.UglifyExt.Import._
 
 import scala.scalajs.js
 
@@ -121,9 +122,9 @@ object Transform {
     val changeAssignToVar = n.transform { (node, descend, transformer) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
-        case vd: AST_Assign if vd.operator == "=" =>
-          vd.left match {
-            case sr: AST_SymbolRef if refs contains sr =>
+        case AST_Assign(left, "=", right) =>
+          left match {
+            case sr@AST_SymbolRef(name, scope, thedef) if refs contains sr =>
               val stackTail = transformer.stack.takeRight(3).toSeq
               stackTail match {
                 case Seq(_: AST_Block, _: AST_SimpleStatement, _: AST_Assign) =>
@@ -132,19 +133,19 @@ object Transform {
                   val vv = new AST_VarDef
                   vr.definitions = js.Array(vv)
                   vv.name = new AST_SymbolVar
-                  vv.name.thedef = sr.thedef
-                  vv.name.name = sr.name
-                  vv.value = vd.right
-                  vv.name.scope = sr.scope
+                  vv.name.thedef = thedef
+                  vv.name.name = name
+                  vv.value = right
+                  vv.name.scope = scope
                   // TODO: we should replace AST_SimpleStatement with AST_Definitions
                   println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
                   vr
                 case _ =>
-                  pairs -= sr.thedef.get
+                  pairs -= thedef.get
                   sr //.clone()
               }
             case _ =>
-              vd //.clone()
+              node //.clone()
           }
         case c =>
           val cc = c //.clone()
