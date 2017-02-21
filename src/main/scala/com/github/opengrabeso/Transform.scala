@@ -47,42 +47,34 @@ object Transform {
   def detectVals(n: AST_Node): AST_Node = {
     val ret = n.clone()
     // walk the tree, check for possible val replacements and perform them
-    ret.walk{ node: AST_Node =>
-      node match {
-        case v: AST_VarDef =>
-          for (df <- v.name.thedef) {
-            assert(df.name == v.name.name)
-            if (v.name.init.nonNull.isEmpty) {
-              // without init it must be var -
-              // TODO: infer type
-
-              // check if any reference is assignment target
-              df._isVal = !df.references.exists { ref =>
-                assert(ref.thedef.exists(_ == df))
-                ref.scope.exists{ s =>
-                  var detect = false
-                  //noinspection MatchToPartialFunction
-                  s.walk { node: AST_Node =>
-                    node match {
-                      case s: AST_Scope => s != ref.scope // do not descend into any other scopes, they are listed in references if needed
-                      case ss: AST_SimpleStatement =>
-                        if (checkAssignToReference(ss, df)) detect = true
-                        detect
-                      case u: AST_Unary =>
-                        if (checkUnaryToReference(u, df)) detect = true
-                        detect
-                      case _ =>
-                        detect
-                    }
-                  }
+    ret.walk {
+      case AST_VarDef(name, value) if name.init.nonNull.isEmpty => // var with no init - search for the init
+        for (df <- name.thedef) {
+          assert(df.name == name.name)
+          // TODO: infer type
+          // check if any reference is assignment target
+          df._isVal = !df.references.exists { ref =>
+            assert(ref.thedef.exists(_ == df))
+            ref.scope.exists { s =>
+              var detect = false
+              s.walk {
+                case s: AST_Scope => s != ref.scope // do not descend into any other scopes, they are listed in references if needed
+                case ss: AST_SimpleStatement =>
+                  if (checkAssignToReference(ss, df)) detect = true
                   detect
-                }
+                case u: AST_Unary =>
+                  if (checkUnaryToReference(u, df)) detect = true
+                  detect
+                case _ =>
+                  detect
               }
+              detect
             }
           }
-        case _ =>
-      }
-      false
+        }
+        false
+      case _ =>
+        false
     }
     ret
   }

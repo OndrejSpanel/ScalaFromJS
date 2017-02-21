@@ -572,6 +572,10 @@ object UglifyExt {
     object AST_SimpleStatement {
       def unapply(arg: AST_SimpleStatement) = Some(arg.body)
     }
+
+    object AST_VarDef {
+      def unapply(arg: AST_VarDef) = Some(arg.name, arg.value)
+    }
   }
 
   object Import extends AST_Extractors
