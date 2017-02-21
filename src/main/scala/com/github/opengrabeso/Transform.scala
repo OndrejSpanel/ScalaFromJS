@@ -1,10 +1,10 @@
 package com.github.opengrabeso
 
+import com.github.opengrabeso.JsUtils._
+import com.github.opengrabeso.Uglify._
+import com.github.opengrabeso.UglifyExt._
+
 import scala.scalajs.js
-import Uglify._
-import UglifyExt._
-import JsUtils._
-import js.JSConverters._
 
 /**
   * Transform AST to perform optimizations or adjustments
@@ -17,7 +17,7 @@ object Transform {
   def remove(n: AST_Node) = ???
 
   def checkAssignToReference(s: AST_SimpleStatement, df: SymbolDef) = {
-    require(!s.body.isInstanceOf[AST_Statement])
+    //assert(!s.body.isInstanceOf[AST_Statement]) // as per documentation of AST_SimpleStatement
     s.body match {
       case a: AST_Assign =>
         a.left match {
@@ -115,47 +115,72 @@ object Transform {
       false
     }
 
-    // TODO: validate pairs values (AST_SymbolRef) - must be in a plain assignment
     val refs = pairs.values.toSet
-    println(refs.map(_.name).mkString("[", ",", "]"))
 
     // walk the tree, check for possible val replacements and perform them
-    val ret = n.transform { (node, descend, transformer) =>
+    val changeAssignToVar = n.transform { (node, descend, transformer) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
-        case v: AST_Var =>
-          val defs = v.definitions.filter(!_.name.thedef.exists(pairs contains _))
-          val vv = v.clone().asInstanceOf[AST_Var]
-          vv.definitions = defs
-          vv
         case vd: AST_Assign if vd.operator == "=" =>
           vd.left match {
             case sr: AST_SymbolRef if refs contains sr =>
-              val vr = new AST_Var
-              val vv = new AST_VarDef
-              vr.definitions = js.Array(vv)
-              vv.name = new AST_SymbolVar
-              vv.name.thedef = sr.thedef
-              vv.name.name = sr.name
-              vv.value = vd.right
-              vv.name.scope = sr.scope
-              println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
-              vr
+              val stackTail = transformer.stack.takeRight(3).toSeq
+              stackTail match {
+                case Seq(_: AST_Block, _: AST_SimpleStatement, _: AST_Assign) =>
+                  val parent = transformer.parent()
+                  val vr = new AST_Var
+                  val vv = new AST_VarDef
+                  vr.definitions = js.Array(vv)
+                  vv.name = new AST_SymbolVar
+                  vv.name.thedef = sr.thedef
+                  vv.name.name = sr.name
+                  vv.value = vd.right
+                  vv.name.scope = sr.scope
+                  // TODO: we should replace AST_SimpleStatement with AST_Definitions
+                  println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
+                  vr
+                case _ =>
+                  pairs -= sr.thedef.get
+                  sr //.clone()
+              }
             case _ =>
-              vd.clone()
+              vd //.clone()
           }
+        case c =>
+          val cc = c //.clone()
+          descend(cc, transformer)
+          cc
+      }
+    }
+
+    // walk the tree, check for possible val replacements and perform them
+    val ret = changeAssignToVar.transform { (node, descend, transformer) =>
+      // descend informs us how to descend into our children - cannot be used to descend into anything else
+      node match {
+        case v: AST_Var =>
+          // remove only the original declaration, not the one introduced by us
+          // original declaration has no init value
+          val af = v.definitions.filterNot { d =>
+            d.value.nonNull.isEmpty &&
+            d.name.thedef.exists(pairs.contains)
+          }
+          val vv = v.clone().asInstanceOf[AST_Var]
+          vv.definitions = af
+          vv
         case c =>
           val cc = node.clone()
           descend(cc, transformer)
           cc
       }
     }
+
+
     ret
   }
 
   def apply(n: AST_Toplevel): AST_Toplevel = {
     val init = varInitialization(n).asInstanceOf[AST_Toplevel]
-    //init.figure_out_scope()
+    init.figure_out_scope()
     val vals = detectVals(init).asInstanceOf[AST_Toplevel]
     vals
   }

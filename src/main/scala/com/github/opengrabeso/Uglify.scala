@@ -60,11 +60,11 @@ object Uglify extends js.Object {
   // f:  return true to abort the walk
   @js.native class TreeWalker(f: js.Function2[AST_Node, js.Function0[Unit], Boolean]) extends js.Any {
     // returns the parent of the current node.
-    def parent: AST_Node = js.native
+    def parent(n: Int = 0): AST_Node = js.native
     // an array holding all nodes that lead to current node. The last element in this array is the current node itself.
     def stack: js.Array[AST_Node] = js.native
     // finds the innermost parent of the given type. type must be a node constructor, i.e. AST_Scope.
-    def find_parent(tpe: js.Dynamic): AST_Node = js.native
+    val find_parent: (js.Dynamic) => AST_Node = js.native
   }
 
   @js.native class TreeTransformer(f: js.Function2[AST_Node, js.Function2[AST_Node, TreeTransformer, AST_Node], AST_Node]) extends TreeWalker(js.native)
@@ -546,6 +546,7 @@ object UglifyExt {
 
   def nodeClassName(n: AST_Node): String = {
     if (js.isUndefined(n)) "undefined"
+    else if (n == null) "null"
     else {
       val nd = n.asInstanceOf[js.Dynamic]
       val s = nd.constructor.name.asInstanceOf[String]
