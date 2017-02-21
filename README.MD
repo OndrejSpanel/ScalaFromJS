@@ -5,9 +5,20 @@ Experimental project to see if automated or assisted conversion from JS to Scala
 
 Minimal functionality is to make using JS examples from Web in Scala easier.
 
-[Live version][3] - currently in alpha, many things not working, not supported, use at your own risk.
+[Live version][3] - currently in alpha, use at your own risk.
 
-If everything works well, larger goal may be added later, like automated or assisted conversion of larger JS projects.
+Current version understands almost all common Javascript code and emits corresponding Scala counterparts.
+Some Harmony (ES 2015) features are already supported, namely `let`, other will be added later.
+Unsupported constructs (like `break` and `continue`) are emitted as they are, with a comment.
+
+TODO:
+
+- read parameter types from JavaDoc comments or Scala.js facades
+- type inference for variables and parameters
+- convert prototype based classes to Scala classes (at least when Scala.js facade exists)
+- support Harmony class and arrow functions
+
+If everything works well, larger goals may be added later, like automated or assisted conversion of larger JS projects.
 
 Developer notes
 ===============
