@@ -19,8 +19,8 @@ object Transform {
     val ret = n.clone()
     // walk the tree, check for possible val replacements and perform them
     ret.walk {
-      case AST_VarDef(name, value) if name.init.nonNull.isEmpty => // var with no init - search for the init
-        for (df <- name.thedef) {
+      case AST_VarDef(name, value) if value.nonNull.nonEmpty => // var with init - search for a modification
+         for (df <- name.thedef) {
           assert(df.name == name.name)
           // TODO: infer type
           // check if any reference is assignment target
@@ -110,6 +110,7 @@ object Transform {
               vv.name = new AST_SymbolVar
               vv.name.thedef = thedef
               vv.name.name = name
+              vv.name.init = js.Array(right)
               vv.value = right
               vv.name.scope = scope
               //println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
