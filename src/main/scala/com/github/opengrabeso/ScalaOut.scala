@@ -151,11 +151,11 @@ object ScalaOut {
         if (delim) out(delimiter)
       }
     }
-    def outputArgNames(tn: AST_Lambda) = {
+    def outputArgNames(tn: AST_Lambda, types: Boolean = false) = {
       out("(")
       outputNodes(tn.argnames) { n =>
         nodeToOut(n)
-        out(": Any")
+        if (types) out(": Any")
       }
       out(")")
     }
@@ -460,7 +460,7 @@ object ScalaOut {
         out.eol(2)
         out("def ")
         tn.name.nonNull.foreach(n => nodeToOut(n))
-        outputArgNames(tn)
+        outputArgNames(tn, true)
         out(" = ")
         blockBracedToOut(tn.body)
       case tn: AST_Function =>
@@ -472,7 +472,7 @@ object ScalaOut {
         out(" => ")
         blockBracedToOut(tn.body)
       case tn: AST_Accessor =>
-        outputArgNames(tn)
+        outputArgNames(tn, true)
         out(" = ")
         blockBracedToOut(tn.body)
       case tn: AST_Lambda => outputUnknownNode(tn)
