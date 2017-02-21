@@ -146,6 +146,8 @@ object Uglify extends js.Object {
 
   @js.native class AST_Function extends AST_Lambda
 
+  @js.native class AST_Arrow extends AST_Lambda
+
   @js.native class AST_Defun extends AST_Lambda
 
   @js.native class AST_Switch extends AST_Scope {

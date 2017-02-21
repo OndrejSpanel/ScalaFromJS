@@ -64,7 +64,7 @@ object ScalaOut {
     var commentsDumped = Set.empty[Int]
   }
 
-  def markEnd[T](seq: Seq[T]) = seq zip (seq.drop(1).map(x => true) :+ false)
+  def markEnd[T](seq: Seq[T]) = seq zip (seq.drop(1).map(_ => true) :+ false)
 
 
   //noinspection ScalaUnusedSymbol
@@ -151,11 +151,11 @@ object ScalaOut {
         if (delim) out(delimiter)
       }
     }
-    def outputArgNames(tn: AST_Lambda) = {
+    def outputArgNames(tn: AST_Lambda, types: Boolean = false) = {
       out("(")
       outputNodes(tn.argnames) { n =>
         nodeToOut(n)
-        out(": Any")
+        if (types) out(": Any")
       }
       out(")")
     }
@@ -460,15 +460,19 @@ object ScalaOut {
         out.eol(2)
         out("def ")
         tn.name.nonNull.foreach(n => nodeToOut(n))
-        outputArgNames(tn)
+        outputArgNames(tn, true)
         out(" = ")
         blockBracedToOut(tn.body)
       case tn: AST_Function =>
         outputArgNames(tn)
         out(" => ")
         blockBracedToOut(tn.body)
-      case tn: AST_Accessor =>
+      case tn: AST_Arrow =>
         outputArgNames(tn)
+        out(" => ")
+        blockBracedToOut(tn.body)
+      case tn: AST_Accessor =>
+        outputArgNames(tn, true)
         out(" = ")
         blockBracedToOut(tn.body)
       case tn: AST_Lambda => outputUnknownNode(tn)
@@ -516,9 +520,15 @@ object ScalaOut {
   }
 
   private def blockToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
-    for ((s, notLast) <- markEnd(body)) {
-      nodeToOut(s)
-      if (notLast) out.eol()
+    (body: Any) match {
+      case n: AST_Node =>
+        // workaround for issue https://github.com/mishoo/UglifyJS2/issues/1499
+        nodeToOut(n)
+      case _ =>
+        for ((s, notLast) <- markEnd(body)) {
+          nodeToOut(s)
+          if (notLast) out.eol()
+        }
     }
   }
 
