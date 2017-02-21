@@ -85,10 +85,9 @@ object ScalaOut {
 
     def unapply(arg: AST_For): Option[(String, AST_Node, AST_Node, Double)] = {
       (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
-        case (Some(VarOrLet(AST_Definitions(v))), Some(AST_Binary(cLeft, "<", cRight)), Some(s: AST_Unary))
-          if s.operator == "++" =>
+        case (Some(VarOrLet(AST_Definitions(v))), Some(AST_Binary(cLeft, "<", cRight)), Some(AST_Unary("++", step))) =>
           val n = v.name.name
-          (cLeft, s.expression) match {
+          (cLeft, step) match {
             case (AST_SymbolRef(`n`, _, _), AST_SymbolRef(`n`, _, _)) =>
               Some((n, v.value.get, cRight, 1.0))
             case _ => None
@@ -397,6 +396,7 @@ object ScalaOut {
             tn.init.nonNull.foreach { init =>
               nodeToOut(init)
             }
+            out.eol()
             out("while (")
             tn.condition.nonNull.fold(out("true"))(nodeToOut)
             out(") {\n")
@@ -404,7 +404,6 @@ object ScalaOut {
             out.eol()
             tn.step.nonNull.foreach(nodeToOut)
             out.eol()
-            out("}\n")
             //out("}\n")
         }
 
