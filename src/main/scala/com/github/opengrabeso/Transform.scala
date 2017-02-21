@@ -25,6 +25,7 @@ object Transform {
           // TODO: infer type
           // check if any reference is assignment target
           val assignedInto = df.references.exists { ref =>
+            //println(s"Reference to ${df.name} in scope ${ref.scope.get.nesting}")
             assert(ref.thedef.exists(_ == df))
             ref.scope.exists { s =>
               var detect = false
@@ -33,10 +34,12 @@ object Transform {
               }
               s.walk {
                 case ss: AST_Scope => ss != ref.scope // do not descend into any other scopes, they are listed in references if needed
-                case AST_SimpleStatement(AST_Assign(AST_SymbolRef(_, _, `df`), _, _)) =>
+                case AST_Assign(AST_SymbolRef(_, _, `df`), _, _) =>
+                  //println(s"  Detected assignment modification of ${df.name}")
                   detect = true
                   detect
                 case AST_Unary(UnaryModification(), AST_SymbolRef(_, _, `df`)) =>
+                  //println(s"  Detected unary modification of ${df.name}")
                   detect = true
                   detect
                 case _ =>
