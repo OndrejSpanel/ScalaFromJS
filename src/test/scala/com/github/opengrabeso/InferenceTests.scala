@@ -5,7 +5,7 @@ import Resources.{getResource => rsc}
 
 class InferenceTests extends FunSuite with TestUtils {
   test("Detect vals") {
-    pending
+    // note: overlaps expression/variables (ExpressionTests / "Val detection")
     execute check ConversionCheck(rsc("inference/variables.js"))
       .required(
         "val i = 1",
