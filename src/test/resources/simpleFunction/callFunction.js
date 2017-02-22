@@ -1,7 +1,7 @@
 /**
  * @param first {string}
  * @param last {string}
- * @return string
+ * @return {string}
 * */
 function concatenate(first, last)
 {

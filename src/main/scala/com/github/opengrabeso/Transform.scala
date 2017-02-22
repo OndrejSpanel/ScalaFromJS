@@ -5,6 +5,7 @@ import com.github.opengrabeso.Uglify._
 import com.github.opengrabeso.UglifyExt._
 import com.github.opengrabeso.UglifyExt.Import._
 
+import scala.collection.mutable
 import scala.scalajs.js
 
 /**
@@ -248,6 +249,65 @@ object Transform {
     AST_Extended(t, n.types)
   }
 
+  def readJSDoc(n: AST_Extended): AST_Extended = {
+    var commentsParsed = Set.empty[Int]
+
+    var declBuffer = new mutable.ArrayBuffer[(SymbolDef, TypeDesc)]()
+
+    n.top.walk { node =>
+      node match {
+        case f: AST_Defun =>
+          for {
+            start <- f.start.nonNull
+            commentToken <- start.comments_before.lastOption
+          } {
+            val comment = commentToken.value.asInstanceOf[String]
+            if (!(commentsParsed contains commentToken.pos)) {
+              commentsParsed += commentToken.pos
+              for (commentLine <- comment.lines) {
+                // TODO: only comment blocks starting with JSDoc marker
+                // match anything in form:
+
+                val JSDocParamStr = """@param +([^ ]+) +\{([^ ]+)\}""" // @param name {type}
+                val JSDocReturnStr = """@return +\{([^ ]+)\}""" // @return {type}
+                //val JSDocParam = JSDocParamStr.r
+                //val JSDocReturn = JSDocReturnStr.r
+                val p = Option(new js.RegExp(JSDocParamStr, "gm").exec(commentLine)).map(_.map(_.toString).toSeq.tail)
+                val r = Option(new js.RegExp(JSDocReturnStr, "gm").exec(commentLine)).map(_.map(_.toString).toSeq.tail)
+                p match {
+                  case Some(Seq(name, tpe)) =>
+                    // find a corresponding symbol
+                    val sym = f.argnames.find(_.name == name)
+                    for {
+                      s <- sym
+                      td <- s.thedef.nonNull
+                    } {
+                      declBuffer append td -> tpe
+                    }
+                  case _ =>
+                }
+                r match {
+                  case Some(Seq(tpe)) =>
+                    for {
+                      s <- f.name.nonNull
+                      td <- s.thedef.nonNull
+                    } {
+                      declBuffer append td -> tpe
+                    }
+                  case _ =>
+                }
+              }
+            }
+          }
+        case _ =>
+      }
+      false
+    }
+    println(declBuffer.map(x => x._1.name + ":" + x._2).mkString(","))
+
+    AST_Extended(n.top, n.types ++ declBuffer.toMap)
+  }
+
   def inferTypes(n: AST_Extended): AST_Extended = {
     n
   }
@@ -257,6 +317,7 @@ object Transform {
     val transforms: Seq[(AST_Extended) => AST_Extended] = Seq(
       handleIncrement,
       varInitialization,
+      readJSDoc,
       inferTypes,
       detectVals
     )
