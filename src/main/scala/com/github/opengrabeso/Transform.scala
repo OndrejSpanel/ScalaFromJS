@@ -149,10 +149,21 @@ object Transform {
     ret
   }
 
+  def handleIncrement(n: AST_Node): AST_Node = {
+    n
+  }
+
   def apply(n: AST_Toplevel): AST_Toplevel = {
-    val init = varInitialization(n).asInstanceOf[AST_Toplevel]
-    init.figure_out_scope()
-    val vals = detectVals(init).asInstanceOf[AST_Toplevel]
-    vals
+    val transforms: Seq[(AST_Node) => AST_Node] = Seq(
+      varInitialization,
+      detectVals,
+      handleIncrement
+    )
+
+    transforms.foldLeft(n) { case (t,op) =>
+      val r = op(t).asInstanceOf[AST_Toplevel]
+      r.figure_out_scope()
+      r
+    }
   }
 }
