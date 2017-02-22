@@ -409,10 +409,13 @@ object ScalaOut {
             out("while (")
             tn.condition.nonNull.fold(out("true"))(nodeToOut)
             out(") {\n")
+            out.indent()
             nodeToOut(tn.body)
             out.eol()
             tn.step.nonNull.foreach(nodeToOut)
+            out.unindent()
             out.eol()
+            out("}\n")
             if (isScoped) {
               out.unindent()
               out("}\n")
