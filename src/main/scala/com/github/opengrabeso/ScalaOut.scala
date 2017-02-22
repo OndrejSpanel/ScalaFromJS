@@ -109,6 +109,15 @@ object ScalaOut {
     }
 
     def unapply(arg: AST_For): Option[(String, String, AST_Node, AST_Node, AST_Node)] = {
+      def negateStep(step: AST_Node): AST_Node = {
+        new AST_UnaryPrefix {
+          fillTokens(this, step)
+          operator = "-"
+          expression = step.clone()
+        }
+
+      }
+
       (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
         case (Some(VarOrLet(AST_Definitions(v))), Some(AST_Binary(cLeft, rel, cRight)), Some(AST_Binary(expr, assign, step))) =>
           val n = v.name.name
@@ -119,12 +128,10 @@ object ScalaOut {
                   Some((n, "until", v.value.get, cRight, step))
                 case ("<=", "+=") =>
                   Some((n, "to", v.value.get, cRight, step))
-                  /*
                 case (">", "-=") =>
-                  Some((n, "until", v.value.get, cRight, step))
+                  Some((n, "until", v.value.get, cRight, negateStep(step)))
                 case (">=", "-=") =>
-                  Some((n, "to", v.value.get, cRight, step))
-                  */
+                  Some((n, "to", v.value.get, cRight, negateStep(step)))
                 case _ =>
                   None
               }
