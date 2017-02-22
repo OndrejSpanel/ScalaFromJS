@@ -18,43 +18,57 @@ object Transform {
   def detectVals(n: AST_Node): AST_Node = {
     val ret = n.clone()
     // walk the tree, check for possible val replacements and perform them
-    ret.walk {
-      case AST_VarDef(name, value) if value.nonNull.nonEmpty => // var with init - search for a modification
-         for (df <- name.thedef) {
-          assert(df.name == name.name)
-          // TODO: infer type
-          // check if any reference is assignment target
-          val assignedInto = df.references.exists { ref =>
-            //println(s"Reference to ${df.name} in scope ${ref.scope.get.nesting}")
-            assert(ref.thedef.exists(_ == df))
-            ref.scope.exists { s =>
-              var detect = false
-              object UnaryModification {
-                def unapply(arg: String): Boolean = arg == "++" || arg == "--"
+    ret.transformAfter {(node, transformer) =>
+      node match {
+        case AST_Var(varDef@AST_VarDef(varName, value)) if value.nonNull.nonEmpty => // var with init - search for a modification
+          varName.thedef.fold(node) { df =>
+            assert(df.name == varName.name)
+            // TODO: infer type
+            // check if any reference is assignment target
+            val assignedInto = df.references.exists { ref =>
+              //println(s"Reference to ${df.name} in scope ${ref.scope.get.nesting}")
+              assert(ref.thedef.exists(_ == df))
+              ref.scope.exists { s =>
+                var detect = false
+                object UnaryModification {
+                  def unapply(arg: String): Boolean = arg == "++" || arg == "--"
+                }
+                s.walk {
+                  case ss: AST_Scope => ss != ref.scope // do not descend into any other scopes, they are listed in references if needed
+                  case AST_Assign(AST_SymbolRef(_, _, `df`), _, _) =>
+                    //println(s"  Detected assignment modification of ${df.name}")
+                    detect = true
+                    detect
+                  case AST_Unary(UnaryModification(), AST_SymbolRef(_, _, `df`)) =>
+                    //println(s"  Detected unary modification of ${df.name}")
+                    detect = true
+                    detect
+                  case _ =>
+                    detect
+                }
+                detect
               }
-              s.walk {
-                case ss: AST_Scope => ss != ref.scope // do not descend into any other scopes, they are listed in references if needed
-                case AST_Assign(AST_SymbolRef(_, _, `df`), _, _) =>
-                  //println(s"  Detected assignment modification of ${df.name}")
-                  detect = true
-                  detect
-                case AST_Unary(UnaryModification(), AST_SymbolRef(_, _, `df`)) =>
-                  //println(s"  Detected unary modification of ${df.name}")
-                  detect = true
-                  detect
-                case _ =>
-                  detect
-              }
-              detect
+
             }
+            if (!assignedInto) {
+              val c = varDef.clone()
+              c.name = new AST_SymbolConst {
+                fillTokens(this, varName)
+                init = varName.init
+                name = varName.name
+                scope = varName.scope
+                thedef = varName.thedef
+              }
+              new AST_Const {
+                fillTokens(this, node)
+                definitions = js.Array(c)
+              }
+            } else node
           }
-          df._isVal = !assignedInto
-        }
-        false
-      case _ =>
-        false
+        case _ =>
+          node
+      }
     }
-    ret
   }
 
   // merge variable declaration and first assignment if possible
@@ -95,7 +109,6 @@ object Transform {
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       //println(s"node ${nodeClassName(node)} ${ScalaOut.outputNode(node, "")}")
       // we need to descend into assignment definitions, as they may contain other assignments
-      //val nodeAdj = node.clone()
       node match {
         case AST_SimpleStatement(AST_Assign(sr@AST_SymbolRef(name, scope, thedef), "=", right)) if refs contains sr =>
           //println(s"ss match assign ${nodeClassName(left)} ${ScalaOut.outputNode(left, "")}")
@@ -115,10 +128,10 @@ object Transform {
               replaced ++= thedef.nonNull
               vr
             case _ =>
-              node //.clone()
+              node
           }
         case c =>
-          node //.clone()
+          node
       }
     }
 
@@ -137,7 +150,7 @@ object Transform {
             d.value.nonNull.isEmpty &&
             d.name.thedef.exists(pairs.contains)
           }
-          val vv = v.clone().asInstanceOf[AST_Var]
+          val vv = v.clone()
           vv.definitions = af
           vv
         case c =>

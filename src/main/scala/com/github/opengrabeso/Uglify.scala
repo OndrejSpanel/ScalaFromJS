@@ -1,13 +1,23 @@
 package com.github.opengrabeso
 
 import scala.language.implicitConversions
+import scala.reflect.ClassTag
 import scala.scalajs.js
 import scala.scalajs.js.RegExp
 import scala.scalajs.js.annotation.{JSImport, JSName, ScalaJSDefined}
 
+object Helpers {
+  @js.native
+  trait CloneSelf[+T <: js.Object] extends js.Object {
+    self: T =>
+    override def clone(): T = js.native
+  }
+}
+
 @JSName("UglifyJS")
 @js.native
 object Uglify extends js.Object {
+  import Helpers._
 
   // http://lisperator.net/uglifyjs/ast
   @js.native class AST_Token extends js.Object {
@@ -49,8 +59,6 @@ object Uglify extends js.Object {
     //var index: js.Any = js.native
     //var id: js.Any = js.native
 
-    // our field: is value?
-    var _isVal: js.UndefOr[Boolean] = js.native
     // inferred Scala type
     var _type: js.UndefOr[String] = js.native
   }
@@ -72,7 +80,7 @@ object Uglify extends js.Object {
     after: js.Function1[AST_Node, AST_Node] = js.native
   ) extends TreeWalker(js.native)
 
-  @js.native sealed abstract class AST_Node extends js.Object {
+  @js.native sealed abstract class AST_Node extends js.Object with CloneSelf[AST_Node] {
     var start: js.UndefOr[AST_Token] = js.native
     var end: js.UndefOr[AST_Token] = js.native
 
@@ -81,8 +89,6 @@ object Uglify extends js.Object {
 
     @JSName("transform")
     def transform_js(transformer: TreeTransformer): AST_Node = js.native
-
-    override def clone(): AST_Node = js.native
   }
 
   @js.native sealed abstract class AST_Statement extends AST_Node
@@ -252,11 +258,11 @@ object Uglify extends js.Object {
     var definitions: js.Array[AST_VarDef] = js.native
   }
 
-  @js.native class AST_Var extends AST_Definitions
+  @js.native class AST_Var extends AST_Definitions with CloneSelf[AST_Definitions]
   @js.native class AST_Const extends AST_Definitions
   @js.native class AST_Let extends AST_Definitions
 
-  @js.native class AST_VarDef extends AST_Node {
+  @js.native class AST_VarDef extends AST_Node with CloneSelf[AST_VarDef] {
     // [AST_SymbolVar|AST_SymbolConst] name of the variable
     var name: AST_SymbolVarOrConst = js.native
     // "[AST_Node?] initializer, or null of there's no initializer"
@@ -549,7 +555,7 @@ object UglifyExt {
       node.transform_js(tr)
     }
 
-    def transformAfter(after: (AST_Node, TreeTransformer) => AST_Node = null): AST_Node = {
+    def transformAfter(after: (AST_Node, TreeTransformer) => AST_Node): AST_Node = {
       var tr: TreeTransformer = null
       tr = new TreeTransformer(null, node => after(node, tr))
       node.transform_js(tr)

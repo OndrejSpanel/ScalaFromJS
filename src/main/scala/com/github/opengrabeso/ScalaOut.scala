@@ -184,7 +184,7 @@ object ScalaOut {
     //noinspection ScalaUnusedSymbol
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions) = {
       tn.definitions.foreach { v =>
-        val decl = if (isVal || v.name.thedef.exists(_._isVal.getOrElse(false))) "val" else "var"
+        val decl = if (isVal) "val" else "var"
         out"$decl $v\n"
       }
     }
