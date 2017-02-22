@@ -159,10 +159,8 @@ object Transform {
     val t = n.transformAfter { (node, transformer) =>
       node match {
         case AST_Unary(op@UnaryModification(), expr@AST_SymbolRef(name, scope, thedef)) =>
-          println("Match unary")
           transformer.parent() match {
             case ss: AST_SimpleStatement =>
-              println("Replaced")
               val c = ss.clone().asInstanceOf[AST_SimpleStatement]
               c.body = new AST_Assign {
                 left = expr
