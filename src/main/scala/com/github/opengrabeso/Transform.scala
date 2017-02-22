@@ -12,13 +12,20 @@ import scala.scalajs.js
   * */
 object Transform {
 
+  type TypeDesc = String
+
+  object AST_Extended {
+    def noTypes = Map.empty[SymbolDef, TypeDesc]
+    def apply(top: AST_Node, types: Map[SymbolDef, TypeDesc]): AST_Extended = new AST_Extended(top.asInstanceOf[AST_Toplevel], types)
+  }
+  case class AST_Extended(top: AST_Toplevel, types: Map[SymbolDef, TypeDesc])
+
   // individual sensible transformations
 
   // detect variables which can be declared as val instead of var
-  def detectVals(n: AST_Node): AST_Node = {
-    val ret = n.clone()
+  def detectVals(n: AST_Extended): AST_Extended = {
     // walk the tree, check for possible val replacements and perform them
-    ret.transformAfter {(node, transformer) =>
+    val ret = n.top.transformAfter {(node, transformer) =>
       node match {
         case AST_Var(varDef@AST_VarDef(varName, value)) if value.nonNull.nonEmpty => // var with init - search for a modification
           varName.thedef.fold(node) { df =>
@@ -69,14 +76,15 @@ object Transform {
           node
       }
     }
+    AST_Extended(ret, n.types)
   }
 
   // merge variable declaration and first assignment if possible
-  def varInitialization(n: AST_Node): AST_Node = {
+  def varInitialization(n: AST_Extended): AST_Extended = {
 
     // walk the tree, check for first reference of each var
     var pairs = Map.empty[SymbolDef, AST_SymbolRef]
-    n.walk { node =>
+    n.top.walk { node =>
       node match {
         case AST_VarDef(name, value) if value.nonNull.isEmpty =>
           for (df <- name.thedef) {
@@ -105,7 +113,7 @@ object Transform {
     //println(s"transform, vars ${pairs.keys.map(_.name).mkString(",")}")
 
     // walk the tree, check for possible val replacements and perform them
-    val changeAssignToVar = n.transformAfter {(node, transformer) =>
+    val changeAssignToVar = n.top.transformAfter {(node, transformer) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       //println(s"node ${nodeClassName(node)} ${ScalaOut.outputNode(node, "")}")
       // we need to descend into assignment definitions, as they may contain other assignments
@@ -159,10 +167,10 @@ object Transform {
     }
 
 
-    ret
+    AST_Extended(ret, n.types)
   }
 
-  def handleIncrement(n: AST_Node): AST_Node = {
+  def handleIncrement(n: AST_Extended): AST_Extended = {
 
     object UnaryModification {
       def unapply(arg: String): Boolean = arg == "++" || arg == "--"
@@ -188,7 +196,7 @@ object Transform {
 //    }
 
     // walk the tree, check for increment / decrement
-    val t = n.transformAfter { (node, transformer) =>
+    val t = n.top.transformAfter { (node, transformer) =>
       def nodeResultDiscarded(n: AST_Node, parentLevel: Int): Boolean = {
         transformer.parent(parentLevel) match {
           case _: AST_SimpleStatement =>
@@ -237,20 +245,25 @@ object Transform {
     }
 
 
-    t
+    AST_Extended(t, n.types)
   }
 
-  def apply(n: AST_Toplevel): AST_Toplevel = {
+  def inferTypes(n: AST_Extended): AST_Extended = {
+    n
+  }
 
-    val transforms: Seq[(AST_Node) => AST_Node] = Seq(
+  def apply(n: AST_Toplevel): AST_Extended = {
+
+    val transforms: Seq[(AST_Extended) => AST_Extended] = Seq(
       handleIncrement,
       varInitialization,
+      inferTypes,
       detectVals
     )
 
-    transforms.foldLeft(n) { (t,op) =>
-      t.figure_out_scope()
-      op(t).asInstanceOf[AST_Toplevel]
+    transforms.foldLeft(AST_Extended(n, AST_Extended.noTypes)) { (t,op) =>
+      t.top.figure_out_scope()
+      op(t)
     }
   }
 }

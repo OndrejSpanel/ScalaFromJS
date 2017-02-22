@@ -579,13 +579,13 @@ object ScalaOut {
     }
   }
 
-  def output(ast: AST_Block, input: String, outConfig: Config = Config.default): String = {
+  def output(ast: Transform.AST_Extended, input: String, outConfig: Config = Config.default): String = {
     val sb = new StringBuilder
     val ret = new NiceOutput {
       def out(x: String) = sb append x
     }
     val inputContext = InputContext(input)
-    blockToOut(ast.body)(outConfig, inputContext, ret)
+    blockToOut(ast.top.body)(outConfig, inputContext, ret)
     sb.result
   }
 
