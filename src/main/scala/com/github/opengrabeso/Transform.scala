@@ -248,11 +248,9 @@ object Transform {
       detectVals
     )
 
-    // beware: we must not call figure_out_scope after detecting vals, it destroys the val information
     transforms.foldLeft(n) { (t,op) =>
       t.figure_out_scope()
-      val r = op(t).asInstanceOf[AST_Toplevel]
-      r
+      op(t).asInstanceOf[AST_Toplevel]
     }
   }
 }
