@@ -108,13 +108,26 @@ object ScalaOut {
       }
     }
 
-    def unapply(arg: AST_For): Option[(String, AST_Node, AST_Node, AST_Node)] = {
+    def unapply(arg: AST_For): Option[(String, String, AST_Node, AST_Node, AST_Node)] = {
       (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
-        case (Some(VarOrLet(AST_Definitions(v))), Some(AST_Binary(cLeft, "<", cRight)), Some(AST_Binary(expr, "+=", step))) =>
+        case (Some(VarOrLet(AST_Definitions(v))), Some(AST_Binary(cLeft, rel, cRight)), Some(AST_Binary(expr, assign, step))) =>
           val n = v.name.name
           (cLeft, expr) match {
             case (AST_SymbolRef(`n`, _, _), AST_SymbolRef(`n`, _, _)) =>
-              Some((n, v.value.get, cRight, step))
+              (rel, assign) match {
+                case ("<", "+=") =>
+                  Some((n, "until", v.value.get, cRight, step))
+                case ("<=", "+=") =>
+                  Some((n, "to", v.value.get, cRight, step))
+                  /*
+                case (">", "-=") =>
+                  Some((n, "until", v.value.get, cRight, step))
+                case (">=", "-=") =>
+                  Some((n, "to", v.value.get, cRight, step))
+                  */
+                case _ =>
+                  None
+              }
             case _ => None
           }
         case _ => None
@@ -379,8 +392,8 @@ object ScalaOut {
         nodeToOut(tn.body)
       case tn: AST_For =>
         tn match {
-          case ForRange(name, init, end, step) =>
-            out"for ($name <- $init until $end"
+          case ForRange(name, until, init, end, step) =>
+            out"for ($name <- $init $until $end"
             step match {
               case AST_Number(1) =>
               case _ => out" by $step"
