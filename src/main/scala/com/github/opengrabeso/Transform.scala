@@ -155,25 +155,68 @@ object Transform {
       def unapply(arg: String): Boolean = arg == "++" || arg == "--"
     }
 
+    def substitute(node: AST_Node, expr: AST_SymbolRef, op: String) = {
+      new AST_Assign {
+        fillTokens(this, node)
+        left = expr
+        operator = op match {
+          case "++" => "+="
+          case "--" => "-="
+        }
+        right = new AST_Number {
+          fillTokens(this, node)
+          value = 1
+        }
+      }
+    }
+
+//    implicit class InitNode(node: AST_Node) {
+//      def init(f: AST_Node => AST_Node) = f(node)
+//    }
+
     // walk the tree, check for increment / decrement
     val t = n.transformAfter { (node, transformer) =>
+      def nodeResultDiscarded(n: AST_Node, parentLevel: Int): Boolean = {
+        transformer.parent(parentLevel) match {
+          case _: AST_SimpleStatement =>
+            true
+          case f: AST_For =>
+            // can be substituted inside of for unless used as a condition
+            f.init.exists(_ == n) || f.step.exists(_ == n)
+          case s: AST_Seq  =>
+            if (s.cdr !=n) true
+            else if (parentLevel < transformer.stack.length - 2) {
+              // even last item of seq can be substituted when the seq result is discarded
+              nodeResultDiscarded(s, parentLevel+1)
+            } else false
+          case _ =>
+            false
+        }
+      }
+
       node match {
         case AST_Unary(op@UnaryModification(), expr@AST_SymbolRef(name, scope, thedef)) =>
-          transformer.parent() match {
-            case ss: AST_SimpleStatement =>
-              new AST_Assign {
-                left = expr
-                operator = "+="
-                right = new AST_Number {
-                  value = 1
-                  fillTokens(this, node)
-                }
-                fillTokens(this, node)
-              }
-            case _ =>
-              //val c = ss.clone().asInstanceOf[AST_SimpleStatement]
-              node
+          if (nodeResultDiscarded(node, 0)) {
+            substitute(node, expr, op)
+          } else {
+            new AST_BlockStatement {
+              fillTokens(this, node)
 
+              val operation = new AST_SimpleStatement {
+                fillTokens(this, node)
+                body = substitute(node, expr, op)
+              }
+              val value = new AST_SimpleStatement {
+                fillTokens(this, node)
+                body = expr.clone()
+              }
+              node match {
+                case _: AST_UnaryPrefix =>
+                  body = js.Array(operation, value)
+                case _ /*: AST_UnaryPostfix*/ =>
+                  body = js.Array(value, operation)
+              }
+            }
           }
         case _ =>
           node
