@@ -301,9 +301,12 @@ object ScalaOut {
         out"if (${tn.condition}) ${tn.consequent} else ${tn.alternative}"
       //case tn: AST_Assign => outputUnknownNode(tn)
       case tn: AST_Binary =>
-        nodeToOut(tn.left)
-        out(" " + tn.operator + " ")
-        nodeToOut(tn.right)
+        tn.operator match {
+          case "instanceof" =>
+            out"${tn.left}.isInstanceOf[${tn.right}]"
+          case _ =>
+            out"${tn.left} ${tn.operator} ${tn.right}"
+        }
       case tn: AST_Unary =>
         tn.operator match {
           case "typeof" =>
