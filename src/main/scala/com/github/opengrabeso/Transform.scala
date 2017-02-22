@@ -154,15 +154,17 @@ object Transform {
   }
 
   def apply(n: AST_Toplevel): AST_Toplevel = {
+
     val transforms: Seq[(AST_Node) => AST_Node] = Seq(
+      handleIncrement,
       varInitialization,
-      detectVals,
-      handleIncrement
+      detectVals
     )
 
-    transforms.foldLeft(n) { case (t,op) =>
+    // beware: we must not call figure_out_scope after detecting vals, it destroys the val information
+    transforms.foldLeft(n) { (t,op) =>
+      t.figure_out_scope()
       val r = op(t).asInstanceOf[AST_Toplevel]
-      r.figure_out_scope()
       r
     }
   }
