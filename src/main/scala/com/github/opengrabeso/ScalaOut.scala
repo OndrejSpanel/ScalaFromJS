@@ -305,13 +305,18 @@ object ScalaOut {
         out(" " + tn.operator + " ")
         nodeToOut(tn.right)
       case tn: AST_Unary =>
-        tn match {
-          case _: AST_UnaryPrefix =>
-            out(tn.operator)
-            nodeToOut(tn.expression)
-          case _: AST_UnaryPostfix =>
-            nodeToOut(tn.expression)
-            out(tn.operator)
+        tn.operator match {
+          case "typeof" =>
+            out"${tn.expression}.getClass"
+          case _ =>
+            tn match {
+              case _: AST_UnaryPrefix =>
+                out(tn.operator)
+                nodeToOut(tn.expression)
+              case _: AST_UnaryPostfix =>
+                nodeToOut(tn.expression)
+                out(tn.operator)
+            }
         }
       case tn: AST_Sub =>
         nodeToOut(tn.expression)
