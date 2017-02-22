@@ -22,8 +22,8 @@ trait TestUtils {
     def forbidden(add: String*) = copy(mustNotHave = mustNotHave ++ add)
 
     def checkResult(result: String): Try[Unit] = {
-      val missing = mustHave.filter(!result.contains(_))
-      val forbidden = mustNotHave.filter(result.contains(_))
+      val missing = mustHave.filter(s => !result.contains(normalizeEol(s)))
+      val forbidden = mustNotHave.filter(s => result.contains(normalizeEol(s)))
       if (missing.isEmpty & forbidden.isEmpty) {
         Success(())
       } else Failure {

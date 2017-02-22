@@ -27,7 +27,19 @@ class ExpressionTests extends FunSuite with TestUtils {
 
   test("Handle unary operators") {
     execute check ConversionCheck(rsc("expressions/unary.js"))
-      .required("a += 1","b += 1")
+      .required(
+        "a += 1",
+        "b += 1",
+        """  a = {
+          |    b
+          |    b += 1
+          |  }""".stripMargin,
+        """  a = {
+          |    c += 1
+          |    c
+          |  }""".stripMargin
+
+      ).forbidden("--", "++")
   }
 
   test("Handle typeof / instanceof") {

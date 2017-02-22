@@ -149,10 +149,97 @@ object Transform {
     ret
   }
 
+  def handleIncrement(n: AST_Node): AST_Node = {
+
+    object UnaryModification {
+      def unapply(arg: String): Boolean = arg == "++" || arg == "--"
+    }
+
+    def substitute(node: AST_Node, expr: AST_SymbolRef, op: String) = {
+      new AST_Assign {
+        fillTokens(this, node)
+        left = expr
+        operator = op match {
+          case "++" => "+="
+          case "--" => "-="
+        }
+        right = new AST_Number {
+          fillTokens(this, node)
+          value = 1
+        }
+      }
+    }
+
+//    implicit class InitNode(node: AST_Node) {
+//      def init(f: AST_Node => AST_Node) = f(node)
+//    }
+
+    // walk the tree, check for increment / decrement
+    val t = n.transformAfter { (node, transformer) =>
+      def nodeResultDiscarded(n: AST_Node, parentLevel: Int): Boolean = {
+        transformer.parent(parentLevel) match {
+          case _: AST_SimpleStatement =>
+            true
+          case f: AST_For =>
+            // can be substituted inside of for unless used as a condition
+            f.init.exists(_ == n) || f.step.exists(_ == n)
+          case s: AST_Seq  =>
+            if (s.cdr !=n) true
+            else if (parentLevel < transformer.stack.length - 2) {
+              // even last item of seq can be substituted when the seq result is discarded
+              nodeResultDiscarded(s, parentLevel+1)
+            } else false
+          case _ =>
+            false
+        }
+      }
+
+      node match {
+        case AST_Unary(op@UnaryModification(), expr@AST_SymbolRef(name, scope, thedef)) =>
+          if (nodeResultDiscarded(node, 0)) {
+            substitute(node, expr, op)
+          } else {
+            new AST_BlockStatement {
+              fillTokens(this, node)
+
+              val operation = new AST_SimpleStatement {
+                fillTokens(this, node)
+                body = substitute(node, expr, op)
+              }
+              val value = new AST_SimpleStatement {
+                fillTokens(this, node)
+                body = expr.clone()
+              }
+              node match {
+                case _: AST_UnaryPrefix =>
+                  body = js.Array(operation, value)
+                case _ /*: AST_UnaryPostfix*/ =>
+                  body = js.Array(value, operation)
+              }
+            }
+          }
+        case _ =>
+          node
+      }
+    }
+
+
+    t
+  }
+
   def apply(n: AST_Toplevel): AST_Toplevel = {
-    val init = varInitialization(n).asInstanceOf[AST_Toplevel]
-    init.figure_out_scope()
-    val vals = detectVals(init).asInstanceOf[AST_Toplevel]
-    vals
+
+    val transforms: Seq[(AST_Node) => AST_Node] = Seq(
+      handleIncrement,
+      varInitialization,
+      detectVals
+    )
+
+    // beware: we must not call figure_out_scope after detecting vals, it destroys the val information
+    transforms.foldLeft(n) { (t,op) =>
+      t.figure_out_scope()
+      val r = op(t).asInstanceOf[AST_Toplevel]
+      r
+    }
   }
 }

@@ -73,8 +73,8 @@ object Uglify extends js.Object {
   ) extends TreeWalker(js.native)
 
   @js.native sealed abstract class AST_Node extends js.Object {
-    val start: js.UndefOr[AST_Token] = js.native
-    val end: js.UndefOr[AST_Token] = js.native
+    var start: js.UndefOr[AST_Token] = js.native
+    var end: js.UndefOr[AST_Token] = js.native
 
     @JSName("walk")
     def walk_js(walker: TreeWalker): Unit = js.native
@@ -295,9 +295,9 @@ object Uglify extends js.Object {
 
   @js.native sealed abstract class AST_Unary extends AST_Node {
     // [string] the operator
-    val operator: String = js.native
+    var operator: String = js.native
     // [AST_Node] expression that this unary operator applies to
-    val expression: AST_Node = js.native
+    var expression: AST_Node = js.native
   }
 
   @js.native class AST_UnaryPrefix extends AST_Unary
@@ -305,11 +305,11 @@ object Uglify extends js.Object {
 
   @js.native class AST_Binary extends AST_Node {
     // [AST_Node] left-hand side expression
-    val left: AST_Node = js.native
+    var left: AST_Node = js.native
     // [string] the operator
-    val operator: String = js.native
+    var operator: String = js.native
     // [AST_Node] right-hand side expression
-    val right: AST_Node = js.native
+    var right: AST_Node = js.native
   }
 
   @js.native class AST_Assign extends AST_Binary
@@ -393,15 +393,15 @@ object Uglify extends js.Object {
 
   @js.native class AST_String extends AST_Constant {
     // [string] the contents of this string
-    val value: String = js.native
+    var value: String = js.native
     // [string] the original quote character
-    val quote: String  = js.native
+    var quote: String  = js.native
   }
   @js.native class AST_Number extends AST_Constant {
     // [number] the numeric value
-    val value: Double = js.native
+    var value: Double = js.native
     // [string] numeric value as string (optional)
-    val literal: js.UndefOr[String] = js.native
+    var literal: js.UndefOr[String] = js.native
   }
 
   @js.native class AST_RegExp extends AST_Constant {
@@ -594,6 +594,10 @@ object UglifyExt {
     object AST_Var {
       def unapplySeq(arg: AST_Var) = AST_Definitions.unapplySeq(arg)
     }
+
+    object AST_Number {
+      def unapply(arg: AST_Number): Some[Double] = Some(arg.value)
+    }
   }
 
   object Import extends AST_Extractors
@@ -610,6 +614,10 @@ object UglifyExt {
     }
   }
 
+  def fillTokens(to: AST_Node, from: AST_Node): Unit = {
+    to.start = from.start
+    to.end = from.end
+  }
 
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {
 

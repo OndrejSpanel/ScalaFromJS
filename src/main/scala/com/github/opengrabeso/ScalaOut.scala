@@ -108,13 +108,33 @@ object ScalaOut {
       }
     }
 
-    def unapply(arg: AST_For): Option[(String, AST_Node, AST_Node, Double)] = {
+    def unapply(arg: AST_For): Option[(String, String, AST_Node, AST_Node, AST_Node)] = {
+      def negateStep(step: AST_Node): AST_Node = {
+        new AST_UnaryPrefix {
+          fillTokens(this, step)
+          operator = "-"
+          expression = step.clone()
+        }
+
+      }
+
       (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
-        case (Some(VarOrLet(AST_Definitions(v))), Some(AST_Binary(cLeft, "<", cRight)), Some(AST_Unary("++", step))) =>
+        case (Some(VarOrLet(AST_Definitions(v))), Some(AST_Binary(cLeft, rel, cRight)), Some(AST_Binary(expr, assign, step))) =>
           val n = v.name.name
-          (cLeft, step) match {
+          (cLeft, expr) match {
             case (AST_SymbolRef(`n`, _, _), AST_SymbolRef(`n`, _, _)) =>
-              Some((n, v.value.get, cRight, 1.0))
+              (rel, assign) match {
+                case ("<", "+=") =>
+                  Some((n, "until", v.value.get, cRight, step))
+                case ("<=", "+=") =>
+                  Some((n, "to", v.value.get, cRight, step))
+                case (">", "-=") =>
+                  Some((n, "until", v.value.get, cRight, negateStep(step)))
+                case (">=", "-=") =>
+                  Some((n, "to", v.value.get, cRight, negateStep(step)))
+                case _ =>
+                  None
+              }
             case _ => None
           }
         case _ => None
@@ -285,23 +305,13 @@ object ScalaOut {
         out(" " + tn.operator + " ")
         nodeToOut(tn.right)
       case tn: AST_Unary =>
-        val adjusted = tn.operator match {
-          case "++" => Some(" += 1") // TODO: handle return value - beware of AST_UnaryPrefix / AST_UnaryPostfix
-          case "--" => Some(" -= 1")
-          case _ => None
-        }
-        adjusted.fold{
-          tn match {
-            case _: AST_UnaryPrefix =>
-              out(tn.operator)
-              nodeToOut(tn.expression)
-            case _: AST_UnaryPostfix =>
-              nodeToOut(tn.expression)
-              out(tn.operator)
-          }
-        } { a =>
-          nodeToOut(tn.expression)
-          out(a)
+        tn match {
+          case _: AST_UnaryPrefix =>
+            out(tn.operator)
+            nodeToOut(tn.expression)
+          case _: AST_UnaryPostfix =>
+            nodeToOut(tn.expression)
+            out(tn.operator)
         }
       case tn: AST_Sub =>
         nodeToOut(tn.expression)
@@ -388,18 +398,14 @@ object ScalaOut {
         out(") ")
         nodeToOut(tn.body)
       case tn: AST_For =>
-        // TODO: handle a common special cases like for (var x = x0; x < x1; x++)
         tn match {
-          case ForRange(name, init, end, step) =>
-            out("for (")
-            out(name)
-            out(" <- ")
-            nodeToOut(init)
-            out(" until ")
-            nodeToOut(end)
-            if (step != 1) out(s" by $step")
-            out(") ")
-            nodeToOut(tn.body)
+          case ForRange(name, until, init, end, step) =>
+            out"for ($name <- $init $until $end"
+            step match {
+              case AST_Number(1) =>
+              case _ => out" by $step"
+            }
+            out") ${tn.body}"
           case _ => // generic solution using while - reliable, but ugly
             // new scope never needed in classical JS, all variables exists on a function scope
             val isScoped = tn.init.nonNull match {
@@ -419,10 +425,13 @@ object ScalaOut {
             out("while (")
             tn.condition.nonNull.fold(out("true"))(nodeToOut)
             out(") {\n")
+            out.indent()
             nodeToOut(tn.body)
             out.eol()
             tn.step.nonNull.foreach(nodeToOut)
+            out.unindent()
             out.eol()
+            out("}\n")
             if (isScoped) {
               out.unindent()
               out("}\n")
