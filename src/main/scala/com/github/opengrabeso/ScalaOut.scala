@@ -108,13 +108,13 @@ object ScalaOut {
       }
     }
 
-    def unapply(arg: AST_For): Option[(String, AST_Node, AST_Node, Double)] = {
+    def unapply(arg: AST_For): Option[(String, AST_Node, AST_Node, AST_Node)] = {
       (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
-        case (Some(VarOrLet(AST_Definitions(v))), Some(AST_Binary(cLeft, "<", cRight)), Some(AST_Unary("++", step))) =>
+        case (Some(VarOrLet(AST_Definitions(v))), Some(AST_Binary(cLeft, "<", cRight)), Some(AST_Binary(expr, "+=", step))) =>
           val n = v.name.name
-          (cLeft, step) match {
+          (cLeft, expr) match {
             case (AST_SymbolRef(`n`, _, _), AST_SymbolRef(`n`, _, _)) =>
-              Some((n, v.value.get, cRight, 1.0))
+              Some((n, v.value.get, cRight, step))
             case _ => None
           }
         case _ => None
@@ -378,18 +378,14 @@ object ScalaOut {
         out(") ")
         nodeToOut(tn.body)
       case tn: AST_For =>
-        // TODO: handle a common special cases like for (var x = x0; x < x1; x++)
         tn match {
           case ForRange(name, init, end, step) =>
-            out("for (")
-            out(name)
-            out(" <- ")
-            nodeToOut(init)
-            out(" until ")
-            nodeToOut(end)
-            if (step != 1) out(s" by $step")
-            out(") ")
-            nodeToOut(tn.body)
+            out"for ($name <- $init until $end"
+            step match {
+              case AST_Number(1) =>
+              case _ => out" by $step"
+            }
+            out") ${tn.body}"
           case _ => // generic solution using while - reliable, but ugly
             // new scope never needed in classical JS, all variables exists on a function scope
             val isScoped = tn.init.nonNull match {

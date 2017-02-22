@@ -594,6 +594,10 @@ object UglifyExt {
     object AST_Var {
       def unapplySeq(arg: AST_Var) = AST_Definitions.unapplySeq(arg)
     }
+
+    object AST_Number {
+      def unapply(arg: AST_Number): Some[Double] = Some(arg.value)
+    }
   }
 
   object Import extends AST_Extractors
