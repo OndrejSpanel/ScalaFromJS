@@ -150,7 +150,39 @@ object Transform {
   }
 
   def handleIncrement(n: AST_Node): AST_Node = {
-    n
+
+    object UnaryModification {
+      def unapply(arg: String): Boolean = arg == "++" || arg == "--"
+    }
+
+    // walk the tree, check for increment / decrement
+    val t = n.transformAfter { (node, transformer) =>
+      node match {
+        case AST_Unary(op@UnaryModification(), expr@AST_SymbolRef(name, scope, thedef)) =>
+          println("Match unary")
+          transformer.parent() match {
+            case ss: AST_SimpleStatement =>
+              println("Replaced")
+              val c = ss.clone().asInstanceOf[AST_SimpleStatement]
+              c.body = new AST_Assign {
+                left = expr
+                operator = "+="
+                right = new AST_Number {
+                  value = 1
+                }
+              }
+              c
+            case _ =>
+              node
+
+          }
+        case _ =>
+          node
+      }
+    }
+
+
+    t
   }
 
   def apply(n: AST_Toplevel): AST_Toplevel = {

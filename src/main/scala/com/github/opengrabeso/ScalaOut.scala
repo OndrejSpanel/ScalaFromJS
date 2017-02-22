@@ -285,23 +285,13 @@ object ScalaOut {
         out(" " + tn.operator + " ")
         nodeToOut(tn.right)
       case tn: AST_Unary =>
-        val adjusted = tn.operator match {
-          case "++" => Some(" += 1") // TODO: handle return value - beware of AST_UnaryPrefix / AST_UnaryPostfix
-          case "--" => Some(" -= 1")
-          case _ => None
-        }
-        adjusted.fold{
-          tn match {
-            case _: AST_UnaryPrefix =>
-              out(tn.operator)
-              nodeToOut(tn.expression)
-            case _: AST_UnaryPostfix =>
-              nodeToOut(tn.expression)
-              out(tn.operator)
-          }
-        } { a =>
-          nodeToOut(tn.expression)
-          out(a)
+        tn match {
+          case _: AST_UnaryPrefix =>
+            out(tn.operator)
+            nodeToOut(tn.expression)
+          case _: AST_UnaryPostfix =>
+            nodeToOut(tn.expression)
+            out(tn.operator)
         }
       case tn: AST_Sub =>
         nodeToOut(tn.expression)
