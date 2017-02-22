@@ -161,8 +161,7 @@ object Transform {
         case AST_Unary(op@UnaryModification(), expr@AST_SymbolRef(name, scope, thedef)) =>
           transformer.parent() match {
             case ss: AST_SimpleStatement =>
-              val c = ss.clone().asInstanceOf[AST_SimpleStatement]
-              c.body = new AST_Assign {
+              new AST_Assign {
                 left = expr
                 operator = "+="
                 right = new AST_Number {
@@ -171,8 +170,8 @@ object Transform {
                 }
                 fillTokens(this, node)
               }
-              c
             case _ =>
+              //val c = ss.clone().asInstanceOf[AST_SimpleStatement]
               node
 
           }
