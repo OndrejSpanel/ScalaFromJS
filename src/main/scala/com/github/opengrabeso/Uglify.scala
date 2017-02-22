@@ -610,6 +610,10 @@ object UglifyExt {
     }
   }
 
+  def fillTokens(to: AST_Node, from: AST_Node): Unit = {
+    to.start = from.start
+    to.end = from.end
+  }
 
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {
 

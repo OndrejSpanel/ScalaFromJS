@@ -169,7 +169,9 @@ object Transform {
                 operator = "+="
                 right = new AST_Number {
                   value = 1
+                  fillTokens(this, node)
                 }
+                fillTokens(this, node)
               }
               c
             case _ =>
