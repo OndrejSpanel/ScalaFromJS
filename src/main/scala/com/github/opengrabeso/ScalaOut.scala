@@ -199,7 +199,15 @@ object ScalaOut {
       out("(")
       outputNodes(tn.argnames) { n =>
         nodeToOut(n)
-        if (types) out(": Any")
+        if (types) {
+          val defType = "Any"
+          val typeString = n.thedef.nonNull match {
+            case Some(td) =>
+              input.types.get(td).getOrElse(defType)
+            case _ => defType
+          }
+          out": $typeString"
+        }
       }
       out(")")
     }

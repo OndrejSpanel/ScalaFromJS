@@ -26,7 +26,7 @@ object Transform {
   // detect variables which can be declared as val instead of var
   def detectVals(n: AST_Extended): AST_Extended = {
     // walk the tree, check for possible val replacements and perform them
-    val ret = n.top.transformAfter {(node, transformer) =>
+    val ret = n.top.transformAfter {(node, _) =>
       node match {
         case AST_Var(varDef@AST_VarDef(varName, value)) if value.nonNull.nonEmpty => // var with init - search for a modification
           varName.thedef.fold(node) { df =>
@@ -139,7 +139,7 @@ object Transform {
             case _ =>
               node
           }
-        case c =>
+        case _ =>
           node
       }
     }
@@ -217,7 +217,7 @@ object Transform {
       }
 
       node match {
-        case AST_Unary(op@UnaryModification(), expr@AST_SymbolRef(name, scope, thedef)) =>
+        case AST_Unary(op@UnaryModification(), expr: AST_SymbolRef) =>
           if (nodeResultDiscarded(node, 0)) {
             substitute(node, expr, op)
           } else {
@@ -298,7 +298,7 @@ object Transform {
     }
     println(declBuffer.map(x => x._1.name + ":" + x._2).mkString(","))
 
-    AST_Extended(n.top, n.types ++ SymbolTypes(declBuffer.toMap))
+    AST_Extended(n.top, n.types ++ SymbolTypes(declBuffer))
   }
 
   def inferTypes(n: AST_Extended): AST_Extended = {
