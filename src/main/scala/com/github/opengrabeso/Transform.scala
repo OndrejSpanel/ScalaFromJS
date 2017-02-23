@@ -249,6 +249,14 @@ object Transform {
     AST_Extended(t, n.types)
   }
 
+  def removeTrailingReturn(n: AST_Extended): AST_Extended = {
+    val t = n.top.transformAfter { (node, transformer) =>
+      node
+    }
+    AST_Extended(t, n.types)
+  }
+
+
   def readJSDoc(n: AST_Extended): AST_Extended = {
     var commentsParsed = Set.empty[Int]
 
@@ -308,6 +316,7 @@ object Transform {
     val transforms: Seq[(AST_Extended) => AST_Extended] = Seq(
       handleIncrement,
       varInitialization,
+      removeTrailingReturn,
       readJSDoc,
       inferTypes,
       detectVals

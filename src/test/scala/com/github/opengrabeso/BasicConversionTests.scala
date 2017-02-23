@@ -12,7 +12,8 @@ class BasicConversionTests extends FunSuite with TestUtils {
         "def firstFunction()",
         "def secondFunction()"
       ).forbidden(
-      "function"
+      "function",
+      "return"
     )
   }
 
