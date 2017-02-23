@@ -25,9 +25,10 @@ class BasicConversionTests extends FunSuite with TestUtils {
         "first: String",
         "last: String",
         "def concatenate(",
-        "def secondFunction()"
+        "def secondFunction()",
+        "full"
       ).forbidden(
-      "function", "Any"
+      "function", "Any", "return full"
     )
   }
 
