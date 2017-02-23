@@ -1,10 +1,10 @@
 package com.github.opengrabeso
 
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 import scala.scalajs.js
 import scala.scalajs.js.RegExp
 import scala.scalajs.js.annotation.{JSImport, JSName, ScalaJSDefined}
+import JsUtils._
 
 object Helpers {
   @js.native
@@ -58,15 +58,12 @@ object Uglify extends js.Object {
 
     var index: js.Any = js.native
     var id: js.Any = js.native
-
-    // inferred Scala type
-    var _type: js.UndefOr[String] = js.native
   }
 
 
 
   // f:  return true to abort the walk
-  @js.native class TreeWalker(f: js.Function2[AST_Node, js.Function0[Unit], Boolean]) extends js.Any {
+  @js.native class TreeWalker(f: js.Function2[AST_Node, js.Function2[AST_Node, TreeWalker, Unit], Boolean]) extends js.Any {
     // returns the parent of the current node.
     def parent(n: Int = 0): AST_Node = js.native
     // an array holding all nodes that lead to current node. The last element in this array is the current node itself.
@@ -102,7 +99,8 @@ object Uglify extends js.Object {
   }
 
   @js.native class AST_Block extends AST_Statement {
-    var body: js.Array[AST_Statement] = js.native
+    @JSName("body")
+    var _body: js.Any = js.native
   }
 
   @js.native class AST_BlockStatement extends AST_Block
@@ -546,8 +544,23 @@ object UglifyExt {
 
   }
 
+  implicit class AST_BlockOps(val block: AST_Block) {
+    // workaround for issue https://github.com/mishoo/UglifyJS2/issues/1499
+    def body: js.Array[AST_Node] = block._body match {
+      case ba: js.Array[AST_Node@unchecked] => ba
+      case bn: AST_Node => js.Array(bn)
+    }
+
+    def body_=(b: js.Array[AST_Statement]) = block._body = b
+  }
+
   implicit class AST_NodeOps(val node: AST_Node) {
     def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
+    def walkWithDescend(walker: (AST_Node, (AST_Node, TreeWalker) => Unit, TreeWalker) => Boolean): Unit = {
+      var w: TreeWalker = null
+      w = new TreeWalker((node, descend) => walker(node, descend, w))
+      node.walk_js(w)
+    }
 
     def transformBefore(before: (AST_Node, (AST_Node, TreeTransformer) => AST_Node, TreeTransformer) => AST_Node): AST_Node = {
       var tr: TreeTransformer = null
@@ -602,8 +615,33 @@ object UglifyExt {
     }
 
     object AST_Number {
-      def unapply(arg: AST_Number): Some[Double] = Some(arg.value)
+      def unapply(arg: AST_Number) = Some(arg.value)
     }
+
+    object AST_Defun {
+      def unapply(arg: AST_Defun) = Some(arg.name, arg.argnames, arg.body)
+    }
+
+    object AST_Return {
+      def unapply(arg: AST_Return) = Some(arg.value)
+    }
+
+    object AST_Call {
+      def unapplySeq(arg: AST_Call): Option[(AST_Node, Seq[AST_Node])] = Some(arg.expression, arg.args)
+    }
+
+    object Defined {
+      def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
+    }
+
+    object AST_SymbolRefDef {
+      def unapply(arg: AST_Node): Option[SymbolDef] = arg match {
+        case AST_SymbolRef(_, _, Defined(sym)) => Some(sym)
+        case _ => None
+      }
+    }
+
+
   }
 
   object Import extends AST_Extractors

@@ -13,7 +13,7 @@ import scala.scalajs.js
   * */
 object Transform {
 
-  type TypeDesc = String
+  import SymbolTypes.TypeDesc
 
   object AST_Extended {
     def noTypes = SymbolTypes()
@@ -234,9 +234,9 @@ object Transform {
               }
               node match {
                 case _: AST_UnaryPrefix =>
-                  body = js.Array(operation, value)
+                  this.body = js.Array(operation, value)
                 case _ /*: AST_UnaryPostfix*/ =>
-                  body = js.Array(value, operation)
+                  this.body = js.Array(value, operation)
               }
             }
           }
@@ -333,8 +333,173 @@ object Transform {
     AST_Extended(n.top, n.types ++ SymbolTypes(declBuffer))
   }
 
+  class ExtractorInList(ops: String*) {
+    def unapply(arg: String): Boolean =  ops.contains(arg)
+  }
+
+  object IsArithmetic extends ExtractorInList("-", "*", "/")
+
+  object IsComparison extends ExtractorInList("==", "!=", "<=", ">=", ">", "<", "===", "!==")
+
+  object IsBoolean extends ExtractorInList("||", "&&")
+
+  def expressionType(n: AST_Node)(types: SymbolTypes): Option[TypeDesc] = {
+    //println(nodeClassName(n) + ": " + ScalaOut.outputNode(n, ""))
+    n match {
+      case AST_SymbolRefDef(symDef) =>
+        types.get(symDef)
+      case _: AST_Number =>
+        Some(SymbolTypes.number)
+      case _: AST_String =>
+        Some(SymbolTypes.string)
+      case _: AST_Boolean =>
+        Some(SymbolTypes.boolean)
+      case AST_Binary(left, op, right) =>
+        // sometimes operation is enough to guess an expression type
+        // result of any arithmetic op is a number
+        op match {
+          case IsArithmetic() => Some(SymbolTypes.number)
+          case IsComparison() => Some(SymbolTypes.boolean)
+          case "+" =>
+            val typeLeft = expressionType(left)(types)
+            val typeRight = expressionType(right)(types)
+            // string + anything is a string
+            if (typeLeft == typeRight) typeLeft
+            else if (typeLeft.contains(SymbolTypes.string) || typeRight.contains(SymbolTypes.string)) Some(SymbolTypes.string)
+            else None
+          case IsBoolean() =>
+            // boolean with the same type is the same type
+            val typeLeft = expressionType(left)(types)
+            val typeRight = expressionType(right)(types)
+            if (typeLeft == typeRight) typeLeft
+            else None
+          case _ =>
+            None
+        }
+      case AST_Call(AST_SymbolRefDef(call), _*) =>
+        types.get(call)
+      case seq: AST_Seq =>
+        expressionType(seq.cdr)(types)
+      case _ =>
+        None
+
+    }
+  }
+
   def inferTypes(n: AST_Extended): AST_Extended = {
-    n
+    var inferred = SymbolTypes()
+    var allTypes = n.types // all known types including the inferred ones
+    // TODO: consider multipass, can help with forward references
+
+    def typeFromOperation(op: String, n: AST_Node) = {
+      op match {
+        case IsComparison() =>
+          // comparison - most like the type we are comparing to
+          expressionType(n)(allTypes)
+        case IsArithmetic() =>
+          // arithmetics - must be a number,
+          // hint: most likely the same type as we are operating with
+          Some(SymbolTypes.number)
+        case _ =>
+          None
+      }
+
+    }
+
+    def addInferredType(symDef: SymbolDef, tpe: Option[TypeDesc]) = {
+      val symType = SymbolTypes.typeUnionOption(tpe, inferred.get(symDef))
+      for (tp <- symType) {
+        //println(s"Add type ${symDef.name}: $tpe")
+        inferred += symDef -> tp
+        allTypes += symDef -> tp
+      }
+    }
+
+    // list all functions so that we can look-up them from call sites
+    var functions = Map.empty[AST_SymbolDeclaration, AST_Defun]
+    n.top.walk {
+      case defun@AST_Defun(Defined(name),_,_) =>
+        functions += name -> defun
+        false
+      case _ =>
+        false
+    }
+
+    n.top.walkWithDescend { (node, descend, walker) =>
+      descend(node, walker)
+      node match {
+        case AST_VarDef(AST_Symbol(_, _, Defined(symDef)),Defined(src)) =>
+          if (n.types.get(symDef).isEmpty) {
+            val tpe = expressionType(src)(allTypes)
+            addInferredType(symDef, tpe)
+          }
+
+        case AST_Assign(AST_SymbolRefDef(symDef), _, src) =>
+          if (n.types.get(symDef).isEmpty) {
+            val tpe = expressionType(src)(allTypes)
+            addInferredType(symDef, tpe)
+          }
+
+        case AST_Binary(AST_SymbolRefDef(symLeft), IsArithmetic(), AST_SymbolRefDef(symRight))
+          if n.types.get(symLeft).isEmpty && n.types.get(symRight).isEmpty =>
+          val numType = Some(SymbolTypes.number)
+          addInferredType(symLeft, numType)
+          addInferredType(symRight, numType)
+
+        case AST_Binary(AST_SymbolRefDef(symDef), op, expr) if n.types.get(symDef).isEmpty =>
+          val tpe = typeFromOperation(op, expr)
+          addInferredType(symDef, tpe)
+
+        case AST_Binary(expr, op, AST_SymbolRefDef(symDef)) if n.types.get(symDef).isEmpty =>
+          val tpe = typeFromOperation(op, expr)
+          addInferredType(symDef, tpe)
+
+        case AST_Defun(Defined(symDef), _, _) =>
+
+          var allReturns = Option.empty[TypeDesc]
+          //println(s"Defun ${symDef.name}")
+          //println("  " + allTypes.toString)
+          node.walk {
+            // include any sub-scopes, but not local functions
+            case innerFunc: AST_Lambda if innerFunc != node =>
+              true
+            case AST_Return(Defined(value)) =>
+              val tp = expressionType(value)(allTypes)
+              //println(s"Return type $tp: expr ${ScalaOut.outputNode(value, "")}")
+              allReturns = SymbolTypes.typeUnionOption(allReturns, tp)
+              false
+            case _ =>
+              false
+          }
+          addInferredType(symDef.thedef.get, allReturns)
+
+        case AST_Call(AST_SymbolRefDef(call), args@_*) =>
+          // get the AST_Defun node to get the arg symbols from it
+          call.orig.headOption match {
+            case Some(defunSym: AST_SymbolDefun) =>
+              println(s"Infer arg types for ${defunSym.name}")
+              functions.get(defunSym) match {
+                case Some(AST_Defun(_, pars, _)) =>
+                  // now match arguments to parameters
+                  for {
+                    (p,arg) <- pars.map(_.thedef.nonNull) zip args
+                    // only when the type is not provided explicitly
+                    par <- p if n.types.get(par).isEmpty
+                  } {
+                    val tp = expressionType(arg)(allTypes)
+                    addInferredType(par, tp)
+                  }
+                case _ =>
+              }
+
+            case _ =>
+          }
+        case _ =>
+      }
+      true
+    }
+    // do not overwrite explicit types by inferred ones
+    n.copy(types = inferred ++ n.types)
   }
 
   def apply(n: AST_Toplevel): AST_Extended = {
@@ -342,9 +507,9 @@ object Transform {
     val transforms: Seq[(AST_Extended) => AST_Extended] = Seq(
       handleIncrement,
       varInitialization,
-      removeTrailingReturn,
       readJSDoc,
       inferTypes,
+      removeTrailingReturn,
       detectVals
     )
 

@@ -20,7 +20,7 @@ class InferenceTests extends FunSuite with TestUtils {
     execute check ConversionCheck(rsc("inference/variables.js"))
       .required(
         "var ii = 1",
-        "val di = 1.2",
+        "var di = 1.2",
         "var aa : Any = 1"
       )
   }

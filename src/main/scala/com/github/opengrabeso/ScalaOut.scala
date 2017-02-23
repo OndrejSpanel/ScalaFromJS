@@ -203,8 +203,8 @@ object ScalaOut {
           val defType = "Any"
           val typeString = n.thedef.nonNull match {
             case Some(td) =>
-              input.types.get(td).getOrElse(defType)
-            case _ => defType
+              input.types.getAsScala(td)
+            case _ => SymbolTypes.any
           }
           out": $typeString"
         }
@@ -366,7 +366,11 @@ object ScalaOut {
         outputCall(tn)
       case tn: AST_VarDef =>
         nodeToOut(tn.name)
-        tn.value.nonNull.foreach { v =>
+        tn.value.nonNull.fold {
+          val tpe = tn.name.thedef.nonNull.map(input.types.getAsScala)
+          val typeName = tpe.getOrElse(SymbolTypes.any)
+          out": $typeName"
+        } { v =>
           out(" = ")
           nodeToOut(v)
         }
@@ -560,7 +564,7 @@ object ScalaOut {
     } else out(name)
   }
 
-  private def blockBracedToOut(body: js.Array[AST_Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
+  private def blockBracedToOut(body: js.Array[AST_Node], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
     if (!js.isUndefined(body)) { // harmony class may have undefined body
       // TODO: single statement without braces
       out("{\n") // TODO: autoindent
@@ -574,16 +578,10 @@ object ScalaOut {
     }
   }
 
-  private def blockToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
-    (body: Any) match {
-      case n: AST_Node =>
-        // workaround for issue https://github.com/mishoo/UglifyJS2/issues/1499
-        nodeToOut(n)
-      case _ =>
-        for ((s, notLast) <- markEnd(body)) {
-          nodeToOut(s)
-          if (notLast) out.eol()
-        }
+  private def blockToOut(body: js.Array[AST_Node])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
+    for ((s, notLast) <- markEnd(body)) {
+      nodeToOut(s)
+      if (notLast) out.eol()
     }
   }
 
