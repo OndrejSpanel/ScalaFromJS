@@ -415,6 +415,16 @@ object Transform {
       }
     }
 
+    // list all functions so that we can look-up them from call sites
+    var functions = Map.empty[AST_SymbolDeclaration, AST_Defun]
+    n.top.walk {
+      case defun@AST_Defun(Defined(name),_,_) =>
+        functions += name -> defun
+        false
+      case _ =>
+        false
+    }
+
     n.top.walkWithDescend { (node, descend, walker) =>
       descend(node, walker)
       node match {
@@ -444,7 +454,7 @@ object Transform {
           val tpe = typeFromOperation(op, expr)
           addInferredType(symDef, tpe)
 
-        case AST_Defun(Defined(symDef), _, body) =>
+        case AST_Defun(Defined(symDef), _, _) =>
 
           var allReturns = Option.empty[TypeDesc]
           //println(s"Defun ${symDef.name}")
@@ -463,6 +473,27 @@ object Transform {
           }
           addInferredType(symDef.thedef.get, allReturns)
 
+        case AST_Call(AST_SymbolRefDef(call), args@_*) =>
+          // get the AST_Defun node to get the arg symbols from it
+          call.orig.headOption match {
+            case Some(defunSym: AST_SymbolDefun) =>
+              println(s"Infer arg types for ${defunSym.name}")
+              functions.get(defunSym) match {
+                case Some(AST_Defun(_, pars, _)) =>
+                  // now match arguments to parameters
+                  for {
+                    (p,arg) <- pars.map(_.thedef.nonNull) zip args
+                    // only when the type is not provided explicitly
+                    par <- p if n.types.get(par).isEmpty
+                  } {
+                    val tp = expressionType(arg)(allTypes)
+                    addInferredType(par, tp)
+                  }
+                case _ =>
+              }
+
+            case _ =>
+          }
         case _ =>
       }
       true
