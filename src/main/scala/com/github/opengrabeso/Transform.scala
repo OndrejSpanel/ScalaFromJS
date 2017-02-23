@@ -337,7 +337,7 @@ object Transform {
     def unapply(arg: String): Boolean =  ops.contains(arg)
   }
 
-  object IsArithmetic extends ExtractorInList("-", "*", "/")
+  object IsArithmetic extends ExtractorInList("-", "*", "/", "%", "^", "&", "<<", ">>")
 
   object IsComparison extends ExtractorInList("==", "!=", "<=", ">=", ">", "<", "===", "!==")
 
