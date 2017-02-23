@@ -268,14 +268,10 @@ object Transform {
                 // TODO: only comment blocks starting with JSDoc marker
                 // match anything in form:
 
-                val JSDocParamStr = """@param +([^ ]+) +\{([^ ]+)\}""" // @param name {type}
-                val JSDocReturnStr = """@return +\{([^ ]+)\}""" // @return {type}
-                //val JSDocParam = JSDocParamStr.r
-                //val JSDocReturn = JSDocReturnStr.r
-                val p = Option(new js.RegExp(JSDocParamStr, "gm").exec(commentLine)).map(_.map(_.toString).toSeq.tail)
-                val r = Option(new js.RegExp(JSDocReturnStr, "gm").exec(commentLine)).map(_.map(_.toString).toSeq.tail)
-                p match {
-                  case Some(Seq(name, tpe)) =>
+                val JSDocParam = """@param +([^ ]+) +\{([^ ]+)\}""".r.unanchored // @param name {type}
+                val JSDocReturn = """@return +\{([^ ]+)\}""".r.unanchored // @return {type}
+                commentLine match {
+                  case JSDocParam(name, tpe) =>
                     // find a corresponding symbol
                     val sym = f.argnames.find(_.name == name)
                     for {
@@ -284,10 +280,7 @@ object Transform {
                     } {
                       declBuffer append td -> tpe
                     }
-                  case _ =>
-                }
-                r match {
-                  case Some(Seq(tpe)) =>
+                  case JSDocReturn(tpe) =>
                     for {
                       s <- f.name.nonNull
                       td <- s.thedef.nonNull
