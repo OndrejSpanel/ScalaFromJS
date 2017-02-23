@@ -365,6 +365,8 @@ object Transform {
             if (typeLeft == typeRight) typeLeft
             else if (typeLeft.contains(SymbolTypes.string) || typeRight.contains(SymbolTypes.string)) Some(SymbolTypes.string)
             else None
+          case _ =>
+            None
         }
       case AST_Call(AST_SymbolRefDef(call), _*) =>
         types.get(call)
