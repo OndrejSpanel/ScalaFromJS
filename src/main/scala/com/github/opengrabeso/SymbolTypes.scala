@@ -6,6 +6,11 @@ import JsUtils._
 object SymbolTypes {
   type TypeDesc = String
 
+  val any = "Any"
+  val number = "number"
+  val boolean = "boolean"
+  val string = "string"
+
   // SymbolDef instances (including ids) are recreated on each figure_out_scope
   // we need a stable id. Original source location + name should be unique and stable
   case class SymbolMapId(name: String, sourcePos: Int)
@@ -17,15 +22,15 @@ object SymbolTypes {
 
   def mapSimpleTypeToScala(tpe: String): String = {
     tpe match {
-      case "string" => "String"
-      case "number" => "Double"
-      case "boolean" => "Boolean"
+      case `string` => "String"
+      case `number` => "Double"
+      case `boolean` => "Boolean"
       case _ => tpe
     }
   }
 
   def typeUnion(tpe1: TypeDesc, tpe2: TypeDesc) = {
-    if (tpe2 == tpe1) tpe1 else "Any"
+    if (tpe2 == tpe1) tpe1 else any
   }
 
   def typeUnionOption(tpe1: TypeDesc, tpe2: Option[TypeDesc]) = {
@@ -43,7 +48,6 @@ object SymbolTypes {
 import SymbolTypes._
 
 case class SymbolTypes(types: Map[SymbolMapId, TypeDesc]) {
-  def any = "Any"
 
   def apply(sym: SymbolDef): TypeDesc = types(id(sym).get)
 

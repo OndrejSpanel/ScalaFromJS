@@ -346,23 +346,23 @@ object Transform {
       case AST_SymbolRef(_, _, Defined(symDef)) =>
         types.get(symDef)
       case _: AST_Number =>
-        Some("number")
+        Some(SymbolTypes.number)
       case _: AST_String =>
-        Some("string")
+        Some(SymbolTypes.string)
       case _: AST_Boolean =>
-        Some("boolean")
+        Some(SymbolTypes.boolean)
       case AST_Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
         // result of any arithmetic op is a number
         op match {
-          case IsArithmetic() => Some("number")
-          case IsComparison() => Some("boolean")
+          case IsArithmetic() => Some(SymbolTypes.number)
+          case IsComparison() => Some(SymbolTypes.boolean)
           case "+" =>
             val typeLeft = expressionType(left)(types)
             val typeRight = expressionType(right)(types)
             // string + anything is a string
             if (typeLeft == typeRight) typeLeft
-            else if (typeLeft.contains("string") || typeRight.contains("string")) Some("string")
+            else if (typeLeft.contains(SymbolTypes.string) || typeRight.contains(SymbolTypes.string)) Some(SymbolTypes.string)
             else None
         }
         // result of any comparison is a boolean
@@ -384,7 +384,7 @@ object Transform {
         case IsArithmetic() =>
           // arithmetics - must be a number,
           // hint: most likely the same type as we are operating with
-          Some("number")
+          Some(SymbolTypes.number)
         case _ =>
           None
       }
@@ -416,7 +416,7 @@ object Transform {
 
         case AST_Binary(DefinedSymbol(symLeft), IsArithmetic(), DefinedSymbol(symRight))
           if n.types.get(symLeft).isEmpty && n.types.get(symRight).isEmpty =>
-          val numType = Some("number")
+          val numType = Some(SymbolTypes.number)
           addInferredType(symLeft, numType)
           addInferredType(symRight, numType)
 
