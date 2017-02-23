@@ -366,7 +366,11 @@ object ScalaOut {
         outputCall(tn)
       case tn: AST_VarDef =>
         nodeToOut(tn.name)
-        tn.value.nonNull.foreach { v =>
+        tn.value.nonNull.fold {
+          val tpe = tn.name.thedef.nonNull.flatMap {d => input.types.get(d)}
+          val typeName = tpe.getOrElse("Any")
+          out": $typeName"
+        } { v =>
           out(" = ")
           nodeToOut(v)
         }
