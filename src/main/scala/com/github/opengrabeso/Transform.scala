@@ -333,8 +333,38 @@ object Transform {
     AST_Extended(n.top, n.types ++ SymbolTypes(declBuffer))
   }
 
+  def expressionType(n: AST_Node)(types: SymbolTypes): Option[TypeDesc] = {
+    n match {
+      case AST_SymbolRef(_, _, Defined(symDef)) =>
+        types.get(symDef)
+
+      case _ =>
+        None
+    }
+  }
+
   def inferTypes(n: AST_Extended): AST_Extended = {
-    n
+    var inferred = SymbolTypes()
+    var allTypes = n.types // all known types including the inferred ones
+    // TODO: consider multipass, can help with forward references
+    n.top.walk { node =>
+      node match {
+        case AST_Assign(AST_SymbolRef(name, _, Defined(symDef)), _, src) =>
+          if (n.types.get(symDef).isEmpty) {
+            // check src expression type
+            val tpe = expressionType(src)(allTypes)
+            for (tpe <- tpe) {
+              val symType = SymbolTypes.typeUnionOption(tpe, inferred.get(symDef))
+              inferred += symDef -> symType
+              allTypes += symDef -> symType
+            }
+          }
+        case _ =>
+      }
+      false
+    }
+    // do not overwrite explicit types by inferred ones
+    n.copy(types = inferred ++ n.types)
   }
 
   def apply(n: AST_Toplevel): AST_Extended = {

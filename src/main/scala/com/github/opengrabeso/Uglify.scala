@@ -1,10 +1,10 @@
 package com.github.opengrabeso
 
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 import scala.scalajs.js
 import scala.scalajs.js.RegExp
 import scala.scalajs.js.annotation.{JSImport, JSName, ScalaJSDefined}
+import JsUtils._
 
 object Helpers {
   @js.native
@@ -603,6 +603,10 @@ object UglifyExt {
 
     object AST_Number {
       def unapply(arg: AST_Number): Some[Double] = Some(arg.value)
+    }
+
+    object Defined {
+      def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
     }
   }
 
