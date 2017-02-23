@@ -477,7 +477,7 @@ object Transform {
           // get the AST_Defun node to get the arg symbols from it
           call.orig.headOption match {
             case Some(defunSym: AST_SymbolDefun) =>
-              println(s"Infer arg types for ${defunSym.name}")
+              //println(s"Infer arg types for ${defunSym.name}")
               functions.get(defunSym) match {
                 case Some(AST_Defun(_, pars, _)) =>
                   // now match arguments to parameters
