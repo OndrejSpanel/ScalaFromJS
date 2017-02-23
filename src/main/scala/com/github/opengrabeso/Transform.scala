@@ -435,19 +435,21 @@ object Transform {
           addInferredType(symDef, tpe)
 
         case AST_Defun(Defined(symDef), _, body) =>
-          //println(s"Defun ${symDef.name}")
-          // scan for all return statements, TODO: include any subscopes, but not local functions!
-          // TODO: safe body access (see (body: Any) match)
+
           var allReturns = Option.empty[TypeDesc]
-          for (s <- body) {
-            s match {
-              case AST_Return(Defined(value)) =>
-                val tp = expressionType(value)(allTypes)
-                //println(s"Return type $tp: expr ${ScalaOut.outputNode(value, "")}")
-                //println("  " + allTypes.toString)
-                allReturns = SymbolTypes.typeUnionOption(allReturns, tp)
-              case _ =>
-            }
+          println(s"Defun ${symDef.name}")
+          println("  " + allTypes.toString)
+          node.walk {
+            // include any sub-scopes, but not local functions
+            case innerFunc: AST_Lambda if innerFunc != node =>
+              true
+            case AST_Return(Defined(value)) =>
+              val tp = expressionType(value)(allTypes)
+              println(s"Return type $tp: expr ${ScalaOut.outputNode(value, "")}")
+              allReturns = SymbolTypes.typeUnionOption(allReturns, tp)
+              false
+            case _ =>
+              false
           }
           addInferredType(symDef.thedef.get, allReturns)
 
