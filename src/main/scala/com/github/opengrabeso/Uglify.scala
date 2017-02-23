@@ -66,7 +66,7 @@ object Uglify extends js.Object {
 
 
   // f:  return true to abort the walk
-  @js.native class TreeWalker(f: js.Function2[AST_Node, js.Function0[Unit], Boolean]) extends js.Any {
+  @js.native class TreeWalker(f: js.Function2[AST_Node, js.Function2[AST_Node, TreeWalker, Unit], Boolean]) extends js.Any {
     // returns the parent of the current node.
     def parent(n: Int = 0): AST_Node = js.native
     // an array holding all nodes that lead to current node. The last element in this array is the current node itself.
@@ -548,6 +548,11 @@ object UglifyExt {
 
   implicit class AST_NodeOps(val node: AST_Node) {
     def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
+    def walkWithDescend(walker: (AST_Node, (AST_Node, TreeWalker) => Unit, TreeWalker) => Boolean): Unit = {
+      var w: TreeWalker = null
+      w = new TreeWalker((node, descend) => walker(node, descend, w))
+      node.walk_js(w)
+    }
 
     def transformBefore(before: (AST_Node, (AST_Node, TreeTransformer) => AST_Node, TreeTransformer) => AST_Node): AST_Node = {
       var tr: TreeTransformer = null
@@ -603,6 +608,14 @@ object UglifyExt {
 
     object AST_Number {
       def unapply(arg: AST_Number) = Some(arg.value)
+    }
+
+    object AST_Defun {
+      def unapply(arg: AST_Defun) = Some(arg.name, arg.argnames, arg.body)
+    }
+
+    object AST_Return {
+      def unapply(arg: AST_Return) = Some(arg.value)
     }
 
     object AST_Call {

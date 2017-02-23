@@ -33,8 +33,13 @@ object SymbolTypes {
     if (tpe2 == tpe1) tpe1 else any
   }
 
-  def typeUnionOption(tpe1: TypeDesc, tpe2: Option[TypeDesc]) = {
-    tpe2.fold(tpe1)(typeUnion(_, tpe1))
+  def typeUnionOption(tpe1: Option[TypeDesc], tpe2: Option[TypeDesc]): Option[TypeDesc] = {
+    (tpe1, tpe2) match {
+      case (_, None) => tpe1
+      case (None, _) => tpe2
+      case (Some(t1), Some(t2)) => Some(typeUnion(t1, t2))
+      case _ => None
+    }
   }
 
   def apply(): SymbolTypes = new SymbolTypes(Map.empty)

@@ -367,10 +367,12 @@ object Transform {
             else None
         }
       case AST_Call(AST_SymbolRefDef(call), _*) =>
-        val tp = types.get(call)
-        tp
+        types.get(call)
+      case seq: AST_Seq =>
+        expressionType(seq.cdr)(types)
       case _ =>
         None
+
     }
   }
 
@@ -395,14 +397,16 @@ object Transform {
     }
 
     def addInferredType(symDef: SymbolDef, tpe: Option[TypeDesc]) = {
-      for (tpe <- tpe) {
-        val symType = SymbolTypes.typeUnionOption(tpe, inferred.get(symDef))
-        inferred += symDef -> symType
-        allTypes += symDef -> symType
+      val symType = SymbolTypes.typeUnionOption(tpe, inferred.get(symDef))
+      for (tp <- symType) {
+        //println(s"Add type ${symDef.name}: $tpe")
+        inferred += symDef -> tp
+        allTypes += symDef -> tp
       }
     }
 
-    n.top.walk { node =>
+    n.top.walkWithDescend { (node, descend, walker) =>
+      descend(node, walker)
       node match {
         case AST_VarDef(AST_Symbol(_, _, Defined(symDef)),Defined(src)) =>
           if (n.types.get(symDef).isEmpty) {
@@ -430,9 +434,26 @@ object Transform {
           val tpe = typeFromOperation(op, expr)
           addInferredType(symDef, tpe)
 
+        case AST_Defun(Defined(symDef), _, body) =>
+          //println(s"Defun ${symDef.name}")
+          // scan for all return statements, TODO: include any subscopes, but not local functions!
+          // TODO: safe body access (see (body: Any) match)
+          var allReturns = Option.empty[TypeDesc]
+          for (s <- body) {
+            s match {
+              case AST_Return(Defined(value)) =>
+                val tp = expressionType(value)(allTypes)
+                //println(s"Return type $tp: expr ${ScalaOut.outputNode(value, "")}")
+                //println("  " + allTypes.toString)
+                allReturns = SymbolTypes.typeUnionOption(allReturns, tp)
+              case _ =>
+            }
+          }
+          addInferredType(symDef.thedef.get, allReturns)
+
         case _ =>
       }
-      false
+      true
     }
     // do not overwrite explicit types by inferred ones
     n.copy(types = inferred ++ n.types)
@@ -443,9 +464,9 @@ object Transform {
     val transforms: Seq[(AST_Extended) => AST_Extended] = Seq(
       handleIncrement,
       varInitialization,
-      removeTrailingReturn,
       readJSDoc,
       inferTypes,
+      removeTrailingReturn,
       detectVals
     )
 
