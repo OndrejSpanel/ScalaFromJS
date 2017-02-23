@@ -256,13 +256,12 @@ object Transform {
 
       def nodeLast(n: AST_Node, parentLevel: Int): Boolean = {
         transformer.parent(parentLevel) match {
-          case fun: AST_Defun if fun.body.last == n =>
-            true
+          case fun: AST_Defun =>
+            fun.body.last == n
           case block: AST_Block  =>
-            if (block.body.last != n) false
-            else if (parentLevel < transformer.stack.length - 2) {
-              nodeLast(block, parentLevel + 1)
-            } else false
+            block.body.last == n && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1)
+          case ii: AST_If =>
+            (ii.body == n || ii.alternative.exists(_ == n)) && nodeLast(ii, parentLevel + 1)
           case _ =>
             false
         }
