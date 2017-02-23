@@ -35,7 +35,7 @@ object SymbolTypes {
   def apply(): SymbolTypes = new SymbolTypes(Map.empty)
   def apply(syms: Seq[(SymbolDef, TypeDesc)]) = {
     val idMap = syms.map { case (k,v) => id(k) -> v }.toMap - None
-    new SymbolTypes(idMap.map{ case (k, v) => k.get -> mapSimpleTypeToScala(v)})
+    new SymbolTypes(idMap.map{ case (k, v) => k.get -> v})
   }
 
 }
@@ -43,9 +43,15 @@ object SymbolTypes {
 import SymbolTypes._
 
 case class SymbolTypes(types: Map[SymbolMapId, TypeDesc]) {
+  def any = "Any"
+
   def apply(sym: SymbolDef): TypeDesc = types(id(sym).get)
 
   def get(sym: SymbolDef): Option[TypeDesc] = id(sym).flatMap(types.get)
+
+  def getAsScala(sym: SymbolDef): String = {
+    get(sym).fold (any) (mapSimpleTypeToScala)
+  }
 
   def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(types ++ that.types)
 

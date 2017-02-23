@@ -337,7 +337,12 @@ object Transform {
     n match {
       case AST_SymbolRef(_, _, Defined(symDef)) =>
         types.get(symDef)
-
+      case _: AST_Number =>
+        Some("number")
+      case _: AST_String =>
+        Some("string")
+      case _: AST_Boolean =>
+        Some("boolean")
       case _ =>
         None
     }

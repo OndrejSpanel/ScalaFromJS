@@ -203,8 +203,8 @@ object ScalaOut {
           val defType = "Any"
           val typeString = n.thedef.nonNull match {
             case Some(td) =>
-              input.types.get(td).getOrElse(defType)
-            case _ => defType
+              input.types.getAsScala(td)
+            case _ => input.types.any
           }
           out": $typeString"
         }
@@ -367,8 +367,8 @@ object ScalaOut {
       case tn: AST_VarDef =>
         nodeToOut(tn.name)
         tn.value.nonNull.fold {
-          val tpe = tn.name.thedef.nonNull.flatMap {d => input.types.get(d)}
-          val typeName = tpe.getOrElse("Any")
+          val tpe = tn.name.thedef.nonNull.map(input.types.getAsScala)
+          val typeName = tpe.getOrElse(input.types.any)
           out": $typeName"
         } { v =>
           out(" = ")
