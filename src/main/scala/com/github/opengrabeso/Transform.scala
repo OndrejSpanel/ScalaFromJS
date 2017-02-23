@@ -296,8 +296,6 @@ object Transform {
       }
       false
     }
-    println(declBuffer.map(x => x._1.name + ":" + x._2).mkString(","))
-
     AST_Extended(n.top, n.types ++ SymbolTypes(declBuffer))
   }
 

@@ -21,10 +21,12 @@ class BasicConversionTests extends FunSuite with TestUtils {
       required(
         "full = first + last",
         """result = concatenate("Zara", "Ali")""",
+        "first: String",
+        "last: String",
         "def concatenate(",
         "def secondFunction()"
       ).forbidden(
-      "function"
+      "function", "Any"
     )
   }
 
