@@ -78,7 +78,7 @@ class BasicConversionTests extends FunSuite with TestUtils {
 
   test("Simple class") {
     pending
-    execute check ConversionCheck(rsc("simpleClass/simpleClass.js"))
+    execute check ConversionCheck(rsc("classes/simpleClass.js"))
       .required(
         "class Person",
         """var person = new Person("Bob", "M")"""
