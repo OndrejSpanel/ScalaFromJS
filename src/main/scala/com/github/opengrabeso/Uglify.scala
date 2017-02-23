@@ -58,9 +58,6 @@ object Uglify extends js.Object {
 
     var index: js.Any = js.native
     var id: js.Any = js.native
-
-    // inferred Scala type
-    var _type: js.UndefOr[String] = js.native
   }
 
 
