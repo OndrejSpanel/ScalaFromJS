@@ -341,6 +341,8 @@ object Transform {
 
   object IsComparison extends ExtractorInList("==", "!=", "<=", ">=", ">", "<", "===", "!==")
 
+  object IsBoolean extends ExtractorInList("||", "&&")
+
   def expressionType(n: AST_Node)(types: SymbolTypes): Option[TypeDesc] = {
     //println(nodeClassName(n) + ": " + ScalaOut.outputNode(n, ""))
     n match {
@@ -364,6 +366,12 @@ object Transform {
             // string + anything is a string
             if (typeLeft == typeRight) typeLeft
             else if (typeLeft.contains(SymbolTypes.string) || typeRight.contains(SymbolTypes.string)) Some(SymbolTypes.string)
+            else None
+          case IsBoolean() =>
+            // boolean with the same type is the same type
+            val typeLeft = expressionType(left)(types)
+            val typeRight = expressionType(right)(types)
+            if (typeLeft == typeRight) typeLeft
             else None
           case _ =>
             None
@@ -439,15 +447,15 @@ object Transform {
         case AST_Defun(Defined(symDef), _, body) =>
 
           var allReturns = Option.empty[TypeDesc]
-          println(s"Defun ${symDef.name}")
-          println("  " + allTypes.toString)
+          //println(s"Defun ${symDef.name}")
+          //println("  " + allTypes.toString)
           node.walk {
             // include any sub-scopes, but not local functions
             case innerFunc: AST_Lambda if innerFunc != node =>
               true
             case AST_Return(Defined(value)) =>
               val tp = expressionType(value)(allTypes)
-              println(s"Return type $tp: expr ${ScalaOut.outputNode(value, "")}")
+              //println(s"Return type $tp: expr ${ScalaOut.outputNode(value, "")}")
               allReturns = SymbolTypes.typeUnionOption(allReturns, tp)
               false
             case _ =>
