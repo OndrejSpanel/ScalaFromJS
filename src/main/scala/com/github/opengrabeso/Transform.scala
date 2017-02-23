@@ -360,7 +360,9 @@ object Transform {
           case "+" =>
             val typeLeft = expressionType(left)(types)
             val typeRight = expressionType(right)(types)
+            // string + anything is a string
             if (typeLeft == typeRight) typeLeft
+            else if (typeLeft.contains("string") || typeRight.contains("string")) Some("string")
             else None
         }
         // result of any comparison is a boolean
