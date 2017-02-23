@@ -249,6 +249,40 @@ object Transform {
     AST_Extended(t, n.types)
   }
 
+
+
+  def removeTrailingReturn(n: AST_Extended): AST_Extended = {
+    val t = n.top.transformAfter { (node, transformer) =>
+
+      def nodeLast(n: AST_Node, parentLevel: Int): Boolean = {
+        transformer.parent(parentLevel) match {
+          case fun: AST_Defun =>
+            fun.body.last == n
+          case block: AST_Block  =>
+            block.body.last == n && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1)
+          case ii: AST_If =>
+            (ii.body == n || ii.alternative.exists(_ == n)) && nodeLast(ii, parentLevel + 1)
+          case _ =>
+            false
+        }
+      }
+
+      node match {
+        case ret: AST_Return if nodeLast(ret, 0) =>
+          // check if last in a function body
+          ret.value.nonNull.getOrElse {
+            new AST_EmptyStatement {
+              fillTokens(this, ret)
+            }
+          }
+        case _ =>
+          node
+      }
+    }
+    AST_Extended(t, n.types)
+  }
+
+
   def readJSDoc(n: AST_Extended): AST_Extended = {
     var commentsParsed = Set.empty[Int]
 
@@ -308,6 +342,7 @@ object Transform {
     val transforms: Seq[(AST_Extended) => AST_Extended] = Seq(
       handleIncrement,
       varInitialization,
+      removeTrailingReturn,
       readJSDoc,
       inferTypes,
       detectVals
