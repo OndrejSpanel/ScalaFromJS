@@ -342,6 +342,7 @@ object Transform {
   object IsComparison extends ExtractorInList("==", "!=", "<=", ">=", ">", "<", "===", "!==")
 
   def expressionType(n: AST_Node)(types: SymbolTypes): Option[TypeDesc] = {
+    //println(nodeClassName(n) + ": " + ScalaOut.outputNode(n, ""))
     n match {
       case AST_SymbolRef(_, _, Defined(symDef)) =>
         types.get(symDef)
@@ -408,6 +409,12 @@ object Transform {
 
     n.top.walk { node =>
       node match {
+        case AST_VarDef(AST_Symbol(_, _, Defined(symDef)),Defined(src)) =>
+          if (n.types.get(symDef).isEmpty) {
+            val tpe = expressionType(src)(allTypes)
+            addInferredType(symDef, tpe)
+          }
+
         case AST_Assign(DefinedSymbol(symDef), _, src) =>
           if (n.types.get(symDef).isEmpty) {
             val tpe = expressionType(src)(allTypes)
