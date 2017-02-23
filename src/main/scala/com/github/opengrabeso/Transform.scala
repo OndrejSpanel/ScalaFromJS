@@ -344,7 +344,7 @@ object Transform {
   def expressionType(n: AST_Node)(types: SymbolTypes): Option[TypeDesc] = {
     //println(nodeClassName(n) + ": " + ScalaOut.outputNode(n, ""))
     n match {
-      case AST_SymbolRef(_, _, Defined(symDef)) =>
+      case AST_SymbolRefDef(symDef) =>
         types.get(symDef)
       case _: AST_Number =>
         Some(SymbolTypes.number)
@@ -366,7 +366,9 @@ object Transform {
             else if (typeLeft.contains(SymbolTypes.string) || typeRight.contains(SymbolTypes.string)) Some(SymbolTypes.string)
             else None
         }
-        // result of any comparison is a boolean
+      case AST_Call(AST_SymbolRefDef(call), _*) =>
+        val tp = types.get(call)
+        tp
       case _ =>
         None
     }
@@ -392,13 +394,6 @@ object Transform {
 
     }
 
-    object DefinedSymbol {
-      def unapply(arg: AST_Node): Option[SymbolDef] = arg match {
-        case AST_SymbolRef(_, _, Defined(sym)) => Some(sym)
-        case _ => None
-      }
-    }
-
     def addInferredType(symDef: SymbolDef, tpe: Option[TypeDesc]) = {
       for (tpe <- tpe) {
         val symType = SymbolTypes.typeUnionOption(tpe, inferred.get(symDef))
@@ -415,23 +410,23 @@ object Transform {
             addInferredType(symDef, tpe)
           }
 
-        case AST_Assign(DefinedSymbol(symDef), _, src) =>
+        case AST_Assign(AST_SymbolRefDef(symDef), _, src) =>
           if (n.types.get(symDef).isEmpty) {
             val tpe = expressionType(src)(allTypes)
             addInferredType(symDef, tpe)
           }
 
-        case AST_Binary(DefinedSymbol(symLeft), IsArithmetic(), DefinedSymbol(symRight))
+        case AST_Binary(AST_SymbolRefDef(symLeft), IsArithmetic(), AST_SymbolRefDef(symRight))
           if n.types.get(symLeft).isEmpty && n.types.get(symRight).isEmpty =>
           val numType = Some(SymbolTypes.number)
           addInferredType(symLeft, numType)
           addInferredType(symRight, numType)
 
-        case AST_Binary(DefinedSymbol(symDef), op, expr) if n.types.get(symDef).isEmpty =>
+        case AST_Binary(AST_SymbolRefDef(symDef), op, expr) if n.types.get(symDef).isEmpty =>
           val tpe = typeFromOperation(op, expr)
           addInferredType(symDef, tpe)
 
-        case AST_Binary(expr, op, DefinedSymbol(symDef)) if n.types.get(symDef).isEmpty =>
+        case AST_Binary(expr, op, AST_SymbolRefDef(symDef)) if n.types.get(symDef).isEmpty =>
           val tpe = typeFromOperation(op, expr)
           addInferredType(symDef, tpe)
 

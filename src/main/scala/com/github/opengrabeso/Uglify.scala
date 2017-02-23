@@ -602,12 +602,25 @@ object UglifyExt {
     }
 
     object AST_Number {
-      def unapply(arg: AST_Number): Some[Double] = Some(arg.value)
+      def unapply(arg: AST_Number) = Some(arg.value)
+    }
+
+    object AST_Call {
+      def unapplySeq(arg: AST_Call): Option[(AST_Node, Seq[AST_Node])] = Some(arg.expression, arg.args)
     }
 
     object Defined {
       def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
     }
+
+    object AST_SymbolRefDef {
+      def unapply(arg: AST_Node): Option[SymbolDef] = arg match {
+        case AST_SymbolRef(_, _, Defined(sym)) => Some(sym)
+        case _ => None
+      }
+    }
+
+
   }
 
   object Import extends AST_Extractors
