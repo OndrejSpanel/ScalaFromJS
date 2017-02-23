@@ -61,7 +61,7 @@ object ScalaOut {
     val default = new Config
   }
 
-  case class InputContext(input: String) {
+  case class InputContext(input: String, types: SymbolTypes) {
     var commentsDumped = Set.empty[Int]
   }
 
@@ -584,7 +584,7 @@ object ScalaOut {
     val ret = new NiceOutput {
       def out(x: String) = sb append x
     }
-    val inputContext = InputContext(input)
+    val inputContext = InputContext(input, ast.types)
     blockToOut(ast.top.body)(outConfig, inputContext, ret)
     sb.result
   }
@@ -594,7 +594,7 @@ object ScalaOut {
     val ret = new NiceOutput {
       def out(x: String) = sb append x
     }
-    val inputContext = InputContext(input)
+    val inputContext = InputContext(input, SymbolTypes())
     nodeToOut(ast)(outConfig, inputContext, ret)
     sb.result
   }

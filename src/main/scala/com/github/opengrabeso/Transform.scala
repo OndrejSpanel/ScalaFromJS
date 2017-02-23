@@ -16,10 +16,10 @@ object Transform {
   type TypeDesc = String
 
   object AST_Extended {
-    def noTypes = Map.empty[SymbolDef, TypeDesc]
-    def apply(top: AST_Node, types: Map[SymbolDef, TypeDesc]): AST_Extended = new AST_Extended(top.asInstanceOf[AST_Toplevel], types)
+    def noTypes = SymbolTypes()
+    def apply(top: AST_Node, types: SymbolTypes): AST_Extended = new AST_Extended(top.asInstanceOf[AST_Toplevel], types)
   }
-  case class AST_Extended(top: AST_Toplevel, types: Map[SymbolDef, TypeDesc])
+  case class AST_Extended(top: AST_Toplevel, types: SymbolTypes)
 
   // individual sensible transformations
 
@@ -298,7 +298,7 @@ object Transform {
     }
     println(declBuffer.map(x => x._1.name + ":" + x._2).mkString(","))
 
-    AST_Extended(n.top, n.types ++ declBuffer.toMap)
+    AST_Extended(n.top, n.types ++ SymbolTypes(declBuffer.toMap))
   }
 
   def inferTypes(n: AST_Extended): AST_Extended = {
@@ -315,7 +315,7 @@ object Transform {
       detectVals
     )
 
-    transforms.foldLeft(AST_Extended(n, AST_Extended.noTypes)) { (t,op) =>
+    transforms.foldLeft(AST_Extended(n, SymbolTypes())) { (t,op) =>
       t.top.figure_out_scope()
       op(t)
     }
