@@ -234,9 +234,9 @@ object Transform {
               }
               node match {
                 case _: AST_UnaryPrefix =>
-                  body = js.Array(operation, value)
+                  this.body = js.Array(operation, value)
                 case _ /*: AST_UnaryPostfix*/ =>
-                  body = js.Array(value, operation)
+                  this.body = js.Array(value, operation)
               }
             }
           }

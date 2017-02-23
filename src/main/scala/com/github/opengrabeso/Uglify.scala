@@ -102,7 +102,8 @@ object Uglify extends js.Object {
   }
 
   @js.native class AST_Block extends AST_Statement {
-    var body: js.Array[AST_Statement] = js.native
+    @JSName("body")
+    var _body: js.Any = js.native
   }
 
   @js.native class AST_BlockStatement extends AST_Block
@@ -544,6 +545,16 @@ object UglifyExt {
       ast
     }
 
+  }
+
+  implicit class AST_BlockOps(val block: AST_Block) {
+    // workaround for issue https://github.com/mishoo/UglifyJS2/issues/1499
+    def body: js.Array[AST_Node] = block._body match {
+      case ba: js.Array[AST_Node@unchecked] => ba
+      case bn: AST_Node => js.Array(bn)
+    }
+
+    def body_=(b: js.Array[AST_Statement]) = block._body = b
   }
 
   implicit class AST_NodeOps(val node: AST_Node) {
