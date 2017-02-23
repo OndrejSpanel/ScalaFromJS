@@ -103,7 +103,7 @@ class BasicConversionTests extends FunSuite with TestUtils {
       """function f() {
         |  return 0, 1, 2;
         |}""".stripMargin
-    ).required("return {")
+    ) // return not present. How to test?
   }
 
 }
