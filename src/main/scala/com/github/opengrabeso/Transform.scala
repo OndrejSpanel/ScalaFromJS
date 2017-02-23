@@ -13,7 +13,7 @@ import scala.scalajs.js
   * */
 object Transform {
 
-  type TypeDesc = String
+  import SymbolTypes.TypeDesc
 
   object AST_Extended {
     def noTypes = SymbolTypes()
@@ -333,6 +333,14 @@ object Transform {
     AST_Extended(n.top, n.types ++ SymbolTypes(declBuffer))
   }
 
+  class ExtractorInList(ops: String*) {
+    def unapply(arg: String): Boolean =  ops.contains(arg)
+  }
+
+  object IsArithmetic extends ExtractorInList("-", "*", "/")
+
+  object IsComparison extends ExtractorInList("==", "!=", "<=", ">=", ">", "<", "===", "!==")
+
   def expressionType(n: AST_Node)(types: SymbolTypes): Option[TypeDesc] = {
     n match {
       case AST_SymbolRef(_, _, Defined(symDef)) =>
@@ -343,6 +351,19 @@ object Transform {
         Some("string")
       case _: AST_Boolean =>
         Some("boolean")
+      case AST_Binary(left, op, right) =>
+        // sometimes operation is enough to guess an expression type
+        // result of any arithmetic op is a number
+        op match {
+          case IsArithmetic() => Some("number")
+          case IsComparison() => Some("boolean")
+          case "+" =>
+            val typeLeft = expressionType(left)(types)
+            val typeRight = expressionType(right)(types)
+            if (typeLeft == typeRight) typeLeft
+            else None
+        }
+        // result of any comparison is a boolean
       case _ =>
         None
     }
@@ -352,18 +373,59 @@ object Transform {
     var inferred = SymbolTypes()
     var allTypes = n.types // all known types including the inferred ones
     // TODO: consider multipass, can help with forward references
+
+    def typeFromOperation(op: String, n: AST_Node) = {
+      op match {
+        case IsComparison() =>
+          // comparison - most like the type we are comparing to
+          expressionType(n)(allTypes)
+        case IsArithmetic() =>
+          // arithmetics - must be a number,
+          // hint: most likely the same type as we are operating with
+          Some("number")
+        case _ =>
+          None
+      }
+
+    }
+
+    object DefinedSymbol {
+      def unapply(arg: AST_Node): Option[SymbolDef] = arg match {
+        case AST_SymbolRef(_, _, Defined(sym)) => Some(sym)
+        case _ => None
+      }
+    }
+
+    def addInferredType(symDef: SymbolDef, tpe: Option[TypeDesc]) = {
+      for (tpe <- tpe) {
+        val symType = SymbolTypes.typeUnionOption(tpe, inferred.get(symDef))
+        inferred += symDef -> symType
+        allTypes += symDef -> symType
+      }
+    }
+
     n.top.walk { node =>
       node match {
-        case AST_Assign(AST_SymbolRef(name, _, Defined(symDef)), _, src) =>
+        case AST_Assign(DefinedSymbol(symDef), _, src) =>
           if (n.types.get(symDef).isEmpty) {
-            // check src expression type
             val tpe = expressionType(src)(allTypes)
-            for (tpe <- tpe) {
-              val symType = SymbolTypes.typeUnionOption(tpe, inferred.get(symDef))
-              inferred += symDef -> symType
-              allTypes += symDef -> symType
-            }
+            addInferredType(symDef, tpe)
           }
+
+        case AST_Binary(DefinedSymbol(symLeft), IsArithmetic(), DefinedSymbol(symRight))
+          if n.types.get(symLeft).isEmpty && n.types.get(symRight).isEmpty =>
+          val numType = Some("number")
+          addInferredType(symLeft, numType)
+          addInferredType(symRight, numType)
+
+        case AST_Binary(DefinedSymbol(symDef), op, expr) if n.types.get(symDef).isEmpty =>
+          val tpe = typeFromOperation(op, expr)
+          addInferredType(symDef, tpe)
+
+        case AST_Binary(expr, op, DefinedSymbol(symDef)) if n.types.get(symDef).isEmpty =>
+          val tpe = typeFromOperation(op, expr)
+          addInferredType(symDef, tpe)
+
         case _ =>
       }
       false
