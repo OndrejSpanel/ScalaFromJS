@@ -12,10 +12,11 @@ Some Harmony (ES 2015) features are already supported:
 - `let` scoped variables
 - arrow functions
 Unsupported constructs (like `break` and `continue`) are emitted as they are, with a comment.
+Argument types for functions are read from JSDoc `@param` comments.
 
 TODO:
 
-- read parameter types from JavaDoc comments or Scala.js facades
+- read parameter types from Scala.js facades
 - type inference for variables and parameters
 - convert prototype based classes to Scala classes (at least when Scala.js facade exists)
 - support Harmony classes
