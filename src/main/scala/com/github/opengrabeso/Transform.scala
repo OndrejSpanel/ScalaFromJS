@@ -249,22 +249,32 @@ object Transform {
     AST_Extended(t, n.types)
   }
 
+
+
   def removeTrailingReturn(n: AST_Extended): AST_Extended = {
     val t = n.top.transformAfter { (node, transformer) =>
+
+      def nodeLast(n: AST_Node, parentLevel: Int): Boolean = {
+        transformer.parent(parentLevel) match {
+          case fun: AST_Defun if fun.body.last == n =>
+            true
+          case block: AST_Block  =>
+            if (block.body.last != n) false
+            else if (parentLevel < transformer.stack.length - 2) {
+              nodeLast(block, parentLevel + 1)
+            } else false
+          case _ =>
+            false
+        }
+      }
+
       node match {
-        case ret: AST_Return =>
+        case ret: AST_Return if nodeLast(ret, 0) =>
           // check if last in a function body
-          val p = transformer.parent()
-          println(nodeClassName(p))
-          p match {
-            case fun: AST_Defun if fun.body.last == node =>
-              ret.value.nonNull.getOrElse {
-                new AST_EmptyStatement {
-                  fillTokens(this, ret)
-                }
-              }
-            case _ =>
-              node
+          ret.value.nonNull.getOrElse {
+            new AST_EmptyStatement {
+              fillTokens(this, ret)
+            }
           }
         case _ =>
           node
