@@ -56,8 +56,8 @@ object Uglify extends js.Object {
     // boolean, true if this is a constant definition (occurring in const).
     var constant: Boolean = js.native
 
-    //var index: js.Any = js.native
-    //var id: js.Any = js.native
+    var index: js.Any = js.native
+    var id: js.Any = js.native
 
     // inferred Scala type
     var _type: js.UndefOr[String] = js.native
@@ -121,7 +121,7 @@ object Uglify extends js.Object {
     // [AST_Scope?/S] link to the parent scope
     val parent_scope: js.UndefOr[AST_Scope] = js.native
     // [SymbolDef*/S] a list of all symbol definitions that are accessed from this scope or any subscopes
-    val enclosed: js.Dynamic = js.native
+    val enclosed: js.UndefOr[js.Array[SymbolDef]] = js.native
     // [integer/S] current index for mangling variables (used internally by the mangler)
     val cname: js.UndefOr[Int] = js.native
     // the nesting level of this scope (0 means toplevel)

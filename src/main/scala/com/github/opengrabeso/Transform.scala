@@ -5,6 +5,7 @@ import com.github.opengrabeso.Uglify._
 import com.github.opengrabeso.UglifyExt._
 import com.github.opengrabeso.UglifyExt.Import._
 
+import scala.collection.mutable
 import scala.scalajs.js
 
 /**
@@ -12,13 +13,20 @@ import scala.scalajs.js
   * */
 object Transform {
 
+  type TypeDesc = String
+
+  object AST_Extended {
+    def noTypes = SymbolTypes()
+    def apply(top: AST_Node, types: SymbolTypes): AST_Extended = new AST_Extended(top.asInstanceOf[AST_Toplevel], types)
+  }
+  case class AST_Extended(top: AST_Toplevel, types: SymbolTypes)
+
   // individual sensible transformations
 
   // detect variables which can be declared as val instead of var
-  def detectVals(n: AST_Node): AST_Node = {
-    val ret = n.clone()
+  def detectVals(n: AST_Extended): AST_Extended = {
     // walk the tree, check for possible val replacements and perform them
-    ret.transformAfter {(node, transformer) =>
+    val ret = n.top.transformAfter {(node, _) =>
       node match {
         case AST_Var(varDef@AST_VarDef(varName, value)) if value.nonNull.nonEmpty => // var with init - search for a modification
           varName.thedef.fold(node) { df =>
@@ -69,14 +77,15 @@ object Transform {
           node
       }
     }
+    AST_Extended(ret, n.types)
   }
 
   // merge variable declaration and first assignment if possible
-  def varInitialization(n: AST_Node): AST_Node = {
+  def varInitialization(n: AST_Extended): AST_Extended = {
 
     // walk the tree, check for first reference of each var
     var pairs = Map.empty[SymbolDef, AST_SymbolRef]
-    n.walk { node =>
+    n.top.walk { node =>
       node match {
         case AST_VarDef(name, value) if value.nonNull.isEmpty =>
           for (df <- name.thedef) {
@@ -105,7 +114,7 @@ object Transform {
     //println(s"transform, vars ${pairs.keys.map(_.name).mkString(",")}")
 
     // walk the tree, check for possible val replacements and perform them
-    val changeAssignToVar = n.transformAfter {(node, transformer) =>
+    val changeAssignToVar = n.top.transformAfter {(node, transformer) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       //println(s"node ${nodeClassName(node)} ${ScalaOut.outputNode(node, "")}")
       // we need to descend into assignment definitions, as they may contain other assignments
@@ -130,7 +139,7 @@ object Transform {
             case _ =>
               node
           }
-        case c =>
+        case _ =>
           node
       }
     }
@@ -159,10 +168,10 @@ object Transform {
     }
 
 
-    ret
+    AST_Extended(ret, n.types)
   }
 
-  def handleIncrement(n: AST_Node): AST_Node = {
+  def handleIncrement(n: AST_Extended): AST_Extended = {
 
     object UnaryModification {
       def unapply(arg: String): Boolean = arg == "++" || arg == "--"
@@ -188,7 +197,7 @@ object Transform {
 //    }
 
     // walk the tree, check for increment / decrement
-    val t = n.transformAfter { (node, transformer) =>
+    val t = n.top.transformAfter { (node, transformer) =>
       def nodeResultDiscarded(n: AST_Node, parentLevel: Int): Boolean = {
         transformer.parent(parentLevel) match {
           case _: AST_SimpleStatement =>
@@ -208,7 +217,7 @@ object Transform {
       }
 
       node match {
-        case AST_Unary(op@UnaryModification(), expr@AST_SymbolRef(name, scope, thedef)) =>
+        case AST_Unary(op@UnaryModification(), expr: AST_SymbolRef) =>
           if (nodeResultDiscarded(node, 0)) {
             substitute(node, expr, op)
           } else {
@@ -237,20 +246,76 @@ object Transform {
     }
 
 
-    t
+    AST_Extended(t, n.types)
   }
 
-  def apply(n: AST_Toplevel): AST_Toplevel = {
+  def readJSDoc(n: AST_Extended): AST_Extended = {
+    var commentsParsed = Set.empty[Int]
 
-    val transforms: Seq[(AST_Node) => AST_Node] = Seq(
+    var declBuffer = new mutable.ArrayBuffer[(SymbolDef, TypeDesc)]()
+
+    n.top.walk { node =>
+      node match {
+        case f: AST_Defun =>
+          for {
+            start <- f.start.nonNull
+            commentToken <- start.comments_before.lastOption
+          } {
+            val comment = commentToken.value.asInstanceOf[String]
+            if (!(commentsParsed contains commentToken.pos)) {
+              commentsParsed += commentToken.pos
+              for (commentLine <- comment.lines) {
+                // TODO: only comment blocks starting with JSDoc marker
+                // match anything in form:
+
+                val JSDocParam = """@param +([^ ]+) +\{([^ ]+)\}""".r.unanchored // @param name {type}
+                val JSDocReturn = """@return +\{([^ ]+)\}""".r.unanchored // @return {type}
+                commentLine match {
+                  case JSDocParam(name, tpe) =>
+                    // find a corresponding symbol
+                    val sym = f.argnames.find(_.name == name)
+                    for {
+                      s <- sym
+                      td <- s.thedef.nonNull
+                    } {
+                      declBuffer append td -> tpe
+                    }
+                  case JSDocReturn(tpe) =>
+                    for {
+                      s <- f.name.nonNull
+                      td <- s.thedef.nonNull
+                    } {
+                      declBuffer append td -> tpe
+                    }
+                  case _ =>
+                }
+              }
+            }
+          }
+        case _ =>
+      }
+      false
+    }
+    AST_Extended(n.top, n.types ++ SymbolTypes(declBuffer))
+  }
+
+  def inferTypes(n: AST_Extended): AST_Extended = {
+    n
+  }
+
+  def apply(n: AST_Toplevel): AST_Extended = {
+
+    val transforms: Seq[(AST_Extended) => AST_Extended] = Seq(
       handleIncrement,
       varInitialization,
+      readJSDoc,
+      inferTypes,
       detectVals
     )
 
-    transforms.foldLeft(n) { (t,op) =>
-      t.figure_out_scope()
-      op(t).asInstanceOf[AST_Toplevel]
+    transforms.foldLeft(AST_Extended(n, SymbolTypes())) { (t,op) =>
+      t.top.figure_out_scope()
+      op(t)
     }
   }
 }

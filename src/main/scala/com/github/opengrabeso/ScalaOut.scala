@@ -61,7 +61,7 @@ object ScalaOut {
     val default = new Config
   }
 
-  case class InputContext(input: String) {
+  case class InputContext(input: String, types: SymbolTypes) {
     var commentsDumped = Set.empty[Int]
   }
 
@@ -199,7 +199,15 @@ object ScalaOut {
       out("(")
       outputNodes(tn.argnames) { n =>
         nodeToOut(n)
-        if (types) out(": Any")
+        if (types) {
+          val defType = "Any"
+          val typeString = n.thedef.nonNull match {
+            case Some(td) =>
+              input.types.get(td).getOrElse(defType)
+            case _ => defType
+          }
+          out": $typeString"
+        }
       }
       out(")")
     }
@@ -579,13 +587,13 @@ object ScalaOut {
     }
   }
 
-  def output(ast: AST_Block, input: String, outConfig: Config = Config.default): String = {
+  def output(ast: Transform.AST_Extended, input: String, outConfig: Config = Config.default): String = {
     val sb = new StringBuilder
     val ret = new NiceOutput {
       def out(x: String) = sb append x
     }
-    val inputContext = InputContext(input)
-    blockToOut(ast.body)(outConfig, inputContext, ret)
+    val inputContext = InputContext(input, ast.types)
+    blockToOut(ast.top.body)(outConfig, inputContext, ret)
     sb.result
   }
 
@@ -594,7 +602,7 @@ object ScalaOut {
     val ret = new NiceOutput {
       def out(x: String) = sb append x
     }
-    val inputContext = InputContext(input)
+    val inputContext = InputContext(input, SymbolTypes())
     nodeToOut(ast)(outConfig, inputContext, ret)
     sb.result
   }
