@@ -17,21 +17,6 @@ class BasicConversionTests extends FunSuite with TestUtils {
     )
   }
 
-  test("Function parameters and calls") {
-    execute check ConversionCheck(rsc("simpleFunction/callFunction.js")).
-      required(
-        "full = first + last",
-        """result = concatenate("Zara", "Ali")""",
-        "first: String",
-        "last: String",
-        "def concatenate(",
-        "def secondFunction()",
-        "full"
-      ).forbidden(
-      "function", "Any", "return full"
-    )
-  }
-
   test("Flow control") {
     execute check ConversionCheck(rsc("control/control.js"))
       .required(
@@ -76,16 +61,6 @@ class BasicConversionTests extends FunSuite with TestUtils {
   test("Indenting") {
     val result = Main.convert(rsc("control/indent.js"))
     assert(result == normalizeEol(rsc("control/indent.scala")))
-  }
-
-  test("Simple class") {
-    pending
-    execute check ConversionCheck(rsc("classes/simpleClass.js"))
-      .required(
-        "class Person",
-        """var person = new Person("Bob", "M")"""
-      )
-      .forbidden(".prototype.")
   }
 
   test("Reserved words") {
