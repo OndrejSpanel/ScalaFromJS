@@ -52,11 +52,10 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Simple JS 1.8 (ES 5) class") {
-    pending
     execute check ConversionCheck(rsc("types/simpleClass.js"))
       .required(
         "class Person",
-        """var person = new Person("Bob", "M")"""
+        """person = new Person("Bob", "M")"""
       )
       .forbidden(".prototype.")
   }
@@ -65,7 +64,8 @@ class TypeTests extends FunSuite with TestUtils {
     execute check ConversionCheck(rsc("types/harmonyClass.js"))
       .required(
         "class Employe",
-        "class Janitor extends Employee",
+        "class Janitor",
+        "extends Employee",
         "def printEmployeeDetails() ="
     )
 

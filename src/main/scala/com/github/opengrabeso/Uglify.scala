@@ -139,11 +139,11 @@ object Uglify extends js.Object {
   }
 
   @js.native class AST_Lambda extends AST_Scope {
-    val name: js.UndefOr[AST_SymbolDeclaration] = js.native
+    var name: js.UndefOr[AST_SymbolDeclaration] = js.native
     //[AST_SymbolDeclaration?] the name of this function
-    val argnames: js.Array[AST_SymbolFunarg] = js.native
+    var argnames: js.Array[AST_SymbolFunarg] = js.native
     // [AST_SymbolFunarg*] array of function arguments
-    val uses_arguments: js.UndefOr[Boolean] = js.native // "[boolean/S] tells whether this function accesses the arguments array"
+    var uses_arguments: js.UndefOr[Boolean] = js.native // "[boolean/S] tells whether this function accesses the arguments array"
   }
 
   @js.native class AST_Accessor extends AST_Lambda
@@ -340,8 +340,11 @@ object Uglify extends js.Object {
   @js.native sealed abstract class AST_ObjectProperty extends AST_Node {
     // [string] the property name converted to a string for ObjectKeyVal.  For setters and getters this is an arbitrary AST_Node.
     def key: Any = js.native
+    def key_=(k: Any): Unit = js.native
+
     // [AST_Node] property value.  For setters and getters this is an AST_Function.
-    val value: AST_Node = js.native
+    def value: AST_Node = js.native
+    def value_= (node: AST_Node): Unit = js.native
   }
 
   @js.native class AST_ObjectKeyVal extends AST_ObjectProperty {
@@ -355,13 +358,15 @@ object Uglify extends js.Object {
     // [string] the property name converted to a string for ObjectKeyVal.  For setters and getters this is an arbitrary AST_Node.
     override def key: AST_Node = js.native
     // [AST_Node] property value.  For setters and getters this is an AST_Function.
-    override val value: AST_Function = js.native
+    override def value: AST_Function = js.native
   }
   @js.native class AST_ObjectSetter extends AST_ObjectSetterOrGetter
   @js.native class AST_ObjectGetter extends AST_ObjectSetterOrGetter
 
   @js.native class AST_ConciseMethod extends AST_ObjectProperty {
     override def key: AST_Symbol = js.native
+    //override def key_=(k: Any): Unit = js.native
+
     // [string|undefined] the original quote character, if any
     var quote: js.UndefOr[String]= js.native
     // [boolean] whether this method is static (classes only)
@@ -570,9 +575,9 @@ object UglifyExt {
 
   implicit class AST_BlockOps(val block: AST_Block) {
     // workaround for issue https://github.com/mishoo/UglifyJS2/issues/1499
-    def body: js.Array[AST_Node] = block._body match {
-      case ba: js.Array[AST_Node@unchecked] => ba
-      case bn: AST_Node => js.Array(bn)
+    def body: js.Array[AST_Statement] = block._body match {
+      case ba: js.Array[AST_Statement@unchecked] => ba
+      case bn: AST_Statement => js.Array(bn)
       case x =>
         println(s"Unexpected block body $x in ${nodeClassName(block)}")
         js.Array()
@@ -649,12 +654,29 @@ object UglifyExt {
       def unapply(arg: AST_Defun) = Some(arg.name, arg.argnames, arg.body)
     }
 
+    object AST_Lambda {
+      def unapply(arg: AST_Lambda) = Some(arg.argnames, arg.body)
+    }
+
+    object AST_Function {
+      def unapply(arg: AST_Function) = AST_Lambda.unapply(arg)
+    }
+
     object AST_Return {
       def unapply(arg: AST_Return) = Some(arg.value)
     }
 
+    object AST_Dot {
+      def unapply(arg: AST_Dot) = Some(arg.expression, arg.property)
+    }
+
+
     object AST_Call {
       def unapplySeq(arg: AST_Call): Option[(AST_Node, Seq[AST_Node])] = Some(arg.expression, arg.args)
+    }
+
+    object AST_New {
+      def unapplySeq(arg: AST_New) = AST_Call.unapplySeq(arg)
     }
 
     object Defined {

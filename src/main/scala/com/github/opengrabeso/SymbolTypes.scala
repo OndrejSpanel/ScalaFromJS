@@ -53,6 +53,7 @@ object SymbolTypes {
 import SymbolTypes._
 
 case class SymbolTypes(types: Map[SymbolMapId, TypeDesc]) {
+  def setOfTypes: Set[TypeDesc] = types.values.toSet
 
   def apply(sym: SymbolDef): TypeDesc = types(id(sym).get)
 

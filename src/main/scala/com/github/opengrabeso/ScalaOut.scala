@@ -256,6 +256,11 @@ object ScalaOut {
       }
     }
 
+    val isConstructorProperty: PartialFunction[AST_ObjectProperty, AST_ConciseMethod] = {
+      case m: AST_ConciseMethod if m.key.name == "constructor" =>
+        m
+    }
+
     dumpComments(n)
 
     //noinspection ScalaUnusedSymbol
@@ -552,12 +557,35 @@ object ScalaOut {
       //case tn: AST_Scope => outputUnknownNode(tn)
       case tn: AST_DefClass =>
         out"class ${tn.name}"
-        if (tn.`extends`.isDefined) {
-          out" extends ${tn.`extends`}"
+
+        // find a constructor and output it
+        object NodeIsLambda {
+          def unapply(arg: AST_Node) = arg match {
+            case l: AST_Lambda => Some(l)
+            case _ => None
+          }
+        }
+
+        val constructor = tn.properties.collect(isConstructorProperty).headOption
+
+        def mapConstructor[T](f: (AST_Lambda) => T): Option[T] = {
+          for {
+            c <- constructor
+            lambda <- NodeIsLambda.unapply(c.value)
+          } yield f(lambda)
+        }
+
+        mapConstructor(lambda => outputArgNames(lambda, true))
+
+        for (base <- tn.`extends`) {
+          out" extends $base}"
         }
         out" {\n"
         out.indent()
-        for (p <- tn.properties) {
+
+        mapConstructor(lambda => blockToOut(lambda.body))
+
+        for (p <- tn.properties if isConstructorProperty.lift(p).isEmpty) {
           nodeToOut(p)
         }
         out.unindent()
@@ -592,7 +620,7 @@ object ScalaOut {
     } else out(name)
   }
 
-  private def blockBracedToOut(body: js.Array[AST_Node], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
+  private def blockBracedToOut(body: js.Array[AST_Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
     if (!js.isUndefined(body)) { // harmony class may have undefined body
       // TODO: single statement without braces
       out("{\n") // TODO: autoindent
@@ -606,7 +634,7 @@ object ScalaOut {
     }
   }
 
-  private def blockToOut(body: js.Array[AST_Node])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
+  private def blockToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
     for ((s, notLast) <- markEnd(body)) {
       nodeToOut(s)
       if (notLast) out.eol()
