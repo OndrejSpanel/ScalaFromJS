@@ -52,11 +52,10 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Simple JS 1.8 (ES 5) class") {
-    pending
     execute check ConversionCheck(rsc("types/simpleClass.js"))
       .required(
         "class Person",
-        """var person = new Person("Bob", "M")"""
+        """person = new Person("Bob", "M")"""
       )
       .forbidden(".prototype.")
   }
