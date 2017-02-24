@@ -592,7 +592,7 @@ object ScalaOut {
     } else out(name)
   }
 
-  private def blockBracedToOut(body: js.Array[AST_Node], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
+  private def blockBracedToOut(body: js.Array[AST_Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
     if (!js.isUndefined(body)) { // harmony class may have undefined body
       // TODO: single statement without braces
       out("{\n") // TODO: autoindent
@@ -606,7 +606,7 @@ object ScalaOut {
     }
   }
 
-  private def blockToOut(body: js.Array[AST_Node])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
+  private def blockToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
     for ((s, notLast) <- markEnd(body)) {
       nodeToOut(s)
       if (notLast) out.eol()
