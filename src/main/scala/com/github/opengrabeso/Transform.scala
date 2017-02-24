@@ -487,10 +487,18 @@ object Transform {
                   for {
                     (p,arg) <- pars.map(_.thedef.nonNull) zip args
                     // only when the type is not provided explicitly
-                    par <- p if n.types.get(par).isEmpty
+                    par <- p
                   } {
-                    val tp = expressionType(arg)(allTypes)
-                    addInferredType(par, tp)
+                    if (n.types.get(par).isEmpty) {
+                      val tp = expressionType(arg)(allTypes)
+                      addInferredType(par, tp)
+                    }
+                    arg match {
+                      case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
+                        val tp = allTypes.get(par)
+                        addInferredType(a, tp)
+                      case _ =>
+                    }
                   }
                 case _ =>
               }
@@ -506,6 +514,8 @@ object Transform {
   }
 
   def foldClasses(n: AST_Extended): AST_Extended = {
+    // for any class types try to find constructors and prototypes and try to transform them
+    // start with global classes (are local classes even used in JS?)
     n
   }
 
