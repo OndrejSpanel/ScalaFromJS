@@ -64,7 +64,8 @@ class TypeTests extends FunSuite with TestUtils {
     execute check ConversionCheck(rsc("types/harmonyClass.js"))
       .required(
         "class Employe",
-        "class Janitor extends Employee",
+        "class Janitor",
+        "extends Employee",
         "def printEmployeeDetails() ="
     )
 
