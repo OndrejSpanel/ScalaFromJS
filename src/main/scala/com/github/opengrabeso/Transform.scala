@@ -539,7 +539,17 @@ object Transform {
       }
     }
 
-    val types = n.types.setOfTypes
+    var classNames = Set.empty[TypeDesc]
+
+    n.top.walk {
+      case AST_New(AST_SymbolRefDef(call), _*) =>
+        classNames += call.name
+        false
+      case _ =>
+        false
+    }
+
+    val types = n.types.setOfTypes ++ classNames
     n.top.walk {
       case _ : AST_Toplevel =>
         false
@@ -568,7 +578,7 @@ object Transform {
       case node =>
         true
     }
-    println(classes)
+    //println(classes)
 
 
     // TODO: try using transformBefore for a cleaner prototype elimination
