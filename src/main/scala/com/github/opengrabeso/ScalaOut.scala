@@ -256,11 +256,6 @@ object ScalaOut {
       }
     }
 
-    val isConstructorProperty: PartialFunction[AST_ObjectProperty, AST_ConciseMethod] = {
-      case m: AST_ConciseMethod if m.key.name == "constructor" =>
-        m
-    }
-
     dumpComments(n)
 
     //noinspection ScalaUnusedSymbol
@@ -566,7 +561,7 @@ object ScalaOut {
           }
         }
 
-        val constructor = tn.properties.collect(isConstructorProperty).headOption
+        val constructor = Transform.findConstructor(tn)
 
         def mapConstructor[T](f: (AST_Lambda) => T): Option[T] = {
           for {
@@ -585,7 +580,7 @@ object ScalaOut {
 
         mapConstructor(lambda => blockToOut(lambda.body))
 
-        for (p <- tn.properties if isConstructorProperty.lift(p).isEmpty) {
+        for (p <- tn.properties if Transform.isConstructorProperty.lift(p).isEmpty) {
           nodeToOut(p)
         }
         out.unindent()

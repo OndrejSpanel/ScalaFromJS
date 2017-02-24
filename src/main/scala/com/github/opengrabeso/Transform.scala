@@ -8,6 +8,7 @@ import com.github.opengrabeso.UglifyExt.Import._
 import scala.collection.mutable
 import scala.scalajs.js
 import js.JSConverters._
+import scala.scalajs.js.UndefOr
 
 /**
   * Transform AST to perform optimizations or adjustments
@@ -21,6 +22,10 @@ object Transform {
     def apply(top: AST_Node, types: SymbolTypes): AST_Extended = new AST_Extended(top.asInstanceOf[AST_Toplevel], types)
   }
   case class AST_Extended(top: AST_Toplevel, types: SymbolTypes)
+
+  object UnaryModification {
+    def unapply(arg: String): Boolean = arg == "++" || arg == "--"
+  }
 
   // individual sensible transformations
 
@@ -39,9 +44,6 @@ object Transform {
               assert(ref.thedef.exists(_ == df))
               ref.scope.exists { s =>
                 var detect = false
-                object UnaryModification {
-                  def unapply(arg: String): Boolean = arg == "++" || arg == "--"
-                }
                 s.walk {
                   case ss: AST_Scope => ss != ref.scope // do not descend into any other scopes, they are listed in references if needed
                   case AST_Assign(AST_SymbolRef(_, _, `df`), _, _) =>
@@ -174,10 +176,6 @@ object Transform {
 
   def handleIncrement(n: AST_Extended): AST_Extended = {
 
-    object UnaryModification {
-      def unapply(arg: String): Boolean = arg == "++" || arg == "--"
-    }
-
     def substitute(node: AST_Node, expr: AST_SymbolRef, op: String) = {
       new AST_Assign {
         fillTokens(this, node)
@@ -287,7 +285,7 @@ object Transform {
   def readJSDoc(n: AST_Extended): AST_Extended = {
     var commentsParsed = Set.empty[Int]
 
-    var declBuffer = new mutable.ArrayBuffer[(SymbolDef, TypeDesc)]()
+    val declBuffer = new mutable.ArrayBuffer[(SymbolDef, TypeDesc)]()
 
     n.top.walk { node =>
       node match {
@@ -394,6 +392,10 @@ object Transform {
     var allTypes = n.types // all known types including the inferred ones
     // TODO: consider multipass, can help with forward references
 
+    val classes = classListHarmony(n)
+    //println(classes)
+
+
     def typeFromOperation(op: String, n: AST_Node) = {
       op match {
         case IsComparison() =>
@@ -477,35 +479,53 @@ object Transform {
           addInferredType(symDef.thedef.get, allReturns)
 
         case AST_Call(AST_SymbolRefDef(call), args@_*) =>
-          // TODO: for AST_New derive constructor types
+
+          def inferParsOrArgs(pars: js.Array[AST_SymbolFunarg]) = {
+            for {
+              (Some(par), arg) <- pars.map(_.thedef.nonNull) zip args
+              // only when the type is not provided explicitly
+            } {
+              if (n.types.get(par).isEmpty) {
+                val tp = expressionType(arg)(allTypes)
+                addInferredType(par, tp)
+              }
+              arg match {
+                case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
+                  val tp = allTypes.get(par)
+                  addInferredType(a, tp)
+                case _ =>
+              }
+            }
+          }
+
           // get the AST_Defun node to get the arg symbols from it
           call.orig.headOption match {
+            case Some(clazz: AST_SymbolDefClass) =>
+              //println(s"Infer arg types for class ${clazz.name}")
+
+              for {
+                c <- classes.get(clazz.name)
+                AST_ConciseMethod(_, value: AST_Accessor) <- findConstructor(c)
+              } {
+                //println(s"  Constructor args ${value.argnames}")
+                inferParsOrArgs(value.argnames)
+              }
+
             case Some(defunSym: AST_SymbolDefun) =>
               //println(s"Infer arg types for ${defunSym.name}")
+
               functions.get(defunSym) match {
                 case Some(AST_Defun(_, pars, _)) =>
                   // now match arguments to parameters
-                  for {
-                    (p,arg) <- pars.map(_.thedef.nonNull) zip args
-                    // only when the type is not provided explicitly
-                    par <- p
-                  } {
-                    if (n.types.get(par).isEmpty) {
-                      val tp = expressionType(arg)(allTypes)
-                      addInferredType(par, tp)
-                    }
-                    arg match {
-                      case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
-                        val tp = allTypes.get(par)
-                        addInferredType(a, tp)
-                      case _ =>
-                    }
-                  }
+                  inferParsOrArgs(pars)
                 case _ =>
               }
 
             case _ =>
           }
+        //case AST_Call(AST_Dot(expr,call), args@_*) =>
+          // infer types for class member calls
+
         case _ =>
       }
       true
@@ -517,95 +537,15 @@ object Transform {
   def foldClasses(n: AST_Extended): AST_Extended = {
     // for any class types try to find constructors and prototypes and try to transform them
     // start with global classes (are local classes even used in JS?)
-    case class ClassMember(args: js.Array[AST_SymbolFunarg], body: js.Array[AST_Statement])
 
-    case class ClassDef(base: Option[String] = None, members: Map[String, ClassMember] = Map.empty)
-
-    var classes = Map.empty[String, ClassDef]
-
-    object ClassDefine {
-      def unapply(arg: AST_Node) = arg match {
-        // function ClassName() {}
-        case AST_Defun(Defined(sym), args, body) =>
-          Some(sym, args, body)
-
-        // ClassName = function() {}
-        case AST_Assign(sym: AST_SymbolRef, "=", AST_Lambda(args, body)) =>
-          Some(sym, args, body)
-
-        // var ClassName = function() {}
-        case AST_Var(AST_VarDef(sym: AST_Symbol, Defined(AST_Lambda(args, body)))) =>
-          Some(sym, args, body)
-
-        case _ =>
-          //println(nodeClassName(arg))
-          None
-      }
-    }
-
-    object ClassMemberDef {
-      def unapply(arg: AST_Node) = arg match {
-        case AST_SimpleStatement(AST_Assign(AST_Dot(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), funName), "=", AST_Function(args, body))) =>
-          Some(name, funName, args, body)
-        case _ => None
-      }
-    }
-
-    object ClassParentDef {
-      def unapply(arg: AST_Node) = arg match {
-        case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", value: AST_Node)) =>
-          Some(name, value)
-        case _ => None
-      }
-    }
-
-    var classNames = Set.empty[TypeDesc]
-
-    n.top.walk {
-      case AST_New(AST_SymbolRefDef(call), _*) =>
-        classNames += call.name
-        false
-      case _ =>
-        false
-    }
-
-    val types = n.types.setOfTypes ++ classNames
-    n.top.walk {
-      case _ : AST_Toplevel =>
-        false
-      case ClassDefine(sym, args, body) =>
-        // check if there exists a type with this name
-        if (types contains sym.name) {
-          // looks like a constructor
-          //println("Constructor " + sym.name)
-          val constructor = ClassMember(args, body)
-          classes += sym.name -> ClassDef(members = Map("constructor" -> constructor))
-        }
-        true
-      // TODO: detect Object.assign call as well
-      case ClassMemberDef(name, funName, args, body) =>
-        //println(s"Assign $name.$funName")
-        for (clazz <- classes.get(name)) {
-          val member = ClassMember(args, body)
-          classes += name -> clazz.copy(members = clazz.members + (funName -> member))
-        }
-        true
-      case ClassParentDef(name, AST_New(AST_SymbolRefDef(sym), _*)) =>
-        for (clazz <- classes.get(name)) {
-          classes += name -> clazz.copy(base = Some(sym.name))
-        }
-        true
-      case node =>
-        true
-    }
-    //println(classes)
+    val classes = classList(n)
 
 
     // TODO: try using transformBefore for a cleaner prototype elimination
 
-    val ret = n.top.transformAfter { (node, transformer) =>
+    val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case ClassMemberDef(name, funName, args, body) if classes.get(name).isDefined =>
+        case ClassMemberDef(name, _, _, _) if classes.get(name).isDefined =>
           new AST_EmptyStatement()
         case ClassParentDef(name, _) if classes.get(name).isDefined =>
           new AST_EmptyStatement()
@@ -614,9 +554,17 @@ object Transform {
           val clazz = classes(sym.name)
           new AST_DefClass {
             fillTokens(this, defun)
-            name = sym
+            name = new AST_SymbolDefClass {
+              /*_*/
+              fillTokens(this, sym)
+              /*_*/
+              name = sym.name
+              scope = sym.scope
+              thedef = sym.thedef
+              //init = this
+            }
             // TODO: resolve a symbol
-            `extends` = clazz.base.fold(js.undefined:js.UndefOr[AST_Node]) { b =>
+            `extends` = clazz.base.fold(js.undefined:UndefOr[AST_Node]) { b =>
               new AST_SymbolRef {
                 /*_*/
                 fillTokens(this, defun) // TODO: tokens from a property instead
@@ -648,15 +596,128 @@ object Transform {
     AST_Extended(ret, n.types)
   }
 
+  object ClassDefine {
+    def unapply(arg: AST_Node) = arg match {
+      // function ClassName() {}
+      case AST_Defun(Defined(sym), args, body) =>
+        Some(sym, args, body)
+
+      // ClassName = function() {}
+      case AST_Assign(sym: AST_SymbolRef, "=", AST_Lambda(args, body)) =>
+        Some(sym, args, body)
+
+      // var ClassName = function() {}
+      case AST_Var(AST_VarDef(sym: AST_Symbol, Defined(AST_Lambda(args, body)))) =>
+        Some(sym, args, body)
+
+      case _ =>
+        //println(nodeClassName(arg))
+        None
+    }
+  }
+
+  case class ClassMember(args: js.Array[AST_SymbolFunarg], body: js.Array[AST_Statement])
+
+  case class ClassDef(base: Option[String] = None, members: Map[String, ClassMember] = Map.empty)
+
+  object ClassMemberDef {
+    def unapply(arg: AST_Node) = arg match {
+      case AST_SimpleStatement(AST_Assign(AST_Dot(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), funName), "=", AST_Function(args, body))) =>
+        Some(name, funName, args, body)
+      case _ => None
+    }
+  }
+
+  object ClassParentDef {
+    def unapply(arg: AST_Node) = arg match {
+      case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", value: AST_Node)) =>
+        Some(name, value)
+      case _ => None
+    }
+  }
+
+  private def classList(n: AST_Extended) = {
+    var classes = Map.empty[String, ClassDef]
+
+    var classNames = Set.empty[TypeDesc]
+
+    n.top.walk {
+      case AST_New(AST_SymbolRefDef(call), _*) =>
+        classNames += call.name
+        false
+      case _ =>
+        false
+    }
+
+    n.top.walk {
+      case _: AST_Toplevel =>
+        false
+      case ClassDefine(sym, args, body) =>
+        // check if there exists a type with this name
+        if (classNames contains sym.name) {
+          // looks like a constructor
+          //println("Constructor " + sym.name)
+          val constructor = ClassMember(args, body)
+          classes += sym.name -> ClassDef(members = Map("constructor" -> constructor))
+        }
+        true
+      // TODO: detect Object.assign call as well
+      case ClassMemberDef(name, funName, args, body) =>
+        //println(s"Assign $name.$funName")
+        for (clazz <- classes.get(name)) {
+          val member = ClassMember(args, body)
+          classes += name -> clazz.copy(members = clazz.members + (funName -> member))
+        }
+        true
+      case ClassParentDef(name, AST_New(AST_SymbolRefDef(sym), _*)) =>
+        for (clazz <- classes.get(name)) {
+          classes += name -> clazz.copy(base = Some(sym.name))
+        }
+        true
+      case _ =>
+        true
+    }
+    //println(classNames)
+    //println(classes)
+
+    classes
+  }
+
+  private def classListHarmony(n: AST_Extended) = {
+    var classes = Map.empty[TypeDesc, AST_DefClass]
+    n.top.walk {
+      case d: AST_DefClass =>
+        for (name <- d.name) {
+          classes += name.name -> d
+        }
+        true
+      // classes expected to be top-level
+      case _ : AST_Toplevel =>
+        false
+      case _ =>
+        true
+    }
+    classes
+  }
+
+  val isConstructorProperty: PartialFunction[AST_ObjectProperty, AST_ConciseMethod] = {
+    case m: AST_ConciseMethod if m.key.name == "constructor" =>
+      m
+  }
+
+  def findConstructor(c: AST_DefClass): Option[AST_ConciseMethod] = {
+    c.properties.collect(isConstructorProperty).headOption
+  }
+
   def apply(n: AST_Toplevel): AST_Extended = {
 
     val transforms: Seq[(AST_Extended) => AST_Extended] = Seq(
       handleIncrement,
       varInitialization,
       readJSDoc,
+      foldClasses,
       inferTypes,
       removeTrailingReturn,
-      foldClasses,
       detectVals
     )
 

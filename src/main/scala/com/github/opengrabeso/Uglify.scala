@@ -400,6 +400,7 @@ object Uglify extends js.Object {
   @js.native class AST_SymbolDefun extends AST_SymbolDeclaration
   @js.native class AST_SymbolLambda extends AST_SymbolDeclaration
   @js.native class AST_SymbolCatch extends AST_SymbolDeclaration
+  @js.native class AST_SymbolDefClass extends AST_SymbolDeclaration
 
   @js.native class AST_Label extends AST_Symbol {
     // [AST_LoopControl*] a list of nodes referring to this label
@@ -690,6 +691,9 @@ object UglifyExt {
       }
     }
 
+    object AST_ConciseMethod {
+      def unapply(arg: AST_ConciseMethod) = Some(arg.key, arg.value)
+    }
 
   }
 
