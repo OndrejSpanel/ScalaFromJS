@@ -531,6 +531,14 @@ object Transform {
       }
     }
 
+    object ClassParentDef {
+      def unapply(arg: AST_Node) = arg match {
+        case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", value: AST_Node)) =>
+          Some(name, value)
+        case _ => None
+      }
+    }
+
     val types = n.types.setOfTypes
     n.top.walk {
       case _ : AST_Toplevel =>
@@ -552,10 +560,15 @@ object Transform {
           classes += name -> clazz.copy(members = clazz.members + (funName -> member))
         }
         true
+      case ClassParentDef(name, AST_New(AST_SymbolRefDef(sym), _*)) =>
+        for (clazz <- classes.get(name)) {
+          classes += name -> clazz.copy(base = Some(sym.name))
+        }
+        true
       case node =>
         true
     }
-    //println(classes)
+    println(classes)
 
 
     // TODO: try using transformBefore for a cleaner prototype elimination
@@ -564,6 +577,8 @@ object Transform {
       node match {
         case ClassMemberDef(name, funName, args, body) if classes.get(name).isDefined =>
           new AST_EmptyStatement()
+        case ClassParentDef(name, _) if classes.get(name).isDefined =>
+          new AST_EmptyStatement()
         case defun@AST_Defun(Defined(sym), _, _) if classes contains sym.name =>
           // check if there exists a type with this name
           val clazz = classes(sym.name)
@@ -571,7 +586,14 @@ object Transform {
             fillTokens(this, defun)
             name = sym
             // TODO: resolve a symbol
-            `extends` = js.undefined
+            `extends` = clazz.base.fold(js.undefined:js.UndefOr[AST_Node]) { b =>
+              new AST_SymbolRef {
+                /*_*/
+                fillTokens(this, defun) // TODO: tokens from a property instead
+                /*_*/
+                name = b
+              }
+            }
             properties = clazz.members.map { case (k, v) =>
               new AST_ConciseMethod {
                 // symbol lookup will be needed
