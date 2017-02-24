@@ -653,8 +653,13 @@ object UglifyExt {
       def unapply(arg: AST_Return) = Some(arg.value)
     }
 
+
     object AST_Call {
       def unapplySeq(arg: AST_Call): Option[(AST_Node, Seq[AST_Node])] = Some(arg.expression, arg.args)
+    }
+
+    object AST_New {
+      def unapplySeq(arg: AST_New) = AST_Call.unapplySeq(arg)
     }
 
     object Defined {

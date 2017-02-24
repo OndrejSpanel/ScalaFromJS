@@ -376,6 +376,8 @@ object Transform {
           case _ =>
             None
         }
+      case AST_New(AST_SymbolRefDef(call), _*) =>
+        Some(call.name)
       case AST_Call(AST_SymbolRefDef(call), _*) =>
         types.get(call)
       case seq: AST_Seq =>
@@ -474,6 +476,7 @@ object Transform {
           addInferredType(symDef.thedef.get, allReturns)
 
         case AST_Call(AST_SymbolRefDef(call), args@_*) =>
+          // TODO: for AST_New derive constructor types
           // get the AST_Defun node to get the arg symbols from it
           call.orig.headOption match {
             case Some(defunSym: AST_SymbolDefun) =>
@@ -502,6 +505,10 @@ object Transform {
     n.copy(types = inferred ++ n.types)
   }
 
+  def foldClasses(n: AST_Extended): AST_Extended = {
+    n
+  }
+
   def apply(n: AST_Toplevel): AST_Extended = {
 
     val transforms: Seq[(AST_Extended) => AST_Extended] = Seq(
@@ -510,6 +517,7 @@ object Transform {
       readJSDoc,
       inferTypes,
       removeTrailingReturn,
+      foldClasses,
       detectVals
     )
 
