@@ -66,6 +66,19 @@ object ScalaOut {
   }
 
   implicit class OutStringContext(val sc: StringContext)(implicit outConfig: Config, input: InputContext, output: Output) {
+
+    def outEx(ex: Any) {
+      ex match {
+        case s: String =>
+          output(s)
+        case n: AST_Node =>
+          nodeToOut(n)
+        case x if js.isUndefined(x) =>
+        case any =>
+          output(any.toString)
+      }
+    }
+
     def out(args: Any*): Unit = {
       val strings = sc.parts.iterator
       val expressions = args.iterator
@@ -74,14 +87,7 @@ object ScalaOut {
       output(escape(strings.next))
       while(strings.hasNext) {
         val ex = expressions.next
-        ex match {
-          case s: String =>
-            output(s)
-          case n: AST_Node =>
-            nodeToOut(n)
-          case any =>
-            output(any.toString)
-        }
+        outEx(ex)
         output(escape(strings.next))
       }
       assert(!strings.hasNext)
@@ -290,7 +296,14 @@ object ScalaOut {
         out"def ${tn.key}${tn.value}\n"
       case tn: AST_ObjectKeyVal =>
         out"${tn.key} = ${tn.value}\n"
-      case tn: AST_ObjectProperty =>
+      //case tn: AST_ObjectProperty =>
+      case tn: AST_ConciseMethod =>
+        val keyName = tn.key.name match {
+          case "constructor" => "this"
+          case x => x
+        }
+        out"def $keyName${tn.value}\n"
+
       case tn: AST_Object =>
         out("js.Dynamic.literal {\n")
         out.indent()
@@ -537,6 +550,21 @@ object ScalaOut {
       case tn: AST_Lambda => outputUnknownNode(tn)
       //case tn: AST_Toplevel => outputUnknownNode(tn)
       //case tn: AST_Scope => outputUnknownNode(tn)
+      case tn: AST_DefClass =>
+        out"class ${tn.name}"
+        if (tn.`extends`.isDefined) {
+          out" extends ${tn.`extends`}"
+        }
+        out" {\n"
+        out.indent()
+        for (p <- tn.properties) {
+          nodeToOut(p)
+        }
+        out.unindent()
+        out.eol()
+        out("}\n")
+        // classes have no body
+        //blockBracedToOut(tn.body)
       case tn: AST_Block =>
         blockBracedToOut(tn.body)
       //case tn: AST_BlockStatement =>

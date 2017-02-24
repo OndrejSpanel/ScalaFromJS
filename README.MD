@@ -11,17 +11,16 @@ Current version understands almost all common Javascript code and emits correspo
 Some Harmony (ES 2015) features are already supported:
 - `let` scoped variables
 - arrow functions
+- classes
 Unsupported constructs (like `break` and `continue`) are emitted as they are, with a comment.
-Argument types for functions are read from JSDoc `@param` comments.
+Argument types for functions are read from JSDoc `@param` comments. The tools also tries to infer types of arguments and
+ variables.
 
 TODO:
 
-- read parameter types from Scala.js facades
-- type inference for variables and parameters
-- convert prototype based classes to Scala classes (at least when Scala.js facade exists)
-- support Harmony classes
-
-If everything works well, larger goals may be added later, like automated or assisted conversion of larger JS projects.
+- improve Array and Object literal handling
+- convert prototype based classes to Scala classes
+- type inference for constructors and class members
 
 Developer notes
 ===============

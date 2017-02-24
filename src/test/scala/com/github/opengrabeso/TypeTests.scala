@@ -62,9 +62,12 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Harmony (ES 6) class with inheritance") {
-    pending
     execute check ConversionCheck(rsc("types/harmonyClass.js"))
-      .required()
+      .required(
+        "class Employe",
+        "class Janitor extends Employee",
+        "def printEmployeeDetails() ="
+    )
 
   }
 }

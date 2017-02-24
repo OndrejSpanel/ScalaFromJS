@@ -360,6 +360,17 @@ object Uglify extends js.Object {
   @js.native class AST_ObjectSetter extends AST_ObjectSetterOrGetter
   @js.native class AST_ObjectGetter extends AST_ObjectSetterOrGetter
 
+  @js.native class AST_ConciseMethod extends AST_ObjectProperty {
+    override def key: AST_Symbol = js.native
+    // [string|undefined] the original quote character, if any
+    var quote: js.UndefOr[String]= js.native
+    // [boolean] whether this method is static (classes only)
+    var `static`: Boolean = js.native
+    // [boolean] is generatorFn or not
+    var is_generator: Boolean = js.native
+  }
+
+
   @js.native sealed class AST_Symbol extends AST_Node {
     // [string] name of this symbol
     var name: String = js.native
@@ -370,6 +381,7 @@ object Uglify extends js.Object {
   }
 
   @js.native class AST_SymbolAccessor extends AST_Symbol
+  @js.native class AST_SymbolMethod extends AST_Symbol
   @js.native class AST_SymbolDeclaration extends AST_Symbol {
     // [AST_Node*/S] array of initializers for this declaration.
     var init: js.UndefOr[js.Array[AST_Node]] = js.native
@@ -422,6 +434,18 @@ object Uglify extends js.Object {
   @js.native abstract class AST_Boolean extends AST_Atom
   @js.native class AST_False extends AST_Boolean
   @js.native class AST_True extends AST_Boolean
+
+  @js.native class AST_Class extends AST_Scope {
+    // [AST_SymbolClass|AST_SymbolDefClass?] optional class name.
+    var name: js.UndefOr[AST_Symbol] = js.native
+    // [AST_Node]? optional parent class
+    var `extends`: js.UndefOr[AST_Node] = js.native
+    // "[AST_ObjectProperty*] array of properties"
+    var properties: js.Array[AST_ObjectProperty] = js.native
+  }
+
+  @js.native class AST_DefClass extends AST_Class
+
 
   @js.native
   class Compressor(options: UglifyExt.Options.Compress) extends js.Object
@@ -549,6 +573,9 @@ object UglifyExt {
     def body: js.Array[AST_Node] = block._body match {
       case ba: js.Array[AST_Node@unchecked] => ba
       case bn: AST_Node => js.Array(bn)
+      case x =>
+        println(s"Unexpected block body $x in ${nodeClassName(block)}")
+        js.Array()
     }
 
     def body_=(b: js.Array[AST_Statement]) = block._body = b
