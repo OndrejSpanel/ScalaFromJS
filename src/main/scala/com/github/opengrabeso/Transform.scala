@@ -523,6 +523,26 @@ object Transform {
 
     var classes = Map.empty[String, ClassDef]
 
+    object ClassDefine {
+      def unapply(arg: AST_Node) = arg match {
+        // function ClassName() {}
+        case AST_Defun(Defined(sym), args, body) =>
+          Some(sym, args, body)
+
+        // ClassName = function() {}
+        case AST_Assign(sym: AST_SymbolRef, "=", AST_Lambda(args, body)) =>
+          Some(sym, args, body)
+
+        // var ClassName = function() {}
+        case AST_Var(AST_VarDef(sym: AST_Symbol, Defined(AST_Lambda(args, body)))) =>
+          Some(sym, args, body)
+
+        case _ =>
+          //println(nodeClassName(arg))
+          None
+      }
+    }
+
     object ClassMemberDef {
       def unapply(arg: AST_Node) = arg match {
         case AST_SimpleStatement(AST_Assign(AST_Dot(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), funName), "=", AST_Function(args, body))) =>
@@ -553,7 +573,7 @@ object Transform {
     n.top.walk {
       case _ : AST_Toplevel =>
         false
-      case AST_Defun(Defined(sym), args, body) =>
+      case ClassDefine(sym, args, body) =>
         // check if there exists a type with this name
         if (types contains sym.name) {
           // looks like a constructor
@@ -589,7 +609,7 @@ object Transform {
           new AST_EmptyStatement()
         case ClassParentDef(name, _) if classes.get(name).isDefined =>
           new AST_EmptyStatement()
-        case defun@AST_Defun(Defined(sym), _, _) if classes contains sym.name =>
+        case defun@ClassDefine(sym, _, _) if classes contains sym.name =>
           // check if there exists a type with this name
           val clazz = classes(sym.name)
           new AST_DefClass {
