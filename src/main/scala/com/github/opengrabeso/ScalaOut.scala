@@ -578,7 +578,7 @@ object ScalaOut {
         mapConstructor(lambda => outputArgNames(lambda, true))
 
         for (base <- tn.`extends`) {
-          out" extends $base}"
+          out" extends $base"
         }
         out" {\n"
         out.indent()
