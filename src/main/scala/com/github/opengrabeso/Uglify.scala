@@ -619,8 +619,15 @@ object UglifyExt {
     object AST_Symbol {
       def unapply(arg: AST_Symbol) = Some((arg.name, arg.scope, arg.thedef))
     }
+    object AST_SymbolName {
+      def unapply(arg: AST_Symbol) = Some(arg.name)
+    }
+
     object AST_SymbolRef {
       def unapply(arg: AST_SymbolRef) = AST_Symbol.unapply(arg)
+    }
+    object AST_SymbolRefName {
+      def unapply(arg: AST_SymbolRef) = AST_SymbolName.unapply(arg)
     }
 
     object AST_SimpleStatement {

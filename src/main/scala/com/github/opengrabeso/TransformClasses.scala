@@ -71,7 +71,20 @@ object TransformClasses {
     }
   }
 
+  object ClassPrototypeDef {
+    def unapply(arg: AST_Node) = arg match {
 
+      //Object.assign( XXX.prototype, { ... })
+      case AST_SimpleStatement(AST_Call(
+      AST_Dot(AST_SymbolRefName("Object"), "assign"),
+      AST_Dot(AST_SymbolRefName(name), "prototype"), prototypeDef: AST_Object
+      )) =>
+        //println(s"Match prototype def $name")
+        Some(name,prototypeDef)
+
+      case _ => None
+    }
+  }
 
 
   private def classList(n: AST_Extended) = {
@@ -141,6 +154,32 @@ object TransformClasses {
           classes += name -> clazz.copy(base = Some(sym.name))
         }
         true
+      case ClassPrototypeDef(name, prototypeDef) =>
+        val clazz = classes.get(name)
+        if (clazz.isDefined) {
+          classes += name -> prototypeDef.properties.foldLeft(clazz.get) { (clazz, m) =>
+            //println(s"Property ${m.key}")
+            m match {
+              case kv: AST_ObjectKeyVal =>
+                val member: ClassMember = kv.value match {
+                  case AST_Function(args, body) =>
+                    //println(s"Add fun member ${kv.key}")
+                    ClassFunMember(args, body)
+                  case v =>
+                    //println(s"Add var member ${kv.key}")
+                    ClassVarMember(v)
+                }
+                //println("  " + member)
+                clazz.copy(members = clazz.members + (kv.key -> member))
+              case _ =>
+                // prototype contains something other than a key: val pair - what to do with it?
+                clazz
+            }
+
+          }
+        }
+
+        true
       case _ =>
         true
     }
@@ -166,6 +205,8 @@ object TransformClasses {
         case ClassPropertyDef(name, _, _) if classes.get(name).isDefined =>
           new AST_EmptyStatement()
         case ClassParentDef(name, _) if classes.get(name).isDefined =>
+          new AST_EmptyStatement()
+        case ClassPrototypeDef(_, _) =>
           new AST_EmptyStatement()
         case defun@ClassDefine(sym, _, _) if classes contains sym.name =>
           // check if there exists a type with this name
