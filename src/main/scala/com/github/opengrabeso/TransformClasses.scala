@@ -85,6 +85,13 @@ object TransformClasses {
         classNames += call.name
         false
 
+      // any use of XXX.prototype probably marks a class
+      case AST_Dot(AST_SymbolRef(name, _, _), "prototype") =>
+        // TODO: heuristic detection of non-classes?
+        classNames += name
+        false
+
+      /*
       // XXXX.prototype = ...;
       case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", _)) =>
         classNames += name
@@ -94,6 +101,7 @@ object TransformClasses {
       case AST_Call(AST_Dot(AST_SymbolRef("Object", _, _), "create"), AST_Dot(AST_SymbolRef(name, _, _), "prototype")) =>
         classNames += name
         false
+      */
 
       case _ =>
         false
