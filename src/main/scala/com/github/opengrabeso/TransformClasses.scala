@@ -59,9 +59,20 @@ object TransformClasses {
     def unapply(arg: AST_Node) = arg match {
       case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", AST_New(AST_SymbolRefDef(sym), _*))) =>
         Some(name, sym)
+
+      // name.prototype = Object.create( sym.prototype );
+      case AST_SimpleStatement(AST_Assign(
+      AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=",
+      AST_Call(AST_Dot(AST_SymbolRef("Object", _, _), "create"), AST_Dot(AST_SymbolRefDef(sym), "prototype"))
+      )) =>
+        Some(name, sym)
+
       case _ => None
     }
   }
+
+
+
 
   private def classList(n: AST_Extended) = {
     var classes = Map.empty[String, ClassDef]
