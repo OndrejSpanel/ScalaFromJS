@@ -69,9 +69,21 @@ object TransformClasses {
     var classNames = Set.empty[TypeDesc]
 
     n.top.walk {
+      // new XXX()
       case AST_New(AST_SymbolRefDef(call), _*) =>
         classNames += call.name
         false
+
+      // XXXX.prototype = ...;
+      case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", _)) =>
+        classNames += name
+        false
+
+      // Object.create(XXXX.prototype)
+      case AST_Call(AST_Dot(AST_SymbolRef("Object", _, _), "create"), AST_Dot(AST_SymbolRef(name, _, _), "prototype")) =>
+        classNames += name
+        false
+
       case _ =>
         false
     }
@@ -98,9 +110,11 @@ object TransformClasses {
         true
       case ClassPropertyDef(name, propName, value) =>
         //println(s"Assign $name.$funName")
-        for (clazz <- classes.get(name)) {
-          val member = ClassVarMember(value)
-          classes += name -> clazz.copy(members = clazz.members + (propName -> member))
+        if (propName != "constructor") { // constructor is most often assigned a constructor function
+          for (clazz <- classes.get(name)) {
+            val member = ClassVarMember(value)
+            classes += name -> clazz.copy(members = clazz.members + (propName -> member))
+          }
         }
         true
       case ClassParentDef(name, sym) =>
