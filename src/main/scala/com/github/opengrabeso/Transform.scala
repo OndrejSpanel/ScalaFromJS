@@ -664,8 +664,8 @@ object Transform {
 
   object ClassParentDef {
     def unapply(arg: AST_Node) = arg match {
-      case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", value: AST_Node)) =>
-        Some(name, value)
+      case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", AST_New(AST_SymbolRefDef(sym), _*))) =>
+        Some(name, sym)
       case _ => None
     }
   }
@@ -710,7 +710,7 @@ object Transform {
           classes += name -> clazz.copy(members = clazz.members + (propName -> member))
         }
         true
-      case ClassParentDef(name, AST_New(AST_SymbolRefDef(sym), _*)) =>
+      case ClassParentDef(name, sym) =>
         for (clazz <- classes.get(name)) {
           classes += name -> clazz.copy(base = Some(sym.name))
         }
