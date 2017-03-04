@@ -126,7 +126,7 @@ object Uglify extends js.Object {
     val nesting: Int = js.native
   }
 
-  @js.native class AST_Toplevel extends AST_Scope {
+  @js.native class AST_Toplevel extends AST_Scope with CloneSelf[AST_Toplevel] {
     def figure_out_scope(): Unit = js.native
 
     def transform(c: Compressor): AST_Toplevel = js.native

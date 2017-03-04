@@ -195,19 +195,31 @@ object TransformClasses {
 
     val classes = classList(n)
 
-
-    // TODO: try using transformBefore for a cleaner prototype elimination
-
-    val ret = n.top.transformAfter { (node, _) =>
+    val deleteProtos = n.top.transformAfter { (node, _) =>
       node match {
-        case ClassMemberDef(name, _, _, _) if classes.get(name).isDefined =>
-          new AST_EmptyStatement()
-        case ClassPropertyDef(name, _, _) if classes.get(name).isDefined =>
-          new AST_EmptyStatement()
-        case ClassParentDef(name, _) if classes.get(name).isDefined =>
-          new AST_EmptyStatement()
-        case ClassPrototypeDef(_, _) =>
-          new AST_EmptyStatement()
+        case t: AST_Toplevel =>
+          val newBody = t.body.filter {
+            case ClassMemberDef(name, _, _, _) if classes.get(name).isDefined =>
+              false
+            case ClassPropertyDef(name, _, _) if classes.get(name).isDefined =>
+              false
+            case ClassParentDef(name, _) if classes.get(name).isDefined =>
+              false
+            case ClassPrototypeDef(_, _) =>
+              false
+            case _  =>
+              true
+          }
+          t.body = newBody
+          t
+        case _ =>
+          node
+      }
+
+    }
+
+    val ret = deleteProtos.transformAfter { (node, _) =>
+      node match {
         case defun@ClassDefine(sym, _, _) if classes contains sym.name =>
           // check if there exists a type with this name
           val clazz = classes(sym.name)
