@@ -126,7 +126,7 @@ object Uglify extends js.Object {
     val nesting: Int = js.native
   }
 
-  @js.native class AST_Toplevel extends AST_Scope {
+  @js.native class AST_Toplevel extends AST_Scope with CloneSelf[AST_Toplevel] {
     def figure_out_scope(): Unit = js.native
 
     def transform(c: Compressor): AST_Toplevel = js.native
@@ -285,9 +285,10 @@ object Uglify extends js.Object {
 
   @js.native sealed abstract class AST_PropAccess extends AST_Node {
     // [AST_Node] the “container” expression
-    val expression: AST_Node = js.native
+    var expression: AST_Node = js.native
     // [AST_Node|string] the property to access.  For AST_Dot this is always a plain string, while for AST_Sub it's an arbitrary AST_Node
     def property: Any = js.native
+    def property_=(p: js.Any): Unit = js.native
   }
 
   @js.native class AST_Dot extends AST_PropAccess {
@@ -400,6 +401,7 @@ object Uglify extends js.Object {
   @js.native class AST_SymbolDefun extends AST_SymbolDeclaration
   @js.native class AST_SymbolLambda extends AST_SymbolDeclaration
   @js.native class AST_SymbolCatch extends AST_SymbolDeclaration
+  @js.native class AST_SymbolDefClass extends AST_SymbolDeclaration
 
   @js.native class AST_Label extends AST_Symbol {
     // [AST_LoopControl*] a list of nodes referring to this label
@@ -618,8 +620,15 @@ object UglifyExt {
     object AST_Symbol {
       def unapply(arg: AST_Symbol) = Some((arg.name, arg.scope, arg.thedef))
     }
+    object AST_SymbolName {
+      def unapply(arg: AST_Symbol) = Some(arg.name)
+    }
+
     object AST_SymbolRef {
       def unapply(arg: AST_SymbolRef) = AST_Symbol.unapply(arg)
+    }
+    object AST_SymbolRefName {
+      def unapply(arg: AST_SymbolRef) = AST_SymbolName.unapply(arg)
     }
 
     object AST_SimpleStatement {
@@ -690,6 +699,9 @@ object UglifyExt {
       }
     }
 
+    object AST_ConciseMethod {
+      def unapply(arg: AST_ConciseMethod) = Some(arg.key, arg.value)
+    }
 
   }
 
