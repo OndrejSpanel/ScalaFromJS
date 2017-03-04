@@ -448,6 +448,29 @@ object Transform {
         false
     }
 
+
+    def inferParsOrArgs(pars: js.Array[AST_SymbolFunarg], args: Seq[AST_Node]) = {
+      for {
+        (Some(par), arg) <- pars.map(_.thedef.nonNull) zip args
+      // only when the type is not provided explicitly
+      } {
+        if (n.types.get(par).isEmpty) {
+          val tp = expressionType(arg)(allTypes)
+          //println(s"Infer ${par.name} as $tp")
+          addInferredType(par, tp)
+        }
+        arg match {
+          case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
+            val tp = allTypes.get(par)
+            //println(s"Infer ${a.name} as $tp")
+            addInferredType(a, tp)
+          case _ =>
+        }
+      }
+    }
+
+
+
     n.top.walkWithDescend { (node, descend, walker) =>
       descend(node, walker)
       node match {
@@ -498,24 +521,6 @@ object Transform {
 
         case AST_Call(AST_SymbolRefDef(call), args@_*) =>
 
-          def inferParsOrArgs(pars: js.Array[AST_SymbolFunarg]) = {
-            for {
-              (Some(par), arg) <- pars.map(_.thedef.nonNull) zip args
-              // only when the type is not provided explicitly
-            } {
-              if (n.types.get(par).isEmpty) {
-                val tp = expressionType(arg)(allTypes)
-                addInferredType(par, tp)
-              }
-              arg match {
-                case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
-                  val tp = allTypes.get(par)
-                  addInferredType(a, tp)
-                case _ =>
-              }
-            }
-          }
-
           // get the AST_Defun node to get the arg symbols from it
           call.orig.headOption match {
             case Some(clazz: AST_SymbolDefClass) =>
@@ -526,7 +531,7 @@ object Transform {
                 AST_ConciseMethod(_, value: AST_Accessor) <- findConstructor(c)
               } {
                 //println(s"  Constructor args ${value.argnames}")
-                inferParsOrArgs(value.argnames)
+                inferParsOrArgs(value.argnames, args)
               }
 
             case Some(defunSym: AST_SymbolDefun) =>
@@ -535,14 +540,36 @@ object Transform {
               functions.get(defunSym) match {
                 case Some(AST_Defun(_, pars, _)) =>
                   // now match arguments to parameters
-                  inferParsOrArgs(pars)
+                  inferParsOrArgs(pars, args)
                 case _ =>
               }
 
             case _ =>
           }
-        //case AST_Call(AST_Dot(expr,call), args@_*) =>
+        case AST_Call(AST_Dot(expr,call), args@_*) =>
+
+
+          def includeParents(clazz: AST_DefClass, ret: Seq[AST_DefClass]): Seq[AST_DefClass] = {
+            clazz.`extends`.nonNull match {
+              case Some(cls: AST_SymbolRef) =>
+                val c = classes.get(cls.name)
+                c.fold(clazz +: ret)(c => includeParents(c, clazz +: ret))
+              case _ => clazz +: ret
+            }
+          }
+          //println(s"Call $call")
           // infer types for class member calls
+          for {
+            callOn <- expressionType(expr)(allTypes)
+            clazz <- classes.get(callOn) // TODO: search through bases as well
+            c <- includeParents(clazz, Seq())
+            _ = println(s"${c.name.get.name}")
+            AST_ConciseMethod(_, value: AST_Accessor) <- findMethod(c, call)
+          } {
+            //println(s"  Call args ${value.argnames.map(_.name).mkString(",")}")
+            //println(s"  Call pars ${args.map(expressionType(_)(allTypes)).mkString(",")}")
+            inferParsOrArgs(value.argnames, args)
+          }
 
         case _ =>
       }
@@ -559,6 +586,12 @@ object Transform {
 
   def findConstructor(c: AST_DefClass): Option[AST_ConciseMethod] = {
     c.properties.collect(isConstructorProperty).headOption
+  }
+
+  def findMethod(c: AST_DefClass, name: String): Option[AST_ConciseMethod] = {
+    c.properties.collect {
+      case m: AST_ConciseMethod if m.key.name == name => m
+    }.headOption
   }
 
 
