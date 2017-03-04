@@ -285,9 +285,10 @@ object Uglify extends js.Object {
 
   @js.native sealed abstract class AST_PropAccess extends AST_Node {
     // [AST_Node] the “container” expression
-    val expression: AST_Node = js.native
+    var expression: AST_Node = js.native
     // [AST_Node|string] the property to access.  For AST_Dot this is always a plain string, while for AST_Sub it's an arbitrary AST_Node
     def property: Any = js.native
+    def property_=(p: js.Any): Unit = js.native
   }
 
   @js.native class AST_Dot extends AST_PropAccess {

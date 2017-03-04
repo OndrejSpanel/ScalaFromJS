@@ -562,12 +562,59 @@ object Transform {
   }
 
 
+  def objectAssign(n: AST_Extended): AST_Extended = {
+    // transform Object.assign to individual assignments
+
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        case t: AST_Toplevel =>
+          val newBody = t.body.flatMap {
+            case s@AST_SimpleStatement(AST_Call(AST_Dot(AST_SymbolRef("Object", _, _), "assign"), ts@AST_SymbolRefDef(sym), x: AST_Object)) =>
+              //println(s"Assign to ${sym.name}")
+              // iterate through the object defintion
+              // each property replace with an individual assignment statement
+              x.properties.collect {
+                case p: AST_ObjectKeyVal =>
+                  println(s"${p.key}")
+                  new AST_SimpleStatement {
+                    fillTokens(this, p)
+                    body = new AST_Assign {
+                      fillTokens(this, p)
+                      left = new AST_Dot {
+                        expression = ts
+                        property = p.key
+                        fillTokens(this, p)
+                        new AST_SymbolRef {
+                          fillTokens(this, p)
+                          name = p.key
+                        }
+                      }
+                      operator = "="
+                      right = p.value
+                    }
+                  }
+              }
+            case s =>
+              Some(s)
+          }
+          t.body = newBody
+          t
+        case _ =>
+          node
+      }
+    }
+
+    AST_Extended(ret, n.types)
+
+  }
+
   def apply(n: AST_Toplevel): AST_Extended = {
 
     val transforms: Seq[(AST_Extended) => AST_Extended] = Seq(
       handleIncrement,
       varInitialization,
       readJSDoc,
+      //objectAssign,
       TransformClasses.apply,
       inferTypes,
       removeTrailingReturn,

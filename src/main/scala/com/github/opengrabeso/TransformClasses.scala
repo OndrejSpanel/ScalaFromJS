@@ -55,6 +55,33 @@ object TransformClasses {
     }
   }
 
+  object ClassParentAndPrototypeDef {
+    def unapply(arg: AST_Node) = arg match {
+      // name.prototype = Object.assign( Object.create( sym.prototype ), {... prototype object ... } )
+      case AST_SimpleStatement(
+      AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=",
+      AST_Call(
+      AST_Dot(AST_SymbolRefName("Object"), "assign"),
+      AST_Call(AST_Dot(AST_SymbolRef("Object", _, _), "create"), AST_Dot(AST_SymbolRefDef(sym), "prototype")), prototypeDef: AST_Object)
+      )) =>
+        //println(s"ClassParentAndPrototypeDef $name extends ${sym.name}")
+        Some(name, sym.name, prototypeDef)
+
+      // Object.assign( name.prototype, sym.prototype, {prototype object} )
+      case AST_SimpleStatement(AST_Call(
+      AST_Dot(AST_SymbolRefName("Object"), "assign"),
+      AST_Dot(AST_SymbolRefName(name), "prototype"),
+      AST_Dot(AST_SymbolRef(sym, _, _), "prototype"),
+      prototypeDef: AST_Object
+      )) =>
+        //println(s"ClassParentAndPrototypeDef2 $name extends $sym")
+        Some(name, sym, prototypeDef)
+      case _ =>
+        None
+    }
+
+  }
+
   object ClassParentDef {
     def unapply(arg: AST_Node) = arg match {
       case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", AST_New(AST_SymbolRefDef(sym), _*))) =>
@@ -120,6 +147,32 @@ object TransformClasses {
         false
     }
 
+    def processPrototype(name: String, prototypeDef: AST_Object) = {
+      for (clazz <- classes.get(name)) {
+        classes += name -> prototypeDef.properties.foldLeft(clazz) { (clazz, m) =>
+          //println(s"Property ${m.key}")
+          m match {
+            case kv: AST_ObjectKeyVal if kv.key != "constructor" =>
+
+              val member: ClassMember = kv.value match {
+                case AST_Function(args, body) =>
+                  //println(s"Add fun member ${kv.key}")
+                  ClassFunMember(args, body)
+                case v =>
+                  //println(s"Add var member ${kv.key}")
+                  ClassVarMember(v)
+              }
+              //println("  " + member)
+              clazz.copy(members = clazz.members + (kv.key -> member))
+            case _ =>
+              // prototype contains something other than a key: val pair - what to do with it?
+              clazz
+          }
+
+        }
+      }
+    }
+
     n.top.walk {
       case _: AST_Toplevel =>
         false
@@ -149,36 +202,20 @@ object TransformClasses {
           }
         }
         true
+      case ClassParentAndPrototypeDef(name, sym, prototypeDef) =>
+        for (clazz <- classes.get(name)) {
+          //println(s"base $sym")
+          classes += name -> clazz.copy(base = Some(sym))
+        }
+        processPrototype(name, prototypeDef)
+        true
       case ClassParentDef(name, sym) =>
         for (clazz <- classes.get(name)) {
           classes += name -> clazz.copy(base = Some(sym.name))
         }
         true
       case ClassPrototypeDef(name, prototypeDef) =>
-        val clazz = classes.get(name)
-        if (clazz.isDefined) {
-          classes += name -> prototypeDef.properties.foldLeft(clazz.get) { (clazz, m) =>
-            //println(s"Property ${m.key}")
-            m match {
-              case kv: AST_ObjectKeyVal =>
-                val member: ClassMember = kv.value match {
-                  case AST_Function(args, body) =>
-                    //println(s"Add fun member ${kv.key}")
-                    ClassFunMember(args, body)
-                  case v =>
-                    //println(s"Add var member ${kv.key}")
-                    ClassVarMember(v)
-                }
-                //println("  " + member)
-                clazz.copy(members = clazz.members + (kv.key -> member))
-              case _ =>
-                // prototype contains something other than a key: val pair - what to do with it?
-                clazz
-            }
-
-          }
-        }
-
+        processPrototype(name, prototypeDef)
         true
       case _ =>
         true
@@ -206,6 +243,8 @@ object TransformClasses {
             case ClassParentDef(name, _) if classes.get(name).isDefined =>
               false
             case ClassPrototypeDef(_, _) =>
+              false
+            case ClassParentAndPrototypeDef(_, _, _) =>
               false
             case _  =>
               true
@@ -235,6 +274,7 @@ object TransformClasses {
               //init = this
             }
             // TODO: resolve a symbol
+            //println(s"${sym.name} extends ${clazz.base}")
             `extends` = clazz.base.fold(js.undefined: js.UndefOr[AST_Node]) { b =>
               new AST_SymbolRef {
                 /*_*/
