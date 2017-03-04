@@ -563,7 +563,7 @@ object Transform {
             callOn <- expressionType(expr)(allTypes)
             clazz <- classes.get(callOn) // TODO: search through bases as well
             c <- includeParents(clazz, Seq())
-            _ = println(s"${c.name.get.name}")
+            //_ = println(s"${c.name.get.name}")
             AST_ConciseMethod(_, value: AST_Accessor) <- findMethod(c, call)
           } {
             //println(s"  Call args ${value.argnames.map(_.name).mkString(",")}")
