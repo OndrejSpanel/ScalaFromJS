@@ -553,8 +553,8 @@ object Transform {
             clazz.`extends`.nonNull match {
               case Some(cls: AST_SymbolRef) =>
                 val c = classes.get(cls.name)
-                c.fold(clazz +: ret)(c => includeParents(c, clazz +: ret))
-              case _ => clazz +: ret
+                c.fold(ret)(parent => includeParents(parent, parent +: ret))
+              case _ => ret
             }
           }
           //println(s"Call $call")
@@ -562,7 +562,7 @@ object Transform {
           for {
             callOn <- expressionType(expr)(allTypes)
             clazz <- classes.get(callOn) // TODO: search through bases as well
-            c <- includeParents(clazz, Seq())
+            c <- (clazz, Seq(clazz))
             //_ = println(s"${c.name.get.name}")
             AST_ConciseMethod(_, value: AST_Accessor) <- findMethod(c, call)
           } {
