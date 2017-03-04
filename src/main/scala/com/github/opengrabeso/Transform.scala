@@ -594,6 +594,22 @@ object Transform {
     }.headOption
   }
 
+  def funcScope(n: AST_Extended): AST_Extended = {
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        // "Immediately-invoked function expression"
+        case AST_Call(AST_Lambda(args1, funcBody), args2@_*) if args1.isEmpty && args2.isEmpty =>
+          //println("Scope call block detected")
+          new AST_BlockStatement {
+            fillTokens(this, node)
+            this.body = funcBody
+          }
+        case _ =>
+          node
+      }
+    }
+    AST_Extended(ret, n.types)
+  }
 
   def objectAssign(n: AST_Extended): AST_Extended = {
     // transform Object.assign to individual assignments
@@ -648,6 +664,7 @@ object Transform {
       varInitialization,
       readJSDoc,
       //objectAssign,
+      funcScope,
       TransformClasses.apply,
       inferTypes,
       removeTrailingReturn,
