@@ -33,7 +33,7 @@ object TransformClasses {
 
   sealed trait ClassMember
 
-  case class ClassFunMember(args: js.Array[AST_SymbolFunarg], body: js.Array[AST_Statement]) extends ClassMember
+  case class ClassFunMember(args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement]) extends ClassMember
 
   case class ClassVarMember(value: AST_Node) extends ClassMember
 
@@ -299,7 +299,7 @@ object TransformClasses {
                     value = new AST_Accessor {
                       fillTokens(this, defun) // TODO: tokens from a property instead
                       argnames = m.args
-                      this.body = m.body
+                      this.body = m.body.toJSArray
 
                     }
                   }: AST_ObjectProperty

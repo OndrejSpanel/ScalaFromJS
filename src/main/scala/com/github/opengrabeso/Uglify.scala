@@ -660,11 +660,11 @@ object UglifyExt {
     }
 
     object AST_Defun {
-      def unapply(arg: AST_Defun) = Some(arg.name, arg.argnames, arg.body)
+      def unapply(arg: AST_Defun) = Some(arg.name, arg.argnames, arg.body.toSeq)
     }
 
     object AST_Lambda {
-      def unapply(arg: AST_Lambda) = Some(arg.argnames, arg.body)
+      def unapply(arg: AST_Lambda) = Some(arg.argnames, arg.body.toSeq)
     }
 
     object AST_Function {
@@ -694,6 +694,13 @@ object UglifyExt {
     }
     object Defined {
       def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
+    }
+
+    object AST_SymbolDef {
+      def unapply(arg: AST_Node): Option[SymbolDef] = arg match {
+        case AST_Symbol(_, _, Defined(sym)) => Some(sym)
+        case _ => None
+      }
     }
 
     object AST_SymbolRefDef {
@@ -726,11 +733,11 @@ object UglifyExt {
   def nodeTreeToString(t: AST_Node): String = {
     val sb = new StringBuilder
     new AST_NodeOps(t).walkWithDescend { (n, descend, walker) =>
-      sb.append("{")
+      sb.append("{\n")
       sb.append(nodeClassName(n))
-      sb.append(" ")
+      sb.append(":")
       descend(n, walker)
-      sb.append("}")
+      sb.append("}\n")
       true
     }
     sb.result()

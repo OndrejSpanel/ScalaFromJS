@@ -8,7 +8,6 @@ import com.github.opengrabeso.UglifyExt.Import._
 import scala.collection.mutable
 import scala.scalajs.js
 import js.JSConverters._
-import scala.scalajs.js.UndefOr
 
 /**
   * Transform AST to perform optimizations or adjustments
@@ -595,26 +594,45 @@ object Transform {
   }
 
   def funcScope(n: AST_Extended): AST_Extended = {
-    val ret = n.top.transformAfter { (node, walker) =>
-      node match {
-        // "Immediately-invoked function expression"
+    //println(nodeTreeToString(n.top))
+
+    object DefineAndReturnClass {
+      def unapply(arg: Seq[AST_Statement]) = arg match {
+        case Seq(defClass@AST_DefClass(Defined(c), _, _), AST_Return(Defined(r : AST_SymbolRef))) if c.thedef == r.thedef =>
+          Some(defClass, c)
+        case _ => None
+      }
+    }
+
+    // "Immediately-invoked function expression"
+    object IIFE {
+      def unapply(arg: AST_Node) = arg match {
         case AST_Call(l@AST_Lambda(args1, funcBody), args2@_*) if args1.isEmpty && args2.isEmpty =>
-          //println("Scope call block detected")
-          // handle a special case: the last statement is returning a class name
+          Some(funcBody)
+        case _ => None
 
-          //println(s"IIFE + ${funcBody.map(nodeClassName).mkString(",")}")
-          //println(s"  ${walker.stack.map(nodeClassName).mkString("|")}")
+      }
+    }
 
+    // first try to match a special var form, as transformAfter is depth first
+    val classToVar = n.top.transformAfter { (node, _) =>
+      node match {
+        // var Name = (function () { class Name() { } return Name; } ) ();
+        case AST_Var(AST_VarDef(AST_SymbolDef(sym), Defined(IIFE(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
+          defClass
+        case _ =>
+          node
+      }
+    }
 
-          funcBody.toSeq match {
-            case Seq(defClass@AST_DefClass(Defined(c), _, _), AST_Return(Defined(r : AST_SymbolRef))) if c.thedef == r.thedef =>
-              //println("Detected class + return")
-              defClass
-            case _ =>
-              new AST_BlockStatement {
-                fillTokens(this, node)
-                this.body = funcBody
-              }
+    val ret = classToVar.transformAfter { (node, _) =>
+      node match {
+        case IIFE(DefineAndReturnClass(defClass, _)) =>
+          defClass
+        case IIFE(funcBody) =>
+          new AST_BlockStatement {
+            fillTokens(this, node)
+            this.body = funcBody.toJSArray
           }
         case _ =>
           node
