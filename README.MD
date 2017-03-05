@@ -42,6 +42,7 @@ Currently number, string and boolean types are detected and class types as well.
 
 TODO:
 
+- improve class constructor processing (define members from `this.member = xxx` statements)
 - improve `Array` and `Object` literal handling
 
 Developer notes
