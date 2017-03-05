@@ -18,8 +18,27 @@ Unsupported constructs (like `break` and `continue`) are emitted as they are, wi
 Argument types for functions are read from JSDoc `@param` comments. The tools also tries to infer types of arguments and
  variables.
 
+Besides of converting JS syntax to Scala the tools performs severals transformations on the AST:
+
+- increment / decrement unary operator handling
+- join variable initialization with declaration
+- remove [Immediately-invoked function expression][4]
+- class detection
+- infer types for many symbols (variables, functions and arguments)
+- remove trailing `return` statements
+- detect `val` variables
+
+The most complicated parts are probably class detection and type inference.
+
+Class detection
+---------------
 The converter detects some common ways how JS objects are written using prototypes and converts them to
 Scala classes.
+
+Type inference
+--------------
+
+Currently number, string and boolean types are detected and class types as well. 
 
 TODO:
 
@@ -42,3 +61,4 @@ the .js file from git version, it might be also possible to use `npm install ugl
  [1]: https://github.com/scalacenter/scalajs-bundler
  [2]: http://stackoverflow.com/questions/20027492/uglifyjs-2-browser-build-download
  [3]: https://ondrejspanel.github.io/ScalaFromJS/live/
+ [4]: https://en.wikipedia.org/wiki/Immediately-invoked_function_expression
