@@ -717,8 +717,8 @@ object Transform {
       TransformClasses.apply,
       objectAssign,
       funcScope,
-      removeTrailingReturn,
       inferTypes,
+      removeTrailingReturn,
       detectVals,
       relations
     )
