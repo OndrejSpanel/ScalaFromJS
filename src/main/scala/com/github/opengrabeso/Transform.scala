@@ -664,10 +664,10 @@ object Transform {
       varInitialization,
       readJSDoc,
       //objectAssign,
+      removeTrailingReturn,
       funcScope,
       TransformClasses.apply,
       inferTypes,
-      removeTrailingReturn,
       detectVals
     )
 
