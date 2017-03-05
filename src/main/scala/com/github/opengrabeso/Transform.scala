@@ -595,14 +595,26 @@ object Transform {
   }
 
   def funcScope(n: AST_Extended): AST_Extended = {
-    val ret = n.top.transformAfter { (node, _) =>
+    val ret = n.top.transformAfter { (node, walker) =>
       node match {
         // "Immediately-invoked function expression"
-        case AST_Call(AST_Lambda(args1, funcBody), args2@_*) if args1.isEmpty && args2.isEmpty =>
+        case AST_Call(l@AST_Lambda(args1, funcBody), args2@_*) if args1.isEmpty && args2.isEmpty =>
           //println("Scope call block detected")
-          new AST_BlockStatement {
-            fillTokens(this, node)
-            this.body = funcBody
+          // handle a special case: the last statement is returning a class name
+
+          //println(s"IIFE + ${funcBody.map(nodeClassName).mkString(",")}")
+          //println(s"  ${walker.stack.map(nodeClassName).mkString("|")}")
+
+
+          funcBody.toSeq match {
+            case Seq(defClass@AST_DefClass(Defined(c), _, _), AST_Return(Defined(r : AST_SymbolRef))) if c.thedef == r.thedef =>
+              //println("Detected class + return")
+              defClass
+            case _ =>
+              new AST_BlockStatement {
+                fillTokens(this, node)
+                this.body = funcBody
+              }
           }
         case _ =>
           node
@@ -664,9 +676,9 @@ object Transform {
       varInitialization,
       readJSDoc,
       //objectAssign,
-      removeTrailingReturn,
-      funcScope,
       TransformClasses.apply,
+      funcScope,
+      removeTrailingReturn,
       inferTypes,
       detectVals
     )

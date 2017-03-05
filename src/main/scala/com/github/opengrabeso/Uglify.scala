@@ -688,6 +688,10 @@ object UglifyExt {
       def unapplySeq(arg: AST_New) = AST_Call.unapplySeq(arg)
     }
 
+
+    object AST_DefClass {
+      def unapply(arg: AST_DefClass) = Some(arg.name, arg.`extends`, arg.properties)
+    }
     object Defined {
       def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
     }
@@ -717,6 +721,19 @@ object UglifyExt {
         nd.CTOR.name.asInstanceOf[String]
       } else s
     }
+  }
+
+  def nodeTreeToString(t: AST_Node): String = {
+    val sb = new StringBuilder
+    new AST_NodeOps(t).walkWithDescend { (n, descend, walker) =>
+      sb.append("{")
+      sb.append(nodeClassName(n))
+      sb.append(" ")
+      descend(n, walker)
+      sb.append("}")
+      true
+    }
+    sb.result()
   }
 
   def fillTokens(to: AST_Node, from: AST_Node): Unit = {
