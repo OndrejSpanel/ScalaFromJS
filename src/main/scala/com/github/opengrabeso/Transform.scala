@@ -82,6 +82,23 @@ object Transform {
     AST_Extended(ret, n.types)
   }
 
+  // convert === to ==
+  def relations(n: AST_Extended): AST_Extended = {
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        case bin@AST_Binary(left, "===", right) =>
+          bin.operator = "=="
+          node
+        case bin@AST_Binary(left, "!==", right) =>
+          bin.operator = "!="
+          node
+        case _ =>
+          node
+      }
+    }
+    AST_Extended(ret, n.types)
+  }
+
   // merge variable declaration and first assignment if possible
   def varInitialization(n: AST_Extended): AST_Extended = {
 
@@ -702,7 +719,8 @@ object Transform {
       funcScope,
       removeTrailingReturn,
       inferTypes,
-      detectVals
+      detectVals,
+      relations
     )
 
     transforms.foldLeft(AST_Extended(n, SymbolTypes())) { (t,op) =>
