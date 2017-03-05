@@ -352,6 +352,10 @@ object Transform {
         Some(SymbolTypes.string)
       case _: AST_Boolean =>
         Some(SymbolTypes.boolean)
+      case tern: AST_Conditional =>
+        val t1 = expressionType(tern.consequent)(types)
+        val t2 = expressionType(tern.consequent)(types)
+        SymbolTypes.typeUnionOption(t1, t2)
       case AST_Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
         // result of any arithmetic op is a number
