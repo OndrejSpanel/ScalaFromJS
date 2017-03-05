@@ -143,7 +143,8 @@ object TransformClasses {
         false
       */
 
-      case _ =>
+      case x =>
+        println(nodeClassName(x))
         false
     }
 
@@ -180,14 +181,14 @@ object TransformClasses {
         // check if there exists a type with this name
         if (classNames contains sym.name) {
           // looks like a constructor
-          //println("Constructor " + sym.name)
+          println("Constructor " + sym.name)
           val constructor = ClassFunMember(args, body)
           classes += sym.name -> ClassDef(members = Map("constructor" -> constructor))
         }
         true
       // TODO: detect Object.assign call as well
       case ClassMemberDef(name, funName, args, body) =>
-        //println(s"Assign $name.$funName")
+        println(s"Assign $name.$funName")
         for (clazz <- classes.get(name)) {
           val member = ClassFunMember(args, body)
           classes += name -> clazz.copy(members = clazz.members + (funName -> member))
@@ -218,7 +219,7 @@ object TransformClasses {
         processPrototype(name, prototypeDef)
         true
       case _ =>
-        true
+        false
     }
     //println(classNames)
     //println(classes)
@@ -232,9 +233,11 @@ object TransformClasses {
 
     val classes = classList(n)
 
+    println(classes)
+
     val deleteProtos = n.top.transformAfter { (node, _) =>
       node match {
-        case t: AST_Toplevel =>
+        case t: AST_Block =>
           val newBody = t.body.filter {
             case ClassMemberDef(name, _, _, _) if classes.get(name).isDefined =>
               false
