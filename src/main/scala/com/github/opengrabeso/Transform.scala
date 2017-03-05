@@ -716,9 +716,9 @@ object Transform {
       readJSDoc,
       TransformClasses.apply,
       objectAssign,
-      funcScope,
+      funcScope, // before removeTrailingReturn
       inferTypes,
-      removeTrailingReturn,
+      removeTrailingReturn, // after inferTypes
       detectVals,
       relations
     )
