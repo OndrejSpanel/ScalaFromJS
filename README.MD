@@ -1,9 +1,10 @@
 Scala from JavaScript
 =====================
 
-Experimental project to see if automated or assisted conversion from JS to Scala.js is possible.
+Javascript to Scala.js converter.
 
-Minimal functionality is to make using JS examples from Web in Scala easier.
+This tools makes using JS examples from Web in Scala.js easier, but perhaps it might eventually be able to convert
+even larger JS files.
 
 [Live version][3] - currently in alpha, use at your own risk.
 
@@ -12,15 +13,17 @@ Some Harmony (ES 2015) features are already supported:
 - `let` scoped variables
 - arrow functions
 - classes
+
 Unsupported constructs (like `break` and `continue`) are emitted as they are, with a comment.
 Argument types for functions are read from JSDoc `@param` comments. The tools also tries to infer types of arguments and
  variables.
 
+The converter detects some common ways how JS objects are written using prototypes and converts them to
+Scala classes.
+
 TODO:
 
-- improve Array and Object literal handling
-- convert prototype based classes to Scala classes
-- type inference for constructors and class members
+- improve `Array` and `Object` literal handling
 
 Developer notes
 ===============
@@ -32,8 +35,8 @@ work this way in the browser. I gave up eventually and included the Uglify scrip
 
 `uglifyjs --self -o ./tmp/uglifyjs.js`, see [UglifyJS 2 browser build download Stack Overflow question][2]
  
- Note: use Harmony branch of uglifyjs.js, otherwise variable initialization detection is unreliable. I have produced
-  the .js file from git, it might be also possible to use `npm install uglify-js-harmony`. 
+Note: you need to use Harmony branch of uglifyjs.js, I have produced
+the .js file from git version, it might be also possible to use `npm install uglify-js-harmony`. 
 
 
  [1]: https://github.com/scalacenter/scalajs-bundler
