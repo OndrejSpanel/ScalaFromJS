@@ -561,16 +561,9 @@ object ScalaOut {
           }
         }
 
-        val constructor = Transform.findConstructor(tn)
+        val constructor = Transform.findConstructor(tn).flatMap(c => NodeIsLambda.unapply(c))
 
-        def mapConstructor[T](f: (AST_Lambda) => T): Option[T] = {
-          for {
-            c <- constructor
-            lambda <- NodeIsLambda.unapply(c.value)
-          } yield f(lambda)
-        }
-
-        mapConstructor(lambda => outputArgNames(lambda, true))
+        constructor.foreach(lambda => outputArgNames(lambda, true))
 
         for (base <- tn.`extends`) {
           out" extends $base"
@@ -578,12 +571,24 @@ object ScalaOut {
         out" {\n"
         out.indent()
 
+        val allButConstructor = tn.properties.filter(p => Transform.isConstructorProperty.lift(p).isEmpty)
 
-        for (p <- tn.properties if Transform.isConstructorProperty.lift(p).isEmpty) {
+        val (functionMembers, varMembers) = allButConstructor.partition {
+          case _: AST_ConciseMethod => true
+          case _ => false
+        }
+
+        for (p <- varMembers) {
           nodeToOut(p)
         }
+        if (varMembers.nonEmpty && constructor.nonEmpty) out.eol(2)
         // constructor goes after all variable declarations
-        mapConstructor(lambda => blockToOut(lambda.body))
+        constructor.foreach(lambda => blockToOut(lambda.body))
+        if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
+
+        for (p <- functionMembers) {
+          nodeToOut(p)
+        }
         out.unindent()
         out.eol()
         out("}\n")
