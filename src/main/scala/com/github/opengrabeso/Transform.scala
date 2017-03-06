@@ -364,6 +364,10 @@ object Transform {
     n match {
       case AST_SymbolRefDef(symDef) =>
         types.get(symDef)
+      case AST_Dot(cls, name) =>
+        val clsType = expressionType(cls)(types)
+        println(s"Infer type of member $clsType.$name")
+        types.getMember(SymbolTypes.memberId(clsType, name))
       case _: AST_Number =>
         Some(SymbolTypes.number)
       case _: AST_String =>
