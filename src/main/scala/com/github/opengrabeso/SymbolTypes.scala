@@ -3,6 +3,8 @@ package com.github.opengrabeso
 import Uglify.SymbolDef
 import JsUtils._
 
+import scala.language.implicitConversions
+
 object SymbolTypes {
   type TypeDesc = String
 
@@ -14,6 +16,8 @@ object SymbolTypes {
   // SymbolDef instances (including ids) are recreated on each figure_out_scope
   // we need a stable id. Original source location + name should be unique and stable
   case class SymbolMapId(name: String, sourcePos: Int)
+
+  implicit def symbolDefToId(sym: SymbolDef): Option[SymbolMapId] = id(sym)
 
   def id(sym: SymbolDef): Option[SymbolMapId] = {
     val token = sym.orig.headOption.flatMap { _.start.nonNull }
@@ -55,12 +59,12 @@ import SymbolTypes._
 case class SymbolTypes(types: Map[SymbolMapId, TypeDesc]) {
   def setOfTypes: Set[TypeDesc] = types.values.toSet
 
-  def apply(sym: SymbolDef): TypeDesc = types(id(sym).get)
+  def apply(id: Option[SymbolMapId]): TypeDesc = types(id.get)
 
-  def get(sym: SymbolDef): Option[TypeDesc] = id(sym).flatMap(types.get)
+  def get(id: Option[SymbolMapId]): Option[TypeDesc] = id.flatMap(types.get)
 
-  def getAsScala(sym: SymbolDef): String = {
-    get(sym).fold (any) (mapSimpleTypeToScala)
+  def getAsScala(id: Option[SymbolMapId]): String = {
+    get(id).fold (any) (mapSimpleTypeToScala)
   }
 
   def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(types ++ that.types)

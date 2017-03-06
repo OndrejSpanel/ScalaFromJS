@@ -379,7 +379,7 @@ object ScalaOut {
       case tn: AST_VarDef =>
         nodeToOut(tn.name)
         tn.value.nonNull.fold {
-          val tpe = tn.name.thedef.nonNull.map(input.types.getAsScala)
+          val tpe = tn.name.thedef.nonNull.map(s => input.types.getAsScala(s))
           val typeName = tpe.getOrElse(SymbolTypes.any)
           out": $typeName"
         } { v =>
