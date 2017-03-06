@@ -70,4 +70,35 @@ class TypeTests extends FunSuite with TestUtils {
     )
 
   }
+
+  test("Prototype class in IIFE") {
+    execute check ConversionCheck(rsc("types/classVariants.js"))
+      .required(
+        "class Background",
+        "def init() ="
+      )
+      .forbidden(
+        ".prototype",
+        "Background =", // assignment of the IIFE result should be removed
+        "}()" // IIFE should be removed
+      )
+
+  }
+
+  test("Prototype class calling super") {
+    pendingUntilFixed {
+      execute check ConversionCheck(rsc("types/classSuper.js"))
+        .required(
+          "class Animal",
+          "class Snake",
+          "extends Animal",
+          "def move(distance: Double) ="
+        )
+        .forbidden(
+          ".prototype",
+          ".call"
+        )
+    }
+
+  }
 }
