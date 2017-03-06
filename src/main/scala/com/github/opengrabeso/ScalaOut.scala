@@ -201,10 +201,10 @@ object ScalaOut {
         if (delim) out(delimiter)
       }
     }
-    def outputArgNames(tn: AST_Lambda, types: Boolean = false) = {
+    def outputArgNames(tn: AST_Lambda, types: Boolean = false, postfix: String ="") = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        nodeToOut(n)
+        out(n.name + postfix)
         if (types) {
           val typeString = n.thedef.nonNull match {
             case Some(td) =>
@@ -561,8 +561,9 @@ object ScalaOut {
         }
 
         val constructor = Transform.findConstructor(tn).flatMap{c => NodeIsLambda.unapply(c.value)}
+        val parPostfix = "_par"
 
-        constructor.foreach(lambda => outputArgNames(lambda, true))
+        constructor.foreach(lambda => outputArgNames(lambda, true, parPostfix))
 
         for (base <- tn.`extends`) {
           out" extends $base"
@@ -577,6 +578,7 @@ object ScalaOut {
           case _ => false
         }
 
+        //out(s"${functionMembers.length} ${varMembers.length}")
         for (p <- varMembers) {
           nodeToOut(p)
         }
@@ -584,7 +586,7 @@ object ScalaOut {
 
         // call the constructor after all variable declarations
         out("constructor")
-        constructor.foreach(lambda => outputArgNames(lambda))
+        constructor.foreach(lambda => outputArgNames(lambda, postfix = parPostfix))
         out.eol()
 
         if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)

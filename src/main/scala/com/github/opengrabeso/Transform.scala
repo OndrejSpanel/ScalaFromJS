@@ -375,7 +375,7 @@ object Transform {
     n match {
       case t: AST_This =>
         val thisScope = findThisScope(t.scope.nonNull)
-        println(s"this scope ${t.scope.map(_.nesting)}")
+        //println(s"this scope ${t.scope.map(_.nesting)}")
         val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
         println(s"this def scope $cls")
         cls
@@ -438,9 +438,8 @@ object Transform {
           classes += name.name -> d
         }
         true
-      // classes expected to be top-level
       case _ : AST_Toplevel =>
-        false
+        true
       case _ =>
         true
     }
@@ -756,6 +755,7 @@ object Transform {
       varInitialization,
       readJSDoc,
       TransformClasses.apply,
+      TransformClasses.fillVarMembers,
       varInitialization, // already done, but another pass is needed after TransformClasses
       objectAssign,
       funcScope, // before removeTrailingReturn

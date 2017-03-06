@@ -1,12 +1,13 @@
 package com.github.opengrabeso
 import Transform._
-
 import com.github.opengrabeso.Uglify._
 import com.github.opengrabeso.UglifyExt._
 import com.github.opengrabeso.UglifyExt.Import._
 
 import scala.scalajs.js
 import js.JSConverters._
+import scala.collection.immutable.ListSet
+import scala.collection.mutable
 
 object TransformClasses {
   import Transform.TypeDesc
@@ -229,40 +230,11 @@ object TransformClasses {
     classes
   }
 
-  def fillVarMembers(classes: Map[String, ClassDef]) = {
-    object IsThis {
-      def unapply(arg: AST_Node) = arg match {
-        case _: AST_This => true
-        case AST_SymbolRef("this", _, _) => true // not used in practice, AST_This seems to catch all
-        case _ => false
-      }
-    }
-    classes.transform { (name, cls) =>
-      var newMembers = Map.empty[String, ClassMember]
-      cls.members.values.foreach {
-        case ClassFunMember(_, body) =>
-          //println(s"Walk class member")
-          body.foreach(s => s.walk {
-            case AST_Dot(IsThis(), mem) if !cls.members.contains(mem) =>
-              //println(s"Detect this.$mem")
-              newMembers += mem -> ClassVarDeclMember // no initialization
-              false
-            case _ =>
-              false
-          })
-        case _ =>
-      }
-      cls.copy(members = newMembers ++ cls.members)
-    }
-  }
-
   def apply(n: AST_Extended): AST_Extended = {
     // for any class types try to find constructors and prototypes and try to transform them
     // start with global classes (are local classes even used in JS?)
 
-    val classes0 = classList(n)
-
-    val classes = fillVarMembers(classes0)
+    val classes = classList(n)
 
     //println(classes)
 
@@ -351,21 +323,6 @@ object TransformClasses {
               }: AST_ObjectProperty
             }
 
-            val varDeclMembers = clazz.members.collect { case (k, v) if v == ClassVarDeclMember =>
-              new AST_Var {
-                fillTokens(this, defun) // TODO: tokens from a property instead
-                definitions = js.Array(new AST_VarDef {
-                  name = new AST_SymbolVar {
-                    fillTokens(this, defun) // TODO: tokens from a property instead
-                    name = k
-                  }
-                  // TODO: fill value?
-                })
-              }: AST_Statement
-            }
-
-            this.body = varDeclMembers.toJSArray
-
             properties = (varMembers.toSeq ++ funMembers.toSeq).toJSArray
           }
         case _ =>
@@ -376,5 +333,45 @@ object TransformClasses {
     AST_Extended(ret, n.types)
   }
 
+  def fillVarMembers(n: AST_Extended): AST_Extended = {
+    object IsThis {
+      def unapply(arg: AST_Node) = arg match {
+        case _: AST_This => true
+        case AST_SymbolRef("this", _, _) => true // not used in practice, AST_This seems to catch all
+        case _ => false
+      }
+    }
+
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        case cls: AST_DefClass =>
+          var newMembers = ListSet.empty[String]
+          cls.walk {
+            case AST_Dot(IsThis(), mem) =>
+              println(s"Detect this.$mem")
+              if (!newMembers.contains(mem)) newMembers += mem
+              false
+            case _ =>
+              false
+          }
+          cls.body = newMembers.map { m =>
+            new AST_Var {
+              fillTokens(this, node)
+              definitions = js.Array(new AST_VarDef {
+                name = new AST_SymbolVar {
+                  fillTokens(this, node)
+                  name = m
+                }
+              })
+            }: AST_Statement
+          }.toJSArray
+          node
+        case _ =>
+          node
+      }
+    }
+
+    AST_Extended(ret, n.types)
+  }
 
 }
