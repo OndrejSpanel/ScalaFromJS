@@ -240,19 +240,43 @@ object Transform {
             new AST_BlockStatement {
               fillTokens(this, node)
 
-              val operation = new AST_SimpleStatement {
+              def operation = new AST_SimpleStatement {
                 fillTokens(this, node)
                 body = substitute(node, expr, op)
               }
-              val value = new AST_SimpleStatement {
+              def value = new AST_SimpleStatement {
                 fillTokens(this, node)
                 body = expr.clone()
               }
+              val tempName = "temp"
+              def storeValue = new AST_SimpleStatement {
+                fillTokens(this, node)
+                body = new AST_Let {
+                  fillTokens(this, node)
+                  definitions = js.Array(new AST_VarDef {
+                    fillTokens(this, node)
+                    name = new AST_SymbolVar {
+                      fillTokens(this, node)
+                      name = tempName
+                    }
+                    value = expr.clone()
+                  })
+                }
+              }
+
+              def loadValue = new AST_SimpleStatement {
+                fillTokens(this, node)
+                body = new AST_SymbolRef {
+                  fillTokens(this, node)
+                  name = tempName
+                }
+              }
+
               node match {
                 case _: AST_UnaryPrefix =>
                   this.body = js.Array(operation, value)
                 case _ /*: AST_UnaryPostfix*/ =>
-                  this.body = js.Array(value, operation)
+                  this.body = js.Array(storeValue, operation, loadValue)
               }
             }
           }
@@ -384,7 +408,7 @@ object Transform {
       case AST_Dot(cls, name) =>
         val clsType = expressionType(cls)(types)
         val r = types.getMember(clsType, name)
-        println(s"Infer type of member $clsType.$name as $r")
+        //println(s"Infer type of member $clsType.$name as $r")
         r
       case _: AST_Number =>
         Some(SymbolTypes.number)
