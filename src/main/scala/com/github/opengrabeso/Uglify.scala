@@ -580,6 +580,7 @@ object UglifyExt {
     def body: js.Array[AST_Statement] = block._body match {
       case ba: js.Array[AST_Statement@unchecked] => ba
       case bn: AST_Statement => js.Array(bn)
+      case x if js.isUndefined(x) => js.Array()
       case x =>
         println(s"Unexpected block body $x in ${nodeClassName(block)}")
         js.Array()
