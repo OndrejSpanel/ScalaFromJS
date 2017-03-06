@@ -206,7 +206,6 @@ object ScalaOut {
       outputNodes(tn.argnames) { n =>
         nodeToOut(n)
         if (types) {
-          val defType = "Any"
           val typeString = n.thedef.nonNull match {
             case Some(td) =>
               input.types.getAsScala(td)
