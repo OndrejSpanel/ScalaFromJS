@@ -107,6 +107,7 @@ object Transform {
     n.top.walk { node =>
       node match {
         case AST_VarDef(name, value) if value.nonNull.isEmpty =>
+          //println(s"AST_VarDef ${name.name}")
           for (df <- name.thedef) {
             assert(df.name == name.name)
             if (df.references.nonEmpty) {
@@ -715,6 +716,7 @@ object Transform {
       varInitialization,
       readJSDoc,
       TransformClasses.apply,
+      varInitialization, // already done, but another pass is needed after TransformClasses
       objectAssign,
       funcScope, // before removeTrailingReturn
       inferTypes,
