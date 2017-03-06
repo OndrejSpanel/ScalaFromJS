@@ -297,10 +297,10 @@ object ScalaOut {
         out"var ${tn.key} = ${tn.value}\n"
       //case tn: AST_ObjectProperty =>
       case tn: AST_ConciseMethod =>
-        val keyName = tn.key.name match {
+        val keyName = tn.key.name /*match {
           case "constructor" => "this"
           case x => x
-        }
+        }*/
         out"def $keyName${tn.value}\n"
 
       case tn: AST_Object =>
@@ -572,9 +572,7 @@ object ScalaOut {
 
         blockToOut(tn.body)
 
-        val allButConstructor = tn.properties.filter(p => Transform.isConstructorProperty.lift(p).isEmpty)
-
-        val (functionMembers, varMembers) = allButConstructor.partition {
+        val (functionMembers, varMembers) = tn.properties.partition {
           case _: AST_ConciseMethod => true
           case _ => false
         }
@@ -583,8 +581,12 @@ object ScalaOut {
           nodeToOut(p)
         }
         if ((varMembers.nonEmpty || tn.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
-        // constructor goes after all variable declarations
-        constructor.foreach(lambda => blockToOut(lambda.body))
+
+        // call the constructor after all variable declarations
+        out("constructor")
+        constructor.foreach(lambda => outputArgNames(lambda))
+        out.eol()
+
         if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
         for (p <- functionMembers) {
