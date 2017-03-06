@@ -446,6 +446,38 @@ object Transform {
     classes
   }
 
+  case class ClassInfo(members: Set[SymbolTypes.MemberId] = Set.empty, parents: Map[TypeDesc, TypeDesc] = Map.empty) {
+    def classContains(cls: String, member: String): Option[String] = {
+      val r = if (members contains SymbolTypes.MemberId(cls, member)) Some(cls)
+      else parents.get(cls).flatMap{c =>
+        //println(s"  parent $c")
+        classContains(c, member)
+      }
+      //println(s"Check $cls contains $member: $r")
+      r
+    }
+
+
+  }
+
+  def listClassMembers(node: AST_Node) = {
+    var listMembers = ClassInfo()
+
+    node.walk {
+      case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), base, _) =>
+        for (AST_SymbolName(parent) <- base) {
+          //println(s"Add parent $parent for $clsName")
+          listMembers = listMembers.copy(parents = listMembers.parents + (clsName -> parent))
+        }
+        for (VarName(member) <- cls.body) {
+          listMembers = listMembers.copy(members = listMembers.members + SymbolTypes.MemberId(clsName, member))
+        }
+        false
+      case _ =>
+        false
+    }
+    listMembers
+  }
 
   def inferTypes(n: AST_Extended): AST_Extended = {
     var inferred = SymbolTypes()
@@ -454,7 +486,7 @@ object Transform {
 
     val classes = classListHarmony(n)
     //println(classes)
-
+    val classInfo = listClassMembers(n.top)
 
     def typeFromOperation(op: String, n: AST_Node) = {
       op match {
@@ -468,7 +500,6 @@ object Transform {
         case _ =>
           None
       }
-
     }
 
     def addInferredType(symDef: SymbolDef, tpe: Option[TypeDesc]) = {
@@ -481,10 +512,17 @@ object Transform {
       }
     }
 
-    def addInferredMemberType(id: Option[SymbolTypes.MemberId], tpe: Option[TypeDesc]) = {
+    def addInferredMemberType(idAccess: Option[SymbolTypes.MemberId], tpe: Option[TypeDesc]) = {
+
+      val id = idAccess.flatMap { i =>
+        classInfo.classContains(i.cls, i.name).map { containedIn =>
+          i.copy(cls = containedIn)
+        }
+      }
+
       val symType = SymbolTypes.typeUnionOption(tpe, inferred.getMember(id))
       for (tp <- symType) {
-        println(s"Add member type $id: $tpe")
+        //println(s"Add member type $id: $tpe")
         inferred = inferred addMember id -> tp
         allTypes = allTypes addMember id -> tp
       }

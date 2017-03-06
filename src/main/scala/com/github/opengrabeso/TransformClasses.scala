@@ -371,35 +371,17 @@ object TransformClasses {
       }
     }
 
-    var listMembers = Set.empty[SymbolTypes.MemberId]
+    val classInfo = listClassMembers(ret)
+    //println(classInfo)
 
-    ret.walk {
-      case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), _,_) =>
-        for (VarName(member) <- cls.body) {
-          listMembers += SymbolTypes.MemberId(clsName, member)
-        }
-        false
-      case _ =>
-        false
-    }
-
-
-    def classContains(cls: AST_DefClass, member: String): Boolean = {
-      val clsName = cls.name.get.name
-      if (listMembers contains SymbolTypes.MemberId(clsName, member)) true
-      else cls.`extends`.exists {
-        case c: AST_DefClass => classContains(c, member)
-        case _ => false
-      }
-    }
     // remove members already present in a parent from a derived class
     val cleanup = ret.transformAfter { (node, _) =>
       node match {
         case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), _,_) =>
           for (AST_SymbolName(base) <- cls.`extends`) {
-            println(s"Detected base $base")
+            //println(s"Detected base $base")
             cls.body = cls.body.filter {
-              case VarName(member) => !classContains(cls, member)
+              case VarName(member) => classInfo.classContains(base, member).isEmpty
               case _ => true
             }
           }
