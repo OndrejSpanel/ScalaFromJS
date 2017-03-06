@@ -359,15 +359,33 @@ object Transform {
 
   object IsBoolean extends ExtractorInList("||", "&&")
 
+  def findThisScope(scope: Option[AST_Scope]): Option[AST_DefClass] = {
+    scope match {
+      case Some(s: AST_DefClass) => Some(s)
+      case Some(_: AST_Function) => None // do functions define a different this for functions?
+      case Some(x) =>
+        val s = x.parent_scope.nonNull
+        findThisScope(s)
+      case _ => None
+    }
+  }
+
   def expressionType(n: AST_Node)(types: SymbolTypes): Option[TypeDesc] = {
     //println(nodeClassName(n) + ": " + ScalaOut.outputNode(n, ""))
     n match {
+      case t: AST_This =>
+        val thisScope = findThisScope(t.scope.nonNull)
+        println(s"this scope ${t.scope.map(_.nesting)}")
+        val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
+        println(s"this def scope $cls")
+        cls
       case AST_SymbolRefDef(symDef) =>
         types.get(symDef)
       case AST_Dot(cls, name) =>
         val clsType = expressionType(cls)(types)
-        println(s"Infer type of member $clsType.$name")
-        types.getMember(SymbolTypes.memberId(clsType, name))
+        val r = types.getMember(SymbolTypes.memberId(clsType, name))
+        println(s"Infer type of member $clsType.$name as $r")
+        r
       case _: AST_Number =>
         Some(SymbolTypes.number)
       case _: AST_String =>
@@ -741,6 +759,8 @@ object Transform {
       varInitialization, // already done, but another pass is needed after TransformClasses
       objectAssign,
       funcScope, // before removeTrailingReturn
+      inferTypes, // TODO: smarter way to determine if more passes are needed
+      inferTypes,
       inferTypes,
       removeTrailingReturn, // after inferTypes
       detectVals,
