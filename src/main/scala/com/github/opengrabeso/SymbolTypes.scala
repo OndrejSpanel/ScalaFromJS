@@ -6,6 +6,7 @@ import JsUtils._
 import scala.language.implicitConversions
 
 object SymbolTypes {
+
   type TypeDesc = String
 
   val any = "Any"
@@ -17,9 +18,13 @@ object SymbolTypes {
   // we need a stable id. Original source location + name should be unique and stable
   case class SymbolMapId(name: String, sourcePos: Int)
 
-  implicit def symbolDefToId(sym: SymbolDef): Option[SymbolMapId] = id(sym)
+  case class MemberId(cls: String, name: String)
 
-  def id(sym: SymbolDef): Option[SymbolMapId] = {
+  def memberId(maybeDesc: Option[TypeDesc], name: String): Option[MemberId] = {
+    maybeDesc.map(MemberId(_, name))
+  }
+
+  implicit def id(sym: SymbolDef): Option[SymbolMapId] = {
     val token = sym.orig.headOption.flatMap { _.start.nonNull }
     token.map(t => SymbolMapId(sym.name, t.pos))
   }
@@ -46,32 +51,40 @@ object SymbolTypes {
     }
   }
 
-  def apply(): SymbolTypes = new SymbolTypes(Map.empty)
+  def apply(): SymbolTypes = new SymbolTypes(Map.empty, Map.empty)
   def apply(syms: Seq[(SymbolDef, TypeDesc)]) = {
     val idMap = syms.map { case (k,v) => id(k) -> v }.toMap - None
-    new SymbolTypes(idMap.map{ case (k, v) => k.get -> v})
+    new SymbolTypes(idMap.map{ case (k, v) => k.get -> v}, Map.empty)
   }
 
 }
 
 import SymbolTypes._
 
-case class SymbolTypes(types: Map[SymbolMapId, TypeDesc]) {
+case class SymbolTypes(types: Map[SymbolMapId, TypeDesc], members: Map[MemberId, TypeDesc]) {
+
   def setOfTypes: Set[TypeDesc] = types.values.toSet
 
-  def apply(id: Option[SymbolMapId]): TypeDesc = types(id.get)
-
   def get(id: Option[SymbolMapId]): Option[TypeDesc] = id.flatMap(types.get)
+
+  def getMember(clsId: Option[MemberId]): Option[TypeDesc] = clsId.flatMap(members.get)
 
   def getAsScala(id: Option[SymbolMapId]): String = {
     get(id).fold (any) (mapSimpleTypeToScala)
   }
 
-  def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(types ++ that.types)
+  def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(types ++ that.types, members ++ that.members)
 
-  def + (kv: (SymbolDef, TypeDesc)): SymbolTypes = {
-    id(kv._1).fold(this) { id =>
-      SymbolTypes(types + (id -> kv._2))
+  def + (kv: (Option[SymbolMapId], TypeDesc)): SymbolTypes = {
+    kv._1.fold(this) { id =>
+      copy(types = types + (id -> kv._2))
     }
   }
+
+  def addMember (kv: (Option[MemberId], TypeDesc)): SymbolTypes = {
+    kv._1.fold(this) { id =>
+      copy(members = members + (id -> kv._2))
+    }
+  }
+
 }

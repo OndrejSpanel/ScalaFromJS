@@ -454,8 +454,18 @@ object Transform {
       val symType = SymbolTypes.typeUnionOption(tpe, inferred.get(symDef))
       for (tp <- symType) {
         //println(s"Add type ${symDef.name}: $tpe")
-        inferred += symDef -> tp
-        allTypes += symDef -> tp
+        val id = SymbolTypes.id(symDef)
+        inferred += id -> tp
+        allTypes += id -> tp
+      }
+    }
+
+    def addInferredMemberType(id: Option[SymbolTypes.MemberId], tpe: Option[TypeDesc]) = {
+      val symType = SymbolTypes.typeUnionOption(tpe, inferred.getMember(id))
+      for (tp <- symType) {
+        println(s"Add member type $id: $tpe")
+        inferred = inferred addMember id -> tp
+        allTypes = allTypes addMember id -> tp
       }
     }
 
@@ -499,6 +509,14 @@ object Transform {
           if (n.types.get(symDef).isEmpty) {
             val tpe = expressionType(src)(allTypes)
             addInferredType(symDef, tpe)
+          }
+
+        // TODO: dry with AST_Assign(AST_SymbolRefDef) below
+        case AST_Assign(AST_Dot(expr, name), _, src) =>
+          val clsId = SymbolTypes.memberId(expressionType(expr)(allTypes), name)
+          if (n.types.getMember(clsId).isEmpty) {
+            val tpe = expressionType(src)(allTypes)
+            addInferredMemberType(clsId, tpe)
           }
 
         case AST_Assign(AST_SymbolRefDef(symDef), _, src) =>
