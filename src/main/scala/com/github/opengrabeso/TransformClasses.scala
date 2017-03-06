@@ -37,6 +37,8 @@ object TransformClasses {
 
   case class ClassVarMember(value: AST_Node) extends ClassMember
 
+  case object ClassVarDeclMember extends ClassMember
+
   case class ClassDef(base: Option[String] = None, members: Map[String, ClassMember] = Map.empty)
 
   object ClassMemberDef {
@@ -227,11 +229,40 @@ object TransformClasses {
     classes
   }
 
+  def fillVarMembers(classes: Map[String, ClassDef]) = {
+    object IsThis {
+      def unapply(arg: AST_Node) = arg match {
+        case _: AST_This => true
+        case AST_SymbolRef("this", _, _) => true // not used in practice, AST_This seems to catch all
+        case _ => false
+      }
+    }
+    classes.transform { (name, cls) =>
+      var newMembers = Map.empty[String, ClassMember]
+      cls.members.values.foreach {
+        case ClassFunMember(_, body) =>
+          println(s"Walk class member")
+          body.foreach(s => s.walk {
+            case AST_Dot(IsThis(), mem) if !cls.members.contains(mem) =>
+              println(s"Detect this.$mem")
+              newMembers += mem -> ClassVarDeclMember // no initialization
+              false
+            case _ =>
+              false
+          })
+        case _ =>
+      }
+      cls.copy(members = newMembers ++ cls.members)
+    }
+  }
+
   def apply(n: AST_Extended): AST_Extended = {
     // for any class types try to find constructors and prototypes and try to transform them
     // start with global classes (are local classes even used in JS?)
 
-    val classes = classList(n)
+    val classes0 = classList(n)
+
+    val classes = fillVarMembers(classes0)
 
     //println(classes)
 
@@ -287,41 +318,51 @@ object TransformClasses {
                 name = b
               }
             }
-            properties = clazz.members.map { case (k, v) =>
-              v match {
-                case m: ClassFunMember =>
-                  new AST_ConciseMethod {
-                    // symbol lookup will be needed
-                    key = new AST_SymbolRef {
-                      fillTokens(this, defun) // TODO: tokens from a property instead
-                      name = k
-                    }
-                    value = new AST_Accessor {
-                      fillTokens(this, defun) // TODO: tokens from a property instead
-                      argnames = m.args
-                      this.body = m.body.toJSArray
+            val funMembers = clazz.members.collect { case (k, m: ClassFunMember) =>
+              new AST_ConciseMethod {
+                // symbol lookup will be needed
+                key = new AST_SymbolRef {
+                  fillTokens(this, defun) // TODO: tokens from a property instead
+                  name = k
+                }
+                value = new AST_Accessor {
+                  fillTokens(this, defun) // TODO: tokens from a property instead
+                  argnames = m.args
+                  this.body = m.body.toJSArray
 
-                    }
-                  }: AST_ObjectProperty
-                case m: ClassVarMember =>
-                  new AST_ConciseMethod {
-                    // symbol lookup will be needed
-                    key = new AST_SymbolRef {
-                      fillTokens(this, defun) // TODO: tokens from a property instead
-                      name = k
-                    }
-                    value = new AST_Accessor {
-                      fillTokens(this, defun) // TODO: tokens from a property instead
-                      argnames = js.Array()
-                      this.body = js.Array(new AST_SimpleStatement {
-                        fillTokens(this, defun)
-                        body = m.value
-                      })
+                }
+              }: AST_ObjectProperty
+            }
 
-                    }
-                  }: AST_ObjectProperty
-              }
-            }.toJSArray
+            val varMembers = clazz.members.collect { case (k, m: ClassVarMember) =>
+              new AST_ObjectKeyVal {
+                fillTokens(this, defun) // TODO: tokens from a property instead
+                // symbol lookup will be needed
+                key = k
+                value = new AST_Function {
+                  fillTokens(this, defun) // TODO: tokens from a property instead
+                  argnames = js.Array()
+                  this.body = js.Array(new AST_SimpleStatement {
+                    fillTokens(this, defun)
+                    body = m.value
+                  })
+
+                }
+              }: AST_ObjectProperty
+            }
+
+            val varDeclMembers = clazz.members.collect { case (k, v) if v == ClassVarDeclMember =>
+              new AST_ObjectKeyVal {
+                fillTokens(this, defun) // TODO: tokens from a property instead
+                key = k
+                value = new AST_Undefined {
+                  // TODO: better body - var decl, or what?
+                  fillTokens(this, defun)
+                }
+              }: AST_ObjectProperty
+            }
+
+            properties = (varMembers.toSeq ++ varDeclMembers.toSeq ++ funMembers.toSeq).toJSArray
           }
         case _ =>
           node

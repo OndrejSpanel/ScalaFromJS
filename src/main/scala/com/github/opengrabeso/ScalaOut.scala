@@ -295,7 +295,7 @@ object ScalaOut {
         out.eol()
         out"def ${tn.key}${tn.value}\n"
       case tn: AST_ObjectKeyVal =>
-        out"${tn.key} = ${tn.value}\n"
+        out"var ${tn.key} = ${tn.value}\n"
       //case tn: AST_ObjectProperty =>
       case tn: AST_ConciseMethod =>
         val keyName = tn.key.name match {
@@ -578,11 +578,12 @@ object ScalaOut {
         out" {\n"
         out.indent()
 
-        mapConstructor(lambda => blockToOut(lambda.body))
 
         for (p <- tn.properties if Transform.isConstructorProperty.lift(p).isEmpty) {
           nodeToOut(p)
         }
+        // constructor goes after all variable declarations
+        mapConstructor(lambda => blockToOut(lambda.body))
         out.unindent()
         out.eol()
         out("}\n")
