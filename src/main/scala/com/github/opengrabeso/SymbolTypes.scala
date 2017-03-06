@@ -68,6 +68,7 @@ case class SymbolTypes(types: Map[SymbolMapId, TypeDesc], members: Map[MemberId,
   def get(id: Option[SymbolMapId]): Option[TypeDesc] = id.flatMap(types.get)
 
   def getMember(clsId: Option[MemberId]): Option[TypeDesc] = clsId.flatMap(members.get)
+  def getMember(cls: Option[TypeDesc], member: String): Option[TypeDesc] = getMember(cls.map(MemberId(_, member)))
 
   def getAsScala(id: Option[SymbolMapId]): String = {
     get(id).fold (any) (mapSimpleTypeToScala)

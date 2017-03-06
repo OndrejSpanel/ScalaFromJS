@@ -383,7 +383,7 @@ object Transform {
         types.get(symDef)
       case AST_Dot(cls, name) =>
         val clsType = expressionType(cls)(types)
-        val r = types.getMember(SymbolTypes.memberId(clsType, name))
+        val r = types.getMember(clsType, name)
         println(s"Infer type of member $clsType.$name as $r")
         r
       case _: AST_Number =>
