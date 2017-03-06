@@ -2,15 +2,17 @@ package com.github.opengrabeso
 
 import Uglify._
 import UglifyExt._
+import buildinfo.BuildInfo
 
 import scala.scalajs.js
-import scala.scalajs.js.annotation.JSExport
+import scala.scalajs.js.annotation.{JSExport, JSName}
 import scala.scalajs.js.timers._
 import org.scalajs.dom
 import org.scalajs.dom.Event
 
 import scala.util.Try
 
+@JSExport("Main")
 object Main extends js.JSApp {
 
   private lazy val in = dom.document.getElementById("in")
@@ -95,9 +97,11 @@ object Main extends js.JSApp {
 
   }
 
-  @JSExport
   def main(): Unit = {
 
     dom.window.addEventListener("load", windowLoaded)
   }
+
+  @JSExport
+  def version(): String = {BuildInfo.builtAtString}
 }

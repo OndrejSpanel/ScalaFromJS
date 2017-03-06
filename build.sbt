@@ -1,5 +1,7 @@
 enablePlugins(ScalaJSPlugin)
 
+enablePlugins(BuildInfoPlugin)
+
 name := "ScalaFromJS"
 
 version := "0.1.1"
@@ -13,6 +15,8 @@ jsDependencies += ProvidedJS / "uglifyjs.js"
 libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.1"
 
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
+
+buildInfoOptions += BuildInfoOption.BuildTime
 
 def rel(parent: File, file: File) = {
   val r = (file relativeTo parent).map(_.toString).getOrElse(file.name)
@@ -93,3 +97,5 @@ deployTask := {
     println(s"Deployed $builtFile to $deployFile")
   }
 }
+
+
