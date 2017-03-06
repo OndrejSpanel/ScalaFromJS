@@ -89,10 +89,11 @@ deployTask := {
   val baseName = name.value.toLowerCase
   val buildDir = (target in Compile).value / ("scala-" + binVersion)
   val deployDir = baseDirectory.value / "docs" / "live"
-  val toDeploy = Seq("-jsdeps.js", "-launcher.js", "-opt.js")
+  val toDeploy = Seq("%-jsdeps.js", "%-launcher.js", "%-opt.js", "index.html")
   for (suffix <- toDeploy)  {
-    val builtFile = buildDir / (baseName + suffix)
-    val deployFile = deployDir / (baseName + suffix)
+    val fullName = suffix.replace("%", baseName)
+    val builtFile = buildDir / fullName
+    val deployFile = deployDir / fullName
     IO.copyFile(builtFile, deployFile)
     println(s"Deployed $builtFile to $deployFile")
   }
