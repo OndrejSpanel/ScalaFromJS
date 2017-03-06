@@ -72,24 +72,25 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("JS class in IIFE") {
-    execute check ConversionCheck(rsc("types/classVariants.js"))
-      .required(
-        "class Background",
-        "def init() =",
-        "class BoxGeometry",
-        "extends Geometry",
-        "class HemisphereLight",
-        "extends Light",
-        "class Clock",
-        "class Object3D",
-        "def isObject3D() ="
-      )
-      .forbidden(
-        ".prototype",
-        "Background =", // assignment of the IIFE result should be removed
-        "}()" // IIFE should be removed
-      )
-
+    pendingUntilFixed {
+      execute check ConversionCheck(rsc("types/classVariants.js"))
+        .required(
+          "class Background",
+          "def init() =",
+          "class BoxGeometry",
+          "extends Geometry",
+          "class HemisphereLight",
+          "extends Light",
+          "class Clock",
+          "class Object3D",
+          "def isObject3D() ="
+        )
+        .forbidden(
+          ".prototype",
+          "Background =", // assignment of the IIFE result should be removed
+          "}()" // IIFE should be removed
+        )
+    }
   }
 
   test("JS class with a constructor and super calls") {
