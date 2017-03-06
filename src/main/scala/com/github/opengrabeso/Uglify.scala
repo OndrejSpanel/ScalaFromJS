@@ -256,7 +256,7 @@ object Uglify extends js.Object {
     var definitions: js.Array[AST_VarDef] = js.native
   }
 
-  @js.native class AST_Var extends AST_Definitions with CloneSelf[AST_Definitions]
+  @js.native class AST_Var extends AST_Definitions with CloneSelf[AST_Var]
   @js.native class AST_Const extends AST_Definitions
   @js.native class AST_Let extends AST_Definitions
 

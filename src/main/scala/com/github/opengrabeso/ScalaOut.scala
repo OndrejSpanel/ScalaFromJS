@@ -561,7 +561,7 @@ object ScalaOut {
           }
         }
 
-        val constructor = Transform.findConstructor(tn).flatMap(c => NodeIsLambda.unapply(c))
+        val constructor = Transform.findConstructor(tn).flatMap{c => NodeIsLambda.unapply(c.value)}
 
         constructor.foreach(lambda => outputArgNames(lambda, true))
 
@@ -570,6 +570,8 @@ object ScalaOut {
         }
         out" {\n"
         out.indent()
+
+        blockToOut(tn.body)
 
         val allButConstructor = tn.properties.filter(p => Transform.isConstructorProperty.lift(p).isEmpty)
 
@@ -581,7 +583,7 @@ object ScalaOut {
         for (p <- varMembers) {
           nodeToOut(p)
         }
-        if (varMembers.nonEmpty && constructor.nonEmpty) out.eol(2)
+        if ((varMembers.nonEmpty || tn.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
         // constructor goes after all variable declarations
         constructor.foreach(lambda => blockToOut(lambda.body))
         if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)

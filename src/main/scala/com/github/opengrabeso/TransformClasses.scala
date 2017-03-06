@@ -241,10 +241,10 @@ object TransformClasses {
       var newMembers = Map.empty[String, ClassMember]
       cls.members.values.foreach {
         case ClassFunMember(_, body) =>
-          println(s"Walk class member")
+          //println(s"Walk class member")
           body.foreach(s => s.walk {
             case AST_Dot(IsThis(), mem) if !cls.members.contains(mem) =>
-              println(s"Detect this.$mem")
+              //println(s"Detect this.$mem")
               newMembers += mem -> ClassVarDeclMember // no initialization
               false
             case _ =>
@@ -352,17 +352,21 @@ object TransformClasses {
             }
 
             val varDeclMembers = clazz.members.collect { case (k, v) if v == ClassVarDeclMember =>
-              new AST_ObjectKeyVal {
+              new AST_Var {
                 fillTokens(this, defun) // TODO: tokens from a property instead
-                key = k
-                value = new AST_Undefined {
-                  // TODO: better body - var decl, or what?
-                  fillTokens(this, defun)
-                }
-              }: AST_ObjectProperty
+                definitions = js.Array(new AST_VarDef {
+                  name = new AST_SymbolVar {
+                    fillTokens(this, defun) // TODO: tokens from a property instead
+                    name = k
+                  }
+                  // TODO: fill value?
+                })
+              }: AST_Statement
             }
 
-            properties = (varMembers.toSeq ++ varDeclMembers.toSeq ++ funMembers.toSeq).toJSArray
+            this.body = varDeclMembers.toJSArray
+
+            properties = (varMembers.toSeq ++ funMembers.toSeq).toJSArray
           }
         case _ =>
           node
