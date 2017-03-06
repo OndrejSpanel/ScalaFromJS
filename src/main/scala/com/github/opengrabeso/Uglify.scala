@@ -693,6 +693,11 @@ object UglifyExt {
     object AST_DefClass {
       def unapply(arg: AST_DefClass) = Some(arg.name, arg.`extends`, arg.properties)
     }
+
+    object AST_ConciseMethod {
+      def unapply(arg: AST_ConciseMethod) = Some(arg.key, arg.value)
+    }
+
     object Defined {
       def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
     }
@@ -711,8 +716,11 @@ object UglifyExt {
       }
     }
 
-    object AST_ConciseMethod {
-      def unapply(arg: AST_ConciseMethod) = Some(arg.key, arg.value)
+    object VarName {
+      def unapply(arg: AST_Node) = arg match {
+        case AST_Var(AST_VarDef(AST_SymbolName(s), _)) => Some(s)
+        case _ => None
+      }
     }
 
   }

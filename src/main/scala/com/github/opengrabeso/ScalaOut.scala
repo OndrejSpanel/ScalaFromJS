@@ -572,9 +572,7 @@ object ScalaOut {
         out.indent()
 
         // class body should be a list of variable declarations
-        for {
-          AST_Var(AST_VarDef(AST_SymbolName(s), _)) <- tn.body
-        } {
+        for (VarName(s) <- tn.body) {
           val sType = input.types.getMember(tn.name.nonNull.map(_.name), s)
           val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
           out"var $s: $sTypeName\n"

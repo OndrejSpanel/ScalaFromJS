@@ -377,7 +377,7 @@ object Transform {
         val thisScope = findThisScope(t.scope.nonNull)
         //println(s"this scope ${t.scope.map(_.nesting)}")
         val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
-        println(s"this def scope $cls")
+        //println(s"this def scope $cls")
         cls
       case AST_SymbolRefDef(symDef) =>
         types.get(symDef)

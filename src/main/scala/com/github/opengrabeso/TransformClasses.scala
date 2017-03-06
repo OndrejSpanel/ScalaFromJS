@@ -7,7 +7,6 @@ import com.github.opengrabeso.UglifyExt.Import._
 import scala.scalajs.js
 import js.JSConverters._
 import scala.collection.immutable.ListSet
-import scala.collection.mutable
 
 object TransformClasses {
   import Transform.TypeDesc
@@ -342,13 +341,14 @@ object TransformClasses {
       }
     }
 
+    // TODO: detect access other than this (see AST_This in expressionType to check general this handling)
     val ret = n.top.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
           var newMembers = ListSet.empty[String]
           cls.walk {
             case AST_Dot(IsThis(), mem) =>
-              println(s"Detect this.$mem")
+              //println(s"Detect this.$mem")
               if (!newMembers.contains(mem)) newMembers += mem
               false
             case _ =>
@@ -371,7 +371,45 @@ object TransformClasses {
       }
     }
 
-    AST_Extended(ret, n.types)
+    var listMembers = Set.empty[SymbolTypes.MemberId]
+
+    ret.walk {
+      case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), _,_) =>
+        for (VarName(member) <- cls.body) {
+          listMembers += SymbolTypes.MemberId(clsName, member)
+        }
+        false
+      case _ =>
+        false
+    }
+
+
+    def classContains(cls: AST_DefClass, member: String): Boolean = {
+      val clsName = cls.name.get.name
+      if (listMembers contains SymbolTypes.MemberId(clsName, member)) true
+      else cls.`extends`.exists {
+        case c: AST_DefClass => classContains(c, member)
+        case _ => false
+      }
+    }
+    // remove members already present in a parent from a derived class
+    val cleanup = ret.transformAfter { (node, _) =>
+      node match {
+        case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), _,_) =>
+          for (AST_SymbolName(base) <- cls.`extends`) {
+            println(s"Detected base $base")
+            cls.body = cls.body.filter {
+              case VarName(member) => !classContains(cls, member)
+              case _ => true
+            }
+          }
+          cls
+        case _ =>
+          node
+      }
+    }
+
+    AST_Extended(cleanup, n.types)
   }
 
 }

@@ -1,7 +1,13 @@
-class Employee {
-    constructor(name,age, salary ) { //constructors!
+class Person {
+    constructor(name,age) {
         this.name = name;
         this.age= age;
+    }
+}
+
+class Employee extends Person {
+    constructor(name,age, salary ) {
+        super(name, age);
         this.salary = salary;
     }
 
@@ -12,7 +18,7 @@ class Employee {
 
 class Janitor extends Employee { //inheritance
     constructor(name) {
-        super(name); //call the parent constructor with super
+        super(name);
         this.age = 66;
         this.salary = 5000;
     }
