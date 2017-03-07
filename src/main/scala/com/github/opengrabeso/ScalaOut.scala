@@ -574,11 +574,15 @@ object ScalaOut {
         out" {\n"
         out.indent()
 
-        // class body should be a list of variable declarations
-        for (VarName(s) <- tn.body) {
-          val sType = input.types.getMember(tn.name.nonNull.map(_.name), s)
-          val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
-          out"var $s: $sTypeName\n"
+        // class body should be a list of variable declarations, constructor statements may follow
+        tn.body.foreach {
+          case VarName(s) =>
+            val clsName = tn.name.nonNull.map(_.name)
+            val sType = input.types.getMember(clsName, s)
+            val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
+            out"var $s: $sTypeName\n"
+          case ss =>
+            nodeToOut(ss)
         }
 
         //blockToOut(tn.body)

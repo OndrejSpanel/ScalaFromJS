@@ -400,8 +400,36 @@ object TransformClasses {
     AST_Extended(cleanup, n.types)
   }
 
+  def inlineConstructors(n: AST_Extended): AST_Extended = {
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        case cls: AST_DefClass =>
+
+          for (AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)) {
+            // anything before a first variable declaration can be inlined, variables need to stay private
+            val (inlined, rest) = constructor.body.span {
+              case _: AST_Var => false
+              case _ => true
+            }
+            //println(s"inlined ${inlined.map(nodeClassName)}")
+            //println(s"rest ${rest.map(nodeClassName)}")
+            cls.body = cls.body ++ inlined
+            constructor.body = rest
+            // we cannot remove the constructor even if empty, we need its argument list
+          }
+
+          cls
+        case _ =>
+          node
+      }
+    }
+
+    AST_Extended(ret, n.types)
+  }
+
   val transforms = Seq(
     convertProtoClasses _,
-    fillVarMembers _
+    fillVarMembers _,
+    inlineConstructors _
   )
 }
