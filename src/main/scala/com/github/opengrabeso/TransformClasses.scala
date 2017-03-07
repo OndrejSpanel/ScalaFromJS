@@ -442,11 +442,12 @@ object TransformClasses {
             //println(s"inlined ${inlined.map(nodeClassName)}")
             //println(s"rest ${rest.map(nodeClassName)}")
             // transform parameter names while inlining (we need to use parSuffix names)
-            val parNames = constructor.argnames.map(_.name).toSet
+            val parNames = constructor.argnames.map(_.name)
+            val parNamesSet = parNames.toSet
             object IsParameter {
-              def unapply(arg: String): Boolean = parNames contains arg
+              def unapply(arg: String): Boolean = parNamesSet contains arg
             }
-            var parNamesAdjusted = inlined.map { s =>
+            val parNamesAdjusted = inlined.map { s =>
               s.transformAfter { (node, _) =>
                 node match {
                   case sym@AST_SymbolName(IsParameter()) =>
@@ -457,7 +458,15 @@ object TransformClasses {
                 }
               }
             }
+            // add adjusted constructor argument names so that parser correctly resolves them inside of the function
             val accessor = classInlineBody(cls)
+            accessor.argnames = parNames.map { p =>
+              val parName = p + SymbolTypes.parSuffix
+              new AST_SymbolFunarg {
+                fillTokens(this, constructor)
+                name = parName
+              }
+            }
             accessor.body = accessor.body ++ parNamesAdjusted.asInstanceOf[js.Array[AST_Statement]]
             constructor.body = rest
             // we cannot remove the constructor even if empty, we need its argument list
