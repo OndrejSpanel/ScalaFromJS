@@ -8,6 +8,7 @@ import scala.scalajs.js
 import js.JSConverters._
 
 object TransformClasses {
+
   import Transform.TypeDesc
 
   object ClassDefine {
@@ -228,7 +229,7 @@ object TransformClasses {
     classes
   }
 
-  def apply(n: AST_Extended): AST_Extended = {
+  def convertProtoClasses(n: AST_Extended): AST_Extended = {
     // for any class types try to find constructors and prototypes and try to transform them
     // start with global classes (are local classes even used in JS?)
 
@@ -399,4 +400,8 @@ object TransformClasses {
     AST_Extended(cleanup, n.types)
   }
 
+  val transforms = Seq(
+    convertProtoClasses _,
+    fillVarMembers _
+  )
 }

@@ -974,20 +974,19 @@ object Transform {
 
   def apply(n: AST_Toplevel): AST_Extended = {
 
-    val transforms: Seq[(AST_Extended) => AST_Extended] = Seq(
-      handleIncrement,
-      varInitialization,
-      readJSDoc,
-      TransformClasses.apply,
-      TransformClasses.fillVarMembers,
-      varInitialization, // already done, but another pass is needed after TransformClasses
-      objectAssign,
-      funcScope, // before removeTrailingReturn
-      removeDoubleScope,
-      inferTypesMultipass,
-      removeTrailingReturn, // after inferTypes
-      detectVals,
-      relations
+    val transforms = Seq(
+      handleIncrement _,
+      varInitialization _,
+      readJSDoc _
+    ) ++ TransformClasses.transforms ++ Seq(
+      varInitialization _, // already done, but another pass is needed after TransformClasses
+      objectAssign _,
+      funcScope _, // before removeTrailingReturn
+      removeDoubleScope _,
+      inferTypesMultipass _,
+      removeTrailingReturn _, // after inferTypes
+      detectVals _,
+      relations _
     )
 
     transforms.foldLeft(AST_Extended(n, SymbolTypes())) { (t,op) =>
