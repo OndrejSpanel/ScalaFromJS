@@ -568,9 +568,19 @@ object ScalaOut {
 
         constructor.foreach(lambda => outputArgNames(lambda, true, parPostfix))
 
-        // find the super constructor call
         for (base <- tn.`extends`) {
           out" extends $base"
+
+          // find the super constructor call and use its parameters
+          val superCall = tn.body.collectFirst {
+            case AST_SimpleStatement(call@AST_Call(_: AST_Super, pars@_*)) =>
+              out("(")
+              outputNodes(pars)(nodeToOut)
+              out(")")
+
+          }
+
+
         }
         out" {\n"
         out.indent()
@@ -582,8 +592,9 @@ object ScalaOut {
             val sType = input.types.getMember(clsName, s)
             val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
             out"var $s: $sTypeName\n"
-          //case AST_SimpleStatement(AST_Call(AST_SymbolRefName("super"), _*)) =>
+          case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
           case ss =>
+            //out(nodeTreeToString(ss))
             nodeToOut(ss)
         }
 

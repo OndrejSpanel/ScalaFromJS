@@ -411,6 +411,7 @@ object Uglify extends js.Object {
   @js.native class AST_SymbolRef extends AST_Symbol
   @js.native class AST_LabelRef extends AST_Symbol
   @js.native class AST_This extends AST_Symbol
+  @js.native class AST_Super extends AST_Symbol
 
   @js.native sealed abstract class AST_Constant extends AST_Symbol
 

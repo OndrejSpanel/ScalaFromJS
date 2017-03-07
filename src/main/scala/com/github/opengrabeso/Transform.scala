@@ -433,12 +433,20 @@ object Transform {
     //println(nodeClassName(n) + ": " + ScalaOut.outputNode(n, ""))
     import ctx._
     n match {
+      case s: AST_Super =>
+        val thisScope = findThisScope(s.scope.nonNull)
+        val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
+        val sup = cls.flatMap(ctx.classInfo.parents.get)
+        //println(s"super scope $sup")
+        sup
+
       case t: AST_This =>
         val thisScope = findThisScope(t.scope.nonNull)
         //println(s"this scope ${t.scope.map(_.nesting)}")
         val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
         //println(s"this def scope $cls")
         cls
+
       case AST_SymbolRefDef(symDef) =>
         types.get(symDef)
       case AST_Dot(cls, name) =>
@@ -839,7 +847,7 @@ object Transform {
   }
 
   def findConstructor(c: AST_DefClass): Option[AST_ConciseMethod] = {
-    c.properties.collect(isConstructorProperty).headOption
+    c.properties.collectFirst(isConstructorProperty)
   }
 
   def findMethod(c: AST_DefClass, name: String): Option[AST_ConciseMethod] = {
