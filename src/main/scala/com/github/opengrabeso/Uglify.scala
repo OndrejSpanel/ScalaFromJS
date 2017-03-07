@@ -636,6 +636,10 @@ object UglifyExt {
       def unapply(arg: AST_SimpleStatement) = Some(arg.body)
     }
 
+    object AST_BlockStatement {
+      def unapply(arg: AST_BlockStatement) = Some(arg.body.toSeq)
+    }
+
     object AST_VarDef {
       def unapply(arg: AST_VarDef) = Some(arg.name, arg.value)
     }
@@ -670,6 +674,10 @@ object UglifyExt {
 
     object AST_Function {
       def unapply(arg: AST_Function) = AST_Lambda.unapply(arg)
+    }
+
+    object AST_Accessor {
+      def unapply(arg: AST_Accessor) = AST_Lambda.unapply(arg)
     }
 
     object AST_Return {

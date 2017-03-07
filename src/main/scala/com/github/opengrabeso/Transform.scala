@@ -297,6 +297,8 @@ object Transform {
 
       def nodeLast(n: AST_Node, parentLevel: Int): Boolean = {
         transformer.parent(parentLevel) match {
+          case ss: AST_SimpleStatement =>
+            ss.body == n
           case fun: AST_Lambda =>
             fun.body.last == n
           case block: AST_Block  =>
@@ -894,6 +896,30 @@ object Transform {
     AST_Extended(ret, n.types)
   }
 
+  // IIFE removal sometimes leaves two scopes directly in one another
+  def removeDoubleScope(n: AST_Extended): AST_Extended = {
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        case AST_BlockStatement(inner: AST_BlockStatement) =>
+          inner
+        case func@AST_Function(_, AST_BlockStatement(body)) =>
+          func.body = body.toJSArray
+          func
+        case func@AST_Accessor(_, AST_BlockStatement(body)) =>
+          func.body = body.toJSArray
+          func
+        case func@AST_Lambda(_, body) =>
+          println(nodeClassName(func))
+          println(body.map(nodeClassName))
+          func
+        case _ =>
+          node
+      }
+    }
+
+    AST_Extended(ret, n.types)
+  }
+
   def objectAssign(n: AST_Extended): AST_Extended = {
     // transform Object.assign to individual assignments
 
@@ -951,6 +977,7 @@ object Transform {
       varInitialization, // already done, but another pass is needed after TransformClasses
       objectAssign,
       funcScope, // before removeTrailingReturn
+      removeDoubleScope,
       inferTypesMultipass,
       removeTrailingReturn, // after inferTypes
       detectVals,
