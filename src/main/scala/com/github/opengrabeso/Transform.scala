@@ -402,7 +402,10 @@ object Transform {
   implicit def refToT[T](r: Ref[T]): T = r.t
 
   // TODO: no need to pass both classInfo and classes, one of them should do
-  case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[TypeDesc, AST_DefClass])
+  case class ExpressionTypeContext(
+    types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[TypeDesc, AST_DefClass],
+    var thisClass: Option[AST_DefClass]
+  )
 
   def includeParents(clazz: AST_DefClass, ret: Seq[AST_DefClass])(ctx: ExpressionTypeContext): Seq[AST_DefClass] = {
     clazz.`extends`.nonNull match {
@@ -447,8 +450,19 @@ object Transform {
         //println(s"this def scope $cls")
         cls
 
-      case AST_SymbolRefDef(symDef) =>
-        types.get(symDef)
+      case s@AST_SymbolRefDef(symDef) =>
+        // special case handling
+        if (symDef.name.endsWith(SymbolTypes.parSuffix)) {
+          // find corresponding constructor argument in the current class
+          // we might put vars and constructor code into a dedicated property instead, this way it would get a correct scope from Uglify
+          val thisScope = findThisScope(Some(symDef.scope))
+          println(s"Scope for sym ${symDef.name} ${symDef.scope.nesting} ${thisScope.map(_.name.get.name)} ${ctx.thisClass.map(_.name.get.name)}")
+          types.get(symDef)
+        } else {
+          val thisScope = findThisScope(Some(symDef.scope))
+          println(s"Scope for sym ${symDef.name} ${symDef.scope.nesting} ${thisScope.map(_.name.get.name)} ${ctx.thisClass.map(_.name.get.name)}")
+          types.get(symDef)
+        }
       case AST_Dot(cls, name) =>
         for {
           callOn <- expressionType(cls)(ctx)
@@ -594,7 +608,7 @@ object Transform {
 
     val classInfo = listClassMembers(n.top)
 
-    val ctx = ExpressionTypeContext(allTypes, classInfo, classes) // note: ctx.allTypes is mutable
+    val ctx = ExpressionTypeContext(allTypes, classInfo, classes, None) // note: ctx.allTypes is mutable
 
     def typeFromOperation(op: String, n: AST_Node) = {
       op match {
@@ -656,13 +670,13 @@ object Transform {
       } {
         if (n.types.get(par).isEmpty) {
           val tp = expressionType(arg)(ctx)
-          //println(s"Infer ${par.name} as $tp")
+          println(s"Infer ${par.name} as $tp")
           addInferredType(par, tp)
         }
         arg match {
           case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
             val tp = allTypes.get(par)
-            //println(s"Infer ${a.name} as $tp")
+            println(s"Infer ${a.name} as $tp")
             addInferredType(a, tp)
           case _ =>
         }
@@ -731,7 +745,16 @@ object Transform {
     }
 
     n.top.walkWithDescend { (node, descend, walker) =>
-      descend(node, walker)
+      node match {
+        case c: AST_DefClass =>
+          val oldClass = ctx.thisClass
+          ctx.thisClass = Some(c)
+          descend(node, walker)
+          ctx.thisClass = oldClass
+        case _ =>
+          descend(node, walker)
+
+      }
       node match {
         case AST_VarDef(AST_Symbol(_, _, Defined(symDef)),Defined(src)) =>
           if (n.types.get(symDef).isEmpty) {
@@ -741,7 +764,7 @@ object Transform {
 
         case AST_Assign(SymbolInfo(symInfo), _, src) =>
           val tpe = expressionType(src)(ctx)
-          //println(s"Infer assign: $symInfo $tpe")
+          println(s"Infer assign: $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)
 
         case AST_Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
@@ -788,7 +811,7 @@ object Transform {
                 c <- classes.get(clazz.name)
                 AST_ConciseMethod(_, value: AST_Accessor) <- findConstructor(c)
               } {
-                //println(s"  Constructor args ${value.argnames}")
+                println(s"  Constructor pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
                 inferParsOrArgs(value.argnames, args)
               }
 

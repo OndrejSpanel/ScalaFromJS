@@ -14,6 +14,8 @@ object SymbolTypes {
   val boolean = "boolean"
   val string = "string"
 
+  val parSuffix = "_!" // chosen so that the resulting idenfier is invalid JS, prevents possible clashes
+
   // SymbolDef instances (including ids) are recreated on each figure_out_scope
   // we need a stable id. Original source location + name should be unique and stable
   case class SymbolMapId(name: String, sourcePos: Int)

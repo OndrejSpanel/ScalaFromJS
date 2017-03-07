@@ -366,7 +366,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_ConciseMethod extends AST_ObjectProperty {
     override def key: AST_Symbol = js.native
-    //override def key_=(k: Any): Unit = js.native
+    override def value: AST_Accessor = js.native
 
     // [string|undefined] the original quote character, if any
     var quote: js.UndefOr[String]= js.native

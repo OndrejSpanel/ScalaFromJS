@@ -291,7 +291,6 @@ object TransformClasses {
             }
             val funMembers = clazz.members.collect { case (k, m: ClassFunMember) =>
               new AST_ConciseMethod {
-                // symbol lookup will be needed
                 key = new AST_SymbolRef {
                   fillTokens(this, defun) // TODO: tokens from a property instead
                   name = k
@@ -360,7 +359,8 @@ object TransformClasses {
             case _ =>
               false
           }
-          cls.body = newMembers.map { m =>
+
+          val vars = newMembers.map { m =>
             new AST_Var {
               fillTokens(this, node)
               definitions = js.Array(new AST_VarDef {
@@ -369,9 +369,13 @@ object TransformClasses {
                   name = m
                 }
               })
-            }: AST_Statement
-          }.toJSArray
-          node
+            }
+          }
+
+          val accessor = classInlineBody(cls)
+          accessor.body = (vars: Seq[AST_Statement]).toJSArray
+
+          cls
         case _ =>
           node
       }
@@ -386,7 +390,8 @@ object TransformClasses {
         case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), _,_) =>
           for (AST_SymbolName(base) <- cls.`extends`) {
             //println(s"Detected base $base")
-            cls.body = cls.body.filter {
+            val accessor = classInlineBody(cls)
+            accessor.body = accessor.body.filter {
               case VarName(member) => classInfo.classContains(base, member).isEmpty
               case _ => true
             }
@@ -398,6 +403,29 @@ object TransformClasses {
     }
 
     AST_Extended(cleanup, n.types)
+  }
+
+  def classInlineBody(cls: AST_DefClass): AST_Accessor = {
+
+    val present = findMethod(cls, "inline_^")
+    val method = present.getOrElse {
+      val newInlineBody = new AST_ConciseMethod {
+        fillTokens(this, cls)
+
+        key = new AST_SymbolRef {
+          fillTokens(this, cls) // TODO: tokens from a property instead
+          name = "inline_^"
+        }
+        value = new AST_Accessor {
+          fillTokens(this, cls) // TODO: tokens from a property instead
+          argnames = js.Array() // TODO: copy constructor names, with parSuffix decorations?
+          this.body = js.Array()
+        }
+      }
+      cls.properties = cls.properties :+ newInlineBody
+      newInlineBody
+    }
+    method.value
   }
 
   def inlineConstructors(n: AST_Extended): AST_Extended = {
@@ -413,7 +441,7 @@ object TransformClasses {
             }
             //println(s"inlined ${inlined.map(nodeClassName)}")
             //println(s"rest ${rest.map(nodeClassName)}")
-            // transform parameter names while inlining (we need to use _par names)
+            // transform parameter names while inlining (we need to use parSuffix names)
             val parNames = constructor.argnames.map(_.name).toSet
             object IsParameter {
               def unapply(arg: String): Boolean = parNames contains arg
@@ -422,14 +450,15 @@ object TransformClasses {
               s.transformAfter { (node, _) =>
                 node match {
                   case sym@AST_SymbolName(IsParameter()) =>
-                    sym.name = sym.name + "_par"
+                    sym.name = sym.name + SymbolTypes.parSuffix
                     sym
                   case _ =>
                     node
                 }
               }
             }
-            cls.body = cls.body ++ parNamesAdjusted.asInstanceOf[js.Array[AST_Statement]]
+            val accessor = classInlineBody(cls)
+            accessor.body = accessor.body ++ parNamesAdjusted.asInstanceOf[js.Array[AST_Statement]]
             constructor.body = rest
             // we cannot remove the constructor even if empty, we need its argument list
           }

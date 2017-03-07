@@ -564,9 +564,8 @@ object ScalaOut {
         }
 
         val constructor = Transform.findConstructor(tn).flatMap{c => NodeIsLambda.unapply(c.value)}
-        val parPostfix = "_par"
 
-        constructor.foreach(lambda => outputArgNames(lambda, true, parPostfix))
+        constructor.foreach(lambda => outputArgNames(lambda, true, SymbolTypes.parSuffix))
 
         for (base <- tn.`extends`) {
           out" extends $base"
@@ -586,7 +585,9 @@ object ScalaOut {
         out.indent()
 
         // class body should be a list of variable declarations, constructor statements may follow
-        tn.body.foreach {
+        val accessor = TransformClasses.classInlineBody(tn)
+
+        accessor.body.foreach {
           case VarName(s) =>
             val clsName = tn.name.nonNull.map(_.name)
             val sType = input.types.getMember(clsName, s)
@@ -615,7 +616,7 @@ object ScalaOut {
         constructor.foreach { lambda =>
           if (lambda.body.nonEmpty) {
             out("constructor")
-            outputArgNames(lambda, postfix = parPostfix)
+            outputArgNames(lambda, postfix = SymbolTypes.parSuffix)
             out.eol()
           }
         }
@@ -624,7 +625,9 @@ object ScalaOut {
 
         // TODO: do not print constructor when empty
         for (p <- functionMembers) {
-          nodeToOut(p)
+          if (p.value != accessor /*&& !constructor.contains(p.value)*/) {
+            nodeToOut(p)
+          }
         }
         out.unindent()
         out.eol()
@@ -689,7 +692,7 @@ object ScalaOut {
     sb.result
   }
 
-  def outputNode(ast: AST_Node, input: String, outConfig: Config = Config.default): String = {
+  def outputNode(ast: AST_Node, input: String = "", outConfig: Config = Config.default): String = {
     val sb = new StringBuilder
     val ret = new NiceOutput {
       def out(x: String) = sb append x
