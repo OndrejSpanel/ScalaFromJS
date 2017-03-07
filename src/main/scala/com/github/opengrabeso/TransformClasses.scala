@@ -413,7 +413,23 @@ object TransformClasses {
             }
             //println(s"inlined ${inlined.map(nodeClassName)}")
             //println(s"rest ${rest.map(nodeClassName)}")
-            cls.body = cls.body ++ inlined
+            // transform parameter names while inlining (we need to use _par names)
+            val parNames = constructor.argnames.map(_.name).toSet
+            object IsParameter {
+              def unapply(arg: String): Boolean = parNames contains arg
+            }
+            var parNamesAdjusted = inlined.map { s =>
+              s.transformAfter { (node, _) =>
+                node match {
+                  case sym@AST_SymbolName(IsParameter()) =>
+                    sym.name = sym.name + "_par"
+                    sym
+                  case _ =>
+                    node
+                }
+              }
+            }
+            cls.body = cls.body ++ parNamesAdjusted.asInstanceOf[Array[AST_Statement]]
             constructor.body = rest
             // we cannot remove the constructor even if empty, we need its argument list
           }
