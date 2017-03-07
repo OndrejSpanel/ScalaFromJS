@@ -463,12 +463,10 @@ object Transform {
         types.get(call)
 
       case AST_Call(AST_Dot(cls, name), _*) =>
-        println(s"Infer type of member call $name")
+        //println(s"Infer type of member call $name")
         for {
           callOn <- expressionType(cls)(ctx)
-          _ = println(s"  callOn $callOn")
           clazz <- classes.get(callOn)
-          _ = println(s"  clazz $clazz")
           AST_DefClass(Defined(AST_SymbolName(c)), _, _) <- includeParents(clazz, Seq(clazz))(ctx)
           //_ = println(s"${c.name.get.name}")
           r <- types.getMember(Some(c), name)
@@ -560,7 +558,7 @@ object Transform {
     // TODO: consider multipass, can help with forward references
 
     val classes = classListHarmony(n)
-    println("Classes:\n" + classes)
+    //println("Classes:\n" + classes)
 
     val classInfo = listClassMembers(n.top)
 
@@ -600,7 +598,7 @@ object Transform {
 
       val symType = SymbolTypes.typeUnionOption(tpe, inferred.getMember(id))
       for (tp <- symType) {
-        println(s"Add member type $id: $tpe")
+        println(s"Add member type $id: $tp")
         inferred = inferred addMember id -> tp
         allTypes = allTypes addMember id -> tp
       }
@@ -645,7 +643,7 @@ object Transform {
         case innerFunc: AST_Lambda if innerFunc != node =>
           true
         case AST_Return(Defined(value)) =>
-          println(s"  return expression ${nodeClassName(value)}")
+          //println(s"  return expression ${nodeClassName(value)}")
           val tp = expressionType(value)(ctx)
           println(s"  Return type $tp: expr ${ScalaOut.outputNode(value, "")}")
           allReturns = SymbolTypes.typeUnionOption(allReturns, tp)
@@ -654,6 +652,27 @@ object Transform {
           false
       }
       allReturns
+    }
+
+    case class SymbolAccessInfo(symbol: Option[SymbolDef] = None, dot: Option[SymbolTypes.MemberId] = None) {
+      def addSymbolInferredType(tpe: Option[SymbolTypes.TypeDesc]): Unit = {
+        for (s <- symbol) {
+          addInferredType(s, tpe)
+        }
+        addInferredMemberType(dot, tpe)
+      }
+    }
+
+    object SymbolInfo {
+      def unapply(arg: AST_Node) = arg match {
+        case AST_SymbolRefDef(symDef) =>
+          Some(SymbolAccessInfo(symbol = Some(symDef)))
+        case AST_Dot(expr, name) =>
+          val clsId = SymbolTypes.memberId(expressionType(expr)(ctx), name)
+          Some(SymbolAccessInfo(dot = clsId))
+        case _ =>
+          None
+      }
     }
 
     n.top.walkWithDescend { (node, descend, walker) =>
@@ -665,19 +684,9 @@ object Transform {
             addInferredType(symDef, tpe)
           }
 
-        // TODO: dry with AST_Assign(AST_SymbolRefDef) below
-        case AST_Assign(AST_Dot(expr, name), _, src) =>
-          val clsId = SymbolTypes.memberId(expressionType(expr)(ctx), name)
-          if (n.types.getMember(clsId).isEmpty) {
-            val tpe = expressionType(src)(ctx)
-            addInferredMemberType(clsId, tpe)
-          }
-
-        case AST_Assign(AST_SymbolRefDef(symDef), _, src) =>
-          if (n.types.get(symDef).isEmpty) {
-            val tpe = expressionType(src)(ctx)
-            addInferredType(symDef, tpe)
-          }
+        case AST_Assign(SymbolInfo(symInfo), _, src) =>
+          val tpe = expressionType(src)(ctx)
+          symInfo.addSymbolInferredType(tpe)
 
         case AST_Binary(AST_SymbolRefDef(symLeft), IsArithmetic(), AST_SymbolRefDef(symRight))
           if n.types.get(symLeft).isEmpty && n.types.get(symRight).isEmpty =>
