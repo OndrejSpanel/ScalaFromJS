@@ -819,6 +819,18 @@ object Transform {
     n.copy(types = inferred ++ n.types)
   }
 
+  def inferTypesMultipass(n: AST_Extended): AST_Extended = {
+
+    def inferTypesStep(n: AST_Extended, maxDepth: Int = 50): AST_Extended = {
+      val r = inferTypes(n)
+      //println(s"Type inference done: ${n.types}")
+      if (r.types != n.types && maxDepth > 0) inferTypesStep(r, maxDepth - 1)
+      else r
+    }
+
+    inferTypesStep(n)
+  }
+
   val isConstructorProperty: PartialFunction[AST_ObjectProperty, AST_ConciseMethod] = {
     case m: AST_ConciseMethod if m.key.name == "constructor" =>
       m
@@ -939,9 +951,7 @@ object Transform {
       varInitialization, // already done, but another pass is needed after TransformClasses
       objectAssign,
       funcScope, // before removeTrailingReturn
-      inferTypes, // TODO: smarter way to determine if more passes are needed
-      inferTypes,
-      inferTypes,
+      inferTypesMultipass,
       removeTrailingReturn, // after inferTypes
       detectVals,
       relations
