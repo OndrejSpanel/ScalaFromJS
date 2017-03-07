@@ -484,6 +484,21 @@ object Transform {
 
   }
 
+  def listPrototypeMemberNames(cls: AST_DefClass): Set[String] = {
+    var existingMembers = Set.empty[String]
+    cls.walk {
+      case AST_ConciseMethod(AST_SymbolName(p), _) =>
+        existingMembers += p
+        true
+      case AST_ObjectKeyVal(p, _) =>
+        existingMembers += p
+        true
+      case _ =>
+        false
+    }
+    existingMembers
+  }
+
   def listClassMembers(node: AST_Node) = {
     var listMembers = ClassInfo()
 
@@ -493,9 +508,14 @@ object Transform {
           //println(s"Add parent $parent for $clsName")
           listMembers = listMembers.copy(parents = listMembers.parents + (clsName -> parent))
         }
-        for (VarName(member) <- cls.body) {
-          listMembers = listMembers.copy(members = listMembers.members + SymbolTypes.MemberId(clsName, member))
-        }
+        val members = listPrototypeMemberNames(cls)
+
+        // list data members
+        val varMembers = for (VarName(member) <- cls.body) yield member
+
+        val ids = (members ++ varMembers).map(SymbolTypes.MemberId(clsName, _))
+
+        listMembers = listMembers.copy(members = listMembers.members ++ ids)
         false
       case _ =>
         false

@@ -6,7 +6,6 @@ import com.github.opengrabeso.UglifyExt.Import._
 
 import scala.scalajs.js
 import js.JSConverters._
-import scala.collection.immutable.ListSet
 
 object TransformClasses {
   import Transform.TypeDesc
@@ -347,23 +346,13 @@ object TransformClasses {
         case cls: AST_DefClass =>
           var newMembers = Seq.empty[String]
           // scan known prototype members (both function and var) first
-          var existingMembers = Set.empty[String]
-          cls.walk {
-            case AST_ConciseMethod(AST_SymbolName(p), _) =>
-              existingMembers += p
-              true
-            case AST_ObjectKeyVal(p, _) =>
-              existingMembers += p
-              true
-            case _ =>
-              false
-          }
+          var existingMembers = listPrototypeMemberNames(cls)
 
           cls.walk {
             case AST_Dot(IsThis(), mem) =>
               //println(s"Detect this.$mem")
               if (!existingMembers.contains(mem)) {
-                newMembers += mem
+                newMembers = newMembers :+ mem
                 existingMembers += mem
               }
               false
