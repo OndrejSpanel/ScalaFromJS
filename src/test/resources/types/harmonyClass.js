@@ -3,6 +3,10 @@ class Person {
         this.name = name;
         this.age= age;
     }
+
+    nameFunc() {return this.name}
+
+    get nameGetter() {return this.name}
 }
 
 class Employee extends Person {
@@ -25,4 +29,9 @@ class Janitor extends Employee { //inheritance
 }
 
 let bob = new Janitor('Bob');
-bob.printEmployeeDetails() // Bob is 66 years old, and earns 5000
+bob.printEmployeeDetails(); // Bob is 66 years old, and earns 5000
+
+var x, y;
+
+if (true) x = bob.nameFunc();
+if (true) y = bob.nameGetter();
