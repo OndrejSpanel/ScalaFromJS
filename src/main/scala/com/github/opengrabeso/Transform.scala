@@ -448,17 +448,9 @@ object Transform {
         cls
 
       case s@AST_SymbolRefDef(symDef) =>
-        // special case handling
-        if (symDef.name.endsWith(SymbolTypes.parSuffix)) {
-          // find corresponding constructor argument in the current class
-          val thisScope = findThisScope(Some(symDef.scope))
-          println(s"Scope for sym ${symDef.name} ${symDef.scope.nesting} ${thisScope.map(_.name.get.name)}")
-          types.get(symDef)
-        } else {
-          val thisScope = findThisScope(Some(symDef.scope))
-          println(s"Scope for sym ${symDef.name} ${symDef.scope.nesting} ${thisScope.map(_.name.get.name)}")
-          types.get(symDef)
-        }
+        val thisScope = findThisScope(Some(symDef.scope))
+        //println(s"Sym ${symDef.name} scope ${thisScope.map(_.name.get.name)} type ${types.get(symDef)}")
+        types.get(symDef)
       case AST_Dot(cls, name) =>
         for {
           callOn <- expressionType(cls)(ctx)
@@ -582,7 +574,7 @@ object Transform {
         val members = listPrototypeMemberNames(cls)
 
         // list data members
-        val varMembers = for (VarName(member) <- cls.body) yield member
+        val varMembers = for (VarName(member) <- TransformClasses.classInlineBody(cls).body) yield member
 
         val ids = (members ++ varMembers).map(SymbolTypes.MemberId(clsName, _))
 
@@ -623,10 +615,11 @@ object Transform {
     def addInferredType(symDef: SymbolDef, tpe: Option[TypeDesc]) = {
       val symType = SymbolTypes.typeUnionOption(tpe, inferred.get(symDef))
       for (tp <- symType) {
-        //println(s"Add type ${symDef.name}: $tpe")
         val id = SymbolTypes.id(symDef)
+        //println(s"Add type ${symDef.name}: $tpe id = $id")
         inferred += id -> tp
         allTypes.t += id -> tp
+        //println(s"All types ${allTypes.t.types}")
       }
     }
 
@@ -640,7 +633,8 @@ object Transform {
 
       val symType = SymbolTypes.typeUnionOption(tpe, inferred.getMember(id))
       for (tp <- symType) {
-        //println(s"Add member type $id: $tp")
+        //println(s"Add member type $idAccess - $id: $tp")
+        //println("  " + classInfo)
         inferred = inferred addMember id -> tp
         allTypes.t = allTypes addMember id -> tp
       }
@@ -666,13 +660,13 @@ object Transform {
       } {
         if (n.types.get(par).isEmpty) {
           val tp = expressionType(arg)(ctx)
-          println(s"Infer par ${par.name} as $tp")
+          //println(s"Infer par ${par.name} as $tp")
           addInferredType(par, tp)
         }
         arg match {
           case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
             val tp = allTypes.get(par)
-            println(s"Infer arg ${a.name} as $tp")
+            //println(s"Infer arg ${a.name} as $tp")
             addInferredType(a, tp)
           case _ =>
         }
@@ -752,7 +746,7 @@ object Transform {
 
         case AST_Assign(SymbolInfo(symInfo), _, src) =>
           val tpe = expressionType(src)(ctx)
-          println(s"Infer assign: $symInfo $tpe")
+          //println(s"Infer assign: $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)
 
         case AST_Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
@@ -799,12 +793,12 @@ object Transform {
 
                 {
                   val value = TransformClasses.classInlineBody(c)
-                  println(s"  Constructor inline pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
+                  //println(s"  Constructor inline pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
                   inferParsOrArgs(value.argnames, args)
                 }
 
                 for (AST_ConciseMethod(_, value: AST_Accessor) <- findConstructor(c)) {
-                  println(s"  Constructor pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
+                  //println(s"  Constructor pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
                   inferParsOrArgs(value.argnames, args)
                 }
               }

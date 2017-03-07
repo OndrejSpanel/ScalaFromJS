@@ -395,7 +395,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_SymbolVarOrConst extends AST_SymbolDeclaration
   @js.native class AST_SymbolVar extends AST_SymbolVarOrConst
-  @js.native class AST_SymbolFunarg extends AST_SymbolVar
+  @js.native class AST_SymbolFunarg extends AST_SymbolVar with CloneSelf[AST_SymbolFunarg]
   @js.native class AST_SymbolConst extends AST_SymbolVarOrConst
 
   @js.native class AST_SymbolDefun extends AST_SymbolDeclaration
