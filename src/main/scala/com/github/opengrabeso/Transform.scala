@@ -8,6 +8,7 @@ import com.github.opengrabeso.UglifyExt.Import._
 import scala.collection.mutable
 import scala.scalajs.js
 import js.JSConverters._
+import scala.language.implicitConversions
 
 /**
   * Transform AST to perform optimizations or adjustments
@@ -394,8 +395,12 @@ object Transform {
     }
   }
 
+  case class Ref[T](var t: T)
+
+  implicit def refToT[T](r: Ref[T]): T = r.t
+
   // TODO: no need to pass both classInfo and classes, one of them should do
-  case class ExpressionTypeContext(types: SymbolTypes, classInfo: ClassInfo, classes: Map[TypeDesc, AST_DefClass])
+  case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[TypeDesc, AST_DefClass])
 
   def includeParents(clazz: AST_DefClass, ret: Seq[AST_DefClass])(ctx: ExpressionTypeContext): Seq[AST_DefClass] = {
     clazz.`extends`.nonNull match {
@@ -478,7 +483,9 @@ object Transform {
       case AST_New(AST_SymbolRefDef(call), _*) =>
         Some(call.name)
       case AST_Call(AST_SymbolRefDef(call), _*) =>
-        types.get(call)
+        val id = SymbolTypes.id(call)
+       // println(s"Infer type of call ${call.name}:$id as ${types.get(id)}")
+        types.get(id)
 
       case AST_Call(AST_Dot(cls, name), _*) =>
         //println(s"Infer type of member call $name")
@@ -569,7 +576,7 @@ object Transform {
 
   def inferTypes(n: AST_Extended): AST_Extended = {
     var inferred = SymbolTypes()
-    var allTypes = n.types // all known types including the inferred ones
+    val allTypes = Ref(n.types) // keep immutable reference to a mutating var
     // TODO: consider multipass, can help with forward references
 
     val classes = classListHarmony(n)
@@ -599,7 +606,7 @@ object Transform {
         //println(s"Add type ${symDef.name}: $tpe")
         val id = SymbolTypes.id(symDef)
         inferred += id -> tp
-        allTypes += id -> tp
+        allTypes.t += id -> tp
       }
     }
 
@@ -615,7 +622,7 @@ object Transform {
       for (tp <- symType) {
         //println(s"Add member type $id: $tp")
         inferred = inferred addMember id -> tp
-        allTypes = allTypes addMember id -> tp
+        allTypes.t = allTypes addMember id -> tp
       }
     }
 
@@ -628,6 +635,8 @@ object Transform {
       case _ =>
         false
     }
+
+    //println(functions.map(f => f._1.name))
 
 
     def inferParsOrArgs(pars: js.Array[AST_SymbolFunarg], args: Seq[AST_Node]) = {
@@ -652,16 +661,15 @@ object Transform {
 
     def scanFunctionReturns(node: AST_Lambda) = {
       var allReturns = Option.empty[TypeDesc]
-      //println(s"Defun ${node.name}")
       node.walk {
         // include any sub-scopes, but not local functions
         case innerFunc: AST_Lambda if innerFunc != node =>
           true
         case AST_Return(Defined(value)) =>
           //println(s"  return expression ${nodeClassName(value)}")
-          val tp = expressionType(value)(ctx)
-          //println(s"  Return type $tp: expr ${ScalaOut.outputNode(value, "")}")
-          allReturns = SymbolTypes.typeUnionOption(allReturns, tp)
+          val tpe = expressionType(value)(ctx)
+          //println(s"  Return type $tpe: expr ${ScalaOut.outputNode(value, "")}")
+          allReturns = SymbolTypes.typeUnionOption(allReturns, tpe)
           false
         case _ =>
           false
@@ -745,6 +753,7 @@ object Transform {
 
         case fun@AST_Defun(Defined(symDef), _, _) =>
           val allReturns = scanFunctionReturns(fun)
+          //println(s"${symDef.name} returns $allReturns")
           addInferredType(symDef.thedef.get, allReturns)
 
         // TODO: derive getters and setters as well
@@ -886,7 +895,7 @@ object Transform {
               // each property replace with an individual assignment statement
               x.properties.collect {
                 case p: AST_ObjectKeyVal =>
-                  println(s"${p.key}")
+                  //println(s"${p.key}")
                   new AST_SimpleStatement {
                     fillTokens(this, p)
                     body = new AST_Assign {
