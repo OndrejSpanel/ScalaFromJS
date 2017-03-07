@@ -600,13 +600,16 @@ object ScalaOut {
 
         // call the constructor after all variable declarations
         constructor.foreach { lambda =>
-          out("constructor")
-          outputArgNames(lambda, postfix = parPostfix)
-          out.eol()
+          if (lambda.body.nonEmpty) {
+            out("constructor")
+            outputArgNames(lambda, postfix = parPostfix)
+            out.eol()
+          }
         }
 
         if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
+        // TODO: do not print constructor when empty
         for (p <- functionMembers) {
           nodeToOut(p)
         }
