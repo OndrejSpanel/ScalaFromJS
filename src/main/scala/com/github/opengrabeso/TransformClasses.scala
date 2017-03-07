@@ -429,7 +429,7 @@ object TransformClasses {
                 }
               }
             }
-            cls.body = cls.body ++ parNamesAdjusted.asInstanceOf[Array[AST_Statement]]
+            cls.body = cls.body ++ parNamesAdjusted.asInstanceOf[js.Array[AST_Statement]]
             constructor.body = rest
             // we cannot remove the constructor even if empty, we need its argument list
           }
