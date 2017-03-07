@@ -552,6 +552,7 @@ object ScalaOut {
       //case tn: AST_Toplevel => outputUnknownNode(tn)
       //case tn: AST_Scope => outputUnknownNode(tn)
       case tn: AST_DefClass =>
+        out.eol(2)
         out"class ${tn.name}"
 
         // find a constructor and output it
@@ -607,7 +608,7 @@ object ScalaOut {
         }
         out.unindent()
         out.eol()
-        out("}\n")
+        out("}\n\n")
         // classes have no body
         //blockBracedToOut(tn.body)
       case tn: AST_Block =>

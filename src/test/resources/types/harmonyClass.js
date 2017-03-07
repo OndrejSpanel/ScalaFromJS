@@ -20,14 +20,14 @@ class Employee extends Person {
     }
 }
 
-class Janitor extends Employee { //inheritance
+class Janitor extends Employee {
     constructor(name) {
         super(name, 66, 5000);
     }
 }
 
 let bob = new Janitor('Bob');
-bob.printEmployeeDetails(); // Bob is 66 years old, and earns 5000
+bob.printEmployeeDetails();
 
 var x, y;
 
