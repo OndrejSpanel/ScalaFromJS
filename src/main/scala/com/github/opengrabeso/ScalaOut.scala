@@ -564,6 +564,7 @@ object ScalaOut {
         }
 
         val constructor = Transform.findConstructor(tn).flatMap{c => NodeIsLambda.unapply(c.value)}
+        val accessor = TransformClasses.classInlineBody(tn)
 
         constructor.foreach(lambda => outputArgNames(lambda, true, SymbolTypes.parSuffix))
 
@@ -571,7 +572,7 @@ object ScalaOut {
           out" extends $base"
 
           // find the super constructor call and use its parameters
-          val superCall = tn.body.collectFirst {
+          val superCall = accessor.body.collectFirst {
             case AST_SimpleStatement(call@AST_Call(_: AST_Super, pars@_*)) =>
               out("(")
               outputNodes(pars)(nodeToOut)
@@ -585,7 +586,6 @@ object ScalaOut {
         out.indent()
 
         // class body should be a list of variable declarations, constructor statements may follow
-        val accessor = TransformClasses.classInlineBody(tn)
 
         accessor.body.foreach {
           case VarName(s) =>
