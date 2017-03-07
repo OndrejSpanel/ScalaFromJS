@@ -304,7 +304,7 @@ object ScalaOut {
         out"def $keyName${tn.value}\n"
 
       case tn: AST_Object =>
-        out("js.Dynamic.literal {\n")
+        out("new {\n") // prefer anonymous class over js.Dynamic.literal
         out.indent()
         tn.properties.foreach{ n =>
           nodeToOut(n)
@@ -592,9 +592,11 @@ object ScalaOut {
         if ((varMembers.nonEmpty || tn.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
 
         // call the constructor after all variable declarations
-        out("constructor")
-        constructor.foreach(lambda => outputArgNames(lambda, postfix = parPostfix))
-        out.eol()
+        constructor.foreach { lambda =>
+          out("constructor")
+          outputArgNames(lambda, postfix = parPostfix)
+          out.eol()
+        }
 
         if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
