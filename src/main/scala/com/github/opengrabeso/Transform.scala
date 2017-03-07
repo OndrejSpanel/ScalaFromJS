@@ -406,6 +406,20 @@ object Transform {
     }
   }
 
+  def findInParents(tpe: TypeDesc, member: String)(ctx: ExpressionTypeContext): Option[String] = {
+    ctx.classInfo.classContains(tpe, member)
+    /*
+    for {
+      clazz <- ctx.classes.get(tpe)
+      parent@AST_DefClass(Defined(AST_SymbolName(c)), _, _) <- includeParents(clazz, Seq(clazz))(ctx)
+      ... search parent
+    } {
+      return Some(c)
+    }
+    None
+    */
+  }
+
 
 
   def expressionType(n: AST_Node)(ctx: ExpressionTypeContext): Option[TypeDesc] = {
@@ -421,10 +435,14 @@ object Transform {
       case AST_SymbolRefDef(symDef) =>
         types.get(symDef)
       case AST_Dot(cls, name) =>
-        val clsType = expressionType(cls)(ctx)
-        val r = types.getMember(clsType, name)
-        println(s"Infer type of member $clsType.$name as $r")
-        r
+        for {
+          callOn <- expressionType(cls)(ctx)
+          c <- findInParents(callOn, name)(ctx)
+          r <- types.getMember(Some(c), name)
+        } yield {
+          println(s"Infer type of member $c.$name as $r")
+          r
+        }
       case _: AST_Number =>
         Some(SymbolTypes.number)
       case _: AST_String =>
@@ -466,15 +484,12 @@ object Transform {
         //println(s"Infer type of member call $name")
         for {
           callOn <- expressionType(cls)(ctx)
-          clazz <- classes.get(callOn)
-          AST_DefClass(Defined(AST_SymbolName(c)), _, _) <- includeParents(clazz, Seq(clazz))(ctx)
-          //_ = println(s"${c.name.get.name}")
+          c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(c), name)
-        } {
+        } yield {
           println(s"  Infer type of member call $c.$name as $r")
-          return Some(r) // TODO: refactor to avoid return
+          r
         }
-        None
       case seq: AST_Seq =>
         expressionType(seq.cdr)(ctx)
       case _ =>
@@ -655,11 +670,30 @@ object Transform {
     }
 
     case class SymbolAccessInfo(symbol: Option[SymbolDef] = None, dot: Option[SymbolTypes.MemberId] = None) {
+      def unknownType(types: SymbolTypes): Boolean = {
+        symbol.fold{
+          dot.fold(false) { d =>
+            val p = findInParents(d.cls, d.name)(ctx)
+            println(s"Check $d => $p.${n.types.getMember(dot)}")
+            n.types.getMember(p.map(pp => d.copy(cls = pp))).isEmpty
+          }
+        } { s =>
+          println(s"Check $s => ${n.types.get(s)}")
+          n.types.get(s).isEmpty
+        }
+      }
+
       def addSymbolInferredType(tpe: Option[SymbolTypes.TypeDesc]): Unit = {
         for (s <- symbol) {
           addInferredType(s, tpe)
         }
-        addInferredMemberType(dot, tpe)
+        for (d <- dot) {
+          addInferredMemberType(dot, tpe)
+        }
+      }
+
+      override def toString = {
+        symbol.fold(dot.toString)(_.name)
       }
     }
 
@@ -668,6 +702,9 @@ object Transform {
         case AST_SymbolRefDef(symDef) =>
           Some(SymbolAccessInfo(symbol = Some(symDef)))
         case AST_Dot(expr, name) =>
+          val clsId = SymbolTypes.memberId(expressionType(expr)(ctx), name)
+          Some(SymbolAccessInfo(dot = clsId))
+        case AST_Call(AST_Dot(expr, name), _*) =>
           val clsId = SymbolTypes.memberId(expressionType(expr)(ctx), name)
           Some(SymbolAccessInfo(dot = clsId))
         case _ =>
@@ -686,21 +723,25 @@ object Transform {
 
         case AST_Assign(SymbolInfo(symInfo), _, src) =>
           val tpe = expressionType(src)(ctx)
+          println(s"Infer assign: $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)
 
-        case AST_Binary(AST_SymbolRefDef(symLeft), IsArithmetic(), AST_SymbolRefDef(symRight))
-          if n.types.get(symLeft).isEmpty && n.types.get(symRight).isEmpty =>
+        case AST_Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
+          if symLeft.unknownType(n.types) && symRight.unknownType(n.types) =>
+          println(s"Infer arithmetic: both unknown $symLeft $symRight")
           val numType = Some(SymbolTypes.number)
-          addInferredType(symLeft, numType)
-          addInferredType(symRight, numType)
+          symLeft.addSymbolInferredType(numType)
+          symRight.addSymbolInferredType(numType)
 
-        case AST_Binary(AST_SymbolRefDef(symDef), op, expr) if n.types.get(symDef).isEmpty =>
+        case AST_Binary(SymbolInfo(symInfo), op, expr) if symInfo.unknownType(n.types) =>
+          println(s"Infer binary: left unknown $symInfo")
           val tpe = typeFromOperation(op, expr)
-          addInferredType(symDef, tpe)
+          symInfo.addSymbolInferredType(tpe)
 
-        case AST_Binary(expr, op, AST_SymbolRefDef(symDef)) if n.types.get(symDef).isEmpty =>
+        case AST_Binary(expr, op, SymbolInfo(symInfo)) if symInfo.unknownType(n.types) =>
+          println(s"Infer binary: right unknown $symInfo")
           val tpe = typeFromOperation(op, expr)
-          addInferredType(symDef, tpe)
+          symInfo.addSymbolInferredType(tpe)
 
         case fun@AST_Defun(Defined(symDef), _, _) =>
           val allReturns = scanFunctionReturns(fun)
