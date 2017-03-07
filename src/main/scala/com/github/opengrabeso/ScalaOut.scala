@@ -201,12 +201,11 @@ object ScalaOut {
         if (delim) out(delimiter)
       }
     }
-    def outputArgNames(tn: AST_Lambda, types: Boolean = false) = {
+    def outputArgNames(tn: AST_Lambda, types: Boolean = false, postfix: String ="") = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        nodeToOut(n)
+        out(n.name + postfix)
         if (types) {
-          val defType = "Any"
           val typeString = n.thedef.nonNull match {
             case Some(td) =>
               input.types.getAsScala(td)
@@ -295,13 +294,13 @@ object ScalaOut {
         out.eol()
         out"def ${tn.key}${tn.value}\n"
       case tn: AST_ObjectKeyVal =>
-        out"${tn.key} = ${tn.value}\n"
+        out"var ${tn.key} = ${tn.value}\n"
       //case tn: AST_ObjectProperty =>
       case tn: AST_ConciseMethod =>
-        val keyName = tn.key.name match {
+        val keyName = tn.key.name /*match {
           case "constructor" => "this"
           case x => x
-        }
+        }*/
         out"def $keyName${tn.value}\n"
 
       case tn: AST_Object =>
@@ -380,7 +379,7 @@ object ScalaOut {
       case tn: AST_VarDef =>
         nodeToOut(tn.name)
         tn.value.nonNull.fold {
-          val tpe = tn.name.thedef.nonNull.map(input.types.getAsScala)
+          val tpe = tn.name.thedef.nonNull.map(s => input.types.getAsScala(s))
           val typeName = tpe.getOrElse(SymbolTypes.any)
           out": $typeName"
         } { v =>
@@ -561,16 +560,10 @@ object ScalaOut {
           }
         }
 
-        val constructor = Transform.findConstructor(tn)
+        val constructor = Transform.findConstructor(tn).flatMap{c => NodeIsLambda.unapply(c.value)}
+        val parPostfix = "_par"
 
-        def mapConstructor[T](f: (AST_Lambda) => T): Option[T] = {
-          for {
-            c <- constructor
-            lambda <- NodeIsLambda.unapply(c.value)
-          } yield f(lambda)
-        }
-
-        mapConstructor(lambda => outputArgNames(lambda, true))
+        constructor.foreach(lambda => outputArgNames(lambda, true, parPostfix))
 
         for (base <- tn.`extends`) {
           out" extends $base"
@@ -578,9 +571,34 @@ object ScalaOut {
         out" {\n"
         out.indent()
 
-        mapConstructor(lambda => blockToOut(lambda.body))
+        // class body should be a list of variable declarations
+        for (VarName(s) <- tn.body) {
+          val sType = input.types.getMember(tn.name.nonNull.map(_.name), s)
+          val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
+          out"var $s: $sTypeName\n"
+        }
 
-        for (p <- tn.properties if Transform.isConstructorProperty.lift(p).isEmpty) {
+        //blockToOut(tn.body)
+
+        val (functionMembers, varMembers) = tn.properties.partition {
+          case _: AST_ConciseMethod => true
+          case _ => false
+        }
+
+        //out(s"${functionMembers.length} ${varMembers.length}")
+        for (p <- varMembers) {
+          nodeToOut(p)
+        }
+        if ((varMembers.nonEmpty || tn.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
+
+        // call the constructor after all variable declarations
+        out("constructor")
+        constructor.foreach(lambda => outputArgNames(lambda, postfix = parPostfix))
+        out.eol()
+
+        if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
+
+        for (p <- functionMembers) {
           nodeToOut(p)
         }
         out.unindent()

@@ -1,6 +1,5 @@
 package com.github.opengrabeso
 import Transform._
-
 import com.github.opengrabeso.Uglify._
 import com.github.opengrabeso.UglifyExt._
 import com.github.opengrabeso.UglifyExt.Import._
@@ -36,6 +35,8 @@ object TransformClasses {
   case class ClassFunMember(args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement]) extends ClassMember
 
   case class ClassVarMember(value: AST_Node) extends ClassMember
+
+  case object ClassVarDeclMember extends ClassMember
 
   case class ClassDef(base: Option[String] = None, members: Map[String, ClassMember] = Map.empty)
 
@@ -287,41 +288,40 @@ object TransformClasses {
                 name = b
               }
             }
-            properties = clazz.members.map { case (k, v) =>
-              v match {
-                case m: ClassFunMember =>
-                  new AST_ConciseMethod {
-                    // symbol lookup will be needed
-                    key = new AST_SymbolRef {
-                      fillTokens(this, defun) // TODO: tokens from a property instead
-                      name = k
-                    }
-                    value = new AST_Accessor {
-                      fillTokens(this, defun) // TODO: tokens from a property instead
-                      argnames = m.args
-                      this.body = m.body.toJSArray
+            val funMembers = clazz.members.collect { case (k, m: ClassFunMember) =>
+              new AST_ConciseMethod {
+                // symbol lookup will be needed
+                key = new AST_SymbolRef {
+                  fillTokens(this, defun) // TODO: tokens from a property instead
+                  name = k
+                }
+                value = new AST_Accessor {
+                  fillTokens(this, defun) // TODO: tokens from a property instead
+                  argnames = m.args
+                  this.body = m.body.toJSArray
 
-                    }
-                  }: AST_ObjectProperty
-                case m: ClassVarMember =>
-                  new AST_ConciseMethod {
-                    // symbol lookup will be needed
-                    key = new AST_SymbolRef {
-                      fillTokens(this, defun) // TODO: tokens from a property instead
-                      name = k
-                    }
-                    value = new AST_Accessor {
-                      fillTokens(this, defun) // TODO: tokens from a property instead
-                      argnames = js.Array()
-                      this.body = js.Array(new AST_SimpleStatement {
-                        fillTokens(this, defun)
-                        body = m.value
-                      })
+                }
+              }: AST_ObjectProperty
+            }
 
-                    }
-                  }: AST_ObjectProperty
-              }
-            }.toJSArray
+            val varMembers = clazz.members.collect { case (k, m: ClassVarMember) =>
+              new AST_ObjectKeyVal {
+                fillTokens(this, defun) // TODO: tokens from a property instead
+                // symbol lookup will be needed
+                key = k
+                value = new AST_Function {
+                  fillTokens(this, defun) // TODO: tokens from a property instead
+                  argnames = js.Array()
+                  this.body = js.Array(new AST_SimpleStatement {
+                    fillTokens(this, defun)
+                    body = m.value
+                  })
+
+                }
+              }: AST_ObjectProperty
+            }
+
+            properties = (varMembers.toSeq ++ funMembers.toSeq).toJSArray
           }
         case _ =>
           node
@@ -331,5 +331,72 @@ object TransformClasses {
     AST_Extended(ret, n.types)
   }
 
+  def fillVarMembers(n: AST_Extended): AST_Extended = {
+    object IsThis {
+      def unapply(arg: AST_Node) = arg match {
+        case _: AST_This => true
+        case AST_SymbolRef("this", _, _) => true // not used in practice, AST_This seems to catch all
+        case _ => false
+      }
+    }
+
+    // TODO: detect access other than this (see AST_This in expressionType to check general this handling)
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        case cls: AST_DefClass =>
+          var newMembers = Seq.empty[String]
+          // scan known prototype members (both function and var) first
+          var existingMembers = listPrototypeMemberNames(cls)
+
+          cls.walk {
+            case AST_Dot(IsThis(), mem) =>
+              //println(s"Detect this.$mem")
+              if (!existingMembers.contains(mem)) {
+                newMembers = newMembers :+ mem
+                existingMembers += mem
+              }
+              false
+            case _ =>
+              false
+          }
+          cls.body = newMembers.map { m =>
+            new AST_Var {
+              fillTokens(this, node)
+              definitions = js.Array(new AST_VarDef {
+                name = new AST_SymbolVar {
+                  fillTokens(this, node)
+                  name = m
+                }
+              })
+            }: AST_Statement
+          }.toJSArray
+          node
+        case _ =>
+          node
+      }
+    }
+
+    val classInfo = listClassMembers(ret)
+    //println(classInfo)
+
+    // remove members already present in a parent from a derived class
+    val cleanup = ret.transformAfter { (node, _) =>
+      node match {
+        case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), _,_) =>
+          for (AST_SymbolName(base) <- cls.`extends`) {
+            //println(s"Detected base $base")
+            cls.body = cls.body.filter {
+              case VarName(member) => classInfo.classContains(base, member).isEmpty
+              case _ => true
+            }
+          }
+          cls
+        case _ =>
+          node
+      }
+    }
+
+    AST_Extended(cleanup, n.types)
+  }
 
 }

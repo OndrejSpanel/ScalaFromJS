@@ -31,8 +31,9 @@ class ExpressionTests extends FunSuite with TestUtils {
         "a += 1",
         "b += 1",
         """  a = {
-          |    b
+          |    var temp = b
           |    b += 1
+          |    temp
           |  }""".stripMargin,
         """  a = {
           |    c += 1

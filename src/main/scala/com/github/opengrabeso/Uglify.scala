@@ -256,7 +256,7 @@ object Uglify extends js.Object {
     var definitions: js.Array[AST_VarDef] = js.native
   }
 
-  @js.native class AST_Var extends AST_Definitions with CloneSelf[AST_Definitions]
+  @js.native class AST_Var extends AST_Definitions with CloneSelf[AST_Var]
   @js.native class AST_Const extends AST_Definitions
   @js.native class AST_Let extends AST_Definitions
 
@@ -693,6 +693,15 @@ object UglifyExt {
     object AST_DefClass {
       def unapply(arg: AST_DefClass) = Some(arg.name, arg.`extends`, arg.properties)
     }
+
+    object AST_ConciseMethod {
+      def unapply(arg: AST_ConciseMethod) = Some(arg.key, arg.value)
+    }
+
+    object AST_ObjectKeyVal {
+      def unapply(arg: AST_ObjectKeyVal) = Some(arg.key, arg.value)
+    }
+
     object Defined {
       def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
     }
@@ -711,8 +720,11 @@ object UglifyExt {
       }
     }
 
-    object AST_ConciseMethod {
-      def unapply(arg: AST_ConciseMethod) = Some(arg.key, arg.value)
+    object VarName {
+      def unapply(arg: AST_Node) = arg match {
+        case AST_Var(AST_VarDef(AST_SymbolName(s), _)) => Some(s)
+        case _ => None
+      }
     }
 
   }
