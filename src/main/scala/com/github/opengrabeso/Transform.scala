@@ -440,7 +440,7 @@ object Transform {
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(c), name)
         } yield {
-          println(s"Infer type of member $c.$name as $r")
+          //println(s"Infer type of member $c.$name as $r")
           r
         }
       case _: AST_Number =>
@@ -487,7 +487,7 @@ object Transform {
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(c), name)
         } yield {
-          println(s"  Infer type of member call $c.$name as $r")
+          //println(s"  Infer type of member call $c.$name as $r")
           r
         }
       case seq: AST_Seq =>
@@ -613,7 +613,7 @@ object Transform {
 
       val symType = SymbolTypes.typeUnionOption(tpe, inferred.getMember(id))
       for (tp <- symType) {
-        println(s"Add member type $id: $tp")
+        //println(s"Add member type $id: $tp")
         inferred = inferred addMember id -> tp
         allTypes = allTypes addMember id -> tp
       }
@@ -660,7 +660,7 @@ object Transform {
         case AST_Return(Defined(value)) =>
           //println(s"  return expression ${nodeClassName(value)}")
           val tp = expressionType(value)(ctx)
-          println(s"  Return type $tp: expr ${ScalaOut.outputNode(value, "")}")
+          //println(s"  Return type $tp: expr ${ScalaOut.outputNode(value, "")}")
           allReturns = SymbolTypes.typeUnionOption(allReturns, tp)
           false
         case _ =>
@@ -674,11 +674,11 @@ object Transform {
         symbol.fold{
           dot.fold(false) { d =>
             val p = findInParents(d.cls, d.name)(ctx)
-            println(s"Check $d => $p.${n.types.getMember(dot)}")
+            //println(s"Check $d => $p = ${n.types.getMember(dot)}")
             n.types.getMember(p.map(pp => d.copy(cls = pp))).isEmpty
           }
         } { s =>
-          println(s"Check $s => ${n.types.get(s)}")
+          //println(s"Check $s => ${n.types.get(s)}")
           n.types.get(s).isEmpty
         }
       }
@@ -723,23 +723,23 @@ object Transform {
 
         case AST_Assign(SymbolInfo(symInfo), _, src) =>
           val tpe = expressionType(src)(ctx)
-          println(s"Infer assign: $symInfo $tpe")
+          //println(s"Infer assign: $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)
 
         case AST_Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
           if symLeft.unknownType(n.types) && symRight.unknownType(n.types) =>
-          println(s"Infer arithmetic: both unknown $symLeft $symRight")
+          //println(s"Infer arithmetic: both unknown $symLeft $symRight")
           val numType = Some(SymbolTypes.number)
           symLeft.addSymbolInferredType(numType)
           symRight.addSymbolInferredType(numType)
 
         case AST_Binary(SymbolInfo(symInfo), op, expr) if symInfo.unknownType(n.types) =>
-          println(s"Infer binary: left unknown $symInfo")
+          //println(s"Infer binary: left unknown $symInfo")
           val tpe = typeFromOperation(op, expr)
           symInfo.addSymbolInferredType(tpe)
 
         case AST_Binary(expr, op, SymbolInfo(symInfo)) if symInfo.unknownType(n.types) =>
-          println(s"Infer binary: right unknown $symInfo")
+          //println(s"Infer binary: right unknown $symInfo")
           val tpe = typeFromOperation(op, expr)
           symInfo.addSymbolInferredType(tpe)
 
@@ -753,7 +753,7 @@ object Transform {
           // method of which class is this?
           val scope = findThisScope(fun.parent_scope.nonNull)
           for (AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope) {
-            println(s"Infer return type for method $cls.$sym as $tpe")
+            //println(s"Infer return type for method $cls.$sym as $tpe")
             val classId = SymbolTypes.MemberId(cls, sym)
             addInferredMemberType(Some(classId), tpe)
           }

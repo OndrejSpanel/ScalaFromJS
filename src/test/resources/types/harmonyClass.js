@@ -22,9 +22,7 @@ class Employee extends Person {
 
 class Janitor extends Employee { //inheritance
     constructor(name) {
-        super(name);
-        this.age = 66;
-        this.salary = 5000;
+        super(name, 66, 5000);
     }
 }
 
