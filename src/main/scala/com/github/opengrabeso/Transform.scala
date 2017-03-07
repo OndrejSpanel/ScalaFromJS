@@ -900,17 +900,23 @@ object Transform {
   def removeDoubleScope(n: AST_Extended): AST_Extended = {
     val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case AST_BlockStatement(inner: AST_BlockStatement) =>
+        case AST_SimpleStatement(inner: AST_BlockStatement) =>
+          //println("Remove AST_SimpleStatement <- AST_BlockStatement")
           inner
-        case func@AST_Function(_, AST_BlockStatement(body)) =>
+        case AST_BlockStatement(Seq(inner: AST_BlockStatement)) =>
+          //println("Remove AST_BlockStatement <- AST_BlockStatement")
+          inner
+        case func@AST_Function(_, Seq(AST_BlockStatement(body))) =>
+          //println("Remove AST_Function <- AST_BlockStatement")
           func.body = body.toJSArray
           func
-        case func@AST_Accessor(_, AST_BlockStatement(body)) =>
+        case func@AST_Accessor(_, Seq(AST_BlockStatement(body))) =>
+          println("Remove AST_Accessor <- AST_BlockStatement")
           func.body = body.toJSArray
           func
         case func@AST_Lambda(_, body) =>
-          println(nodeClassName(func))
-          println(body.map(nodeClassName))
+          //println(nodeClassName(func))
+          //println(body.map(nodeClassName))
           func
         case _ =>
           node
