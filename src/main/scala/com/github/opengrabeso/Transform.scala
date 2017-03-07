@@ -451,7 +451,6 @@ object Transform {
         // special case handling
         if (symDef.name.endsWith(SymbolTypes.parSuffix)) {
           // find corresponding constructor argument in the current class
-          // we might put vars and constructor code into a dedicated property instead, this way it would get a correct scope from Uglify
           val thisScope = findThisScope(Some(symDef.scope))
           println(s"Scope for sym ${symDef.name} ${symDef.scope.nesting} ${thisScope.map(_.name.get.name)}")
           types.get(symDef)
@@ -667,13 +666,13 @@ object Transform {
       } {
         if (n.types.get(par).isEmpty) {
           val tp = expressionType(arg)(ctx)
-          println(s"Infer ${par.name} as $tp")
+          println(s"Infer par ${par.name} as $tp")
           addInferredType(par, tp)
         }
         arg match {
           case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
             val tp = allTypes.get(par)
-            println(s"Infer ${a.name} as $tp")
+            println(s"Infer arg ${a.name} as $tp")
             addInferredType(a, tp)
           case _ =>
         }
@@ -796,12 +795,18 @@ object Transform {
             case Some(clazz: AST_SymbolDefClass) =>
               //println(s"Infer arg types for class ${clazz.name}")
 
-              for {
-                c <- classes.get(clazz.name)
-                AST_ConciseMethod(_, value: AST_Accessor) <- findConstructor(c)
-              } {
-                println(s"  Constructor pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
-                inferParsOrArgs(value.argnames, args)
+              for (c <- classes.get(clazz.name)) {
+
+                {
+                  val value = TransformClasses.classInlineBody(c)
+                  println(s"  Constructor inline pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
+                  inferParsOrArgs(value.argnames, args)
+                }
+
+                for (AST_ConciseMethod(_, value: AST_Accessor) <- findConstructor(c)) {
+                  println(s"  Constructor pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
+                  inferParsOrArgs(value.argnames, args)
+                }
               }
 
             case Some(defunSym: AST_SymbolDefun) =>
