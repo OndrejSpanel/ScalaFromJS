@@ -345,11 +345,27 @@ object TransformClasses {
     val ret = n.top.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
-          var newMembers = ListSet.empty[String]
+          var newMembers = Seq.empty[String]
+          // scan known prototype members (both function and var) first
+          var existingMembers = Set.empty[String]
+          cls.walk {
+            case AST_ConciseMethod(AST_SymbolName(p), _) =>
+              existingMembers += p
+              true
+            case AST_ObjectKeyVal(p, _) =>
+              existingMembers += p
+              true
+            case _ =>
+              false
+          }
+
           cls.walk {
             case AST_Dot(IsThis(), mem) =>
               //println(s"Detect this.$mem")
-              if (!newMembers.contains(mem)) newMembers += mem
+              if (!existingMembers.contains(mem)) {
+                newMembers += mem
+                existingMembers += mem
+              }
               false
             case _ =>
               false

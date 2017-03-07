@@ -698,6 +698,10 @@ object UglifyExt {
       def unapply(arg: AST_ConciseMethod) = Some(arg.key, arg.value)
     }
 
+    object AST_ObjectKeyVal {
+      def unapply(arg: AST_ObjectKeyVal) = Some(arg.key, arg.value)
+    }
+
     object Defined {
       def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
     }
