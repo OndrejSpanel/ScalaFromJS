@@ -262,7 +262,7 @@ object TransformClasses {
 
     }
 
-    val ret = deleteProtos.transformAfter { (node, walker) =>
+    val createClasses = deleteProtos.transformAfter { (node, walker) =>
       node match {
         case defun@ClassDefine(sym, _, _) if classes contains sym.name =>
           //println(s"  ${walker.stack.map(nodeClassName).mkString("|")}")
@@ -328,7 +328,37 @@ object TransformClasses {
       }
     }
 
-    AST_Extended(ret, n.types)
+
+    val cleanupClasses = createClasses.transformAfter { (node, walker) =>
+      // TODO: detect if cls is a base class
+      node match {
+        // Animal.apply(this, Array.prototype.slice.call(arguments))
+        case call@AST_Call(
+        AST_SymbolRefName(cls) AST_Dot "apply",
+        _: AST_This,
+        AST_Call(AST_SymbolRefName("Array") AST_Dot "prototype" AST_Dot "slice" AST_Dot "call",args@_*)
+        ) =>
+          call.expression = new AST_Super {
+            fillTokens(this, node)
+            name = "super"
+          }
+          call.args = args.toJSArray
+          call
+        // Light.call( this, skyColor, intensity )
+        case call@AST_Call(AST_SymbolRefName(cls) AST_Dot "call", args@_*) =>
+          call.expression = new AST_Super {
+            fillTokens(this, node)
+            name = "super"
+          }
+          call.args = args.toJSArray
+          call
+        case _ =>
+          node
+      }
+    }
+
+
+    AST_Extended(cleanupClasses, n.types)
   }
 
   def fillVarMembers(n: AST_Extended): AST_Extended = {

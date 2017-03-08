@@ -269,9 +269,9 @@ object Uglify extends js.Object {
 
   @js.native class AST_Call extends AST_Node {
     //[AST_Node] expression to invoke as function
-    val expression: AST_Node = js.native
+    var expression: AST_Node = js.native
     //[AST_Node*] array of arguments
-    val args: js.Array[AST_Node] = js.native
+    var args: js.Array[AST_Node] = js.native
   }
 
   @js.native class AST_New extends AST_Call
@@ -687,6 +687,10 @@ object UglifyExt {
 
     object AST_Dot {
       def unapply(arg: AST_Dot) = Some(arg.expression, arg.property)
+    }
+
+    object -- {
+      def unapply(arg: AST_Dot) = AST_Dot.unapply(arg)
     }
 
 
