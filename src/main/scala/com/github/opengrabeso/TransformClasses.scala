@@ -1,8 +1,9 @@
 package com.github.opengrabeso
 import Transform._
-import com.github.opengrabeso.Uglify._
-import com.github.opengrabeso.UglifyExt._
-import com.github.opengrabeso.UglifyExt.Import._
+import Classes._
+import Uglify._
+import UglifyExt._
+import UglifyExt.Import._
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -338,11 +339,9 @@ object TransformClasses {
           c
       }
 
-      def superClass = thisClass.flatMap(Transform.superClass)
-
       def isSuperClass(name: TypeDesc) = {
-        println(s"$superClass $name")
-        superClass.contains(name)
+        println(s"${thisClass.flatMap(superClass)} $name")
+        thisClass.flatMap(superClass).contains(name)
       }
 
       node match {
