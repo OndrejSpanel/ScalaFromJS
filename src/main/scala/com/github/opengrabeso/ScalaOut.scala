@@ -70,7 +70,11 @@ object ScalaOut {
     def outEx(ex: Any) {
       ex match {
         case s: String =>
+          println("symbol")
           output(s)
+        case s: AST_Symbol =>
+          println("symbol")
+          identifierToOut(output, s.name)
         case n: AST_Node =>
           nodeToOut(n)
         case x if js.isUndefined(x) =>
@@ -350,7 +354,7 @@ object ScalaOut {
       case tn: AST_Dot =>
         nodeToOut(tn.expression)
         out(".")
-        out(tn.property)
+        identifierToOut(out, tn.property)
       //case tn: AST_PropAccess => outputUnknownNode(tn)
       case tn: AST_Seq =>
         out("{\n")
@@ -593,7 +597,7 @@ object ScalaOut {
             val clsName = tn.name.nonNull.map(_.name)
             val sType = input.types.getMember(clsName, s)
             val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
-            out"var $s: $sTypeName\n"
+            out"var ${identifier(s)}: $sTypeName\n"
           case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
           case ss =>
             //out(nodeTreeToString(ss))
@@ -655,11 +659,15 @@ object ScalaOut {
     }
   }
 
-  private def identifierToOut(out: Output, name: String) = {
+  private def identifier(name: String) = {
     // TODO: other rules needed?
     if (Keywords(name)) {
-      out("`" + name + "`")
-    } else out(name)
+      "`" + name + "`"
+    } else name
+  }
+
+  private def identifierToOut(out: Output, name: String) = {
+    out(identifier(name))
   }
 
   private def blockBracedToOut(body: js.Array[AST_Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
