@@ -70,10 +70,10 @@ object ScalaOut {
     def outEx(ex: Any) {
       ex match {
         case s: String =>
-          println("symbol")
+          //println("symbol")
           output(s)
         case s: AST_Symbol =>
-          println("symbol")
+          //println("symbol")
           identifierToOut(output, s.name)
         case n: AST_Node =>
           nodeToOut(n)
