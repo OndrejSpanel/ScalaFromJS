@@ -331,13 +331,27 @@ object TransformClasses {
 
     val cleanupClasses = createClasses.transformAfter { (node, walker) =>
       // TODO: detect if cls is a base class
+      // find enclosing class (if any)
+      def thisClass = walker.stack.collectFirst {
+        case c: AST_DefClass =>
+          println(s"${c.name.get.name}")
+          c
+      }
+
+      def superClass = thisClass.flatMap(Transform.superClass)
+
+      def isSuperClass(name: TypeDesc) = {
+        println(s"$superClass $name")
+        superClass.contains(name)
+      }
+
       node match {
         // Animal.apply(this, Array.prototype.slice.call(arguments))
         case call@AST_Call(
         AST_SymbolRefName(cls) AST_Dot "apply",
         _: AST_This,
         AST_Call(AST_SymbolRefName("Array") AST_Dot "prototype" AST_Dot "slice" AST_Dot "call",args@_*)
-        ) =>
+        ) if isSuperClass(cls) =>
           call.expression = new AST_Super {
             fillTokens(this, node)
             name = "super"
@@ -345,7 +359,8 @@ object TransformClasses {
           call.args = args.toJSArray
           call
         // Light.call( this, skyColor, intensity )
-        case call@AST_Call(AST_SymbolRefName(cls) AST_Dot "call", args@_*) =>
+        case call@AST_Call(AST_SymbolRefName(cls) AST_Dot "call", args@_*) if isSuperClass(cls) =>
+          println(s"Super call in ${thisClass.map(nodeClassName)}")
           call.expression = new AST_Super {
             fillTokens(this, node)
             name = "super"

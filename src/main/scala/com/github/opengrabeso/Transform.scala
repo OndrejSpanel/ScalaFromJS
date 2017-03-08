@@ -404,12 +404,17 @@ object Transform {
     }
   }
 
+  def superClass(cls: AST_DefClass): Option[TypeDesc] = {
+    val sup = cls.`extends`.nonNull.collect {
+      case AST_SymbolRefName(c) =>
+        c
+    }
+    sup
+  }
+
   def findSuperClass(scope: Option[AST_Scope])(ctx: ExpressionTypeContext): Option[TypeDesc] = {
     val thisScope = findThisScope(scope)
-    val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
-    val sup = cls.flatMap(ctx.classInfo.parents.get)
-    //println(s"super scope $sup")
-    sup
+    thisScope.flatMap(superClass)
   }
 
   def includeParents(clazz: AST_DefClass, ret: Seq[AST_DefClass])(ctx: ExpressionTypeContext): Seq[AST_DefClass] = {
