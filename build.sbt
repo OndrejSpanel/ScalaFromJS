@@ -76,7 +76,9 @@ lazy val rsc = (project in file("resource-objects")).
     libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value
   )
 
-lazy val scalaFromJS = (project in file(".")).aggregate(rsc).dependsOn(rsc)
+lazy val scalaFromJS = (project in file(".")).aggregate(rsc).dependsOn(rsc).settings(
+  scalaJSOptimizerOptions in fastOptJS ~= { _.withDisableOptimizer(true) }
+)
 
 
 lazy val deployTask = TaskKey[Unit]("deploy")

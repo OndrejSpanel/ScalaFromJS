@@ -269,9 +269,9 @@ object Uglify extends js.Object {
 
   @js.native class AST_Call extends AST_Node {
     //[AST_Node] expression to invoke as function
-    val expression: AST_Node = js.native
+    var expression: AST_Node = js.native
     //[AST_Node*] array of arguments
-    val args: js.Array[AST_Node] = js.native
+    var args: js.Array[AST_Node] = js.native
   }
 
   @js.native class AST_New extends AST_Call
@@ -366,7 +366,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_ConciseMethod extends AST_ObjectProperty {
     override def key: AST_Symbol = js.native
-    //override def key_=(k: Any): Unit = js.native
+    override def value: AST_Accessor = js.native
 
     // [string|undefined] the original quote character, if any
     var quote: js.UndefOr[String]= js.native
@@ -395,7 +395,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_SymbolVarOrConst extends AST_SymbolDeclaration
   @js.native class AST_SymbolVar extends AST_SymbolVarOrConst
-  @js.native class AST_SymbolFunarg extends AST_SymbolVar
+  @js.native class AST_SymbolFunarg extends AST_SymbolVar with CloneSelf[AST_SymbolFunarg]
   @js.native class AST_SymbolConst extends AST_SymbolVarOrConst
 
   @js.native class AST_SymbolDefun extends AST_SymbolDeclaration
@@ -411,6 +411,7 @@ object Uglify extends js.Object {
   @js.native class AST_SymbolRef extends AST_Symbol
   @js.native class AST_LabelRef extends AST_Symbol
   @js.native class AST_This extends AST_Symbol
+  @js.native class AST_Super extends AST_Symbol
 
   @js.native sealed abstract class AST_Constant extends AST_Symbol
 
@@ -686,6 +687,10 @@ object UglifyExt {
 
     object AST_Dot {
       def unapply(arg: AST_Dot) = Some(arg.expression, arg.property)
+    }
+
+    object -- {
+      def unapply(arg: AST_Dot) = AST_Dot.unapply(arg)
     }
 
 

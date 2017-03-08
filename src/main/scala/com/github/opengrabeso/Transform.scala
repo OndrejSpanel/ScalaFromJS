@@ -1,9 +1,10 @@
 package com.github.opengrabeso
 
-import com.github.opengrabeso.JsUtils._
-import com.github.opengrabeso.Uglify._
-import com.github.opengrabeso.UglifyExt._
-import com.github.opengrabeso.UglifyExt.Import._
+import JsUtils._
+import Uglify._
+import UglifyExt._
+import UglifyExt.Import._
+import Classes._
 
 import scala.collection.mutable
 import scala.scalajs.js
@@ -386,17 +387,6 @@ object Transform {
 
   object IsBoolean extends ExtractorInList("||", "&&")
 
-  def findThisScope(scope: Option[AST_Scope]): Option[AST_DefClass] = {
-    scope match {
-      case Some(s: AST_DefClass) => Some(s)
-      case Some(_: AST_Function) => None // do functions define a different this for functions?
-      case Some(x) =>
-        val s = x.parent_scope.nonNull
-        findThisScope(s)
-      case _ => None
-    }
-  }
-
   case class Ref[T](var t: T)
 
   implicit def refToT[T](r: Ref[T]): T = r.t
@@ -404,42 +394,26 @@ object Transform {
   // TODO: no need to pass both classInfo and classes, one of them should do
   case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[TypeDesc, AST_DefClass])
 
-  def includeParents(clazz: AST_DefClass, ret: Seq[AST_DefClass])(ctx: ExpressionTypeContext): Seq[AST_DefClass] = {
-    clazz.`extends`.nonNull match {
-      case Some(cls: AST_SymbolRef) =>
-        val c = ctx.classes.get(cls.name)
-        c.fold(ret)(parent => includeParents(parent, parent +: ret)(ctx))
-      case _ => ret
-    }
-  }
-
-  def findInParents(tpe: TypeDesc, member: String)(ctx: ExpressionTypeContext): Option[String] = {
-    ctx.classInfo.classContains(tpe, member)
-    /*
-    for {
-      clazz <- ctx.classes.get(tpe)
-      parent@AST_DefClass(Defined(AST_SymbolName(c)), _, _) <- includeParents(clazz, Seq(clazz))(ctx)
-      ... search parent
-    } {
-      return Some(c)
-    }
-    None
-    */
-  }
-
-
 
   def expressionType(n: AST_Node)(ctx: ExpressionTypeContext): Option[TypeDesc] = {
     //println(nodeClassName(n) + ": " + ScalaOut.outputNode(n, ""))
     import ctx._
     n match {
+      case s: AST_Super =>
+        val sup = findSuperClass(s.scope.nonNull)(ctx)
+        //println(s"super scope $sup")
+        sup
+
       case t: AST_This =>
         val thisScope = findThisScope(t.scope.nonNull)
         //println(s"this scope ${t.scope.map(_.nesting)}")
         val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
         //println(s"this def scope $cls")
         cls
-      case AST_SymbolRefDef(symDef) =>
+
+      case s@AST_SymbolRefDef(symDef) =>
+        //val thisScope = findThisScope(Some(symDef.scope))
+        //println(s"Sym ${symDef.name} scope ${thisScope.map(_.name.get.name)} type ${types.get(symDef)}")
         types.get(symDef)
       case AST_Dot(cls, name) =>
         for {
@@ -564,7 +538,7 @@ object Transform {
         val members = listPrototypeMemberNames(cls)
 
         // list data members
-        val varMembers = for (VarName(member) <- cls.body) yield member
+        val varMembers = for (VarName(member) <- TransformClasses.classInlineBody(cls).body) yield member
 
         val ids = (members ++ varMembers).map(SymbolTypes.MemberId(clsName, _))
 
@@ -605,10 +579,11 @@ object Transform {
     def addInferredType(symDef: SymbolDef, tpe: Option[TypeDesc]) = {
       val symType = SymbolTypes.typeUnionOption(tpe, inferred.get(symDef))
       for (tp <- symType) {
-        //println(s"Add type ${symDef.name}: $tpe")
         val id = SymbolTypes.id(symDef)
+        //println(s"Add type ${symDef.name}: $tpe id = $id")
         inferred += id -> tp
         allTypes.t += id -> tp
+        //println(s"All types ${allTypes.t.types}")
       }
     }
 
@@ -622,7 +597,8 @@ object Transform {
 
       val symType = SymbolTypes.typeUnionOption(tpe, inferred.getMember(id))
       for (tp <- symType) {
-        //println(s"Add member type $id: $tp")
+        //println(s"Add member type $idAccess - $id: $tp")
+        //println("  " + classInfo)
         inferred = inferred addMember id -> tp
         allTypes.t = allTypes addMember id -> tp
       }
@@ -648,13 +624,13 @@ object Transform {
       } {
         if (n.types.get(par).isEmpty) {
           val tp = expressionType(arg)(ctx)
-          //println(s"Infer ${par.name} as $tp")
+          //println(s"Infer par ${par.name} as $tp")
           addInferredType(par, tp)
         }
         arg match {
           case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
             val tp = allTypes.get(par)
-            //println(s"Infer ${a.name} as $tp")
+            //println(s"Infer arg ${a.name} as $tp")
             addInferredType(a, tp)
           case _ =>
         }
@@ -722,8 +698,25 @@ object Transform {
       }
     }
 
+    def inferConstructorCall(args: Seq[AST_Node], className: TypeDesc) = {
+      //println(s"Infer arg types for class $className")
+      for (c <- classes.get(className)) {
+        {
+          val value = TransformClasses.classInlineBody(c)
+          //println(s"  Constructor inline pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
+          inferParsOrArgs(value.argnames, args)
+        }
+
+        for (AST_ConciseMethod(_, value: AST_Accessor) <- findConstructor(c)) {
+          //println(s"  Constructor pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
+          inferParsOrArgs(value.argnames, args)
+        }
+      }
+    }
+
     n.top.walkWithDescend { (node, descend, walker) =>
       descend(node, walker)
+
       node match {
         case AST_VarDef(AST_Symbol(_, _, Defined(symDef)),Defined(src)) =>
           if (n.types.get(symDef).isEmpty) {
@@ -770,19 +763,10 @@ object Transform {
           }
 
         case AST_Call(AST_SymbolRefDef(call), args@_*) =>
-
-          // get the AST_Defun node to get the arg symbols from it
+          // we may call a function or a class (constructor call in the new Class(x)
           call.orig.headOption match {
             case Some(clazz: AST_SymbolDefClass) =>
-              //println(s"Infer arg types for class ${clazz.name}")
-
-              for {
-                c <- classes.get(clazz.name)
-                AST_ConciseMethod(_, value: AST_Accessor) <- findConstructor(c)
-              } {
-                //println(s"  Constructor args ${value.argnames}")
-                inferParsOrArgs(value.argnames, args)
-              }
+              inferConstructorCall(args, clazz.name)
 
             case Some(defunSym: AST_SymbolDefun) =>
               //println(s"Infer arg types for ${defunSym.name}")
@@ -796,8 +780,13 @@ object Transform {
 
             case _ =>
           }
-        case AST_Call(AST_Dot(expr,call), args@_*) =>
+        case AST_Call(s: AST_Super, args@_*) =>
+          for (sup <- findSuperClass(s.scope.nonNull)(ctx)) {
+            //println(s"Super call of $sup")
+            inferConstructorCall(args, sup)
+          }
 
+        case AST_Call(AST_Dot(expr,call), args@_*) =>
 
           //println(s"Call $call")
           // infer types for class member calls
@@ -839,7 +828,7 @@ object Transform {
   }
 
   def findConstructor(c: AST_DefClass): Option[AST_ConciseMethod] = {
-    c.properties.collect(isConstructorProperty).headOption
+    c.properties.collectFirst(isConstructorProperty)
   }
 
   def findMethod(c: AST_DefClass, name: String): Option[AST_ConciseMethod] = {

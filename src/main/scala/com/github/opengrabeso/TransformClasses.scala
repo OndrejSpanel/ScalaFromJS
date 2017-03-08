@@ -1,8 +1,9 @@
 package com.github.opengrabeso
 import Transform._
-import com.github.opengrabeso.Uglify._
-import com.github.opengrabeso.UglifyExt._
-import com.github.opengrabeso.UglifyExt.Import._
+import Classes._
+import Uglify._
+import UglifyExt._
+import UglifyExt.Import._
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -262,7 +263,7 @@ object TransformClasses {
 
     }
 
-    val ret = deleteProtos.transformAfter { (node, walker) =>
+    val createClasses = deleteProtos.transformAfter { (node, walker) =>
       node match {
         case defun@ClassDefine(sym, _, _) if classes contains sym.name =>
           //println(s"  ${walker.stack.map(nodeClassName).mkString("|")}")
@@ -291,7 +292,6 @@ object TransformClasses {
             }
             val funMembers = clazz.members.collect { case (k, m: ClassFunMember) =>
               new AST_ConciseMethod {
-                // symbol lookup will be needed
                 key = new AST_SymbolRef {
                   fillTokens(this, defun) // TODO: tokens from a property instead
                   name = k
@@ -329,7 +329,65 @@ object TransformClasses {
       }
     }
 
-    AST_Extended(ret, n.types)
+
+    val cleanupClasses = createClasses.transformAfter { (node, walker) =>
+      // TODO: detect if cls is a base class
+      // find enclosing class (if any)
+      def thisClass = walker.stack.collectFirst {
+        case c: AST_DefClass =>
+          //println(s"${c.name.get.name}")
+          c
+      }
+
+      object IsSuperClass {
+        def unapply(name: TypeDesc): Boolean = {
+          //println(s"${thisClass.flatMap(superClass)} $name")
+          thisClass.flatMap(superClass).contains(name)
+        }
+      }
+
+      def newAST_Super = new AST_Super {
+        fillTokens(this, node)
+        name = "super"
+      }
+
+      node match {
+        // Animal.apply(this, Array.prototype.slice.call(arguments))
+        case call@AST_Call(
+        AST_SymbolRefName(IsSuperClass()) AST_Dot "apply",
+        _: AST_This,
+        AST_Call(AST_SymbolRefName("Array") AST_Dot "prototype" AST_Dot "slice" AST_Dot "call",args@_*)
+        ) =>
+          //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
+          call.expression = newAST_Super
+          call.args = args.toJSArray
+          call
+        // Light.call( this, skyColor, intensity )
+        case call@AST_Call(AST_SymbolRefName(IsSuperClass()) AST_Dot "call", args@_*) =>
+          //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
+          call.expression = newAST_Super
+          call.args = args.toJSArray
+          call
+        // Light.prototype.copy.call( this, source );
+        case call@AST_Call(
+        AST_SymbolRefName(IsSuperClass()) AST_Dot "prototype" AST_Dot func AST_Dot "call",
+        _: AST_This, args@_*
+        ) =>
+          //println(s"Super call of $func in ${thisClass.map(_.name.get.name)}")
+          call.expression = new AST_Dot {
+            fillTokens(this, node)
+            expression = newAST_Super
+            property = func
+          }
+          call.args = args.toJSArray
+          call
+        case _ =>
+          node
+      }
+    }
+
+
+    AST_Extended(cleanupClasses, n.types)
   }
 
   def fillVarMembers(n: AST_Extended): AST_Extended = {
@@ -360,7 +418,8 @@ object TransformClasses {
             case _ =>
               false
           }
-          cls.body = newMembers.map { m =>
+
+          val vars = newMembers.map { m =>
             new AST_Var {
               fillTokens(this, node)
               definitions = js.Array(new AST_VarDef {
@@ -369,9 +428,13 @@ object TransformClasses {
                   name = m
                 }
               })
-            }: AST_Statement
-          }.toJSArray
-          node
+            }
+          }
+
+          val accessor = classInlineBody(cls)
+          accessor.body = (vars: Seq[AST_Statement]).toJSArray
+
+          cls
         case _ =>
           node
       }
@@ -386,7 +449,8 @@ object TransformClasses {
         case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), _,_) =>
           for (AST_SymbolName(base) <- cls.`extends`) {
             //println(s"Detected base $base")
-            cls.body = cls.body.filter {
+            val accessor = classInlineBody(cls)
+            accessor.body = accessor.body.filter {
               case VarName(member) => classInfo.classContains(base, member).isEmpty
               case _ => true
             }
@@ -400,8 +464,88 @@ object TransformClasses {
     AST_Extended(cleanup, n.types)
   }
 
+  def classInlineBody(cls: AST_DefClass): AST_Accessor = {
+
+    val present = findMethod(cls, "inline_^")
+    val method = present.getOrElse {
+      val newInlineBody = new AST_ConciseMethod {
+        fillTokens(this, cls)
+
+        key = new AST_SymbolRef {
+          fillTokens(this, cls) // TODO: tokens from a property instead
+          name = "inline_^"
+        }
+        value = new AST_Accessor {
+          fillTokens(this, cls) // TODO: tokens from a property instead
+          argnames = js.Array() // TODO: copy constructor names, with parSuffix decorations?
+          this.body = js.Array()
+        }
+      }
+      cls.properties = cls.properties :+ newInlineBody
+      newInlineBody
+    }
+    method.value
+  }
+
+  def inlineConstructors(n: AST_Extended): AST_Extended = {
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        case cls: AST_DefClass =>
+
+          for (AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)) {
+            // anything before a first variable declaration can be inlined, variables need to stay private
+            val (inlined, rest) = constructor.body.span {
+              case _: AST_Var => false
+              case _ => true
+            }
+            //println(s"inlined ${inlined.map(nodeClassName)}")
+            //println(s"rest ${rest.map(nodeClassName)}")
+            // transform parameter names while inlining (we need to use parSuffix names)
+            val parNames = constructor.argnames.map(_.name)
+            val parNamesSet = parNames.toSet
+            object IsParameter {
+              def unapply(arg: String): Boolean = parNamesSet contains arg
+            }
+            val parNamesAdjusted = inlined.map { s =>
+              s.transformAfter { (node, _) =>
+                node match {
+                  case sym@AST_SymbolName(IsParameter()) =>
+                    sym.name = sym.name + SymbolTypes.parSuffix
+                    sym
+                  case AST_Dot(_: AST_This, member) =>
+                    new AST_SymbolRef {
+                      fillTokens(this, node)
+                      name = member
+                    }
+                  case _ =>
+                    node
+                }
+              }
+            }
+            // add adjusted constructor argument names so that parser correctly resolves them inside of the function
+            val accessor = classInlineBody(cls)
+            accessor.argnames = constructor.argnames.map { p =>
+              val a = p.clone()
+              a.name = p.name + SymbolTypes.parSuffix
+              a
+            }
+            accessor.body = accessor.body ++ parNamesAdjusted.asInstanceOf[js.Array[AST_Statement]]
+            constructor.body = rest
+            // we cannot remove the constructor even if empty, we need its argument list
+          }
+
+          cls
+        case _ =>
+          node
+      }
+    }
+
+    AST_Extended(ret, n.types)
+  }
+
   val transforms = Seq(
     convertProtoClasses _,
-    fillVarMembers _
+    fillVarMembers _,
+    inlineConstructors _
   )
 }

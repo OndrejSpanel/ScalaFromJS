@@ -273,6 +273,7 @@ object ScalaOut {
       case tn: AST_String => out(quote(tn.value))
       //case tn: AST_Constant => "AST_Constant"
       case tn: AST_This => out("this") // TODO: handle differences between Scala and JS this
+      case tn: AST_Super => out("super") // TODO: handle differences between Scala and JS this
       //case tn: AST_LabelRef => out("AST_LabelRef")
       //case tn: AST_SymbolRef => out("AST_SymbolRef")
       //case tn: AST_Label => out("AST_Label")
@@ -564,21 +565,39 @@ object ScalaOut {
         }
 
         val constructor = Transform.findConstructor(tn).flatMap{c => NodeIsLambda.unapply(c.value)}
-        val parPostfix = "_par"
+        val accessor = TransformClasses.classInlineBody(tn)
 
-        constructor.foreach(lambda => outputArgNames(lambda, true, parPostfix))
+        constructor.foreach(lambda => outputArgNames(lambda, true, SymbolTypes.parSuffix))
 
         for (base <- tn.`extends`) {
           out" extends $base"
+
+          // find the super constructor call and use its parameters
+          val superCall = accessor.body.collectFirst {
+            case AST_SimpleStatement(call@AST_Call(_: AST_Super, pars@_*)) =>
+              out("(")
+              outputNodes(pars)(nodeToOut)
+              out(")")
+
+          }
+
+
         }
         out" {\n"
         out.indent()
 
-        // class body should be a list of variable declarations
-        for (VarName(s) <- tn.body) {
-          val sType = input.types.getMember(tn.name.nonNull.map(_.name), s)
-          val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
-          out"var $s: $sTypeName\n"
+        // class body should be a list of variable declarations, constructor statements may follow
+
+        accessor.body.foreach {
+          case VarName(s) =>
+            val clsName = tn.name.nonNull.map(_.name)
+            val sType = input.types.getMember(clsName, s)
+            val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
+            out"var $s: $sTypeName\n"
+          case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
+          case ss =>
+            //out(nodeTreeToString(ss))
+            nodeToOut(ss)
         }
 
         //blockToOut(tn.body)
@@ -596,15 +615,20 @@ object ScalaOut {
 
         // call the constructor after all variable declarations
         constructor.foreach { lambda =>
-          out("constructor")
-          outputArgNames(lambda, postfix = parPostfix)
-          out.eol()
+          if (lambda.body.nonEmpty) {
+            out("constructor")
+            outputArgNames(lambda, postfix = SymbolTypes.parSuffix)
+            out.eol()
+          }
         }
 
         if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
+        // TODO: do not print constructor when empty
         for (p <- functionMembers) {
-          nodeToOut(p)
+          if (p.value != accessor /*&& !constructor.contains(p.value)*/) {
+            nodeToOut(p)
+          }
         }
         out.unindent()
         out.eol()
@@ -669,7 +693,7 @@ object ScalaOut {
     sb.result
   }
 
-  def outputNode(ast: AST_Node, input: String, outConfig: Config = Config.default): String = {
+  def outputNode(ast: AST_Node, input: String = "", outConfig: Config = Config.default): String = {
     val sb = new StringBuilder
     val ret = new NiceOutput {
       def out(x: String) = sb append x
