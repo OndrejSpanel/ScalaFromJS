@@ -273,6 +273,7 @@ object ScalaOut {
       case tn: AST_String => out(quote(tn.value))
       //case tn: AST_Constant => "AST_Constant"
       case tn: AST_This => out("this") // TODO: handle differences between Scala and JS this
+      case tn: AST_Super => out("super") // TODO: handle differences between Scala and JS this
       //case tn: AST_LabelRef => out("AST_LabelRef")
       //case tn: AST_SymbolRef => out("AST_SymbolRef")
       //case tn: AST_Label => out("AST_Label")

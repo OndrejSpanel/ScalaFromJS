@@ -335,34 +335,49 @@ object TransformClasses {
       // find enclosing class (if any)
       def thisClass = walker.stack.collectFirst {
         case c: AST_DefClass =>
-          println(s"${c.name.get.name}")
+          //println(s"${c.name.get.name}")
           c
       }
 
-      def isSuperClass(name: TypeDesc) = {
-        println(s"${thisClass.flatMap(superClass)} $name")
-        thisClass.flatMap(superClass).contains(name)
+      object IsSuperClass {
+        def unapply(name: TypeDesc): Boolean = {
+          //println(s"${thisClass.flatMap(superClass)} $name")
+          thisClass.flatMap(superClass).contains(name)
+        }
+      }
+
+      def newAST_Super = new AST_Super {
+        fillTokens(this, node)
+        name = "super"
       }
 
       node match {
         // Animal.apply(this, Array.prototype.slice.call(arguments))
         case call@AST_Call(
-        AST_SymbolRefName(cls) AST_Dot "apply",
+        AST_SymbolRefName(IsSuperClass()) AST_Dot "apply",
         _: AST_This,
         AST_Call(AST_SymbolRefName("Array") AST_Dot "prototype" AST_Dot "slice" AST_Dot "call",args@_*)
-        ) if isSuperClass(cls) =>
-          call.expression = new AST_Super {
-            fillTokens(this, node)
-            name = "super"
-          }
+        ) =>
+          //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
+          call.expression = newAST_Super
           call.args = args.toJSArray
           call
         // Light.call( this, skyColor, intensity )
-        case call@AST_Call(AST_SymbolRefName(cls) AST_Dot "call", args@_*) if isSuperClass(cls) =>
-          println(s"Super call in ${thisClass.map(nodeClassName)}")
-          call.expression = new AST_Super {
+        case call@AST_Call(AST_SymbolRefName(IsSuperClass()) AST_Dot "call", args@_*) =>
+          //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
+          call.expression = newAST_Super
+          call.args = args.toJSArray
+          call
+        // Light.prototype.copy.call( this, source );
+        case call@AST_Call(
+        AST_SymbolRefName(IsSuperClass()) AST_Dot "prototype" AST_Dot func AST_Dot "call",
+        _: AST_This, args@_*
+        ) =>
+          //println(s"Super call of $func in ${thisClass.map(_.name.get.name)}")
+          call.expression = new AST_Dot {
             fillTokens(this, node)
-            name = "super"
+            expression = newAST_Super
+            property = func
           }
           call.args = args.toJSArray
           call
