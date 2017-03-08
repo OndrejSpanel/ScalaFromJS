@@ -310,15 +310,7 @@ object TransformClasses {
                 fillTokens(this, defun) // TODO: tokens from a property instead
                 // symbol lookup will be needed
                 key = k
-                value = new AST_Function {
-                  fillTokens(this, defun) // TODO: tokens from a property instead
-                  argnames = js.Array()
-                  this.body = js.Array(new AST_SimpleStatement {
-                    fillTokens(this, defun)
-                    body = m.value
-                  })
-
-                }
+                value = m.value
               }: AST_ObjectProperty
             }
 
