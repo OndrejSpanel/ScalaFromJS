@@ -386,6 +386,13 @@ object Transform {
 
   object IsBoolean extends ExtractorInList("||", "&&")
 
+  case class Ref[T](var t: T)
+
+  implicit def refToT[T](r: Ref[T]): T = r.t
+
+  // TODO: no need to pass both classInfo and classes, one of them should do
+  case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[TypeDesc, AST_DefClass])
+
   def findThisScope(scope: Option[AST_Scope]): Option[AST_DefClass] = {
     scope match {
       case Some(s: AST_DefClass) => Some(s)
@@ -397,12 +404,13 @@ object Transform {
     }
   }
 
-  case class Ref[T](var t: T)
-
-  implicit def refToT[T](r: Ref[T]): T = r.t
-
-  // TODO: no need to pass both classInfo and classes, one of them should do
-  case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[TypeDesc, AST_DefClass])
+  def findSuperClass(scope: Option[AST_Scope])(ctx: ExpressionTypeContext): Option[TypeDesc] = {
+    val thisScope = findThisScope(scope)
+    val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
+    val sup = cls.flatMap(ctx.classInfo.parents.get)
+    //println(s"super scope $sup")
+    sup
+  }
 
   def includeParents(clazz: AST_DefClass, ret: Seq[AST_DefClass])(ctx: ExpressionTypeContext): Seq[AST_DefClass] = {
     clazz.`extends`.nonNull match {
@@ -434,9 +442,7 @@ object Transform {
     import ctx._
     n match {
       case s: AST_Super =>
-        val thisScope = findThisScope(s.scope.nonNull)
-        val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
-        val sup = cls.flatMap(ctx.classInfo.parents.get)
+        val sup = findSuperClass(s.scope.nonNull)(ctx)
         //println(s"super scope $sup")
         sup
 
@@ -448,7 +454,7 @@ object Transform {
         cls
 
       case s@AST_SymbolRefDef(symDef) =>
-        val thisScope = findThisScope(Some(symDef.scope))
+        //val thisScope = findThisScope(Some(symDef.scope))
         //println(s"Sym ${symDef.name} scope ${thisScope.map(_.name.get.name)} type ${types.get(symDef)}")
         types.get(symDef)
       case AST_Dot(cls, name) =>
@@ -734,6 +740,22 @@ object Transform {
       }
     }
 
+    def inferConstructorCall(args: Seq[AST_Node], className: TypeDesc) = {
+      //println(s"Infer arg types for class $className")
+      for (c <- classes.get(className)) {
+        {
+          val value = TransformClasses.classInlineBody(c)
+          //println(s"  Constructor inline pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
+          inferParsOrArgs(value.argnames, args)
+        }
+
+        for (AST_ConciseMethod(_, value: AST_Accessor) <- findConstructor(c)) {
+          //println(s"  Constructor pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
+          inferParsOrArgs(value.argnames, args)
+        }
+      }
+    }
+
     n.top.walkWithDescend { (node, descend, walker) =>
       descend(node, walker)
 
@@ -783,25 +805,10 @@ object Transform {
           }
 
         case AST_Call(AST_SymbolRefDef(call), args@_*) =>
-
-          // get the AST_Defun node to get the arg symbols from it
+          // we may call a function or a class (constructor call in the new Class(x)
           call.orig.headOption match {
             case Some(clazz: AST_SymbolDefClass) =>
-              //println(s"Infer arg types for class ${clazz.name}")
-
-              for (c <- classes.get(clazz.name)) {
-
-                {
-                  val value = TransformClasses.classInlineBody(c)
-                  //println(s"  Constructor inline pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
-                  inferParsOrArgs(value.argnames, args)
-                }
-
-                for (AST_ConciseMethod(_, value: AST_Accessor) <- findConstructor(c)) {
-                  //println(s"  Constructor pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
-                  inferParsOrArgs(value.argnames, args)
-                }
-              }
+              inferConstructorCall(args, clazz.name)
 
             case Some(defunSym: AST_SymbolDefun) =>
               //println(s"Infer arg types for ${defunSym.name}")
@@ -815,8 +822,13 @@ object Transform {
 
             case _ =>
           }
-        case AST_Call(AST_Dot(expr,call), args@_*) =>
+        case AST_Call(s: AST_Super, args@_*) =>
+          for (sup <- findSuperClass(s.scope.nonNull)(ctx)) {
+            //println(s"Super call of $sup")
+            inferConstructorCall(args, sup)
+          }
 
+        case AST_Call(AST_Dot(expr,call), args@_*) =>
 
           //println(s"Call $call")
           // infer types for class member calls
