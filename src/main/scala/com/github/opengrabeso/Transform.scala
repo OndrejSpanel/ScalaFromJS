@@ -349,9 +349,34 @@ object Transform {
       node match {
         case sw: AST_Switch =>
           val newBody = new mutable.ArrayBuffer[AST_Statement]
-          val emptyBefore = Seq.empty[AST_Node] // accumulated list of empty conditions
+          var emptyBefore = Seq.empty[AST_SwitchBranch] // accumulated list of empty conditions
           for ((s: AST_SwitchBranch) <- sw._body.asInstanceOf[js.Array[AST_SwitchBranch]]) {
 
+            if (s.body.nonEmpty) { // flush emptyBefore
+              def processEmptyPrefix(e: Seq[AST_Node]): Unit = {
+                e match {
+                  case head +: tail =>
+                    (s, head) match {
+                      case (c1: AST_Case, c2: AST_Case) =>
+                        c1.expression = new AST_Binary {
+                          fillTokens(this, c1.expression)
+                          left = c1.expression
+                          operator = "|"
+                          right = c2.expression
+                        }
+                      case (c: AST_Default, _) =>
+                        // TODO: emit a default ...
+                      case (_, c: AST_Default) =>
+                        // already a default, no need to append
+                    }
+                    processEmptyPrefix(tail)
+                  case _ =>
+                }
+
+              }
+              processEmptyPrefix(emptyBefore)
+              emptyBefore = Seq.empty
+            }
             s.body.lastOption match {
               case Some(_: AST_Break) =>
                 s.body = s.body.dropRight(1)
@@ -360,9 +385,11 @@ object Transform {
                 newBody append s
               case Some(_: AST_Return) =>
                 newBody append s
+              case None =>
+                emptyBefore = s +: emptyBefore
               case _ if !lastInSwitch(s) =>
                 // fall through branches - warn
-                s.body = js.Array(unsupported("Missing break", s))
+                s.body = s.body ++ js.Array(unsupported("Missing break", s))
                 newBody append s
             }
           }

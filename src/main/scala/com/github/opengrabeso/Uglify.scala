@@ -164,7 +164,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_Case extends AST_SwitchBranch {
     // [AST_Node] the `case` expression
-    val expression: AST_Node = js.native
+    var expression: AST_Node = js.native
   }
 
   @js.native class AST_Try extends AST_Scope {
