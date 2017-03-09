@@ -14,6 +14,9 @@ object SymbolTypes {
   case class ClassType(name: String) extends TypeDesc {
     override def toString = name
   }
+  case class FunctionType(ret: TypeDesc, args: Seq[TypeDesc]) extends TypeDesc {
+    override def toString = args.mkString("(", ", ",")") + " => " + ret.toString
+  }
 
   val any = SimpleType("Any")
   val number = SimpleType("number")
