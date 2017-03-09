@@ -6,7 +6,7 @@ import org.scalatest.FunSuite
 
 class ThreeJsTests extends FunSuite with TestUtils {
 
-  test("Handle Scala keywords in identifiers") {
+  test("Convert Three.js Vector3 with reasonable results") {
     pendingUntilFixed {
       execute check ConversionCheck(rsc("expressions/reserved.js"))
         .required(
