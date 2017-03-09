@@ -797,6 +797,41 @@ object Transform {
       }
     }
 
+    def inferFunction(func: FunctionType, args: Seq[AST_Node]) = {
+      var f = func
+      for ((arg, par) <- args.zipWithIndex) { // TODO:
+        if (func.args.length >= par || func.args(par).isEmpty) {
+          val tp = expressionType(arg)(ctx)
+          println(s"Infer par $par as $tp")
+          tp.fold {
+            // TODO: merge
+            if (func.args.length >= par) {
+              f = f.copy(args = func.args.patch(par, Seq(None), 1))
+            } else {
+              f = f.copy(args = func.args ++ Seq(None))
+            }
+          } { t =>
+            if (func.args.length >= par) {
+              f = f.copy(args = func.args.patch(par, Seq(Some(t)), 1))
+            } else {
+              f = f.copy(args = func.args ++ Seq(Some(t)))
+
+            }
+          }
+        }
+        arg match {
+          case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
+            val tp = if (func.args.length >= par) func.args(par) else None
+            println(s"Infer arg ${a.name} as $tp")
+            addInferredType(a, tp)
+          case _ =>
+        }
+      }
+      f
+    }
+
+
+
     def scanFunctionReturns(node: AST_Lambda) = {
       var allReturns = Option.empty[TypeDesc]
       node.walk {
@@ -923,20 +958,22 @@ object Transform {
           }
 
         case AST_Call(AST_SymbolRefDef(call), args@_*) =>
-          // we may call a function or a class (constructor call in the new Class(x)
           call.orig.headOption match {
-            case Some(clazz: AST_SymbolDefClass) =>
+            case Some(clazz: AST_SymbolDefClass) => // constructor call in the new Class(x)
               inferConstructorCall(args, clazz.name)
 
-            case Some(defunSym: AST_SymbolDefun) =>
+            case Some(defunSym: AST_SymbolDefun) => // normal function call
               //println(s"Infer arg types for ${defunSym.name}")
-
               functions.get(defunSym) match {
                 case Some(AST_Defun(_, pars, _)) =>
                   // now match arguments to parameters
                   inferParsOrArgs(pars, args)
                 case _ =>
               }
+            case Some(varSym: AST_SymbolVar) =>
+              println(s"Infer arg types for a var call ${varSym.name}")
+              val inf = inferFunction(FunctionType(None, IndexedSeq()), args)
+              println(s"  inf: $inf")
 
             case _ =>
           }

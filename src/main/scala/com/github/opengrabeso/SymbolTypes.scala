@@ -14,8 +14,11 @@ object SymbolTypes {
   case class ClassType(name: String) extends TypeDesc {
     override def toString = name
   }
-  case class FunctionType(ret: TypeDesc, args: Seq[TypeDesc]) extends TypeDesc {
-    override def toString = args.mkString("(", ", ",")") + " => " + ret.toString
+  case class FunctionType(ret: Option[TypeDesc], args: IndexedSeq[Option[TypeDesc]]) extends TypeDesc {
+    override def toString = {
+      def outputType(o: Option[TypeDesc]) = o.fold("Any")(_.toString)
+      args.map(outputType).mkString("(", ", ",")") + " => " + outputType(ret)
+    }
   }
 
   val any = SimpleType("Any")
