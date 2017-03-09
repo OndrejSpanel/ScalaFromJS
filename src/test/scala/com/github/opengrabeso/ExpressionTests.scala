@@ -48,4 +48,23 @@ class ExpressionTests extends FunSuite with TestUtils {
       .required("s.isInstanceOf[String]", "s.getClass")
       .forbidden("instanceof", "typeof")
   }
+
+  test("Handle Scala keywords in identifiers") {
+    execute check ConversionCheck(rsc("expressions/reserved.js"))
+      .required(
+        "val `type` =",
+        "val `object` =",
+        "def `match`(`val`: Animal)",
+        "if (`val` == this) this",
+        "`object`.`match`(x).move()",
+        "def `lazy`(`object`: Any, meters: Double)"
+      )
+      .forbidden(
+        "`this`",
+        "`move`",
+        "`Animal`",
+        "`Snake`"
+      )
+
+  }
 }

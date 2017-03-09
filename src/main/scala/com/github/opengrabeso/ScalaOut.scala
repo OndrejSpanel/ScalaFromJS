@@ -299,14 +299,14 @@ object ScalaOut {
         out.eol()
         out"def ${tn.key}${tn.value}\n"
       case tn: AST_ObjectKeyVal =>
-        out"var ${tn.key} = ${tn.value}\n"
+        out"var ${identifier(tn.key)} = ${tn.value}\n"
       //case tn: AST_ObjectProperty =>
       case tn: AST_ConciseMethod =>
         val keyName = tn.key.name /*match {
           case "constructor" => "this"
           case x => x
         }*/
-        out"def $keyName${tn.value}\n"
+        out"def ${identifier(keyName)}${tn.value}\n"
 
       case tn: AST_Object =>
         out("new {\n") // prefer anonymous class over js.Dynamic.literal
