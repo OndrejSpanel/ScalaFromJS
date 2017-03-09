@@ -348,35 +348,53 @@ object Transform {
 
       node match {
         case sw: AST_Switch =>
-          val newBody = new mutable.ArrayBuffer[AST_Statement]
-          var emptyBefore = Seq.empty[AST_SwitchBranch] // accumulated list of empty conditions
-          for ((s: AST_SwitchBranch) <- sw._body.asInstanceOf[js.Array[AST_SwitchBranch]]) {
+          // group conditions with empty body with the following non-empty one
+          def conditionGroups(s: Seq[AST_SwitchBranch], ret: Seq[Seq[AST_SwitchBranch]]): Seq[Seq[AST_SwitchBranch]] = s match {
+            case Seq() =>
+              ret
+            case seq =>
+              val (empty, nonEmpty) = seq.span (_.body.isEmpty)
+              conditionGroups(nonEmpty.drop(1), ret :+ (empty ++ nonEmpty.headOption))
+          }
 
-            if (s.body.nonEmpty) { // flush emptyBefore
-              def processEmptyPrefix(e: Seq[AST_Node]): Unit = {
-                e match {
-                  case head +: tail =>
-                    (s, head) match {
-                      case (c1: AST_Case, c2: AST_Case) =>
-                        c1.expression = new AST_Binary {
-                          fillTokens(this, c1.expression)
-                          left = c1.expression
-                          operator = "|"
-                          right = c2.expression
-                        }
-                      case (c: AST_Default, _) =>
-                        // TODO: emit a default ...
-                      case (_, c: AST_Default) =>
-                        // already a default, no need to append
+          val body = sw._body.asInstanceOf[js.Array[AST_SwitchBranch]]
+          val conditionGrouped = conditionGroups(body, Seq())
+
+          val groupedBody = for (g <- conditionGrouped) yield {
+            // all but the last are empty
+            def processGroup(e: Seq[AST_SwitchBranch], ret: AST_SwitchBranch) = {
+              def join(c1: AST_SwitchBranch, c2: AST_SwitchBranch) = {
+                assert(c1.body.isEmpty)
+                (c1, c2) match {
+                  case (case1: AST_Case, case2: AST_Case) =>
+                    case2.expression = new AST_Binary {
+                      fillTokens(this, case1.expression)
+                      left = case1.expression
+                      operator = "|"
+                      right = case2.expression
                     }
-                    processEmptyPrefix(tail)
-                  case _ =>
+                    case2
+                  case (case1: AST_Default, case2: AST_Case) =>
+                    case1.body = case2.body
+                    case1
+                  case (_, case2) =>
+                    assert(case2.isInstanceOf[AST_Default])
+                    case2
                 }
 
               }
-              processEmptyPrefix(emptyBefore)
-              emptyBefore = Seq.empty
+              e match {
+                case head +: tail =>
+                  join(ret, head)
+                case _ =>
+                  ret
+              }
             }
+            processGroup(g.tail, g.head)
+          }
+
+          val newBody = new mutable.ArrayBuffer[AST_Statement]
+          for (s <- groupedBody) {
             s.body.lastOption match {
               case Some(_: AST_Break) =>
                 s.body = s.body.dropRight(1)
@@ -385,8 +403,6 @@ object Transform {
                 newBody append s
               case Some(_: AST_Return) =>
                 newBody append s
-              case None =>
-                emptyBefore = s +: emptyBefore
               case _ if !lastInSwitch(s) =>
                 // fall through branches - warn
                 s.body = s.body ++ js.Array(unsupported("Missing break", s))
