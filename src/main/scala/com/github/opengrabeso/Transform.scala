@@ -10,6 +10,7 @@ import scala.collection.mutable
 import scala.scalajs.js
 import js.JSConverters._
 import scala.language.implicitConversions
+import scala.util.Try
 
 /**
   * Transform AST to perform optimizations or adjustments
@@ -191,6 +192,61 @@ object Transform {
 
     AST_Extended(ret, n.types)
   }
+
+  def defaultParameterValues(n: AST_Extended): AST_Extended = {
+
+    def introduceDefaultValues(f: AST_Lambda): AST_Lambda = {
+
+      // the only use of a parameter is in a `x_par || value` form
+      def introduceDefaultValue(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+        val parName = par.name
+        val references = par.thedef.nonNull.toSeq.flatMap(_.references)
+
+        if (references.length != 1 ) None
+        else {
+          var detected = false
+          f.walk {
+            case AST_Binary(AST_SymbolRefName(`parName`), "||", defValue: AST_Constant) =>
+              println(s"Detected def value for $parName")
+              detected = true
+              true // do not walk into, we do not want this use to be seen by detectedElsewhere
+            case _ =>
+              detected
+          }
+          if (detected) {
+            Some(f)
+          } else None
+        }
+      }
+
+      def processArguments(f: AST_Lambda, args: Seq[AST_SymbolFunarg]): AST_Lambda = args match {
+        case Seq() =>
+          f
+        case head +: tail =>
+          introduceDefaultValue(f, head).fold(f) {
+            processArguments( _, tail)
+          }
+      }
+
+      processArguments(f, f.argnames.toSeq.reverse)
+    }
+
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        case f: AST_Defun =>
+          introduceDefaultValues(f)
+        case m: AST_ConciseMethod =>
+          m.value = introduceDefaultValues(m.value)
+          m
+        case _ =>
+          node
+      }
+    }
+
+    AST_Extended(ret, n.types)
+
+  }
+
 
   def handleIncrement(n: AST_Extended): AST_Extended = {
 
@@ -1067,6 +1123,7 @@ object Transform {
       varInitialization _,
       readJSDoc _
     ) ++ TransformClasses.transforms ++ Seq(
+      defaultParameterValues _,
       varInitialization _, // already done, but another pass is needed after TransformClasses
       objectAssign _,
       inferTypesMultipass _,
