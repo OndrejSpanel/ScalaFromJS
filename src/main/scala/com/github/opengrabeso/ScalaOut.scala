@@ -208,7 +208,7 @@ object ScalaOut {
     def outputArgNames(tn: AST_Lambda, types: Boolean = false, postfix: String ="") = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        out(n.name + postfix)
+        out(identifier(n.name + postfix))
         if (types) {
           val typeString = n.thedef.nonNull match {
             case Some(td) =>
