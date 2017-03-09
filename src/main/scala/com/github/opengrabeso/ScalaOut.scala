@@ -571,7 +571,7 @@ object ScalaOut {
         val constructor = Transform.findConstructor(tn).flatMap{c => NodeIsLambda.unapply(c.value)}
         val accessor = TransformClasses.classInlineBody(tn)
 
-        constructor.foreach(lambda => outputArgNames(lambda, true, SymbolTypes.parSuffix))
+        outputArgNames(accessor, true)
 
         for (base <- tn.`extends`) {
           out" extends $base"

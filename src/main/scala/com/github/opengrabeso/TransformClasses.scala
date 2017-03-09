@@ -484,7 +484,7 @@ object TransformClasses {
       node match {
         case cls: AST_DefClass =>
 
-          for (AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)) {
+          for (constructorProperty@AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)) {
             // anything before a first variable declaration can be inlined, variables need to stay private
             val (inlined, rest) = constructor.body.span {
               case _: AST_Var => false
@@ -522,8 +522,11 @@ object TransformClasses {
               a
             }
             accessor.body = accessor.body ++ parNamesAdjusted.asInstanceOf[js.Array[AST_Statement]]
-            constructor.body = rest
-            // we cannot remove the constructor even if empty, we need its argument list
+            if (rest.nonEmpty) {
+              constructor.body = rest
+            } else {
+              cls.properties = cls.properties -- Seq(constructorProperty)
+            }
           }
 
           cls
