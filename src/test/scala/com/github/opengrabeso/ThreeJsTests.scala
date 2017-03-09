@@ -8,7 +8,7 @@ class ThreeJsTests extends FunSuite with TestUtils {
 
   test("Convert Three.js Vector3 with reasonable results") {
     pendingUntilFixed {
-      execute check ConversionCheck(rsc("expressions/reserved.js"))
+      execute check ConversionCheck(rsc("threejs/vector3.js"))
         .required(
           "class Vector3(x: Double = 0, y: Double = 0, z: Double = 0)",
           "(axis: Vector3, angle: Double)",
