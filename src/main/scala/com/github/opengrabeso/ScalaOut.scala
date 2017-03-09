@@ -214,6 +214,9 @@ object ScalaOut {
         case _ => SymbolTypes.any
       }
       out": $typeString"
+      for (init <- n.init.nonNull.flatMap(_.headOption)) {
+        out" = $init"
+      }
     }
 
     def outputArgNames(tn: AST_Lambda, types: Boolean = false) = {
