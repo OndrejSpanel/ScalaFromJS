@@ -204,18 +204,19 @@ object Transform {
 
         if (references.length != 1 ) None
         else {
-          var detected = false
+          var defValue = Option.empty[AST_Node]
           f.walk {
-            case AST_Binary(AST_SymbolRefName(`parName`), "||", defValue: AST_Constant) =>
+            case AST_Binary(AST_SymbolRefName(`parName`), "||", init: AST_Constant) =>
               println(s"Detected def value for $parName")
-              detected = true
-              true // do not walk into, we do not want this use to be seen by detectedElsewhere
+              defValue = Some(init)
+              true
             case _ =>
-              detected
+              defValue.nonEmpty
           }
-          if (detected) {
-            Some(f)
-          } else None
+          defValue.map { init =>
+            par.init = js.Array(init)
+            f
+          }
         }
       }
 

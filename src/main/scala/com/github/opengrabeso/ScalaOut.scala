@@ -184,6 +184,7 @@ object ScalaOut {
     }
   }
 
+
   def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
     def source = (for {
       s <- n.start
@@ -205,17 +206,22 @@ object ScalaOut {
         if (delim) out(delimiter)
       }
     }
-    def outputArgNames(tn: AST_Lambda, types: Boolean = false, postfix: String ="") = {
+
+    def outputArgType(n: AST_SymbolFunarg) = {
+      val typeString = n.thedef.nonNull match {
+        case Some(td) =>
+          input.types.getAsScala(td)
+        case _ => SymbolTypes.any
+      }
+      out": $typeString"
+    }
+
+    def outputArgNames(tn: AST_Lambda, types: Boolean = false) = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        out(identifier(n.name + postfix))
+        out"$n"
         if (types) {
-          val typeString = n.thedef.nonNull match {
-            case Some(td) =>
-              input.types.getAsScala(td)
-            case _ => SymbolTypes.any
-          }
-          out": $typeString"
+          outputArgType(n)
         }
       }
       out(")")
@@ -621,7 +627,7 @@ object ScalaOut {
         constructor.foreach { lambda =>
           if (lambda.body.nonEmpty) {
             out("constructor")
-            outputArgNames(lambda, postfix = SymbolTypes.parSuffix)
+            outputArgNames(accessor)
             out.eol()
           }
         }
