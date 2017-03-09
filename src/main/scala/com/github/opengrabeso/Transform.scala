@@ -202,12 +202,19 @@ object Transform {
         val parName = par.name
         val references = par.thedef.nonNull.toSeq.flatMap(_.references)
 
+        object IsParDefaultHandling {
+          def unapply(arg: AST_Node) = arg match {
+            case AST_Binary(symRef@AST_SymbolRefName(`parName`), "||", init: AST_Constant) => Some(symRef, init)
+            case _ => None
+          }
+        }
+
         if (references.length != 1 ) None
         else {
           var defValue = Option.empty[AST_Node]
           f.walk {
-            case AST_Binary(AST_SymbolRefName(`parName`), "||", init: AST_Constant) =>
-              println(s"Detected def value for $parName")
+            case IsParDefaultHandling(_, init) =>
+              //println(s"Detected def value for $parName")
               defValue = Some(init)
               true
             case _ =>
@@ -215,7 +222,15 @@ object Transform {
           }
           defValue.map { init =>
             par.init = js.Array(init)
-            f
+            // remove the use
+            f.transformAfter { (node, _) =>
+              node match {
+                case IsParDefaultHandling(symRef, _) =>
+                  symRef
+                case _ =>
+                  node
+              }
+            }.asInstanceOf[AST_Lambda]
           }
         }
       }
