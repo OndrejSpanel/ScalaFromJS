@@ -297,6 +297,7 @@ object Transform {
     val t = n.top.transformAfter { (node, transformer) =>
 
       def nodeLast(n: AST_Node, parentLevel: Int): Boolean = {
+        //println(s"${nodeClassName(n)}:$parentLevel:${nodeClassName(transformer.parent(parentLevel))}")
         transformer.parent(parentLevel) match {
           case ss: AST_SimpleStatement =>
             ss.body == n
@@ -314,10 +315,17 @@ object Transform {
       node match {
         case ret: AST_Return if nodeLast(ret, 0) =>
           // check if last in a function body
-          ret.value.nonNull.getOrElse {
+          //println("Remove trailing return")
+          ret.value.nonNull.fold[AST_Statement] {
             new AST_EmptyStatement {
               fillTokens(this, ret)
             }
+          }{ v =>
+              new AST_SimpleStatement {
+                fillTokens(this, ret)
+                body = v
+
+              }
           }
         case _ =>
           node
@@ -841,8 +849,19 @@ object Transform {
     //println(nodeTreeToString(n.top))
 
     object DefineAndReturnClass {
+      private object ReturnedExpression {
+        def unapply(arg: AST_Node) = arg match {
+          case AST_Return(Defined(x)) => // regular return
+            Some(x)
+          case AST_SimpleStatement(x) => // elided trailing return
+            Some(x)
+          case _ =>
+            None
+        }
+      }
+
       def unapply(arg: Seq[AST_Statement]) = arg match {
-        case Seq(defClass@AST_DefClass(Defined(c), _, _), AST_Return(Defined(r : AST_SymbolRef))) if c.thedef == r.thedef =>
+        case Seq(defClass@AST_DefClass(Defined(c), _, _), ReturnedExpression(r : AST_SymbolRef)) if c.thedef == r.thedef =>
           Some(defClass, c)
         case _ => None
       }
@@ -970,10 +989,10 @@ object Transform {
     ) ++ TransformClasses.transforms ++ Seq(
       varInitialization _, // already done, but another pass is needed after TransformClasses
       objectAssign _,
-      funcScope _, // before removeTrailingReturn
-      removeDoubleScope _,
       inferTypesMultipass _,
-      removeTrailingReturn _, // after inferTypes
+      removeTrailingReturn _, // after inferTypes (returns are needed for inferTypes)
+      funcScope _, // after removeTrailingReturn (functions scopes are needed for return removal)
+      removeDoubleScope _, // after funcScope (often introduced by it)
       detectVals _,
       relations _
     )
