@@ -302,9 +302,9 @@ object Transform {
           case ss: AST_SimpleStatement =>
             ss.body == n
           case fun: AST_Lambda =>
-            fun.body.last == n
+            fun.body.lastOption contains n
           case block: AST_Block  =>
-            block.body.last == n && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1)
+            (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1)
           case ii: AST_If =>
             (ii.body == n || ii.alternative.exists(_ == n)) && nodeLast(ii, parentLevel + 1)
           case _ =>
@@ -334,6 +334,39 @@ object Transform {
     AST_Extended(t, n.types)
   }
 
+  def removeTrailingBreak(n: AST_Extended): AST_Extended = {
+    val t = n.top.transformAfter { (node, transformer) =>
+
+      def lastInSwitch(n: AST_Node): Boolean = {
+        transformer.parent() match {
+          case ss: AST_Switch =>
+            ss.body.lastOption.contains(n)
+          case _ =>
+            false
+        }
+      }
+
+      node match {
+        case s: AST_SwitchBranch  =>
+          // TODO: fold empty branches together
+          s.body.lastOption match {
+            case Some(_: AST_Break) =>
+              s
+            case Some(_: AST_Throw) =>
+              s
+            case Some(_: AST_Return) =>
+              s
+            case _ if !lastInSwitch(s) =>
+              // fall through branches - warn
+              s.body = js.Array(unsupported("Missing break", s))
+              s
+          }
+        case _ =>
+          node
+      }
+    }
+    AST_Extended(t, n.types)
+  }
 
   def readJSDoc(n: AST_Extended): AST_Extended = {
     var commentsParsed = Set.empty[Int]
@@ -990,6 +1023,7 @@ object Transform {
       varInitialization _, // already done, but another pass is needed after TransformClasses
       objectAssign _,
       inferTypesMultipass _,
+      removeTrailingBreak _, // before removeTrailingReturn, return may be used to terminate cases
       removeTrailingReturn _, // after inferTypes (returns are needed for inferTypes)
       funcScope _, // after removeTrailingReturn (functions scopes are needed for return removal)
       removeDoubleScope _, // after funcScope (often introduced by it)

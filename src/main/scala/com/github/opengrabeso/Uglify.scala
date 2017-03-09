@@ -774,6 +774,26 @@ object UglifyExt {
     to.end = from.end
   }
 
+  def unsupported(message: String, source: AST_Node) = {
+    new AST_SimpleStatement {
+      fillTokens(this, source)
+      body = new AST_Call {
+        fillTokens(this, source)
+        expression = new AST_SymbolRef {
+          fillTokens(this, source)
+          name = "????" // force compile error
+        }
+        args = js.Array(
+          new AST_String {
+            fillTokens(this, source)
+            value = message
+            quote = "'"
+          }
+        )
+      }
+    }
+  }
+
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {
 
     val toplevel_ast = parse(code, options.parse)
