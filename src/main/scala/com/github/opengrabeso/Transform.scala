@@ -351,6 +351,7 @@ object Transform {
           // TODO: fold empty branches together
           s.body.lastOption match {
             case Some(_: AST_Break) =>
+              s.body = s.body.dropRight(1)
               s
             case Some(_: AST_Throw) =>
               s
