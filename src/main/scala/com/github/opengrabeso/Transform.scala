@@ -563,14 +563,14 @@ object Transform {
       case s: AST_Super =>
         val sup = findSuperClass(s.scope.nonNull)(ctx)
         //println(s"super scope $sup")
-        sup.map(SimpleType)
+        sup.map(ClassType)
 
       case t: AST_This =>
         val thisScope = findThisScope(t.scope.nonNull)
         //println(s"this scope ${t.scope.map(_.nesting)}")
         val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
         //println(s"this def scope $cls")
-        cls.map(SimpleType)
+        cls.map(ClassType)
 
       case s@AST_SymbolRefDef(symDef) =>
         //val thisScope = findThisScope(Some(symDef.scope))
@@ -578,7 +578,7 @@ object Transform {
         types.get(symDef)
       case AST_Dot(cls, name) =>
         for {
-          SimpleType(callOn) <- expressionType(cls)(ctx)
+          ClassType(callOn) <- expressionType(cls)(ctx)
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(c), name)
         } yield {
@@ -618,7 +618,7 @@ object Transform {
             None
         }
       case AST_New(AST_SymbolRefDef(call), _*) =>
-        Some(SimpleType(call.name))
+        Some(ClassType(call.name))
       case AST_Call(AST_SymbolRefDef(call), _*) =>
         val tid = id(call)
        // println(s"Infer type of call ${call.name}:$id as ${types.get(id)}")
@@ -627,7 +627,7 @@ object Transform {
       case AST_Call(AST_Dot(cls, name), _*) =>
         //println(s"Infer type of member call $name")
         for {
-          SimpleType(callOn) <- expressionType(cls)(ctx)
+          ClassType(callOn) <- expressionType(cls)(ctx)
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(c), name)
         } yield {
@@ -951,7 +951,7 @@ object Transform {
           //println(s"Call $call")
           // infer types for class member calls
           for {
-            SimpleType(callOn) <- expressionType(expr)(ctx)
+            ClassType(callOn) <- expressionType(expr)(ctx)
             clazz <- classes.get(callOn)
             c <- includeParents(clazz, Seq(clazz))(ctx) // infer for all overrides
             //_ = println(s"${c.name.get.name}")

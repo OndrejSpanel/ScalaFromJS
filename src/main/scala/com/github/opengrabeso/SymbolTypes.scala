@@ -11,6 +11,9 @@ object SymbolTypes {
   case class SimpleType(name: String) extends TypeDesc {
     override def toString = name
   }
+  case class ClassType(name: String) extends TypeDesc {
+    override def toString = name
+  }
 
   val any = SimpleType("Any")
   val number = SimpleType("number")
@@ -52,7 +55,7 @@ object SymbolTypes {
 
   def classFromType(tpe: Option[TypeDesc]): Option[String] = {
     tpe match {
-      case Some(SimpleType(name)) => Some(name)
+      case Some(ClassType(name)) => Some(name)
       case _ => None
     }
   }
