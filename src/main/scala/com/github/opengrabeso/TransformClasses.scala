@@ -130,7 +130,6 @@ object TransformClasses {
 
       // any use of XXX.prototype probably marks a class
       case AST_Dot(AST_SymbolRef(name, _, _), "prototype") =>
-        // TODO: heuristic detection of non-classes?
         classNames += name
         false
 
@@ -189,7 +188,6 @@ object TransformClasses {
           classes += sym.name -> ClassDef(members = Map("constructor" -> constructor))
         }
         true
-      // TODO: detect Object.assign call as well
       case ClassMemberDef(name, funName, args, body) =>
         //println(s"Assign $name.$funName")
         for (clazz <- classes.get(name)) {
@@ -280,12 +278,12 @@ object TransformClasses {
               thedef = sym.thedef
               //init = this
             }
-            // TODO: resolve a symbol
+
             //println(s"${sym.name} extends ${clazz.base}")
             `extends` = clazz.base.fold(js.undefined: js.UndefOr[AST_Node]) { b =>
               new AST_SymbolRef {
                 /*_*/
-                fillTokens(this, defun) // TODO: tokens from a property instead
+                fillTokens(this, defun)
                 /*_*/
                 name = b
               }
@@ -293,11 +291,11 @@ object TransformClasses {
             val funMembers = clazz.members.collect { case (k, m: ClassFunMember) =>
               new AST_ConciseMethod {
                 key = new AST_SymbolRef {
-                  fillTokens(this, defun) // TODO: tokens from a property instead
+                  fillTokens(this, defun)
                   name = k
                 }
                 value = new AST_Accessor {
-                  fillTokens(this, defun) // TODO: tokens from a property instead
+                  fillTokens(this, defun)
                   argnames = m.args
                   this.body = m.body.toJSArray
 
@@ -307,7 +305,7 @@ object TransformClasses {
 
             val varMembers = clazz.members.collect { case (k, m: ClassVarMember) =>
               new AST_ObjectKeyVal {
-                fillTokens(this, defun) // TODO: tokens from a property instead
+                fillTokens(this, defun)
                 // symbol lookup will be needed
                 key = k
                 value = m.value
@@ -323,7 +321,6 @@ object TransformClasses {
 
 
     val cleanupClasses = createClasses.transformAfter { (node, walker) =>
-      // TODO: detect if cls is a base class
       // find enclosing class (if any)
       def thisClass = walker.stack.collectFirst {
         case c: AST_DefClass =>
@@ -464,12 +461,12 @@ object TransformClasses {
         fillTokens(this, cls)
 
         key = new AST_SymbolRef {
-          fillTokens(this, cls) // TODO: tokens from a property instead
+          fillTokens(this, cls)
           name = "inline_^"
         }
         value = new AST_Accessor {
-          fillTokens(this, cls) // TODO: tokens from a property instead
-          argnames = js.Array() // TODO: copy constructor names, with parSuffix decorations?
+          fillTokens(this, cls)
+          argnames = js.Array()
           this.body = js.Array()
         }
       }

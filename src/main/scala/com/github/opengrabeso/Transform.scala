@@ -38,7 +38,6 @@ object Transform {
         case AST_Var(varDef@AST_VarDef(varName, value)) if value.nonNull.nonEmpty => // var with init - search for a modification
           varName.thedef.fold(node) { df =>
             assert(df.name == varName.name)
-            // TODO: infer type
             // check if any reference is assignment target
             val assignedInto = df.references.exists { ref =>
               //println(s"Reference to ${df.name} in scope ${ref.scope.get.nesting}")
@@ -434,7 +433,6 @@ object Transform {
             if (!(commentsParsed contains commentToken.pos)) {
               commentsParsed += commentToken.pos
               for (commentLine <- comment.lines) {
-                // TODO: only comment blocks starting with JSDoc marker
                 // match anything in form:
 
                 val JSDocParam = """@param +([^ ]+) +\{([^ ]+)\}""".r.unanchored // @param name {type}
@@ -644,7 +642,6 @@ object Transform {
   def inferTypes(n: AST_Extended): AST_Extended = {
     var inferred = SymbolTypes()
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
-    // TODO: consider multipass, can help with forward references
 
     val classes = classListHarmony(n)
     //println("Classes:\n" + classes)

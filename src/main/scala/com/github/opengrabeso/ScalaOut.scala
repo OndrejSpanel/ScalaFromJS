@@ -277,7 +277,7 @@ object ScalaOut {
       case tn: AST_String => out(quote(tn.value))
       //case tn: AST_Constant => "AST_Constant"
       case tn: AST_This => out("this") // TODO: handle differences between Scala and JS this
-      case tn: AST_Super => out("super") // TODO: handle differences between Scala and JS this
+      case tn: AST_Super => out("super")
       //case tn: AST_LabelRef => out("AST_LabelRef")
       //case tn: AST_SymbolRef => out("AST_SymbolRef")
       //case tn: AST_Label => out("AST_Label")
@@ -411,7 +411,7 @@ object ScalaOut {
       case tn: AST_Return =>
         out("return")
         tn.value.nonNull.foreach { v =>
-          out(" ") // TODO: remove return in trivial cases
+          out(" ")
           nodeToOut(v)
           out.eol()
         }
@@ -628,9 +628,8 @@ object ScalaOut {
 
         if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
-        // TODO: do not print constructor when empty
         for (p <- functionMembers) {
-          if (p.value != accessor /*&& !constructor.contains(p.value)*/) {
+          if (p.value != accessor) {
             nodeToOut(p)
           }
         }
@@ -660,7 +659,6 @@ object ScalaOut {
   }
 
   private def identifier(name: String) = {
-    // TODO: other rules needed?
     if (Keywords(name)) {
       "`" + name + "`"
     } else name
@@ -673,7 +671,7 @@ object ScalaOut {
   private def blockBracedToOut(body: js.Array[AST_Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
     if (!js.isUndefined(body)) { // harmony class may have undefined body
       // TODO: single statement without braces
-      out("{\n") // TODO: autoindent
+      out("{\n")
       out.indent()
       blockToOut(body)
       out.unindent()
