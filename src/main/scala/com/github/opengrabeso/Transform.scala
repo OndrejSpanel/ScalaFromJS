@@ -10,6 +10,7 @@ import scala.collection.mutable
 import scala.scalajs.js
 import js.JSConverters._
 import scala.language.implicitConversions
+import scala.util.Try
 
 /**
   * Transform AST to perform optimizations or adjustments
@@ -191,6 +192,77 @@ object Transform {
 
     AST_Extended(ret, n.types)
   }
+
+  def defaultParameterValues(n: AST_Extended): AST_Extended = {
+
+    def introduceDefaultValues(f: AST_Lambda): AST_Lambda = {
+
+      // the only use of a parameter is in a `x_par || value` form
+      def introduceDefaultValue(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+        val parName = par.name
+        val references = par.thedef.nonNull.toSeq.flatMap(_.references)
+
+        object IsParDefaultHandling {
+          def unapply(arg: AST_Node) = arg match {
+            case AST_Binary(symRef@AST_SymbolRefName(`parName`), "||", init: AST_Constant) => Some(symRef, init)
+            case _ => None
+          }
+        }
+
+        if (references.length != 1 ) None
+        else {
+          var defValue = Option.empty[AST_Node]
+          f.walk {
+            case IsParDefaultHandling(_, init) =>
+              //println(s"Detected def value for $parName")
+              defValue = Some(init)
+              true
+            case _ =>
+              defValue.nonEmpty
+          }
+          defValue.map { init =>
+            par.init = js.Array(init)
+            // remove the use
+            f.transformAfter { (node, _) =>
+              node match {
+                case IsParDefaultHandling(symRef, _) =>
+                  symRef
+                case _ =>
+                  node
+              }
+            }.asInstanceOf[AST_Lambda]
+          }
+        }
+      }
+
+      def processArguments(f: AST_Lambda, args: Seq[AST_SymbolFunarg]): AST_Lambda = args match {
+        case Seq() =>
+          f
+        case head +: tail =>
+          introduceDefaultValue(f, head).fold(f) {
+            processArguments( _, tail)
+          }
+      }
+
+      processArguments(f, f.argnames.toSeq.reverse)
+    }
+
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        case f: AST_Defun =>
+          introduceDefaultValues(f)
+        case m: AST_ConciseMethod =>
+          m.value = introduceDefaultValues(m.value)
+          m
+        case _ =>
+          node
+      }
+    }
+
+    AST_Extended(ret, n.types)
+
+  }
+
 
   def handleIncrement(n: AST_Extended): AST_Extended = {
 
@@ -1067,6 +1139,7 @@ object Transform {
       varInitialization _,
       readJSDoc _
     ) ++ TransformClasses.transforms ++ Seq(
+      defaultParameterValues _,
       varInitialization _, // already done, but another pass is needed after TransformClasses
       objectAssign _,
       inferTypesMultipass _,
