@@ -10,8 +10,6 @@ import js.JSConverters._
 
 object TransformClasses {
 
-  import Transform.TypeDesc
-
   object ClassDefine {
     def unapply(arg: AST_Node) = arg match {
       // function ClassName() {}
@@ -120,7 +118,7 @@ object TransformClasses {
   private def classList(n: AST_Extended) = {
     var classes = Map.empty[String, ClassDef]
 
-    var classNames = Set.empty[TypeDesc]
+    var classNames = Set.empty[String]
 
     n.top.walk {
       // new XXX()
@@ -329,7 +327,7 @@ object TransformClasses {
       }
 
       object IsSuperClass {
-        def unapply(name: TypeDesc): Boolean = {
+        def unapply(name: String): Boolean = {
           //println(s"${thisClass.flatMap(superClass)} $name")
           thisClass.flatMap(superClass).contains(name)
         }

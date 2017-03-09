@@ -17,7 +17,7 @@ import scala.util.Try
   * */
 object Transform {
 
-  type TypeDesc = SymbolTypes.TypeDesc
+  import SymbolTypes._
 
   object AST_Extended {
     def noTypes = SymbolTypes()
@@ -517,14 +517,14 @@ object Transform {
                       s <- sym
                       td <- s.thedef.nonNull
                     } {
-                      declBuffer append td -> tpe
+                      declBuffer append td -> parseType(tpe)
                     }
                   case JSDocReturn(tpe) =>
                     for {
                       s <- f.name.nonNull
                       td <- s.thedef.nonNull
                     } {
-                      declBuffer append td -> tpe
+                      declBuffer append td -> parseType(tpe)
                     }
                   case _ =>
                 }
@@ -553,7 +553,7 @@ object Transform {
   implicit def refToT[T](r: Ref[T]): T = r.t
 
   // TODO: no need to pass both classInfo and classes, one of them should do
-  case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[TypeDesc, AST_DefClass])
+  case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[String, AST_DefClass])
 
 
   def expressionType(n: AST_Node)(ctx: ExpressionTypeContext): Option[TypeDesc] = {
@@ -563,14 +563,14 @@ object Transform {
       case s: AST_Super =>
         val sup = findSuperClass(s.scope.nonNull)(ctx)
         //println(s"super scope $sup")
-        sup
+        sup.map(SimpleType)
 
       case t: AST_This =>
         val thisScope = findThisScope(t.scope.nonNull)
         //println(s"this scope ${t.scope.map(_.nesting)}")
         val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
         //println(s"this def scope $cls")
-        cls
+        cls.map(SimpleType)
 
       case s@AST_SymbolRefDef(symDef) =>
         //val thisScope = findThisScope(Some(symDef.scope))
@@ -578,7 +578,7 @@ object Transform {
         types.get(symDef)
       case AST_Dot(cls, name) =>
         for {
-          callOn <- expressionType(cls)(ctx)
+          SimpleType(callOn) <- expressionType(cls)(ctx)
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(c), name)
         } yield {
@@ -586,27 +586,27 @@ object Transform {
           r
         }
       case _: AST_Number =>
-        Some(SymbolTypes.number)
+        Some(number)
       case _: AST_String =>
-        Some(SymbolTypes.string)
+        Some(string)
       case _: AST_Boolean =>
-        Some(SymbolTypes.boolean)
+        Some(boolean)
       case tern: AST_Conditional =>
         val t1 = expressionType(tern.consequent)(ctx)
         val t2 = expressionType(tern.consequent)(ctx)
-        SymbolTypes.typeUnionOption(t1, t2)
+        typeUnionOption(t1, t2)
       case AST_Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
         // result of any arithmetic op is a number
         op match {
-          case IsArithmetic() => Some(SymbolTypes.number)
-          case IsComparison() => Some(SymbolTypes.boolean)
+          case IsArithmetic() => Some(number)
+          case IsComparison() => Some(boolean)
           case "+" =>
             val typeLeft = expressionType(left)(ctx)
             val typeRight = expressionType(right)(ctx)
             // string + anything is a string
             if (typeLeft == typeRight) typeLeft
-            else if (typeLeft.contains(SymbolTypes.string) || typeRight.contains(SymbolTypes.string)) Some(SymbolTypes.string)
+            else if (typeLeft.contains(string) || typeRight.contains(string)) Some(string)
             else None
           case IsBoolean() =>
             // boolean with the same type is the same type
@@ -618,16 +618,16 @@ object Transform {
             None
         }
       case AST_New(AST_SymbolRefDef(call), _*) =>
-        Some(call.name)
+        Some(SimpleType(call.name))
       case AST_Call(AST_SymbolRefDef(call), _*) =>
-        val id = SymbolTypes.id(call)
+        val tid = id(call)
        // println(s"Infer type of call ${call.name}:$id as ${types.get(id)}")
-        types.get(id)
+        types.get(tid)
 
       case AST_Call(AST_Dot(cls, name), _*) =>
         //println(s"Infer type of member call $name")
         for {
-          callOn <- expressionType(cls)(ctx)
+          SimpleType(callOn) <- expressionType(cls)(ctx)
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(c), name)
         } yield {
@@ -643,7 +643,7 @@ object Transform {
   }
 
   def classListHarmony(n: AST_Extended) = {
-    var classes = Map.empty[TypeDesc, AST_DefClass]
+    var classes = Map.empty[String, AST_DefClass]
     n.top.walk {
       case d: AST_DefClass =>
         for (name <- d.name) {
@@ -658,9 +658,9 @@ object Transform {
     classes
   }
 
-  case class ClassInfo(members: Set[SymbolTypes.MemberId] = Set.empty, parents: Map[TypeDesc, TypeDesc] = Map.empty) {
+  case class ClassInfo(members: Set[MemberId] = Set.empty, parents: Map[String, String] = Map.empty) {
     def classContains(cls: String, member: String): Option[String] = {
-      val r = if (members contains SymbolTypes.MemberId(cls, member)) Some(cls)
+      val r = if (members contains MemberId(cls, member)) Some(cls)
       else parents.get(cls).flatMap{c =>
         //println(s"  parent $c")
         classContains(c, member)
@@ -701,7 +701,7 @@ object Transform {
         // list data members
         val varMembers = for (VarName(member) <- TransformClasses.classInlineBody(cls).body) yield member
 
-        val ids = (members ++ varMembers).map(SymbolTypes.MemberId(clsName, _))
+        val ids = (members ++ varMembers).map(MemberId(clsName, _))
 
         listMembers = listMembers.copy(members = listMembers.members ++ ids)
         false
@@ -730,24 +730,24 @@ object Transform {
         case IsArithmetic() =>
           // arithmetics - must be a number,
           // hint: most likely the same type as we are operating with
-          Some(SymbolTypes.number)
+          Some(number)
         case _ =>
           None
       }
     }
 
     def addInferredType(symDef: SymbolDef, tpe: Option[TypeDesc]) = {
-      val symType = SymbolTypes.typeUnionOption(tpe, inferred.get(symDef))
+      val symType = typeUnionOption(tpe, inferred.get(symDef))
       for (tp <- symType) {
-        val id = SymbolTypes.id(symDef)
+        val tid = id(symDef)
         //println(s"Add type ${symDef.name}: $tpe id = $id")
-        inferred += id -> tp
-        allTypes.t += id -> tp
+        inferred += tid -> tp
+        allTypes.t += tid -> tp
         //println(s"All types ${allTypes.t.types}")
       }
     }
 
-    def addInferredMemberType(idAccess: Option[SymbolTypes.MemberId], tpe: Option[TypeDesc]) = {
+    def addInferredMemberType(idAccess: Option[MemberId], tpe: Option[TypeDesc]) = {
 
       val id = idAccess.flatMap { i =>
         classInfo.classContains(i.cls, i.name).map { containedIn =>
@@ -755,7 +755,7 @@ object Transform {
         }
       }
 
-      val symType = SymbolTypes.typeUnionOption(tpe, inferred.getMember(id))
+      val symType = typeUnionOption(tpe, inferred.getMember(id))
       for (tp <- symType) {
         //println(s"Add member type $idAccess - $id: $tp")
         //println("  " + classInfo)
@@ -807,7 +807,7 @@ object Transform {
           //println(s"  return expression ${nodeClassName(value)}")
           val tpe = expressionType(value)(ctx)
           //println(s"  Return type $tpe: expr ${ScalaOut.outputNode(value, "")}")
-          allReturns = SymbolTypes.typeUnionOption(allReturns, tpe)
+          allReturns = typeUnionOption(allReturns, tpe)
           false
         case _ =>
           false
@@ -815,7 +815,7 @@ object Transform {
       allReturns
     }
 
-    case class SymbolAccessInfo(symbol: Option[SymbolDef] = None, dot: Option[SymbolTypes.MemberId] = None) {
+    case class SymbolAccessInfo(symbol: Option[SymbolDef] = None, dot: Option[MemberId] = None) {
       def unknownType(types: SymbolTypes): Boolean = {
         symbol.fold{
           dot.fold(false) { d =>
@@ -829,7 +829,7 @@ object Transform {
         }
       }
 
-      def addSymbolInferredType(tpe: Option[SymbolTypes.TypeDesc]): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeDesc]): Unit = {
         for (s <- symbol) {
           addInferredType(s, tpe)
         }
@@ -848,17 +848,17 @@ object Transform {
         case AST_SymbolRefDef(symDef) =>
           Some(SymbolAccessInfo(symbol = Some(symDef)))
         case AST_Dot(expr, name) =>
-          val clsId = SymbolTypes.memberId(expressionType(expr)(ctx), name)
+          val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
           Some(SymbolAccessInfo(dot = clsId))
         case AST_Call(AST_Dot(expr, name), _*) =>
-          val clsId = SymbolTypes.memberId(expressionType(expr)(ctx), name)
+          val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
           Some(SymbolAccessInfo(dot = clsId))
         case _ =>
           None
       }
     }
 
-    def inferConstructorCall(args: Seq[AST_Node], className: TypeDesc) = {
+    def inferConstructorCall(args: Seq[AST_Node], className: String) = {
       //println(s"Infer arg types for class $className")
       for (c <- classes.get(className)) {
         {
@@ -892,7 +892,7 @@ object Transform {
         case AST_Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
           if symLeft.unknownType(n.types) && symRight.unknownType(n.types) =>
           //println(s"Infer arithmetic: both unknown $symLeft $symRight")
-          val numType = Some(SymbolTypes.number)
+          val numType = Some(number)
           symLeft.addSymbolInferredType(numType)
           symRight.addSymbolInferredType(numType)
 
@@ -918,7 +918,7 @@ object Transform {
           val scope = findThisScope(fun.parent_scope.nonNull)
           for (AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope) {
             //println(s"Infer return type for method $cls.$sym as $tpe")
-            val classId = SymbolTypes.MemberId(cls, sym)
+            val classId = MemberId(cls, sym)
             addInferredMemberType(Some(classId), tpe)
           }
 
@@ -951,9 +951,9 @@ object Transform {
           //println(s"Call $call")
           // infer types for class member calls
           for {
-            callOn <- expressionType(expr)(ctx)
+            SimpleType(callOn) <- expressionType(expr)(ctx)
             clazz <- classes.get(callOn)
-            c <- includeParents(clazz, Seq(clazz))(ctx)
+            c <- includeParents(clazz, Seq(clazz))(ctx) // infer for all overrides
             //_ = println(s"${c.name.get.name}")
             AST_ConciseMethod(_, value: AST_Accessor) <- findMethod(c, call)
           } {

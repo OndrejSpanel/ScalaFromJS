@@ -7,12 +7,15 @@ import scala.language.implicitConversions
 
 object SymbolTypes {
 
-  type TypeDesc = String
+  sealed trait TypeDesc
+  case class SimpleType(name: String) extends TypeDesc {
+    override def toString = name
+  }
 
-  val any = "Any"
-  val number = "number"
-  val boolean = "boolean"
-  val string = "string"
+  val any = SimpleType("Any")
+  val number = SimpleType("number")
+  val boolean = SimpleType("boolean")
+  val string = SimpleType("string")
 
   /* it would be tempting to use something like _! to avoid possible clashes with other identifiers
   That would hover require to always add a traling space or to use `around the symbol` to prevent any following operator
@@ -20,13 +23,16 @@ object SymbolTypes {
   */
   val parSuffix = "_par"
 
+
+  def parseType(str: String): TypeDesc = SimpleType(str)
+
   // SymbolDef instances (including ids) are recreated on each figure_out_scope
   // we need a stable id. Original source location + name should be unique and stable
   case class SymbolMapId(name: String, sourcePos: Int)
 
   case class MemberId(cls: String, name: String)
 
-  def memberId(maybeDesc: Option[TypeDesc], name: String): Option[MemberId] = {
+  def memberId(maybeDesc: Option[String], name: String): Option[MemberId] = {
     maybeDesc.map(MemberId(_, name))
   }
 
@@ -35,12 +41,19 @@ object SymbolTypes {
     token.map(t => SymbolMapId(sym.name, t.pos))
   }
 
-  def mapSimpleTypeToScala(tpe: String): String = {
+  def mapSimpleTypeToScala(tpe: TypeDesc): String = {
     tpe match {
       case `string` => "String"
       case `number` => "Double"
       case `boolean` => "Boolean"
-      case _ => tpe
+      case _ => tpe.toString
+    }
+  }
+
+  def classFromType(tpe: Option[TypeDesc]): Option[String] = {
+    tpe match {
+      case Some(SimpleType(name)) => Some(name)
+      case _ => None
     }
   }
 
@@ -74,10 +87,10 @@ case class SymbolTypes(types: Map[SymbolMapId, TypeDesc], members: Map[MemberId,
   def get(id: Option[SymbolMapId]): Option[TypeDesc] = id.flatMap(types.get)
 
   def getMember(clsId: Option[MemberId]): Option[TypeDesc] = clsId.flatMap(members.get)
-  def getMember(cls: Option[TypeDesc], member: String): Option[TypeDesc] = getMember(cls.map(MemberId(_, member)))
+  def getMember(cls: Option[String], member: String): Option[TypeDesc] = getMember(cls.map(MemberId(_, member)))
 
   def getAsScala(id: Option[SymbolMapId]): String = {
-    get(id).fold (any) (mapSimpleTypeToScala)
+    get(id).fold (any.toString) (mapSimpleTypeToScala)
   }
 
   def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(types ++ that.types, members ++ that.members)

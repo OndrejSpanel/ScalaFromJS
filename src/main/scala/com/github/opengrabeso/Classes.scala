@@ -6,6 +6,7 @@ import UglifyExt.Import._
 import JsUtils._
 
 object Classes {
+
   def findThisScope(scope: Option[AST_Scope]): Option[AST_DefClass] = {
     scope match {
       case Some(s: AST_DefClass) => Some(s)
@@ -17,7 +18,7 @@ object Classes {
     }
   }
 
-  def superClass(cls: AST_DefClass): Option[TypeDesc] = {
+  def superClass(cls: AST_DefClass): Option[String] = {
     val sup = cls.`extends`.nonNull.collect {
       case AST_SymbolRefName(c) =>
         c
@@ -25,7 +26,7 @@ object Classes {
     sup
   }
 
-  def findSuperClass(scope: Option[AST_Scope])(ctx: ExpressionTypeContext): Option[TypeDesc] = {
+  def findSuperClass(scope: Option[AST_Scope])(ctx: ExpressionTypeContext): Option[String] = {
     val thisScope = findThisScope(scope)
     thisScope.flatMap(superClass)
   }
@@ -39,7 +40,7 @@ object Classes {
     }
   }
 
-  def findInParents(tpe: TypeDesc, member: String)(ctx: ExpressionTypeContext): Option[String] = {
+  def findInParents(tpe: String, member: String)(ctx: ExpressionTypeContext): Option[String] = {
     ctx.classInfo.classContains(tpe, member)
     /*
     for {
