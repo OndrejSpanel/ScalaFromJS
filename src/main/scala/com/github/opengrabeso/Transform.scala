@@ -302,9 +302,9 @@ object Transform {
           case ss: AST_SimpleStatement =>
             ss.body == n
           case fun: AST_Lambda =>
-            fun.body.last == n
+            fun.body.lastOption contains n
           case block: AST_Block  =>
-            block.body.last == n && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1)
+            (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1)
           case ii: AST_If =>
             (ii.body == n || ii.alternative.exists(_ == n)) && nodeLast(ii, parentLevel + 1)
           case _ =>
@@ -334,6 +334,89 @@ object Transform {
     AST_Extended(t, n.types)
   }
 
+  def removeTrailingBreak(n: AST_Extended): AST_Extended = {
+
+    val t = n.top.transformAfter { (node, transformer) =>
+      def lastInSwitch(n: AST_Node): Boolean = {
+        transformer.parent() match {
+          case ss: AST_Switch =>
+            ss.body.lastOption.contains(n)
+          case _ =>
+            false
+        }
+      }
+
+      node match {
+        case sw: AST_Switch =>
+          // group conditions with empty body with the following non-empty one
+          def conditionGroups(s: Seq[AST_SwitchBranch], ret: Seq[Seq[AST_SwitchBranch]]): Seq[Seq[AST_SwitchBranch]] = s match {
+            case Seq() =>
+              ret
+            case seq =>
+              val (empty, nonEmpty) = seq.span (_.body.isEmpty)
+              conditionGroups(nonEmpty.drop(1), ret :+ (empty ++ nonEmpty.headOption))
+          }
+
+          val body = sw._body.asInstanceOf[js.Array[AST_SwitchBranch]]
+          val conditionGrouped = conditionGroups(body, Seq())
+
+          val groupedBody = for (g <- conditionGrouped) yield {
+            // all but the last are empty
+            def processGroup(e: Seq[AST_SwitchBranch], ret: AST_SwitchBranch) = {
+              def join(c1: AST_SwitchBranch, c2: AST_SwitchBranch) = {
+                assert(c1.body.isEmpty)
+                (c1, c2) match {
+                  case (case1: AST_Case, case2: AST_Case) =>
+                    case2.expression = new AST_Binary {
+                      fillTokens(this, case1.expression)
+                      left = case1.expression
+                      operator = "|"
+                      right = case2.expression
+                    }
+                    case2
+                  case (case1: AST_Default, case2: AST_Case) =>
+                    case1.body = case2.body
+                    case1
+                  case (_, case2) =>
+                    assert(case2.isInstanceOf[AST_Default])
+                    case2
+                }
+
+              }
+              e match {
+                case head +: tail =>
+                  join(ret, head)
+                case _ =>
+                  ret
+              }
+            }
+            processGroup(g.tail, g.head)
+          }
+
+          val newBody = new mutable.ArrayBuffer[AST_Statement]
+          for (s <- groupedBody) {
+            s.body.lastOption match {
+              case Some(_: AST_Break) =>
+                s.body = s.body.dropRight(1)
+                newBody append s
+              case Some(_: AST_Throw) =>
+                newBody append s
+              case Some(_: AST_Return) =>
+                newBody append s
+              case _ if !lastInSwitch(s) =>
+                // fall through branches - warn
+                s.body = s.body ++ js.Array(unsupported("Missing break", s))
+                newBody append s
+            }
+          }
+          sw.body = newBody.toJSArray
+          sw
+        case _ =>
+          node
+      }
+    }
+    AST_Extended(t, n.types)
+  }
 
   def readJSDoc(n: AST_Extended): AST_Extended = {
     var commentsParsed = Set.empty[Int]
@@ -990,6 +1073,7 @@ object Transform {
       varInitialization _, // already done, but another pass is needed after TransformClasses
       objectAssign _,
       inferTypesMultipass _,
+      removeTrailingBreak _, // before removeTrailingReturn, return may be used to terminate cases
       removeTrailingReturn _, // after inferTypes (returns are needed for inferTypes)
       funcScope _, // after removeTrailingReturn (functions scopes are needed for return removal)
       removeDoubleScope _, // after funcScope (often introduced by it)

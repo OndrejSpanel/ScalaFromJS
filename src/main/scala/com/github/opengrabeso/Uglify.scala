@@ -164,7 +164,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_Case extends AST_SwitchBranch {
     // [AST_Node] the `case` expression
-    val expression: AST_Node = js.native
+    var expression: AST_Node = js.native
   }
 
   @js.native class AST_Try extends AST_Scope {
@@ -772,6 +772,26 @@ object UglifyExt {
   def fillTokens(to: AST_Node, from: AST_Node): Unit = {
     to.start = from.start
     to.end = from.end
+  }
+
+  def unsupported(message: String, source: AST_Node) = {
+    new AST_SimpleStatement {
+      fillTokens(this, source)
+      body = new AST_Call {
+        fillTokens(this, source)
+        expression = new AST_SymbolRef {
+          fillTokens(this, source)
+          name = "????" // force compile error
+        }
+        args = js.Array(
+          new AST_String {
+            fillTokens(this, source)
+            value = message
+            quote = "'"
+          }
+        )
+      }
+    }
   }
 
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {
