@@ -335,8 +335,8 @@ object Transform {
   }
 
   def removeTrailingBreak(n: AST_Extended): AST_Extended = {
-    val t = n.top.transformAfter { (node, transformer) =>
 
+    val t = n.top.transformAfter { (node, transformer) =>
       def lastInSwitch(n: AST_Node): Boolean = {
         transformer.parent() match {
           case ss: AST_Switch =>
@@ -347,21 +347,27 @@ object Transform {
       }
 
       node match {
-        case s: AST_SwitchBranch  =>
-          // TODO: fold empty branches together
-          s.body.lastOption match {
-            case Some(_: AST_Break) =>
-              s.body = s.body.dropRight(1)
-              s
-            case Some(_: AST_Throw) =>
-              s
-            case Some(_: AST_Return) =>
-              s
-            case _ if !lastInSwitch(s) =>
-              // fall through branches - warn
-              s.body = js.Array(unsupported("Missing break", s))
-              s
+        case sw: AST_Switch =>
+          val newBody = new mutable.ArrayBuffer[AST_Statement]
+          val emptyBefore = Seq.empty[AST_Node] // accumulated list of empty conditions
+          for ((s: AST_SwitchBranch) <- sw._body.asInstanceOf[js.Array[AST_SwitchBranch]]) {
+
+            s.body.lastOption match {
+              case Some(_: AST_Break) =>
+                s.body = s.body.dropRight(1)
+                newBody append s
+              case Some(_: AST_Throw) =>
+                newBody append s
+              case Some(_: AST_Return) =>
+                newBody append s
+              case _ if !lastInSwitch(s) =>
+                // fall through branches - warn
+                s.body = js.Array(unsupported("Missing break", s))
+                newBody append s
+            }
           }
+          sw.body = newBody.toJSArray
+          sw
         case _ =>
           node
       }
