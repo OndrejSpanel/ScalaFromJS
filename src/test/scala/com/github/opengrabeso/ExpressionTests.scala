@@ -67,4 +67,16 @@ class ExpressionTests extends FunSuite with TestUtils {
       )
 
   }
+
+  test("Handle Immediately-invoked function expression (IIFE)") {
+    execute check ConversionCheck(rsc("expressions/iife.js"))
+      .required(
+      )
+      .forbidden(
+        "return"
+      )
+
+  }
+
+
 }
