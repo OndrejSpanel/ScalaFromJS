@@ -10,8 +10,6 @@ import js.JSConverters._
 
 object TransformClasses {
 
-  import Transform.TypeDesc
-
   object ClassDefine {
     def unapply(arg: AST_Node) = arg match {
       // function ClassName() {}
@@ -120,7 +118,7 @@ object TransformClasses {
   private def classList(n: AST_Extended) = {
     var classes = Map.empty[String, ClassDef]
 
-    var classNames = Set.empty[TypeDesc]
+    var classNames = Set.empty[String]
 
     n.top.walk {
       // new XXX()
@@ -329,7 +327,7 @@ object TransformClasses {
       }
 
       object IsSuperClass {
-        def unapply(name: TypeDesc): Boolean = {
+        def unapply(name: String): Boolean = {
           //println(s"${thisClass.flatMap(superClass)} $name")
           thisClass.flatMap(superClass).contains(name)
         }
@@ -496,12 +494,14 @@ object TransformClasses {
               def unapply(arg: String): Boolean = parNamesSet contains arg
             }
             val parNamesAdjusted = inlined.map { s =>
-              s.transformAfter { (node, _) =>
+              s.transformAfter { (node, transformer) =>
                 node match {
                   case sym@AST_SymbolName(IsParameter()) =>
                     sym.name = sym.name + SymbolTypes.parSuffix
                     sym
-                  case AST_Dot(_: AST_This, member) =>
+                  // do not inline call, we need this.call form for the inference
+                  // on the other hand form without this is better for variable initialization
+                  case AST_Dot(_: AST_This, member) if !transformer.parent().isInstanceOf[AST_Call] =>
                     new AST_SymbolRef {
                       fillTokens(this, node)
                       name = member
