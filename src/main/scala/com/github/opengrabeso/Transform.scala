@@ -264,7 +264,7 @@ object Transform {
   }
 
 
-  def handleIncrement(n: AST_Extended): AST_Extended = {
+  def handleIncrement(n: AST_Node): AST_Node = {
 
     def substitute(node: AST_Node, expr: AST_SymbolRef, op: String) = {
       new AST_Assign {
@@ -281,12 +281,8 @@ object Transform {
       }
     }
 
-//    implicit class InitNode(node: AST_Node) {
-//      def init(f: AST_Node => AST_Node) = f(node)
-//    }
-
     // walk the tree, check for increment / decrement
-    val t = n.top.transformAfter { (node, transformer) =>
+    n.transformAfter { (node, transformer) =>
       def nodeResultDiscarded(n: AST_Node, parentLevel: Int): Boolean = {
         transformer.parent(parentLevel) match {
           case _: AST_SimpleStatement =>
@@ -357,15 +353,11 @@ object Transform {
           node
       }
     }
-
-
-    AST_Extended(t, n.types)
   }
 
 
-
-  def removeTrailingReturn(n: AST_Extended): AST_Extended = {
-    val t = n.top.transformAfter { (node, transformer) =>
+  def removeTrailingReturn(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, transformer) =>
 
       def nodeLast(n: AST_Node, parentLevel: Int): Boolean = {
         //println(s"${nodeClassName(n)}:$parentLevel:${nodeClassName(transformer.parent(parentLevel))}")
@@ -402,12 +394,11 @@ object Transform {
           node
       }
     }
-    AST_Extended(t, n.types)
   }
 
-  def removeTrailingBreak(n: AST_Extended): AST_Extended = {
+  def removeTrailingBreak(n: AST_Node): AST_Node = {
 
-    val t = n.top.transformAfter { (node, transformer) =>
+    n.transformAfter { (node, transformer) =>
       def lastInSwitch(n: AST_Node): Boolean = {
         transformer.parent() match {
           case ss: AST_Switch =>
@@ -486,7 +477,6 @@ object Transform {
           node
       }
     }
-    AST_Extended(t, n.types)
   }
 
   def readJSDoc(n: AST_Extended): AST_Extended = {
@@ -1073,7 +1063,7 @@ object Transform {
     }
   }
 
-  def funcScope(n: AST_Extended): AST_Extended = {
+  def iife(n: AST_Node): AST_Node = {
     //println(nodeTreeToString(n.top))
 
     object DefineAndReturnClass {
@@ -1106,7 +1096,7 @@ object Transform {
     }
 
     // first try to match a special var form, as transformAfter is depth first
-    val classToVar = n.top.transformAfter { (node, _) =>
+    val classToVar = n.transformAfter { (node, _) =>
       node match {
         // var Name = (function () { class Name() { } return Name; } ) ();
         case AST_Var(AST_VarDef(AST_SymbolDef(sym), Defined(IIFE(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
@@ -1116,7 +1106,7 @@ object Transform {
       }
     }
 
-    val ret = classToVar.transformAfter { (node, _) =>
+    classToVar.transformAfter { (node, _) =>
       node match {
         case IIFE(DefineAndReturnClass(defClass, _)) =>
           defClass
@@ -1129,12 +1119,11 @@ object Transform {
           node
       }
     }
-    AST_Extended(ret, n.types)
   }
 
   // IIFE removal sometimes leaves two scopes directly in one another
-  def removeDoubleScope(n: AST_Extended): AST_Extended = {
-    val ret = n.top.transformAfter { (node, _) =>
+  def removeDoubleScope(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, _) =>
       node match {
         case AST_SimpleStatement(inner: AST_BlockStatement) =>
           //println("Remove AST_SimpleStatement <- AST_BlockStatement")
@@ -1158,8 +1147,6 @@ object Transform {
           node
       }
     }
-
-    AST_Extended(ret, n.types)
   }
 
   def objectAssign(n: AST_Extended): AST_Extended = {
@@ -1208,10 +1195,15 @@ object Transform {
 
   }
 
+  def onTopNode(n: AST_Node => AST_Node): AST_Extended => AST_Extended = { ext =>
+    val ret = n(ext.top)
+    AST_Extended(ret, ext.types)
+  }
+
   def apply(n: AST_Toplevel): AST_Extended = {
 
     val transforms = Seq(
-      handleIncrement _,
+      onTopNode(handleIncrement),
       varInitialization _,
       readJSDoc _
     ) ++ TransformClasses.transforms ++ Seq(
@@ -1219,10 +1211,10 @@ object Transform {
       varInitialization _, // already done, but another pass is needed after TransformClasses
       objectAssign _,
       inferTypesMultipass _,
-      removeTrailingBreak _, // before removeTrailingReturn, return may be used to terminate cases
-      removeTrailingReturn _, // after inferTypes (returns are needed for inferTypes)
-      funcScope _, // after removeTrailingReturn (functions scopes are needed for return removal)
-      removeDoubleScope _, // after funcScope (often introduced by it)
+      onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
+      onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
+      onTopNode(iife), // after removeTrailingReturn (functions scopes are needed for return removal)
+      onTopNode(removeDoubleScope), // after funcScope (often introduced by it)
       detectVals _,
       relations _
     )
