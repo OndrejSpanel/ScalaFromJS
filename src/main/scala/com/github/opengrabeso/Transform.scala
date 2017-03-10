@@ -885,7 +885,7 @@ object Transform {
       descend(node, walker)
 
       node match {
-        case AST_VarDef(AST_Symbol(_, _, Defined(symDef)),Defined(src)) =>
+        case AST_VarDef(AST_Symbol(_, _, Defined(symDef)), Defined(src)) =>
           if (n.types.get(symDef).isEmpty) {
             val tpe = expressionType(src)(ctx)
             addInferredType(symDef, tpe)
@@ -957,20 +957,24 @@ object Transform {
             inferConstructorCall(args, sup)
           }
 
-        case AST_Call(AST_Dot(expr,call), args@_*) =>
+        case AST_Call(AST_Dot(expr, call), args@_*) =>
 
-          //println(s"Call $call")
+          println(s"Call $call")
           // infer types for class member calls
           for {
             ClassType(callOn) <- expressionType(expr)(ctx)
             clazz <- classes.get(callOn)
             c <- includeParents(clazz, Seq(clazz))(ctx) // infer for all overrides
-            //_ = println(s"${c.name.get.name}")
-            AST_ConciseMethod(_, value: AST_Accessor) <- findMethod(c, call)
           } {
-            //println(s"  Call args ${value.argnames.map(_.name).mkString(",")}")
-            //println(s"  Call pars ${args.map(expressionType(_)(allTypes)).mkString(",")}")
-            inferParsOrArgs(value.argnames, args)
+            //_ = println(s"${c.name.get.name}")
+            findMethod(c, call).fold {
+              val tpe = inferFunction(args)
+              println(s"Infer arg types for a var member call ${c.name.get.name} as $tpe")
+              addInferredMemberType(c.name.nonNull.map(n => MemberId(n.name, call)), Some(tpe))
+              // TODO: reverse inference
+            } { m =>
+              inferParsOrArgs(m.value.argnames, args)
+            }
           }
 
         case _ =>
@@ -1003,9 +1007,15 @@ object Transform {
   }
 
   def findMethod(c: AST_DefClass, name: String): Option[AST_ConciseMethod] = {
-    c.properties.collect {
+    c.properties.collectFirst {
       case m: AST_ConciseMethod if m.key.name == name => m
-    }.headOption
+    }
+  }
+
+  def findProperty(c: AST_DefClass, name: String): Option[AST_ObjectKeyVal] = {
+    c.properties.collectFirst {
+      case m: AST_ObjectKeyVal if m.key == name => m
+    }
   }
 
   def funcScope(n: AST_Extended): AST_Extended = {

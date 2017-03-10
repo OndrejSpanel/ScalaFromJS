@@ -499,11 +499,13 @@ object TransformClasses {
                   case sym@AST_SymbolName(IsParameter()) =>
                     sym.name = sym.name + SymbolTypes.parSuffix
                     sym
+                    /*
                   case AST_Dot(_: AST_This, member) =>
                     new AST_SymbolRef {
                       fillTokens(this, node)
                       name = member
                     }
+                    */
                   case _ =>
                     node
                 }
