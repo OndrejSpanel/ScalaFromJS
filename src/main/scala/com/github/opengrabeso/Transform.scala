@@ -797,37 +797,9 @@ object Transform {
       }
     }
 
-    def inferFunction(func: FunctionType, args: Seq[AST_Node]) = {
-      var f = func
-      for ((arg, par) <- args.zipWithIndex) { // TODO:
-        if (func.args.length >= par || func.args(par).isEmpty) {
-          val tp = expressionType(arg)(ctx)
-          println(s"Infer par $par as $tp")
-          tp.fold {
-            // TODO: merge
-            if (func.args.length >= par) {
-              f = f.copy(args = func.args.patch(par, Seq(None), 1))
-            } else {
-              f = f.copy(args = func.args ++ Seq(None))
-            }
-          } { t =>
-            if (func.args.length >= par) {
-              f = f.copy(args = func.args.patch(par, Seq(Some(t)), 1))
-            } else {
-              f = f.copy(args = func.args ++ Seq(Some(t)))
-
-            }
-          }
-        }
-        arg match {
-          case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
-            val tp = if (func.args.length >= par) func.args(par) else None
-            println(s"Infer arg ${a.name} as $tp")
-            addInferredType(a, tp)
-          case _ =>
-        }
-      }
-      f
+    def inferFunction(args: Seq[AST_Node]) = {
+      val pars = args.map(expressionType(_)(ctx))
+      FunctionType(None, pars.toIndexedSeq)
     }
 
 
@@ -971,10 +943,12 @@ object Transform {
                 case _ =>
               }
             case Some(varSym: AST_SymbolVar) =>
-              println(s"Infer arg types for a var call ${varSym.name}")
-              val inf = inferFunction(FunctionType(None, IndexedSeq()), args)
-              println(s"  inf: $inf")
-
+              val tpe = inferFunction(args)
+              println(s"Infer arg types for a var call ${varSym.name} as $tpe")
+              varSym.thedef.foreach {
+                addInferredType(_, Some(tpe))
+              }
+              // TODO: reverse inference
             case _ =>
           }
         case AST_Call(s: AST_Super, args@_*) =>
