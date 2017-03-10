@@ -66,11 +66,39 @@ object SymbolTypes {
     }
   }
 
-  def typeUnion(tpe1: TypeDesc, tpe2: TypeDesc) = {
-    if (tpe2 == tpe1) tpe1 else any
+  trait ClassOps {
+    def mostDerived(c1: ClassType, c2: ClassType): TypeDesc
+    def commonBase(c1: ClassType, c2: ClassType): TypeDesc
   }
 
-  def typeUnionOption(tpe1: Option[TypeDesc], tpe2: Option[TypeDesc]): Option[TypeDesc] = {
+  // intersect: assignment source
+  def typeIntersect(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+    (tpe1, tpe2) match {
+      case _ if tpe1 == tpe2 =>
+        tpe1
+      case (c1: ClassType, c2: ClassType) =>
+        classOps.mostDerived(c1, c2)
+      case _ =>
+        any // should be rather Nothing?
+    }
+
+  }
+
+  // union: assignment target
+  def typeUnion(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+    (tpe1, tpe2) match {
+      case _ if tpe1 == tpe2 =>
+        tpe1
+      case (c1: ClassType, c2: ClassType) =>
+        classOps.commonBase(c1, c2)
+      case (f1: FunctionType, f2: FunctionType) =>
+        f1 // TODO: real merge
+      case _ =>
+        any
+    }
+  }
+
+  def typeUnionOption(tpe1: Option[TypeDesc], tpe2: Option[TypeDesc])(implicit classOps: ClassOps): Option[TypeDesc] = {
     (tpe1, tpe2) match {
       case (_, None) => tpe1
       case (None, _) => tpe2
@@ -79,7 +107,7 @@ object SymbolTypes {
     }
   }
 
-  def apply(): SymbolTypes = new SymbolTypes(Map.empty, Map.empty)
+  def apply(): SymbolTypes = SymbolTypes(Map.empty, Map.empty)
   def apply(syms: Seq[(SymbolDef, TypeDesc)]) = {
     val idMap = syms.map { case (k,v) => id(k) -> v }.toMap - None
     new SymbolTypes(idMap.map{ case (k, v) => k.get -> v}, Map.empty)

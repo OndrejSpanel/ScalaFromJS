@@ -553,12 +553,23 @@ object Transform {
   implicit def refToT[T](r: Ref[T]): T = r.t
 
   // TODO: no need to pass both classInfo and classes, one of them should do
-  case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[String, AST_DefClass])
+  case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[String, AST_DefClass]) {
+    implicit object classOps extends ClassOps {
+      def mostDerived(c1: ClassType, c2: ClassType) = {
+        classInfo.mostDerived(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
+      }
+
+      def commonBase(c1: ClassType, c2: ClassType) = {
+        classInfo.commonBase(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
+      }
+    }
+
+  }
 
 
   def expressionType(n: AST_Node)(ctx: ExpressionTypeContext): Option[TypeDesc] = {
-    //println(nodeClassName(n) + ": " + ScalaOut.outputNode(n, ""))
     import ctx._
+    //println(nodeClassName(n) + ": " + ScalaOut.outputNode(n, ""))
     n match {
       case s: AST_Super =>
         val sup = findSuperClass(s.scope.nonNull)(ctx)
@@ -659,9 +670,10 @@ object Transform {
   }
 
   case class ClassInfo(members: Set[MemberId] = Set.empty, parents: Map[String, String] = Map.empty) {
+
     def classContains(cls: String, member: String): Option[String] = {
       val r = if (members contains MemberId(cls, member)) Some(cls)
-      else parents.get(cls).flatMap{c =>
+      else parents.get(cls).flatMap { c =>
         //println(s"  parent $c")
         classContains(c, member)
       }
@@ -669,7 +681,31 @@ object Transform {
       r
     }
 
+    // list parents, the first in the list is the hierarchy root (no more parents), the last is the class itself
+    def listParents(cls: String): Seq[String] = {
+      def listParentsRecurse(cls: String, ret: Seq[String]): Seq[String] = {
+        val p = parents.get(cls)
+        p match {
+          case Some(pp) => listParentsRecurse(pp, pp +: ret)
+          case None => ret
+        }
+      }
 
+      listParentsRecurse(cls, Seq(cls))
+    }
+
+    def mostDerived(c1: String, c2: String): Option[String] = {
+      // check if one is parent of the other
+      if (listParents(c1) contains c2) Some(c1)
+      else if (listParents(c2) contains c1) Some(c2)
+      else None
+    }
+
+    def commonBase(c1: String, c2: String): Option[String] = {
+      val p1 = listParents(c1)
+      val p2 = listParents(c2)
+      (p1 zip p2).takeWhile(p => p._1 == p._2).lastOption.map(_._1)
+    }
   }
 
   def listPrototypeMemberNames(cls: AST_DefClass): Set[String] = {
@@ -721,6 +757,8 @@ object Transform {
     val classInfo = listClassMembers(n.top)
 
     val ctx = ExpressionTypeContext(allTypes, classInfo, classes) // note: ctx.allTypes is mutable
+
+    import ctx.classOps
 
     def typeFromOperation(op: String, n: AST_Node) = {
       op match {
