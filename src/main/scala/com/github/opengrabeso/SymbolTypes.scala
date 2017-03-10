@@ -81,7 +81,14 @@ object SymbolTypes {
       case _ =>
         any // should be rather Nothing?
     }
+  }
 
+  def typeUnionFunction(f1: FunctionType, f2: FunctionType)(implicit classOps: ClassOps): TypeDesc = {
+    val ret = typeIntersectOption(f1.ret, f2.ret)
+    val args = for ((a1, a2) <- f1.args.zipAll(f2.args, None, None)) yield {
+      typeUnionOption(a1, a2)
+    }
+    FunctionType(ret, args)
   }
 
   // union: assignment target
@@ -92,7 +99,7 @@ object SymbolTypes {
       case (c1: ClassType, c2: ClassType) =>
         classOps.commonBase(c1, c2)
       case (f1: FunctionType, f2: FunctionType) =>
-        f1 // TODO: real merge
+        typeUnionFunction(f1, f2)
       case _ =>
         any
     }
@@ -103,6 +110,14 @@ object SymbolTypes {
       case (_, None) => tpe1
       case (None, _) => tpe2
       case (Some(t1), Some(t2)) => Some(typeUnion(t1, t2))
+      case _ => None
+    }
+  }
+  def typeIntersectOption(tpe1: Option[TypeDesc], tpe2: Option[TypeDesc])(implicit classOps: ClassOps): Option[TypeDesc] = {
+    (tpe1, tpe2) match {
+      case (_, None) => tpe1
+      case (None, _) => tpe2
+      case (Some(t1), Some(t2)) => Some(typeIntersect(t1, t2))
       case _ => None
     }
   }

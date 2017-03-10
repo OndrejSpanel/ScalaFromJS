@@ -776,9 +776,10 @@ object Transform {
 
     def addInferredType(symDef: SymbolDef, tpe: Option[TypeDesc]) = {
       val symType = typeUnionOption(tpe, inferred.get(symDef))
+      //println(s"Union $symType = $tpe | ${inferred.get(symDef)}")
       for (tp <- symType) {
         val tid = id(symDef)
-        //println(s"Add type ${symDef.name}: $tpe id = $id")
+        //println(s"Add type ${symDef.name}: $tpe id = $tid")
         inferred += tid -> tp
         allTypes.t += tid -> tp
         //println(s"All types ${allTypes.t.types}")
@@ -982,7 +983,7 @@ object Transform {
               }
             case Some(varSym: AST_SymbolVar) =>
               val tpe = inferFunction(args)
-              println(s"Infer arg types for a var call ${varSym.name} as $tpe")
+              //println(s"Infer arg types for a var call ${varSym.name} as $tpe")
               varSym.thedef.foreach {
                 addInferredType(_, Some(tpe))
               }
@@ -997,7 +998,7 @@ object Transform {
 
         case AST_Call(AST_Dot(expr, call), args@_*) =>
 
-          println(s"Call $call")
+          //println(s"Call $call")
           // infer types for class member calls
           for {
             ClassType(callOn) <- expressionType(expr)(ctx)
@@ -1007,7 +1008,7 @@ object Transform {
             //_ = println(s"${c.name.get.name}")
             findMethod(c, call).fold {
               val tpe = inferFunction(args)
-              println(s"Infer arg types for a var member call ${c.name.get.name} as $tpe")
+              //println(s"Infer arg types for a var member call ${c.name.get.name} as $tpe")
               addInferredMemberType(c.name.nonNull.map(n => MemberId(n.name, call)), Some(tpe))
               // TODO: reverse inference
             } { m =>
