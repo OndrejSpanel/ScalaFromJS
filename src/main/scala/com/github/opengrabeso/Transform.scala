@@ -747,6 +747,10 @@ object Transform {
     listMembers
   }
 
+  def inferFunctionReturn(value: AST_Node, r: TypeDesc) = {
+    // dive into IIFE scopes as necessary
+  }
+
   def inferTypes(n: AST_Extended): AST_Extended = {
     var inferred = SymbolTypes()
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
@@ -1008,8 +1012,20 @@ object Transform {
             //_ = println(s"${c.name.get.name}")
             findMethod(c, call).fold {
               val tpe = inferFunction(args)
+
               //println(s"Infer arg types for a var member call ${c.name.get.name} as $tpe")
-              addInferredMemberType(c.name.nonNull.map(n => MemberId(n.name, call)), Some(tpe))
+              val memberId = c.name.nonNull.map(n => MemberId(n.name, call))
+              addInferredMemberType(memberId, Some(tpe))
+
+              for {
+                p <- findProperty(c, call)
+                r <- allTypes.getMember(memberId)
+              } {
+                inferFunctionReturn(p.value, r)
+              }
+
+              // if there are any return statements, we can infer types for them
+              // beware of IIFE
               // TODO: reverse inference
             } { m =>
               inferParsOrArgs(m.value.argnames, args)
