@@ -65,7 +65,7 @@ object Uglify extends js.Object {
   // f:  return true to abort the walk
   @js.native class TreeWalker(f: js.Function2[AST_Node, js.Function2[AST_Node, TreeWalker, Unit], Boolean]) extends js.Any {
     // returns the parent of the current node.
-    def parent(n: Int = 0): AST_Node = js.native
+    def parent(n: Int = 0): js.UndefOr[AST_Node] = js.native
     // an array holding all nodes that lead to current node. The last element in this array is the current node itself.
     def stack: js.Array[AST_Node] = js.native
     // finds the innermost parent of the given type. type must be a node constructor, i.e. AST_Scope.
