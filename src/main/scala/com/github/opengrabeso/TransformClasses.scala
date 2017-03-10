@@ -494,18 +494,18 @@ object TransformClasses {
               def unapply(arg: String): Boolean = parNamesSet contains arg
             }
             val parNamesAdjusted = inlined.map { s =>
-              s.transformAfter { (node, _) =>
+              s.transformAfter { (node, transformer) =>
                 node match {
                   case sym@AST_SymbolName(IsParameter()) =>
                     sym.name = sym.name + SymbolTypes.parSuffix
                     sym
-                    /*
-                  case AST_Dot(_: AST_This, member) =>
+                  // do not inline call, we need this.call form for the inference
+                  // on the other hand form without this is better for variable initialization
+                  case AST_Dot(_: AST_This, member) if !transformer.parent().isInstanceOf[AST_Call] =>
                     new AST_SymbolRef {
                       fillTokens(this, node)
                       name = member
                     }
-                    */
                   case _ =>
                     node
                 }
