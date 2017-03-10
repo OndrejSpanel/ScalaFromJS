@@ -372,7 +372,7 @@ object Transform {
   }
 
   def nodeLast(n: AST_Node, parentLevel: Int, transformer: TreeTransformer): Boolean = {
-    println(s"nodeLast ${nodeClassName(n)}:$parentLevel:${transformer.parent(parentLevel).map(nodeClassName)}")
+    //println(s"nodeLast ${nodeClassName(n)}:$parentLevel:${transformer.parent(parentLevel).map(nodeClassName)}")
     transformer.parent(parentLevel).nonNull match {
       case Some(ss: AST_SimpleStatement) =>
         ss.body == n
@@ -412,10 +412,10 @@ object Transform {
             // do not descend into any other functions
             node
           case ret: AST_Return if nodeLast(ret, 0, transformer) =>
-            println(s"Remove return of ${nodeTreeToString(ret)}")
+            //println(s"Remove return of ${nodeTreeToString(ret)}")
             replaceReturnWithStatement(ret)
           case ret: AST_Return  =>
-            println(s"No remove return of ${nodeTreeToString(ret)}")
+            //println(s"No remove return of ${nodeTreeToString(ret)}")
             node
           case _ =>
             descend(node, transformer)
@@ -1093,9 +1093,8 @@ object Transform {
     }
   }
 
-  def iife(n: AST_Node): AST_Node = {
-    //println(nodeTreeToString(n.top))
 
+  def removeVarClassScope(n: AST_Node): AST_Node = {
     object DefineAndReturnClass {
       private object ReturnedExpression {
         def unapply(arg: AST_Node) = arg match {
@@ -1115,6 +1114,19 @@ object Transform {
       }
     }
 
+    n.transformAfter { (node, _) =>
+      node match {
+        case AST_Var(AST_VarDef(AST_SymbolDef(sym), Defined(AST_BlockStatement(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
+          defClass
+        case _ =>
+          node
+      }
+    }
+  }
+
+  def iife(n: AST_Node): AST_Node = {
+    //println(nodeTreeToString(n.top))
+
     // "Immediately-invoked function expression"
     object IIFE {
       def unapply(arg: AST_Node) = arg match {
@@ -1125,21 +1137,8 @@ object Transform {
       }
     }
 
-    // first try to match a special var form, as transformAfter is depth first
-    val classToVar = n.transformAfter { (node, _) =>
+    n.transformAfter { (node, _) =>
       node match {
-        // var Name = (function () { class Name() { } return Name; } ) ();
-        case AST_Var(AST_VarDef(AST_SymbolDef(sym), Defined(IIFE(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
-          defClass
-        case _ =>
-          node
-      }
-    }
-
-    classToVar.transformAfter { (node, _) =>
-      node match {
-        case IIFE(DefineAndReturnClass(defClass, _)) =>
-          defClass
         case IIFE(funcBody) =>
           new AST_BlockStatement {
             fillTokens(this, node)
@@ -1166,14 +1165,14 @@ object Transform {
           func.body = body.toJSArray
           func
         case func@AST_Accessor(_, Seq(AST_BlockStatement(body))) =>
-          println("Remove AST_Accessor <- AST_BlockStatement")
+          //println("Remove AST_Accessor <- AST_BlockStatement")
           func.body = body.toJSArray
           func
         case func@AST_Lambda(_, body) =>
-          println(s"${nodeClassName(func)} in: ${transformer.parent().map(nodeClassName)}")
+          //println(s"${nodeClassName(func)} in: ${transformer.parent().map(nodeClassName)}")
           func
         case AST_BlockStatement(seq) =>
-          println(seq.map(nodeClassName).mkString(","))
+          //println(seq.map(nodeClassName).mkString(","))
           node
         case _ =>
           node
@@ -1244,6 +1243,7 @@ object Transform {
       defaultParameterValues _,
       varInitialization _, // already done, but another pass is needed after TransformClasses
       objectAssign _,
+      onTopNode(removeVarClassScope),
       inferTypesMultipass _,
       onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
