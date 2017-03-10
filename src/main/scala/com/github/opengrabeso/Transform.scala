@@ -264,7 +264,7 @@ object Transform {
   }
 
 
-  def handleIncrement(n: AST_Extended): AST_Extended = {
+  def handleIncrement(n: AST_Node): AST_Node = {
 
     def substitute(node: AST_Node, expr: AST_SymbolRef, op: String) = {
       new AST_Assign {
@@ -281,25 +281,23 @@ object Transform {
       }
     }
 
-//    implicit class InitNode(node: AST_Node) {
-//      def init(f: AST_Node => AST_Node) = f(node)
-//    }
-
     // walk the tree, check for increment / decrement
-    val t = n.top.transformAfter { (node, transformer) =>
+    n.transformAfter { (node, transformer) =>
       def nodeResultDiscarded(n: AST_Node, parentLevel: Int): Boolean = {
-        transformer.parent(parentLevel) match {
-          case _: AST_SimpleStatement =>
+        transformer.parent(parentLevel).nonNull match {
+          case Some(_: AST_SimpleStatement) =>
             true
-          case f: AST_For =>
+          case Some(f: AST_For) =>
             // can be substituted inside of for unless used as a condition
             f.init.exists(_ == n) || f.step.exists(_ == n)
-          case s: AST_Seq  =>
+          case Some(s: AST_Seq ) =>
             if (s.cdr !=n) true
             else if (parentLevel < transformer.stack.length - 2) {
               // even last item of seq can be substituted when the seq result is discarded
               nodeResultDiscarded(s, parentLevel+1)
             } else false
+          case None =>
+            true
           case _ =>
             false
         }
@@ -357,60 +355,83 @@ object Transform {
           node
       }
     }
-
-
-    AST_Extended(t, n.types)
   }
 
-
-
-  def removeTrailingReturn(n: AST_Extended): AST_Extended = {
-    val t = n.top.transformAfter { (node, transformer) =>
-
-      def nodeLast(n: AST_Node, parentLevel: Int): Boolean = {
-        //println(s"${nodeClassName(n)}:$parentLevel:${nodeClassName(transformer.parent(parentLevel))}")
-        transformer.parent(parentLevel) match {
-          case ss: AST_SimpleStatement =>
-            ss.body == n
-          case fun: AST_Lambda =>
-            fun.body.lastOption contains n
-          case block: AST_Block  =>
-            (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1)
-          case ii: AST_If =>
-            (ii.body == n || ii.alternative.exists(_ == n)) && nodeLast(ii, parentLevel + 1)
-          case _ =>
-            false
-        }
+  def replaceReturnWithStatement(ret: AST_Return) = {
+    ret.value.nonNull.fold[AST_Statement] {
+      new AST_EmptyStatement {
+        fillTokens(this, ret)
       }
+    } { v =>
+      new AST_SimpleStatement {
+        fillTokens(this, ret)
+        body = v
+
+      }
+    }
+  }
+
+  def nodeLast(n: AST_Node, parentLevel: Int, transformer: TreeTransformer): Boolean = {
+    //println(s"nodeLast ${nodeClassName(n)}:$parentLevel:${transformer.parent(parentLevel).map(nodeClassName)}")
+    transformer.parent(parentLevel).nonNull match {
+      case Some(ss: AST_SimpleStatement) =>
+        ss.body == n
+      case Some(fun: AST_Lambda) =>
+        fun.body.lastOption contains n
+      case Some(block: AST_Block) =>
+        (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1, transformer)
+      case Some(ii: AST_If) =>
+        (ii.body == n || ii.alternative.exists(_ == n)) && nodeLast(ii, parentLevel + 1, transformer)
+      case None =>
+        true
+      case _ =>
+        false
+    }
+  }
+
+  def removeTrailingReturn(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, transformer) =>
 
       node match {
-        case ret: AST_Return if nodeLast(ret, 0) =>
+        case ret: AST_Return if nodeLast(ret, 0, transformer) =>
           // check if last in a function body
           //println("Remove trailing return")
-          ret.value.nonNull.fold[AST_Statement] {
-            new AST_EmptyStatement {
-              fillTokens(this, ret)
-            }
-          }{ v =>
-              new AST_SimpleStatement {
-                fillTokens(this, ret)
-                body = v
-
-              }
-          }
+          replaceReturnWithStatement(ret)
         case _ =>
           node
       }
     }
-    AST_Extended(t, n.types)
   }
 
-  def removeTrailingBreak(n: AST_Extended): AST_Extended = {
+  def removeReturnFromBody(body: Seq[AST_Statement]): Seq[AST_Statement] = {
+    // remove all direct returns
+    for (s <- body) yield {
+      s.transformBefore { (node, descend, transformer) =>
+        node match {
+          case _: AST_Lambda =>
+            // do not descend into any other functions
+            node
+          case ret: AST_Return if nodeLast(ret, 0, transformer) =>
+            //println(s"Remove return of ${nodeTreeToString(ret)}")
+            replaceReturnWithStatement(ret)
+          case ret: AST_Return  =>
+            //println(s"No remove return of ${nodeTreeToString(ret)}")
+            node
+          case _ =>
+            descend(node, transformer)
+            node
+        }
 
-    val t = n.top.transformAfter { (node, transformer) =>
+      }.asInstanceOf[AST_Statement]
+    }
+  }
+
+  def removeTrailingBreak(n: AST_Node): AST_Node = {
+
+    n.transformAfter { (node, transformer) =>
       def lastInSwitch(n: AST_Node): Boolean = {
-        transformer.parent() match {
-          case ss: AST_Switch =>
+        transformer.parent().nonNull match {
+          case Some(ss: AST_Switch) =>
             ss.body.lastOption.contains(n)
           case _ =>
             false
@@ -486,7 +507,6 @@ object Transform {
           node
       }
     }
-    AST_Extended(t, n.types)
   }
 
   def readJSDoc(n: AST_Extended): AST_Extended = {
@@ -1073,9 +1093,8 @@ object Transform {
     }
   }
 
-  def funcScope(n: AST_Extended): AST_Extended = {
-    //println(nodeTreeToString(n.top))
 
+  def removeVarClassScope(n: AST_Node): AST_Node = {
     object DefineAndReturnClass {
       private object ReturnedExpression {
         def unapply(arg: AST_Node) = arg match {
@@ -1095,6 +1114,19 @@ object Transform {
       }
     }
 
+    n.transformAfter { (node, _) =>
+      node match {
+        case AST_Var(AST_VarDef(AST_SymbolDef(sym), Defined(AST_BlockStatement(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
+          defClass
+        case _ =>
+          node
+      }
+    }
+  }
+
+  def iife(n: AST_Node): AST_Node = {
+    //println(nodeTreeToString(n.top))
+
     // "Immediately-invoked function expression"
     object IIFE {
       def unapply(arg: AST_Node) = arg match {
@@ -1105,36 +1137,22 @@ object Transform {
       }
     }
 
-    // first try to match a special var form, as transformAfter is depth first
-    val classToVar = n.top.transformAfter { (node, _) =>
+    n.transformAfter { (node, _) =>
       node match {
-        // var Name = (function () { class Name() { } return Name; } ) ();
-        case AST_Var(AST_VarDef(AST_SymbolDef(sym), Defined(IIFE(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
-          defClass
-        case _ =>
-          node
-      }
-    }
-
-    val ret = classToVar.transformAfter { (node, _) =>
-      node match {
-        case IIFE(DefineAndReturnClass(defClass, _)) =>
-          defClass
         case IIFE(funcBody) =>
           new AST_BlockStatement {
             fillTokens(this, node)
-            this.body = funcBody.toJSArray
+            this.body = removeReturnFromBody(funcBody).toJSArray
           }
         case _ =>
           node
       }
     }
-    AST_Extended(ret, n.types)
   }
 
   // IIFE removal sometimes leaves two scopes directly in one another
-  def removeDoubleScope(n: AST_Extended): AST_Extended = {
-    val ret = n.top.transformAfter { (node, _) =>
+  def removeDoubleScope(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, transformer) =>
       node match {
         case AST_SimpleStatement(inner: AST_BlockStatement) =>
           //println("Remove AST_SimpleStatement <- AST_BlockStatement")
@@ -1147,19 +1165,19 @@ object Transform {
           func.body = body.toJSArray
           func
         case func@AST_Accessor(_, Seq(AST_BlockStatement(body))) =>
-          println("Remove AST_Accessor <- AST_BlockStatement")
+          //println("Remove AST_Accessor <- AST_BlockStatement")
           func.body = body.toJSArray
           func
         case func@AST_Lambda(_, body) =>
-          //println(nodeClassName(func))
-          //println(body.map(nodeClassName))
+          //println(s"${nodeClassName(func)} in: ${transformer.parent().map(nodeClassName)}")
           func
+        case AST_BlockStatement(seq) =>
+          //println(seq.map(nodeClassName).mkString(","))
+          node
         case _ =>
           node
       }
     }
-
-    AST_Extended(ret, n.types)
   }
 
   def objectAssign(n: AST_Extended): AST_Extended = {
@@ -1208,21 +1226,27 @@ object Transform {
 
   }
 
+  def onTopNode(n: AST_Node => AST_Node): AST_Extended => AST_Extended = { ext =>
+    val ret = n(ext.top)
+    AST_Extended(ret, ext.types)
+  }
+
   def apply(n: AST_Toplevel): AST_Extended = {
 
     val transforms = Seq(
-      handleIncrement _,
+      onTopNode(handleIncrement),
       varInitialization _,
-      readJSDoc _
+      readJSDoc _,
+      onTopNode(iife), // removes also trailing return within the IIFE construct
+      onTopNode(removeDoubleScope) // after iife (often introduced by it)
     ) ++ TransformClasses.transforms ++ Seq(
       defaultParameterValues _,
       varInitialization _, // already done, but another pass is needed after TransformClasses
       objectAssign _,
+      onTopNode(removeVarClassScope),
       inferTypesMultipass _,
-      removeTrailingBreak _, // before removeTrailingReturn, return may be used to terminate cases
-      removeTrailingReturn _, // after inferTypes (returns are needed for inferTypes)
-      funcScope _, // after removeTrailingReturn (functions scopes are needed for return removal)
-      removeDoubleScope _, // after funcScope (often introduced by it)
+      onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
+      onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
       detectVals _,
       relations _
     )
