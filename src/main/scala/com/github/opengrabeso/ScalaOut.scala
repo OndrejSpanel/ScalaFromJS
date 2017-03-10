@@ -208,11 +208,7 @@ object ScalaOut {
     }
 
     def outputArgType(n: AST_SymbolFunarg) = {
-      val typeString = n.thedef.nonNull match {
-        case Some(td) =>
-          input.types.getAsScala(td)
-        case _ => SymbolTypes.any
-      }
+      val typeString = n.thedef.nonNull.fold(SymbolTypes.any.toString)(input.types.getAsScala(_))
       out": $typeString"
       for (init <- n.init.nonNull.flatMap(_.headOption)) {
         out" = $init"
@@ -225,6 +221,11 @@ object ScalaOut {
         out"$n"
         if (types) {
           outputArgType(n)
+        } else {
+          val sid = n.thedef.nonNull.flatMap(SymbolTypes.id)
+          for (t <- input.types.get(sid)) {
+            out": ${SymbolTypes.mapSimpleTypeToScala(t)}"
+          }
         }
       }
       out(")")

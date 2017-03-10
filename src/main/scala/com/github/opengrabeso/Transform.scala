@@ -371,6 +371,25 @@ object Transform {
     }
   }
 
+  def walkLastNode(n: AST_Node)(callback: AST_Node => Boolean): Boolean = {
+    n match {
+      case s: AST_Block =>
+        s.body.lastOption.fold(false) { l =>
+          val r = callback(l)
+          if (!r) walkLastNode(l)(callback)
+          r
+        }
+      case s: AST_SimpleStatement =>
+        val r = callback(s.body)
+        if (!r) walkLastNode(s.body)(callback)
+        r
+      case _ =>
+        false
+
+    }
+  }
+
+  // is this a last node in some scope? (walks also parents)
   def nodeLast(n: AST_Node, parentLevel: Int, transformer: TreeTransformer): Boolean = {
     //println(s"nodeLast ${nodeClassName(n)}:$parentLevel:${transformer.parent(parentLevel).map(nodeClassName)}")
     transformer.parent(parentLevel).nonNull match {
@@ -767,10 +786,6 @@ object Transform {
     listMembers
   }
 
-  def inferFunctionReturn(value: AST_Node, r: TypeDesc) = {
-    // dive into IIFE scopes as necessary
-  }
-
   def inferTypes(n: AST_Extended): AST_Extended = {
     var inferred = SymbolTypes()
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
@@ -798,11 +813,10 @@ object Transform {
       }
     }
 
-    def addInferredType(symDef: SymbolDef, tpe: Option[TypeDesc]) = {
-      val symType = typeUnionOption(tpe, inferred.get(symDef))
+    def addInferredType(tid: Option[SymbolMapId], tpe: Option[TypeDesc]) = {
+      val symType = typeUnionOption(tpe, inferred.get(tid))
       //println(s"Union $symType = $tpe | ${inferred.get(symDef)}")
       for (tp <- symType) {
-        val tid = id(symDef)
         //println(s"Add type ${symDef.name}: $tpe id = $tid")
         inferred += tid -> tp
         allTypes.t += tid -> tp
@@ -863,6 +877,35 @@ object Transform {
     def inferFunction(args: Seq[AST_Node]) = {
       val pars = args.map(expressionType(_)(ctx))
       FunctionType(None, pars.toIndexedSeq)
+    }
+
+    def inferFunctionReturn(value: AST_Node, r: TypeDesc) = {
+      r match {
+        case fType: FunctionType =>
+          walkLastNode(value) {
+            // find any direct returns, when returning a function, infer argument symbol types
+            case AST_Lambda(args, body) =>
+              //println(s"fun ${args.map(_.name).mkString(",")} -- ${fType.args}")
+
+              for {
+                (a, tp) <- args zip fType.args
+                //_ = println(s"${a.thedef.nonNull.map(_.name)} $tp")
+                sym <- a.thedef.nonNull
+              } {
+                val sid = id(sym)
+                if (n.types.get(sid).isEmpty) {
+                  //println(s"  Infer arg ${a.name} as $tp")
+                  addInferredType(sid, tp)
+                }
+              }
+
+              true
+            case _ =>
+              false
+
+          }
+        case _ =>
+      }
     }
 
 
@@ -1038,10 +1081,11 @@ object Transform {
               addInferredMemberType(memberId, Some(tpe))
 
               for {
-                p <- findProperty(c, call)
+                AST_ObjectKeyVal(p, a) <- findProperty(c, call)
                 r <- allTypes.getMember(memberId)
               } {
-                inferFunctionReturn(p.value, r)
+                //println(s"Infer $p $r ${nodeClassName(a)}")
+                inferFunctionReturn(a, r)
               }
 
               // if there are any return statements, we can infer types for them
