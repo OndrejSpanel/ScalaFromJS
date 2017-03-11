@@ -661,6 +661,16 @@ object UglifyExt {
       def unapplySeq(arg: AST_Var) = AST_Definitions.unapplySeq(arg)
     }
 
+
+    object AST_SymbolDeclaration {
+      def unapply(arg: AST_SymbolDeclaration) = Some(arg.thedef, arg.name, arg.init)
+
+    }
+
+    object AST_SymbolFunarg {
+      def unapply(arg: AST_SymbolFunarg) = AST_SymbolDeclaration.unapply(arg)
+    }
+
     object AST_Number {
       def unapply(arg: AST_Number) = Some(arg.value)
     }
@@ -689,11 +699,6 @@ object UglifyExt {
       def unapply(arg: AST_Dot) = Some(arg.expression, arg.property)
     }
 
-    object -- {
-      def unapply(arg: AST_Dot) = AST_Dot.unapply(arg)
-    }
-
-
     object AST_Call {
       def unapplySeq(arg: AST_Call): Option[(AST_Node, Seq[AST_Node])] = Some(arg.expression, arg.args)
     }
@@ -717,6 +722,10 @@ object UglifyExt {
 
     object Defined {
       def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
+    }
+
+    object JsArray {
+      def unapplySeq[T](arg: js.Array[T]): Some[Seq[T]] = Some(arg.toSeq)
     }
 
     object AST_SymbolDef {

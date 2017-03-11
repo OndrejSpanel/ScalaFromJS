@@ -991,6 +991,12 @@ object Transform {
             addInferredType(symDef, tpe)
           }
 
+        case AST_SymbolFunarg(Defined(symDef), _, Defined(JsArray(init))) =>
+          if (n.types.get(symDef).isEmpty) {
+            val tpe = expressionType(init)(ctx)
+            addInferredType(symDef, tpe)
+          }
+
         case AST_Assign(SymbolInfo(symInfo), _, src) =>
           val tpe = expressionType(src)(ctx)
           //println(s"Infer assign: $symInfo $tpe")
