@@ -101,11 +101,11 @@ object Transform {
   }
 
   // merge variable declaration and first assignment if possible
-  def varInitialization(n: AST_Extended): AST_Extended = {
+  def varInitialization(n: AST_Node): AST_Node = {
 
     // walk the tree, check for first reference of each var
     var pairs = Map.empty[SymbolDef, AST_SymbolRef]
-    n.top.walk { node =>
+    n.walk { node =>
       node match {
         case AST_VarDef(name, value) if value.nonNull.isEmpty =>
           //println(s"AST_VarDef ${name.name}")
@@ -135,7 +135,7 @@ object Transform {
     //println(s"transform, vars ${pairs.keys.map(_.name).mkString(",")}")
 
     // walk the tree, check for possible val replacements and perform them
-    val changeAssignToVar = n.top.transformAfter {(node, transformer) =>
+    val changeAssignToVar = n.transformAfter {(node, transformer) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       //println(s"node ${nodeClassName(node)} ${ScalaOut.outputNode(node, "")}")
       // we need to descend into assignment definitions, as they may contain other assignments
@@ -170,7 +170,7 @@ object Transform {
     pairs = pairs.filterKeys(replaced.contains)
 
     // walk the tree, check for possible val replacements and perform them
-    val ret = changeAssignToVar.transformAfter{ (node, _) =>
+    changeAssignToVar.transformAfter{ (node, _) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
         case v: AST_Var =>
@@ -187,12 +187,9 @@ object Transform {
           c
       }
     }
-
-
-    AST_Extended(ret, n.types)
   }
 
-  def defaultParameterValues(n: AST_Extended): AST_Extended = {
+  def defaultParameterValues(n: AST_Node): AST_Node = {
 
     def introduceDefaultValues(f: AST_Lambda): AST_Lambda = {
 
@@ -246,7 +243,7 @@ object Transform {
       processArguments(f, f.argnames.toSeq.reverse)
     }
 
-    val ret = n.top.transformAfter { (node, _) =>
+    n.transformAfter { (node, _) =>
       node match {
         case f: AST_Defun =>
           introduceDefaultValues(f)
@@ -257,9 +254,6 @@ object Transform {
           node
       }
     }
-
-    AST_Extended(ret, n.types)
-
   }
 
 
@@ -885,6 +879,7 @@ object Transform {
             // find any direct returns, when returning a function, infer argument symbol types
             case AST_Lambda(args, body) =>
               //println(s"fun ${args.map(_.name).mkString(",")} -- ${fType.args}")
+              //println(s"  $allTypes")
 
               for {
                 (a, tp) <- args zip fType.args
@@ -1278,13 +1273,13 @@ object Transform {
 
     val transforms = Seq(
       onTopNode(handleIncrement),
-      varInitialization _,
+      onTopNode(varInitialization),
       readJSDoc _,
       onTopNode(iife), // removes also trailing return within the IIFE construct
       onTopNode(removeDoubleScope) // after iife (often introduced by it)
     ) ++ TransformClasses.transforms ++ Seq(
-      defaultParameterValues _,
-      varInitialization _, // already done, but another pass is needed after TransformClasses
+      onTopNode(defaultParameterValues),
+      onTopNode(varInitialization), // already done, but another pass is needed after TransformClasses
       objectAssign _,
       onTopNode(removeVarClassScope),
       inferTypesMultipass _,
