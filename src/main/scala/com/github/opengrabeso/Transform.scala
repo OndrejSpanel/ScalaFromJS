@@ -21,7 +21,6 @@ object Transform {
 
   object AST_Extended {
     def noTypes = SymbolTypes()
-    def apply(top: AST_Node, types: SymbolTypes): AST_Extended = new AST_Extended(top.asInstanceOf[AST_Toplevel], types)
   }
   case class AST_Extended(top: AST_Toplevel, types: SymbolTypes)
 
@@ -230,7 +229,7 @@ object Transform {
                 case _ =>
                   node
               }
-            }.asInstanceOf[AST_Lambda]
+            }
           }
         }
       }
@@ -441,7 +440,7 @@ object Transform {
             node
         }
 
-      }.asInstanceOf[AST_Statement]
+      }
     }
   }
 
@@ -1272,7 +1271,7 @@ object Transform {
 
   def onTopNode(n: AST_Node => AST_Node): AST_Extended => AST_Extended = { ext =>
     val ret = n(ext.top)
-    AST_Extended(ret, ext.types)
+    AST_Extended(ret.asInstanceOf[AST_Toplevel], ext.types)
   }
 
   def apply(n: AST_Toplevel): AST_Extended = {

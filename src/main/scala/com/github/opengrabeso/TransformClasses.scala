@@ -518,7 +518,7 @@ object TransformClasses {
               a.name = p.name + SymbolTypes.parSuffix
               a
             }
-            accessor.body = accessor.body ++ parNamesAdjusted.asInstanceOf[js.Array[AST_Statement]]
+            accessor.body = accessor.body ++ parNamesAdjusted
             if (rest.nonEmpty) {
               constructor.body = rest
             } else {

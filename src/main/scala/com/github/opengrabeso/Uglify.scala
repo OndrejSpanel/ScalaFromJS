@@ -590,7 +590,7 @@ object UglifyExt {
     def body_=(b: js.Array[AST_Statement]) = block._body = b
   }
 
-  implicit class AST_NodeOps(val node: AST_Node) {
+  implicit class AST_NodeOps[T <: AST_Node](val node: T) {
     def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
     def walkWithDescend(walker: (AST_Node, (AST_Node, TreeWalker) => Unit, TreeWalker) => Boolean): Unit = {
       var w: TreeWalker = null
@@ -598,16 +598,16 @@ object UglifyExt {
       node.walk_js(w)
     }
 
-    def transformBefore(before: (AST_Node, (AST_Node, TreeTransformer) => AST_Node, TreeTransformer) => AST_Node): AST_Node = {
+    def transformBefore(before: (AST_Node, (AST_Node, TreeTransformer) => AST_Node, TreeTransformer) => AST_Node): T = {
       var tr: TreeTransformer = null
       tr = new TreeTransformer((node, descend) => before(node, descend, tr))
-      node.transform_js(tr)
+      node.transform_js(tr).asInstanceOf[T]
     }
 
-    def transformAfter(after: (AST_Node, TreeTransformer) => AST_Node): AST_Node = {
+    def transformAfter(after: (AST_Node, TreeTransformer) => AST_Node): T = {
       var tr: TreeTransformer = null
       tr = new TreeTransformer(null, node => after(node, tr))
-      node.transform_js(tr)
+      node.transform_js(tr).asInstanceOf[T]
     }
   }
 
