@@ -588,10 +588,12 @@ object Transform {
   case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[String, AST_DefClass]) {
     implicit object classOps extends ClassOps {
       def mostDerived(c1: ClassType, c2: ClassType) = {
+        //println("mostDerived")
         classInfo.mostDerived(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
       }
 
       def commonBase(c1: ClassType, c2: ClassType) = {
+        //println("commonBase")
         classInfo.commonBase(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
       }
     }
@@ -727,6 +729,8 @@ object Transform {
     }
 
     def mostDerived(c1: String, c2: String): Option[String] = {
+      //println(s"  Parents of $c1: ${listParents(c1)}")
+      //println(s"  Parents of $c2: ${listParents(c2)}")
       // check if one is parent of the other
       if (listParents(c1) contains c2) Some(c1)
       else if (listParents(c2) contains c1) Some(c2)
@@ -817,7 +821,7 @@ object Transform {
 
     def addInferredType(tid: Option[SymbolMapId], tpe: Option[TypeDesc], kind: TypeInferenceKind = target) = {
       val symType = kind(tpe, inferred.get(tid))
-      //println(s"Union $symType = $tpe | ${inferred.get(symDef)}")
+      //println(s"Combined $symType = $tpe | ${inferred.get(tid)}, ${kind eq source _}")
       for (tp <- symType) {
         //println(s"Add type ${symDef.name}: $tpe id = $tid")
         inferred += tid -> tp
@@ -859,18 +863,18 @@ object Transform {
     def inferParsOrArgs(pars: js.Array[AST_SymbolFunarg], args: Seq[AST_Node]) = {
       for {
         (Some(par), arg) <- pars.map(_.thedef.nonNull) zip args
-      // only when the type is not provided explicitly
       } {
-        if (n.types.get(par).isEmpty) {
+        if (allTypes.get(par).isEmpty) {
           val tp = expressionType(arg)(ctx)
           //println(s"Infer par ${par.name} as $tp")
           addInferredType(par, tp)
         }
+
         arg match {
-          case AST_SymbolRefDef(a) if n.types.get(a).isEmpty =>
+          case AST_SymbolRefDef(a) => // TODO: SymbolInfo
             val tp = allTypes.get(par)
             //println(s"Infer arg ${a.name} as $tp")
-            addInferredType(a, tp)
+            addInferredType(a, tp, source)
           case _ =>
         }
       }

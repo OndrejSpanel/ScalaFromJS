@@ -21,10 +21,15 @@ object SymbolTypes {
     }
   }
 
-  val any = SimpleType("Any")
-  val number = SimpleType("number")
-  val boolean = SimpleType("boolean")
-  val string = SimpleType("string")
+  private val numberStr = "number"
+  private val booleanStr = "boolean"
+  private val stringStr = "string"
+  private val anyStr = "Any"
+
+  val any = SimpleType(anyStr)
+  val number = SimpleType(numberStr)
+  val boolean = SimpleType(booleanStr)
+  val string = SimpleType(stringStr)
 
   /* it would be tempting to use something like _! to avoid possible clashes with other identifiers
   That would hover require to always add a traling space or to use `around the symbol` to prevent any following operator
@@ -33,7 +38,15 @@ object SymbolTypes {
   val parSuffix = "_par"
 
 
-  def parseType(str: String): TypeDesc = SimpleType(str)
+  def parseType(str: String): TypeDesc = {
+    str match {
+      case `numberStr` | `booleanStr` | `stringStr` | `anyStr` =>
+        SimpleType(str)
+      case _ =>
+        ClassType(str)
+
+    }
+  }
 
   // SymbolDef instances (including ids) are recreated on each figure_out_scope
   // we need a stable id. Original source location + name should be unique and stable
@@ -73,13 +86,18 @@ object SymbolTypes {
 
   // intersect: assignment source
   def typeIntersect(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+    //println(s"typeIntersect $tpe1, $tpe2")
     (tpe1, tpe2) match {
       case _ if tpe1 == tpe2 =>
         tpe1
       case (c1: ClassType, c2: ClassType) =>
         classOps.mostDerived(c1, c2)
+      case (c1: ClassType, _) =>
+        c1
+      case (_, c2: ClassType) =>
+        c2
       case _ =>
-        any // should be rather Nothing?
+        tpe1 // unsolvable, keep any of the types
     }
   }
 
@@ -117,7 +135,9 @@ object SymbolTypes {
     (tpe1, tpe2) match {
       case (_, None) => tpe1
       case (None, _) => tpe2
-      case (Some(t1), Some(t2)) => Some(typeIntersect(t1, t2))
+      case (Some(t1), Some(t2)) =>
+        //println(s"Intersect $t1 + $t2 = ${typeIntersect(t1, t2)}")
+        Some(typeIntersect(t1, t2))
       case _ => None
     }
   }
