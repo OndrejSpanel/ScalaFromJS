@@ -767,7 +767,7 @@ object Transform {
         val members = listPrototypeMemberNames(cls)
 
         // list data members
-        val varMembers = for (VarName(member) <- TransformClasses.classInlineBody(cls).body) yield member
+        val varMembers = for (VarName(member) <- classInlineBody(cls).body) yield member
 
         val ids = (members ++ varMembers).map(MemberId(clsName, _))
 
@@ -969,7 +969,7 @@ object Transform {
       //println(s"Infer arg types for class $className")
       for (c <- classes.get(className)) {
         {
-          val value = TransformClasses.classInlineBody(c)
+          val value = classInlineBody(c)
           //println(s"  Constructor inline pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
           inferParsOrArgs(value.argnames, args)
         }
@@ -987,8 +987,21 @@ object Transform {
       node match {
         case AST_VarDef(AST_Symbol(_, _, Defined(symDef)), Defined(src)) =>
           if (n.types.get(symDef).isEmpty) {
+            //println(s"vardef ${symDef.name} ${nodeClassName(src)} tpe $tpe")
             val tpe = expressionType(src)(ctx)
             addInferredType(symDef, tpe)
+            // if this is an inline constructor member, infer also the member type from it
+            for {
+              cls <- findThisClass(Some(symDef.scope))
+              AST_SymbolName(clsName) <- cls.name
+              fun <- findThisFunction(Some(symDef.scope))
+              body <- findInlineBody(cls)
+              if body.value == fun
+            } {
+              //println(s"vardef ${symDef.name} ${nodeClassName(src)} tpe $tpe")
+              //println(s"  inline body cls $clsName")
+              addInferredMemberType(Some(MemberId(clsName, symDef.name)), tpe)
+            }
           }
 
         case AST_SymbolFunarg(Defined(symDef), _, Defined(JsArray(init))) =>
@@ -1114,27 +1127,6 @@ object Transform {
     }
 
     inferTypesStep(n)
-  }
-
-  val isConstructorProperty: PartialFunction[AST_ObjectProperty, AST_ConciseMethod] = {
-    case m: AST_ConciseMethod if m.key.name == "constructor" =>
-      m
-  }
-
-  def findConstructor(c: AST_DefClass): Option[AST_ConciseMethod] = {
-    c.properties.collectFirst(isConstructorProperty)
-  }
-
-  def findMethod(c: AST_DefClass, name: String): Option[AST_ConciseMethod] = {
-    c.properties.collectFirst {
-      case m: AST_ConciseMethod if m.key.name == name => m
-    }
-  }
-
-  def findProperty(c: AST_DefClass, name: String): Option[AST_ObjectKeyVal] = {
-    c.properties.collectFirst {
-      case m: AST_ObjectKeyVal if m.key == name => m
-    }
   }
 
 

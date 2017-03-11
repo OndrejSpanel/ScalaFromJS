@@ -578,8 +578,8 @@ object ScalaOut {
           }
         }
 
-        val constructor = Transform.findConstructor(tn).flatMap{c => NodeIsLambda.unapply(c.value)}
-        val accessor = TransformClasses.classInlineBody(tn)
+        val constructor = Classes.findConstructor(tn).flatMap{c => NodeIsLambda.unapply(c.value)}
+        val accessor = Classes.classInlineBody(tn)
 
         outputArgNames(accessor, true)
 

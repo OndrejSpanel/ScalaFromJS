@@ -451,29 +451,6 @@ object TransformClasses {
     AST_Extended(cleanup, n.types)
   }
 
-  def classInlineBody(cls: AST_DefClass): AST_Accessor = {
-
-    val present = findMethod(cls, "inline_^")
-    val method = present.getOrElse {
-      val newInlineBody = new AST_ConciseMethod {
-        fillTokens(this, cls)
-
-        key = new AST_SymbolRef {
-          fillTokens(this, cls)
-          name = "inline_^"
-        }
-        value = new AST_Accessor {
-          fillTokens(this, cls)
-          argnames = js.Array()
-          this.body = js.Array()
-        }
-      }
-      cls.properties = cls.properties :+ newInlineBody
-      newInlineBody
-    }
-    method.value
-  }
-
   def inlineConstructors(n: AST_Extended): AST_Extended = {
     val ret = n.top.transformAfter { (node, _) =>
       node match {
