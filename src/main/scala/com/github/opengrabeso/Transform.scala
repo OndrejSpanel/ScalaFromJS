@@ -806,8 +806,17 @@ object Transform {
       }
     }
 
-    def addInferredType(tid: Option[SymbolMapId], tpe: Option[TypeDesc]) = {
-      val symType = typeUnionOption(tpe, inferred.get(tid))
+    type TypeInferenceKind = (Option[TypeDesc], Option[TypeDesc]) => Option[TypeDesc]
+
+    def target(t1: Option[TypeDesc], t2: Option[TypeDesc]): Option[TypeDesc] = {
+      typeUnionOption(t1, t2)
+    }
+    def source(t1: Option[TypeDesc], t2: Option[TypeDesc]): Option[TypeDesc] = {
+      typeIntersectOption(t1, t2)
+    }
+
+    def addInferredType(tid: Option[SymbolMapId], tpe: Option[TypeDesc], kind: TypeInferenceKind = target) = {
+      val symType = kind(tpe, inferred.get(tid))
       //println(s"Union $symType = $tpe | ${inferred.get(symDef)}")
       for (tp <- symType) {
         //println(s"Add type ${symDef.name}: $tpe id = $tid")
@@ -817,7 +826,7 @@ object Transform {
       }
     }
 
-    def addInferredMemberType(idAccess: Option[MemberId], tpe: Option[TypeDesc]) = {
+    def addInferredMemberType(idAccess: Option[MemberId], tpe: Option[TypeDesc], kind: TypeInferenceKind = target) = {
 
       val id = idAccess.flatMap { i =>
         classInfo.classContains(i.cls, i.name).map { containedIn =>
@@ -825,7 +834,7 @@ object Transform {
         }
       }
 
-      val symType = typeUnionOption(tpe, inferred.getMember(id))
+      val symType = kind(tpe, inferred.getMember(id))
       for (tp <- symType) {
         //println(s"Add member type $idAccess - $id: $tp")
         //println("  " + classInfo)
@@ -936,12 +945,12 @@ object Transform {
         }
       }
 
-      def addSymbolInferredType(tpe: Option[TypeDesc]): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeDesc], kind: TypeInferenceKind = target): Unit = {
         for (s <- symbol) {
-          addInferredType(s, tpe)
+          addInferredType(s, tpe, kind)
         }
         for (d <- dot) {
-          addInferredMemberType(dot, tpe)
+          addInferredMemberType(dot, tpe, kind)
         }
       }
 
@@ -1018,21 +1027,19 @@ object Transform {
             addInferredType(symDef, tpe)
           }
 
-        case AST_Assign(SymbolInfo(symInfo), _, KnownType(tpe)) =>
-          //println(s"Infer assign: $symInfo = $tpe")
-          symInfo.addSymbolInferredType(Some(tpe))
-
-        case AST_Assign(KnownType(tpe), _, SymbolInfo(symInfo)) =>
-          //println(s"Infer reverse assign: $tpe = $symInfo")
-          // TODO: intersect instead of union
-          symInfo.addSymbolInferredType(Some(tpe))
-
-          /*
-        case AST_Assign(expr, _, SymbolInfo(symInfo)) =>
-          println(s"No infer reverse assign: ${ScalaOut.outputNode(expr)} = $symInfo")
-          println(allTypes)
-          //symInfo.addSymbolInferredType(Some(tpe))
-          */
+        case AST_Assign(left, _, right) =>
+          val leftT = expressionType(left)(ctx)
+          val rightT = expressionType(right)(ctx)
+          if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
+            for (SymbolInfo(symInfo) <- Some(left)) {
+              //println(s"Infer assign: $symInfo = $rightT")
+              symInfo.addSymbolInferredType(rightT)
+            }
+            for (SymbolInfo(symInfo) <- Some(right)) {
+              //println(s"Infer reverse assign: $leftT = $symInfo")
+              symInfo.addSymbolInferredType(leftT, source)
+            }
+          }
 
         case AST_Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
           if symLeft.unknownType(n.types) && symRight.unknownType(n.types) =>

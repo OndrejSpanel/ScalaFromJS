@@ -4,21 +4,13 @@ import org.scalatest.FunSuite
 import Resources.{getResource => rsc}
 
 class TypeTests extends FunSuite with TestUtils {
-  test("Detect vals") {
+  test("Detect vals, infer var type") {
     // note: overlaps expression/variables (ExpressionTests / "Val detection")
     execute check ConversionCheck(rsc("types/inference.js"))
       .required(
         "val i = 1",
         "val d = 1.2",
         "val i = 1",
-        "var di"
-      )
-      .forbidden("function")
-  }
-
-  test("Infer var type") {
-    execute check ConversionCheck(rsc("types/inference.js"))
-      .required(
         "var ii = 1",
         "var di = 1.2",
         //"var aa : Any = 1", // not yet
@@ -26,6 +18,7 @@ class TypeTests extends FunSuite with TestUtils {
         "last: String",
         "x: String"
       )
+      .forbidden("function")
   }
 
   test("Function parameters and calls (with JSDoc)") {
@@ -43,10 +36,11 @@ class TypeTests extends FunSuite with TestUtils {
     )
   }
 
-  test("Infer parameter and return types") {
-    execute check ConversionCheck(rsc("types/inference.js"))
+  test("Correctly infer subtypes / supertypes in various positions") {
+    execute check ConversionCheck(rsc("types/sybtypes.js"))
       .required(
-        ""
+        "def x(ab: X)",
+        "var xx: X"
       )
 
   }
