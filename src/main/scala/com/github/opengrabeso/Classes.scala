@@ -54,7 +54,7 @@ object Classes {
   }
 
   def findSuperClass(scope: Option[AST_Scope])(ctx: ExpressionTypeContext): Option[String] = {
-    val thisScope = findThisScope(scope)
+    val thisScope = findThisClass(scope)
     thisScope.flatMap(superClass)
   }
 

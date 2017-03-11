@@ -601,7 +601,7 @@ object Transform {
 
   def expressionType(n: AST_Node)(ctx: ExpressionTypeContext): Option[TypeDesc] = {
     import ctx._
-    //println(nodeClassName(n) + ": " + ScalaOut.outputNode(n, ""))
+    //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
     n match {
       case s: AST_Super =>
         val sup = findSuperClass(s.scope.nonNull)(ctx)
@@ -609,7 +609,7 @@ object Transform {
         sup.map(ClassType)
 
       case t: AST_This =>
-        val thisScope = findThisScope(t.scope.nonNull)
+        val thisScope = findThisClass(t.scope.nonNull) // TODO: consider this in a function
         //println(s"this scope ${t.scope.map(_.nesting)}")
         val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
         //println(s"this def scope $cls")
@@ -788,7 +788,7 @@ object Transform {
 
     val classInfo = listClassMembers(n.top)
 
-    val ctx = ExpressionTypeContext(allTypes, classInfo, classes) // note: ctx.allTypes is mutable
+    implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes) // note: ctx.allTypes is mutable
 
     import ctx.classOps
 
@@ -946,7 +946,7 @@ object Transform {
       }
 
       override def toString = {
-        symbol.fold(dot.toString)(_.name)
+        symbol.fold(dot.fold("None")(_.toString))(_.name)
       }
     }
 
@@ -981,6 +981,14 @@ object Transform {
       }
     }
 
+    object KnownType {
+      def unapply(arg: AST_Node)(implicit ctx: ExpressionTypeContext): Option[TypeDesc] = {
+        val tpe = expressionType(arg)(ctx)
+        //println(s"  check type of ${ScalaOut.outputNode(arg)} as $tpe")
+        tpe
+      }
+    }
+
     n.top.walkWithDescend { (node, descend, walker) =>
       descend(node, walker)
 
@@ -1010,10 +1018,21 @@ object Transform {
             addInferredType(symDef, tpe)
           }
 
-        case AST_Assign(SymbolInfo(symInfo), _, src) =>
-          val tpe = expressionType(src)(ctx)
-          //println(s"Infer assign: $symInfo $tpe")
-          symInfo.addSymbolInferredType(tpe)
+        case AST_Assign(SymbolInfo(symInfo), _, KnownType(tpe)) =>
+          //println(s"Infer assign: $symInfo = $tpe")
+          symInfo.addSymbolInferredType(Some(tpe))
+
+        case AST_Assign(KnownType(tpe), _, SymbolInfo(symInfo)) =>
+          //println(s"Infer reverse assign: $tpe = $symInfo")
+          // TODO: intersect instead of union
+          symInfo.addSymbolInferredType(Some(tpe))
+
+          /*
+        case AST_Assign(expr, _, SymbolInfo(symInfo)) =>
+          println(s"No infer reverse assign: ${ScalaOut.outputNode(expr)} = $symInfo")
+          println(allTypes)
+          //symInfo.addSymbolInferredType(Some(tpe))
+          */
 
         case AST_Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
           if symLeft.unknownType(n.types) && symRight.unknownType(n.types) =>
@@ -1041,7 +1060,7 @@ object Transform {
         case AST_ConciseMethod(AST_SymbolName(sym), fun: AST_Lambda) =>
           val tpe = scanFunctionReturns(fun)
           // method of which class is this?
-          val scope = findThisScope(fun.parent_scope.nonNull)
+          val scope = findThisClass(fun.parent_scope.nonNull)
           for (AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope) {
             //println(s"Infer return type for method $cls.$sym as $tpe")
             val classId = MemberId(cls, sym)

@@ -709,6 +709,13 @@ object ScalaOut {
     sb.result
   }
 
+  def nodeSource(n: AST_Node, input: String) = {
+    def source = (for {
+      s <- n.start
+      e <- n.end
+    } yield input.slice(s.pos, e.endpos)).getOrElse("")
+  }
+
   def outputNode(ast: AST_Node, input: String = "", outConfig: Config = Config.default): String = {
     val sb = new StringBuilder
     val ret = new NiceOutput {
