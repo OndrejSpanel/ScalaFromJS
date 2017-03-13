@@ -153,6 +153,12 @@ object Transform {
               vv.name.init = js.Array(right)
               vv.value = right
               vv.name.scope = scope
+              for (d <- thedef; orig <- d.orig.headOption)
+              {
+                fillTokens(vr, orig)
+                fillTokens(vv, orig)
+                fillTokens(vv.name, orig)
+              }
               //println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
               replaced ++= thedef.nonNull
               vr
@@ -827,8 +833,8 @@ object Transform {
       val symType = kind(allTypes.get(tid), tpe)
       //println(s"  Combined $symType = ${allTypes.get(tid)} * $tpe")
       for (tp <- symType) {
-        //println(s"  Add type $tid: $tp")
         if (tp.nonEmpty) {
+          //println(s"  Add type $tid: $tp")
           inferred += tid -> tp
           allTypes.t += tid -> tp
         }
@@ -874,14 +880,18 @@ object Transform {
         (Some(par), arg) <- pars.map(_.thedef.nonNull) zip args
       } {
         val tp = expressionType(arg)(ctx)
-        //println(s"Infer par ${par.name} as $tp")
-        addInferredType(par, tp)
+        if (tp.exists(_.nonEmpty)) {
+          //println(s"Infer par ${par.name} as $tp")
+          addInferredType(par, tp)
+        }
 
         arg match {
           case AST_SymbolRefDef(a) => // TODO: SymbolInfo
             val tp = allTypes.get(par)
-            //println(s"Infer arg ${a.name} as $tp")
-            addInferredType(a, tp, source)
+            if (tp.exists(_.nonEmpty)) {
+              //println(s"Infer arg ${a.name} as $tp")
+              addInferredType(a, tp, source)
+            }
           case _ =>
         }
       }
@@ -1016,8 +1026,8 @@ object Transform {
       node match {
         case AST_VarDef(AST_Symbol(_, _, Defined(symDef)), Defined(src)) =>
           if (n.types.get(symDef).isEmpty) {
-            //println(s"vardef ${symDef.name} ${nodeClassName(src)} tpe $tpe")
             val tpe = expressionType(src)(ctx)
+            //println(s"vardef ${symDef.name} ${id(symDef)} ${nodeClassName(src)} tpe $tpe")
             addInferredType(symDef, tpe)
             // if this is an inline constructor member, infer also the member type from it
             for {

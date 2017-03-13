@@ -66,6 +66,7 @@ object SymbolTypes {
 
   implicit def id(sym: SymbolDef): Option[SymbolMapId] = {
     val token = sym.orig.headOption.flatMap { _.start.nonNull }
+    //println(s"id ${sym.name} ${sym.orig.map(UglifyExt.nodeClassName)} ${token.map(_.pos)}")
     token.map(t => SymbolMapId(sym.name, t.pos))
   }
 
@@ -142,12 +143,16 @@ object SymbolTypes {
   }
   def typeUnionOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
     val t1 = typeFromOption(tpe1)
-    Some(t1.copy(target = typeUnion(t1.target, typeFromOption(tpe2).target)))
+    val t2 = typeFromOption(tpe2)
+    Some(t1.copy(target = typeUnion(t1.target, t2.target)))
   }
 
   def typeIntersectOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
     val t1 = typeFromOption(tpe1)
-    Some(t1.copy(source = typeIntersect(t1.source, typeFromOption(tpe2).target)))
+    val t2 = typeFromOption(tpe2)
+    //println(s"  intersect $t1 $t2")
+    val srcType = typeIntersect(t2.source, typeIntersect(t1.source, t2.sourceTypeFromTarget))
+    Some(t1.copy(source = srcType))
   }
 
   def apply(): SymbolTypes = SymbolTypes(Map.empty, Map.empty)
@@ -183,19 +188,18 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   // ... target is an upper bound, source a lower bound
   //assert(typeIntersect(source, target) == source)
   //assert(typeUnion(source, target) == target)
-  def declType = target match {
+  def declType: TypeDesc = target match {
     case NoType => source
     case _ => target
   }
 
-  def sourceFromTarget = {
-    val mapTarget = target match {
-      case NoType => AnyType
-      case AnyType => NoType
-      case _ => target
-    }
-    TypeInfo(mapTarget, NoType)
+  def sourceTypeFromTarget: TypeDesc = target match {
+    case NoType => AnyType
+    case AnyType => NoType
+    case _ => target
   }
+
+  def sourceFromTarget: TypeInfo = TypeInfo(sourceTypeFromTarget, NoType)
 }
 
 case class SymbolTypes(types: Map[SymbolMapId, TypeInfo], members: Map[MemberId, TypeInfo]) {
