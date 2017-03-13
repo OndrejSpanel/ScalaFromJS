@@ -184,7 +184,7 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   //assert(typeIntersect(source, target) == source)
   //assert(typeUnion(source, target) == target)
   def declType = target match {
-    case AnyType | NoType => source
+    case NoType => source
     case _ => target
   }
 
