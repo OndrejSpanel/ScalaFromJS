@@ -626,6 +626,10 @@ object Transform {
         //println(s"this def scope $cls")
         cls.map(t => TypeInfo.target(ClassType(t)))
 
+      case AST_SymbolRef("undefined", _, thedef)  =>
+        // not allowing undefined overrides
+        None // Some(TypeInfo(AnyType, NoType))
+
       case s@AST_SymbolRefDef(symDef) =>
         //val thisScope = findThisScope(Some(symDef.scope))
         //println(s"Sym ${symDef.name} scope ${thisScope.map(_.name.get.name)} type ${types.get(symDef)}")
@@ -830,16 +834,20 @@ object Transform {
     }
 
     def addInferredType(tid: Option[SymbolMapId], tpe: Option[TypeInfo], kind: TypeInferenceKind = target) = {
-      val symType = kind(allTypes.get(tid), tpe)
-      //println(s"  Combined $symType = ${allTypes.get(tid)} * $tpe")
-      for (tp <- symType) {
-        if (tp.nonEmpty) {
-          //println(s"  Add type $tid: $tp")
-          inferred += tid -> tp
-          allTypes.t += tid -> tp
+      def noType = Seq("undefined", "null", "this", "super") // never infer anything about those identifiers
+
+      if (tid.exists(t => !(noType contains t.name))) {
+        val symType = kind(allTypes.get(tid), tpe)
+        //println(s"  Combined $symType = ${allTypes.get(tid)} * $tpe")
+        for (tp <- symType) {
+          if (tp.nonEmpty) {
+            //println(s"  Add type $tid: $tp")
+            inferred += tid -> tp
+            allTypes.t += tid -> tp
+          }
+          //println(s"All types ${allTypes.t.types}")
+          //println(s"inferred ${inferred.types}")
         }
-        //println(s"All types ${allTypes.t.types}")
-        //println(s"inferred ${inferred.types}")
       }
     }
 
