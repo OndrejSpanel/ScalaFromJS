@@ -625,6 +625,7 @@ object Transform {
         //println(s"Sym ${symDef.name} scope ${thisScope.map(_.name.get.name)} type ${types.get(symDef)}")
         types.get(symDef)
       case AST_Dot(cls, name) =>
+        //println(s"Infer type of member $name, et ${expressionType(cls)(ctx)}")
         for {
           TypeDecl(ClassType(callOn)) <- expressionType(cls)(ctx)
           c <- findInParents(callOn, name)(ctx)

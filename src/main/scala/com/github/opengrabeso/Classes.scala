@@ -36,11 +36,12 @@ object Classes {
 
   // ignore function scopes, find a class one
   def findThisClass(scope: Option[AST_Scope]): Option[AST_DefClass] = {
+    //println(s"  ${scope.map(nodeClassName)} ${scope.map(_.nesting)}")
     scope match {
       case Some(s: AST_DefClass) => Some(s)
       case Some(x) =>
         val s = x.parent_scope.nonNull
-        findThisScope(s)
+        findThisClass(s)
       case _ => None
     }
   }
