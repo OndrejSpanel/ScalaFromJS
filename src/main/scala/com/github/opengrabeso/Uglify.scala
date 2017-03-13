@@ -711,6 +711,10 @@ object UglifyExt {
       def unapply(arg: AST_If) = Some(arg.condition, arg.body, arg.alternative.nonNull)
     }
 
+    object AST_Switch {
+      def unapply(arg: AST_Switch) = Some(arg.expression, arg._body.asInstanceOf[js.Array[AST_SwitchBranch]].toSeq)
+    }
+
     object AST_DefClass {
       def unapply(arg: AST_DefClass) = Some(arg.name, arg.`extends`, arg.properties)
     }

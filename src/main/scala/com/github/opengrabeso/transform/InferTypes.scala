@@ -304,6 +304,16 @@ object InferTypes {
           val tpe = typeFromOperation(op, expr)
           symInfo.addSymbolInferredType(tpe)
 
+        case AST_Switch(SymbolInfo(symInfo), body) =>
+          var allCases = Option.empty[TypeInfo]
+          body.foreach {
+            case cc: AST_Case =>
+              val cType = expressionType(cc.expression)(ctx)
+              allCases = typeUnionOption(allCases, cType)
+            case _ =>
+          }
+          symInfo.addSymbolInferredType(allCases)
+
         case fun@AST_Defun(Defined(symDef), _, _) =>
           val allReturns = scanFunctionReturns(fun)
           //println(s"${symDef.name} returns $allReturns")
