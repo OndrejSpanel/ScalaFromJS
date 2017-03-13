@@ -96,6 +96,8 @@ object SymbolTypes {
     (tpe1, tpe2) match {
       case _ if tpe1 == tpe2 =>
         tpe1
+      case (t, AnyType) => t
+      case (AnyType, t) => t
       case (_, NoType) => NoType
       case (NoType, _) => NoType
       case (c1: ClassType, c2: ClassType) =>
