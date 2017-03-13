@@ -91,14 +91,24 @@ object Parameters {
             case _ => None
           }
         }
+        object InitStatement {
+          def unapply(arg: AST_Node) = arg match {
+            case c: AST_Constant => Some(c)
+            case c: AST_Array => Some(c)
+            case c: AST_New => Some(c)
+            case _ =>
+              //println(s"${nodeClassName(arg)}")
+              None
+          }
+        }
         object IsParDefaultHandlingByIf {
           def unapply(arg: AST_Node) = arg match {
             case AST_If(
             AST_Binary(symRef@AST_SymbolRefName(`parName`), "==" | "===", AST_SymbolRefName("undefined")),
-            SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", init: AST_Constant)),
+            SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", InitStatement(init))),
             None
             ) =>
-              //println("IsParDefaultHandling via if")
+              //println(s"IsParDefaultHandling of $parName via if")
               Some(symRef, init)
             case _ =>
               //println(s"no IsParDefaultHandling in ${nodeClassName(arg)}")
@@ -123,6 +133,7 @@ object Parameters {
         defValue.map { init =>
           par.init = js.Array(init)
           // remove the use
+          //println("Removed default par")
           f.transformAfter { (node, _) =>
             node match {
               case s@IsParDefaultHandlingByIf(_, _) =>
@@ -145,6 +156,7 @@ object Parameters {
   def removeDeprecated(n: AST_Node): AST_Node = {
     def removeOneDeprecated(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
       val parName = par.name
+      //println(s"removeOneDeprecated $parName")
 
       object Statements {
         def unapply(arg: AST_Node) = arg match {
@@ -195,7 +207,7 @@ object Parameters {
 
       }
 
-      if (isDeprecated && !otherUse) {
+      if (isDeprecated && !otherUse) Some {
         f.argnames = f.argnames diff Seq(par)
         f.transformAfter { (node, _) =>
           node match {
@@ -207,9 +219,7 @@ object Parameters {
               node
           }
         }
-      }
-
-      None
+      } else None
     }
 
     processAllFunctions(n, removeOneDeprecated)
