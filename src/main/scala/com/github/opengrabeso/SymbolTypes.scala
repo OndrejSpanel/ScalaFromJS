@@ -160,7 +160,7 @@ object SymbolTypes {
     Some(t1.copy(source = srcType))
   }
 
-  def apply(): SymbolTypes = SymbolTypes(Map.empty, Map.empty)
+  def apply(): SymbolTypes = SymbolTypes.std
   def apply(syms: Seq[(SymbolDef, TypeDesc)]) = {
     val idMap = syms.map { case (k,v) => id(k) -> v }.toMap - None
     new SymbolTypes(idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)}, Map.empty)
