@@ -431,9 +431,7 @@ object ScalaOut {
       //case tn: AST_Exit => outputUnknownNode(tn)
       //case tn: AST_Jump => outputUnknownNode(tn)
       case tn: AST_If =>
-        out("if (")
-        val exp = tn.condition.nonNull.fold(out("xxx"))(nodeToOut)
-        out(") ")
+        out"if (${tn.condition}) "
         nodeToOut(tn.body)
         tn.alternative.nonNull.foreach { a =>
           out(" else ")

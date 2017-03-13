@@ -228,7 +228,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_If extends AST_StatementWithBody {
     // [AST_Node] the `if` condition
-    val condition: js.UndefOr[AST_Node]  = js.native
+    val condition: AST_Node  = js.native
     // [AST_Statement?] the `else` part, or null if not present
     val alternative: js.UndefOr[AST_Statement]  = js.native
   }
@@ -707,6 +707,9 @@ object UglifyExt {
       def unapplySeq(arg: AST_New) = AST_Call.unapplySeq(arg)
     }
 
+    object AST_If {
+      def unapply(arg: AST_If) = Some(arg.condition, arg.body, arg.alternative.nonNull)
+    }
 
     object AST_DefClass {
       def unapply(arg: AST_DefClass) = Some(arg.name, arg.`extends`, arg.properties)
