@@ -651,47 +651,6 @@ object Transform {
     classes
   }
 
-  case class ClassInfo(members: Set[MemberId] = Set.empty, parents: Map[String, String] = Map.empty) {
-
-    def classContains(cls: String, member: String): Option[String] = {
-      val r = if (members contains MemberId(cls, member)) Some(cls)
-      else parents.get(cls).flatMap { c =>
-        //println(s"  parent $c")
-        classContains(c, member)
-      }
-      //println(s"Check $cls contains $member: $r")
-      r
-    }
-
-    // list parents, the first in the list is the hierarchy root (no more parents), the last is the class itself
-    def listParents(cls: String): Seq[String] = {
-      def listParentsRecurse(cls: String, ret: Seq[String]): Seq[String] = {
-        val p = parents.get(cls)
-        p match {
-          case Some(pp) => listParentsRecurse(pp, pp +: ret)
-          case None => ret
-        }
-      }
-
-      listParentsRecurse(cls, Seq(cls))
-    }
-
-    def mostDerived(c1: String, c2: String): Option[String] = {
-      //println(s"  Parents of $c1: ${listParents(c1)}")
-      //println(s"  Parents of $c2: ${listParents(c2)}")
-      // check if one is parent of the other
-      if (listParents(c1) contains c2) Some(c1)
-      else if (listParents(c2) contains c1) Some(c2)
-      else None
-    }
-
-    def commonBase(c1: String, c2: String): Option[String] = {
-      val p1 = listParents(c1)
-      val p2 = listParents(c2)
-      (p1 zip p2).takeWhile(p => p._1 == p._2).lastOption.map(_._1)
-    }
-  }
-
   def listPrototypeMemberNames(cls: AST_DefClass): Set[String] = {
     var existingMembers = Set.empty[String]
     cls.walk {
