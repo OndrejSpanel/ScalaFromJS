@@ -4,11 +4,11 @@ class A extends X {}
 
 class B extends X {}
 
-function fx(p) {return p;}
+function fx(px) {return px;}
 
-function fa(p) {return p;}
+function fa(pa) {return pa;}
 
-function fb(p) {return p;}
+function fb(pb) {return pb;}
 
 var a = new A();
 var ap = new A();

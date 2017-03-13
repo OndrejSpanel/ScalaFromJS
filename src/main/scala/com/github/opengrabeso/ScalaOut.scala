@@ -224,7 +224,7 @@ object ScalaOut {
         } else {
           val sid = n.thedef.nonNull.flatMap(SymbolTypes.id)
           for (t <- input.types.get(sid)) {
-            out": ${SymbolTypes.mapSimpleTypeToScala(t)}"
+            out": ${SymbolTypes.mapSimpleTypeToScala(t.declType)}"
           }
         }
       }
@@ -394,7 +394,10 @@ object ScalaOut {
       case tn: AST_VarDef =>
         nodeToOut(tn.name)
         tn.value.nonNull.fold {
-          val tpe = tn.name.thedef.nonNull.map(s => input.types.getAsScala(s))
+          val tpe = tn.name.thedef.nonNull.map { s =>
+            //println(s"${SymbolTypes.id(s)} ${input.types.get(s)}")
+            input.types.getAsScala(s)
+          }
           val typeName = tpe.getOrElse(SymbolTypes.any)
           out": $typeName"
         } { v =>
@@ -605,7 +608,7 @@ object ScalaOut {
         accessor.body.foreach {
           case VarName(s) =>
             val clsName = tn.name.nonNull.map(_.name)
-            val sType = input.types.getMember(clsName, s)
+            val sType = input.types.getMember(clsName, s).map(_.declType)
             val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
             out"var ${identifier(s)}: $sTypeName\n"
           case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>

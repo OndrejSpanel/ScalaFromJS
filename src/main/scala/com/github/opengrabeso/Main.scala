@@ -98,7 +98,6 @@ object Main extends js.JSApp {
   }
 
   def main(): Unit = {
-
     dom.window.addEventListener("load", windowLoaded)
   }
 

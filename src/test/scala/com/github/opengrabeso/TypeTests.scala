@@ -37,17 +37,16 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Correctly infer subtypes / supertypes in various positions") {
-    pendingUntilFixed {
-      execute check ConversionCheck(rsc("types/subtypes.js"))
-        .required(
-          "def fx(p: X)",
-          "def fa(p: A)",
-          "def fb(p: B)",
-          "var xx: X",
-          "var xa: A",
-          "var pp: A"
-        )
-    }
+    execute check ConversionCheck(rsc("types/subtypes.js"))
+      .required(
+        "def fx(px: X)",
+        "def fa(pa: A)",
+        "def fb(pb: B)",
+        "var xx: X",
+        "var yy: X",
+        "var xa: A",
+        "var pp: A"
+      )
   }
 
   test("Simple JS 1.8 (ES 5) class") {

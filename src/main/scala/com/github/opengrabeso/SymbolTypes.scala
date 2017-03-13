@@ -14,11 +14,17 @@ object SymbolTypes {
   case class ClassType(name: String) extends TypeDesc {
     override def toString = name
   }
-  case class FunctionType(ret: Option[TypeDesc], args: IndexedSeq[Option[TypeDesc]]) extends TypeDesc {
+  case class FunctionType(ret: TypeDesc, args: IndexedSeq[TypeDesc]) extends TypeDesc {
     override def toString = {
-      def outputType(o: Option[TypeDesc]) = o.fold("Any")(_.toString)
+      def outputType(o: TypeDesc) = o.toString
       args.map(outputType).mkString("(", ", ",")") + " => " + outputType(ret)
     }
+  }
+  case object AnyType extends TypeDesc { // supertype of all
+    override def toString = "Any"
+  }
+  case object NoType extends TypeDesc { // subtype of all
+    override def toString = "Nothing"
   }
 
   private val numberStr = "number"
@@ -72,8 +78,8 @@ object SymbolTypes {
     }
   }
 
-  def classFromType(tpe: Option[TypeDesc]): Option[String] = {
-    tpe match {
+  def classFromType(tpe: Option[TypeInfo]): Option[String] = {
+    tpe.map(_.declType) match {
       case Some(ClassType(name)) => Some(name)
       case _ => None
     }
@@ -90,6 +96,8 @@ object SymbolTypes {
     (tpe1, tpe2) match {
       case _ if tpe1 == tpe2 =>
         tpe1
+      case (_, NoType) => NoType
+      case (NoType, _) => NoType
       case (c1: ClassType, c2: ClassType) =>
         classOps.mostDerived(c1, c2)
       case (c1: ClassType, _) =>
@@ -97,14 +105,14 @@ object SymbolTypes {
       case (_, c2: ClassType) =>
         c2
       case _ =>
-        tpe1 // unsolvable, keep any of the types
+        tpe1 // should be Nothing, but we rather keep any of the types
     }
   }
 
   def typeUnionFunction(f1: FunctionType, f2: FunctionType)(implicit classOps: ClassOps): TypeDesc = {
-    val ret = typeIntersectOption(f1.ret, f2.ret)
-    val args = for ((a1, a2) <- f1.args.zipAll(f2.args, None, None)) yield {
-      typeUnionOption(a1, a2)
+    val ret = typeIntersect(f1.ret, f2.ret)
+    val args = for ((a1, a2) <- f1.args.zipAll(f2.args, NoType, NoType)) yield {
+      typeUnion(a1, a2)
     }
     FunctionType(ret, args)
   }
@@ -114,66 +122,100 @@ object SymbolTypes {
     (tpe1, tpe2) match {
       case _ if tpe1 == tpe2 =>
         tpe1
+      case (_, AnyType) => AnyType
+      case (AnyType, _) => AnyType
+      case (t, NoType) => t
+      case (NoType, t) => t
       case (c1: ClassType, c2: ClassType) =>
         classOps.commonBase(c1, c2)
       case (f1: FunctionType, f2: FunctionType) =>
         typeUnionFunction(f1, f2)
       case _ =>
-        any
+        AnyType
     }
   }
 
-  def typeUnionOption(tpe1: Option[TypeDesc], tpe2: Option[TypeDesc])(implicit classOps: ClassOps): Option[TypeDesc] = {
-    (tpe1, tpe2) match {
-      case (_, None) => tpe1
-      case (None, _) => tpe2
-      case (Some(t1), Some(t2)) => Some(typeUnion(t1, t2))
-      case _ => None
-    }
+  private def typeFromOption(tpe: Option[TypeInfo]) = {
+    tpe.getOrElse(TypeInfo(AnyType, NoType))
   }
-  def typeIntersectOption(tpe1: Option[TypeDesc], tpe2: Option[TypeDesc])(implicit classOps: ClassOps): Option[TypeDesc] = {
-    (tpe1, tpe2) match {
-      case (_, None) => tpe1
-      case (None, _) => tpe2
-      case (Some(t1), Some(t2)) =>
-        //println(s"Intersect $t1 + $t2 = ${typeIntersect(t1, t2)}")
-        Some(typeIntersect(t1, t2))
-      case _ => None
-    }
+  def typeUnionOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
+    val t1 = typeFromOption(tpe1)
+    Some(t1.copy(target = typeUnion(t1.target, typeFromOption(tpe2).target)))
+  }
+
+  def typeIntersectOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
+    val t1 = typeFromOption(tpe1)
+    Some(t1.copy(source = typeIntersect(t1.source, typeFromOption(tpe2).target)))
   }
 
   def apply(): SymbolTypes = SymbolTypes(Map.empty, Map.empty)
   def apply(syms: Seq[(SymbolDef, TypeDesc)]) = {
     val idMap = syms.map { case (k,v) => id(k) -> v }.toMap - None
-    new SymbolTypes(idMap.map{ case (k, v) => k.get -> v}, Map.empty)
+    new SymbolTypes(idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)}, Map.empty)
   }
 
 }
 
 import SymbolTypes._
 
-case class SymbolTypes(types: Map[SymbolMapId, TypeDesc], members: Map[MemberId, TypeDesc]) {
+object TypeInfo {
+  def source(tpe: TypeDesc): TypeInfo = {
+    //println(s"source $tpe")
+    TypeInfo(tpe, NoType)
+  }
+  def target(tpe: TypeDesc): TypeInfo = {
+    //println(s"target $tpe")
+    TypeInfo(AnyType, tpe)
+  }
+  def both(tpe: TypeDesc): TypeInfo = {
+    //println(s"both $tpe")
+    TypeInfo(tpe, tpe)
+  }
 
-  def setOfTypes: Set[TypeDesc] = types.values.toSet
+}
+case class TypeInfo(source: TypeDesc, target: TypeDesc) {
+  def nonEmpty = source != AnyType || target != NoType
 
-  def get(id: Option[SymbolMapId]): Option[TypeDesc] = id.flatMap(types.get)
+  //assert(source == AnyType || target == NoType)
+  // source should be more specific than a target (target is a supertype, source a subtype)
+  // ... target is an upper bound, source a lower bound
+  //assert(typeIntersect(source, target) == source)
+  //assert(typeUnion(source, target) == target)
+  def declType = target match {
+    case AnyType | NoType => source
+    case _ => target
+  }
 
-  def getMember(clsId: Option[MemberId]): Option[TypeDesc] = clsId.flatMap(members.get)
-  def getMember(cls: Option[String], member: String): Option[TypeDesc] = getMember(cls.map(MemberId(_, member)))
+  def sourceFromTarget = {
+    val mapTarget = target match {
+      case NoType => AnyType
+      case AnyType => NoType
+      case _ => target
+    }
+    TypeInfo(mapTarget, NoType)
+  }
+}
+
+case class SymbolTypes(types: Map[SymbolMapId, TypeInfo], members: Map[MemberId, TypeInfo]) {
+
+  def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
+
+  def getMember(clsId: Option[MemberId]): Option[TypeInfo] = clsId.flatMap(members.get)
+  def getMember(cls: Option[String], member: String): Option[TypeInfo] = getMember(cls.map(MemberId(_, member)))
 
   def getAsScala(id: Option[SymbolMapId]): String = {
-    get(id).fold (any.toString) (mapSimpleTypeToScala)
+    get(id).fold (any.toString) (t => mapSimpleTypeToScala(t.declType))
   }
 
   def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(types ++ that.types, members ++ that.members)
 
-  def + (kv: (Option[SymbolMapId], TypeDesc)): SymbolTypes = {
+  def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
     kv._1.fold(this) { id =>
       copy(types = types + (id -> kv._2))
     }
   }
 
-  def addMember (kv: (Option[MemberId], TypeDesc)): SymbolTypes = {
+  def addMember (kv: (Option[MemberId], TypeInfo)): SymbolTypes = {
     kv._1.fold(this) { id =>
       copy(members = members + (id -> kv._2))
     }
