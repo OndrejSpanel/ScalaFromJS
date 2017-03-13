@@ -213,8 +213,10 @@ object SymbolTypes {
     "sqrt", "ceil", "floor", "round"
   )
 
+  private val numberFunction = FunctionType(number, IndexedSeq(number))
+
   val stdLibraries = Seq("Math").map { k =>
-    SymbolMapId(k, 0) -> TypeInfo.target(ClassType(k))// TODO: special handling for global symbols
+    SymbolMapId(k, 0) -> TypeInfo.target(ClassType(k))// 0 is a special handling for global symbols
   }.toMap
 
   val stdLibraryMembers = numberMath.map(k => MemberId("Math", k) -> number).toMap
