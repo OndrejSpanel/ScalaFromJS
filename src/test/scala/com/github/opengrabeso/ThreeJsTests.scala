@@ -11,7 +11,8 @@ class ThreeJsTests extends FunSuite with TestUtils {
       execute check ConversionCheck(rsc("threejs/vector3.js"))
         .required(
           "class Vector3(x: Double = 0, y: Double = 0, z: Double = 0)",
-          "(axis: Vector3, angle: Double)",
+          "(axis: Vector3, angle: Double) => {",
+          "(minVal: Nothing, maxVal: Nothing) => {",
           "def dot(v: Vector3)"
         )
         .forbidden(
