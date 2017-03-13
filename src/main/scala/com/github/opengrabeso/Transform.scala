@@ -10,7 +10,6 @@ import scala.collection.mutable
 import scala.scalajs.js
 import js.JSConverters._
 import scala.language.implicitConversions
-import scala.util.Try
 
 /**
   * Transform AST to perform optimizations or adjustments
@@ -87,10 +86,10 @@ object Transform {
   def relations(n: AST_Extended): AST_Extended = {
     val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case bin@AST_Binary(left, "===", right) =>
+        case bin@AST_Binary(_, "===", _) =>
           bin.operator = "=="
           node
-        case bin@AST_Binary(left, "!==", right) =>
+        case bin@AST_Binary(_, "!==", _) =>
           bin.operator = "!="
           node
         case _ =>
@@ -1205,7 +1204,7 @@ object Transform {
     // "Immediately-invoked function expression"
     object IIFE {
       def unapply(arg: AST_Node) = arg match {
-        case AST_Call(l@AST_Lambda(args1, funcBody), args2@_*) if args1.isEmpty && args2.isEmpty =>
+        case AST_Call(AST_Lambda(args1, funcBody), args2@_*) if args1.isEmpty && args2.isEmpty =>
           Some(funcBody)
         case _ => None
 
