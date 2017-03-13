@@ -161,6 +161,15 @@ object SymbolTypes {
     new SymbolTypes(idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)}, Map.empty)
   }
 
+  val numberMath = Seq(
+    "min", "max", "abs",
+    "sin", "cos", "tan", "asin", "acos", "atan",
+    "sqrt", "ceil", "floor", "round"
+  )
+
+  val stdLibraryMembers = numberMath.map(k => MemberId("Math", k) -> number).toMap
+
+  val stdLibraries = Set("Math")
 }
 
 import SymbolTypes._
