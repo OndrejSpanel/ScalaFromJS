@@ -144,6 +144,71 @@ object Parameters {
 
   def removeDeprecated(n: AST_Node): AST_Node = {
     def removeOneDeprecated(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+      val parName = par.name
+
+      object Statements {
+        def unapply(arg: AST_Node) = arg match {
+          case AST_BlockStatement(body) => Some(body)
+          case s@AST_SimpleStatement(body) => Some(Seq(s))
+          case _ => None
+        }
+      }
+
+      def containsDeprecation(body: Seq[AST_Statement]) = {
+        body.exists {
+          case AST_SimpleStatement(AST_Call(AST_SymbolRefName("console") AST_Dot "warn", _)) =>
+            true
+          case _: AST_Throw =>
+            true
+          case _ =>
+            false
+        }
+      }
+
+      object IsParDeprecated {
+        def unapply(arg: AST_Node) = arg match {
+          case AST_If(
+          AST_Binary(AST_SymbolRefName(`parName`), "!=" | "!==", AST_SymbolRefName("undefined")),
+          Statements(body),
+          None
+          ) if containsDeprecation(body) =>
+            //println("IsParDeprecated")
+            true
+          case _ =>
+            //println(s"no IsParDeprecated in ${nodeClassName(arg)}")
+            false
+        }
+      }
+
+      var isDeprecated = false
+      var otherUse = false
+      f.walk {
+        case IsParDeprecated() =>
+          //println(s"Detected deprecated par for $parName")
+          isDeprecated = true
+          true // use inside of the current pattern must not set otherUse
+        case AST_SymbolRefName(`parName`) =>
+          otherUse = true
+          true
+        case _ =>
+          otherUse
+
+      }
+
+      if (isDeprecated && !otherUse) {
+        f.argnames = f.argnames diff Seq(par)
+        f.transformAfter { (node, _) =>
+          node match {
+            case s@IsParDeprecated() =>
+              new AST_EmptyStatement {
+                fillTokens(this, s)
+              }
+            case _ =>
+              node
+          }
+        }
+      }
+
       None
     }
 
