@@ -667,7 +667,7 @@ object Transform {
   }
 
   def listClassMembers(node: AST_Node) = {
-    var listMembers = ClassInfo()
+    var listMembers = SymbolTypes.stdClassInfo
 
     node.walk {
       case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), base, _) =>

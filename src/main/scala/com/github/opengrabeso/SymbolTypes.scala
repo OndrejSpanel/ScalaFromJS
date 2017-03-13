@@ -7,6 +7,7 @@ import scala.language.implicitConversions
 
 object SymbolTypes {
 
+
   sealed trait TypeDesc
   case class SimpleType(name: String) extends TypeDesc {
     override def toString = name
@@ -66,8 +67,12 @@ object SymbolTypes {
 
   implicit def id(sym: SymbolDef): Option[SymbolMapId] = {
     val token = sym.orig.headOption.flatMap { _.start.nonNull }
+
     //println(s"id ${sym.name} ${sym.orig.map(UglifyExt.nodeClassName)} ${token.map(_.pos)}")
-    token.map(t => SymbolMapId(sym.name, t.pos))
+    token.map { t =>
+      val pos = if (sym.global) 0 else t.pos
+      SymbolMapId(sym.name, pos)
+    }
   }
 
   def mapSimpleTypeToScala(tpe: TypeDesc): String = {
@@ -202,22 +207,22 @@ object SymbolTypes {
     }
   }
 
-
-
-
   val numberMath = Seq(
     "min", "max", "abs",
     "sin", "cos", "tan", "asin", "acos", "atan",
     "sqrt", "ceil", "floor", "round"
   )
 
+  val stdLibraries = Seq("Math").map { k =>
+    SymbolMapId(k, 0) -> TypeInfo.target(ClassType(k))// TODO: special handling for global symbols
+  }.toMap
+
   val stdLibraryMembers = numberMath.map(k => MemberId("Math", k) -> number).toMap
 
-  val stdLibraries = Set("Math")
+  lazy val std: SymbolTypes = SymbolTypes(stdLibraries, stdLibraryMembers.mapValues(TypeInfo.target))
 
-  def std: SymbolTypes = {
-    new SymbolTypes(Map.empty, stdLibraryMembers.mapValues(TypeInfo.target))
-  }
+  lazy val stdClassInfo: ClassInfo = ClassInfo(stdLibraryMembers.keySet, Map.empty)
+
 }
 
 import SymbolTypes._
