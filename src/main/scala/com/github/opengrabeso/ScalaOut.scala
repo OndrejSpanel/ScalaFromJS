@@ -604,11 +604,15 @@ object ScalaOut {
         // class body should be a list of variable declarations, constructor statements may follow
 
         accessor.body.foreach {
-          case VarName(s) =>
+          case AST_Var(AST_VarDef(AST_SymbolName(s), init)) =>
             val clsName = tn.name.nonNull.map(_.name)
             val sType = input.types.getMember(clsName, s).map(_.declType)
             val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
-            out"var ${identifier(s)}: $sTypeName\n"
+            out"var ${identifier(s)}: $sTypeName"
+            for (i <- init) {
+              out" = $init"
+            }
+            out.eol()
           case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
           case ss =>
             //out(nodeTreeToString(ss))
