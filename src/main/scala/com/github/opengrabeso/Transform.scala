@@ -688,9 +688,8 @@ object Transform {
     existingMembers
   }
 
-  def listClassMembers(node: AST_Node) = {
-    var listMembers = SymbolTypes.stdClassInfo
-
+  def listDefinedClassMembers(node: AST_Node) = {
+    var listMembers = ClassInfo()
     node.walk {
       case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), base, _) =>
         for (AST_SymbolName(parent) <- base) {
@@ -712,6 +711,9 @@ object Transform {
     listMembers
   }
 
+  def listClassMembers(node: AST_Node) = {
+    SymbolTypes.stdClassInfo ++ listDefinedClassMembers(node)
+  }
 
   def removeVarClassScope(n: AST_Node): AST_Node = {
     object DefineAndReturnClass {

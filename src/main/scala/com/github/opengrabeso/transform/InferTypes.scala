@@ -230,9 +230,6 @@ object InferTypes {
         case AST_Dot(expr, name) =>
           val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
           Some(SymbolAccessInfo(dot = clsId))
-        case AST_Call(AST_Dot(expr, name), _*) =>
-          val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
-          Some(SymbolAccessInfo(dot = clsId))
         case _ =>
           None
       }
@@ -441,9 +438,10 @@ object InferTypes {
     def inferTypesStep(n: AST_Extended, maxDepth: Int = 50): AST_Extended = {
       //println(s"Type inference: ${n.types}")
       val r = inferTypes(n)
+      val cr = ClassesByMembers(r)
       //println(s"Type inference done: ${r.types}")
-      if (r.types != n.types && maxDepth > 0) inferTypesStep(r, maxDepth - 1)
-      else r
+      if (cr.types != n.types && maxDepth > 0) inferTypesStep(cr, maxDepth - 1)
+      else cr
     }
 
     inferTypesStep(n)

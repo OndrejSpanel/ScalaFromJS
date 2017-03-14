@@ -209,6 +209,9 @@ object SymbolTypes {
       val p2 = listParents(c2)
       (p1 zip p2).takeWhile(p => p._1 == p._2).lastOption.map(_._1)
     }
+
+    def ++ (that: ClassInfo) = ClassInfo(this.members ++ that.members, this.parents ++ that.parents)
+
   }
 
   val numberMath = Seq(
