@@ -49,6 +49,14 @@ class TypeTests extends FunSuite with TestUtils {
       )
   }
 
+  test("Correctly infer types from Math functions") {
+    execute check ConversionCheck(rsc("types/math.js"))
+      .required(
+        "var x: Double",
+        "var y: Double"
+      )
+
+  }
   test("Simple JS 1.8 (ES 5) class") {
     execute check ConversionCheck(rsc("types/simpleClass.js"))
       .required(

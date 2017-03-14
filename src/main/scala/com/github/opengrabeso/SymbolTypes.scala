@@ -7,6 +7,7 @@ import scala.language.implicitConversions
 
 object SymbolTypes {
 
+
   sealed trait TypeDesc
   case class SimpleType(name: String) extends TypeDesc {
     override def toString = name
@@ -15,6 +16,8 @@ object SymbolTypes {
     override def toString = name
   }
   case class FunctionType(ret: TypeDesc, args: IndexedSeq[TypeDesc]) extends TypeDesc {
+    //println(s"FunctionType ${args.mkString("(",",",")")} => $ret")
+
     override def toString = {
       def outputType(o: TypeDesc) = o.toString
       args.map(outputType).mkString("(", ", ",")") + " => " + outputType(ret)
@@ -66,8 +69,12 @@ object SymbolTypes {
 
   implicit def id(sym: SymbolDef): Option[SymbolMapId] = {
     val token = sym.orig.headOption.flatMap { _.start.nonNull }
+
     //println(s"id ${sym.name} ${sym.orig.map(UglifyExt.nodeClassName)} ${token.map(_.pos)}")
-    token.map(t => SymbolMapId(sym.name, t.pos))
+    token.map { t =>
+      val pos = if (sym.global) 0 else t.pos
+      SymbolMapId(sym.name, pos)
+    }
   }
 
   def mapSimpleTypeToScala(tpe: TypeDesc): String = {
@@ -113,7 +120,7 @@ object SymbolTypes {
   }
 
   def typeUnionFunction(f1: FunctionType, f2: FunctionType)(implicit classOps: ClassOps): TypeDesc = {
-    val ret = typeIntersect(f1.ret, f2.ret)
+    val ret = typeUnion(f1.ret, f2.ret)
     val args = for ((a1, a2) <- f1.args.zipAll(f2.args, NoType, NoType)) yield {
       typeUnion(a1, a2)
     }
@@ -144,22 +151,83 @@ object SymbolTypes {
   def typeUnionOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
     val t1 = typeFromOption(tpe1)
     val t2 = typeFromOption(tpe2)
-    Some(t1.copy(target = typeUnion(t1.target, t2.target)))
+    val union = typeUnion(t1.target, t2.target)
+    //println(s"  union $t1 $t2 -> $union")
+    Some(t1.copy(target = union))
   }
 
   def typeIntersectOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
     val t1 = typeFromOption(tpe1)
     val t2 = typeFromOption(tpe2)
-    //println(s"  intersect $t1 $t2")
     val srcType = typeIntersect(t2.source, typeIntersect(t1.source, t2.sourceTypeFromTarget))
+    //println(s"  intersect $t1 $t2 -> $srcType")
     Some(t1.copy(source = srcType))
   }
 
-  def apply(): SymbolTypes = SymbolTypes(Map.empty, Map.empty)
+  def apply(): SymbolTypes = SymbolTypes.std
   def apply(syms: Seq[(SymbolDef, TypeDesc)]) = {
     val idMap = syms.map { case (k,v) => id(k) -> v }.toMap - None
     new SymbolTypes(idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)}, Map.empty)
   }
+
+  case class ClassInfo(members: Set[MemberId] = Set.empty, parents: Map[String, String] = Map.empty) {
+
+    def classContains(cls: String, member: String): Option[String] = {
+      val r = if (members contains MemberId(cls, member)) Some(cls)
+      else parents.get(cls).flatMap { c =>
+        //println(s"  parent $c")
+        classContains(c, member)
+      }
+      //println(s"Check $cls contains $member: $r")
+      r
+    }
+
+    // list parents, the first in the list is the hierarchy root (no more parents), the last is the class itself
+    def listParents(cls: String): Seq[String] = {
+      def listParentsRecurse(cls: String, ret: Seq[String]): Seq[String] = {
+        val p = parents.get(cls)
+        p match {
+          case Some(pp) => listParentsRecurse(pp, pp +: ret)
+          case None => ret
+        }
+      }
+
+      listParentsRecurse(cls, Seq(cls))
+    }
+
+    def mostDerived(c1: String, c2: String): Option[String] = {
+      //println(s"  Parents of $c1: ${listParents(c1)}")
+      //println(s"  Parents of $c2: ${listParents(c2)}")
+      // check if one is parent of the other
+      if (listParents(c1) contains c2) Some(c1)
+      else if (listParents(c2) contains c1) Some(c2)
+      else None
+    }
+
+    def commonBase(c1: String, c2: String): Option[String] = {
+      val p1 = listParents(c1)
+      val p2 = listParents(c2)
+      (p1 zip p2).takeWhile(p => p._1 == p._2).lastOption.map(_._1)
+    }
+  }
+
+  val numberMath = Seq(
+    "min", "max", "abs",
+    "sin", "cos", "tan", "asin", "acos", "atan",
+    "sqrt", "ceil", "floor", "round"
+  )
+
+  private val numberFunction = FunctionType(number, IndexedSeq(number))
+
+  val stdLibraries = Seq("Math").map { k =>
+    SymbolMapId(k, 0) -> TypeInfo.target(ClassType(k))// 0 is a special handling for global symbols
+  }.toMap
+
+  val stdLibraryMembers = numberMath.map(k => MemberId("Math", k) -> numberFunction).toMap
+
+  lazy val std: SymbolTypes = SymbolTypes(stdLibraries, stdLibraryMembers.mapValues(TypeInfo.target))
+
+  lazy val stdClassInfo: ClassInfo = ClassInfo(stdLibraryMembers.keySet, Map.empty)
 
 }
 

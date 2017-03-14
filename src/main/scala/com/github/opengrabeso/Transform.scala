@@ -543,6 +543,13 @@ object Transform {
     def unapply(arg: TypeInfo) = Some(arg.declType)
   }
 
+  def callReturn(funType: TypeInfo): TypeInfo = funType.declType match {
+    case FunctionType(ret, _) =>
+      //println(s"callReturn $ret")
+      TypeInfo.target(ret)
+    case _ => funType
+  }
+
   def expressionType(n: AST_Node)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
@@ -614,8 +621,8 @@ object Transform {
         Some(TypeInfo.target(ClassType(call.name)))
       case AST_Call(AST_SymbolRefDef(call), _*) =>
         val tid = id(call)
-       // println(s"Infer type of call ${call.name}:$id as ${types.get(id)}")
-        types.get(tid)
+        //println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
+        types.get(tid).map(callReturn)
 
       case AST_Call(AST_Dot(cls, name), _*) =>
         //println(s"Infer type of member call $name")
@@ -625,7 +632,7 @@ object Transform {
           r <- types.getMember(Some(c), name)
         } yield {
           //println(s"  Infer type of member call $c.$name as $r")
-          r
+          callReturn(r)
         }
       case seq: AST_Seq =>
         expressionType(seq.cdr)(ctx)
@@ -651,47 +658,6 @@ object Transform {
     classes
   }
 
-  case class ClassInfo(members: Set[MemberId] = Set.empty, parents: Map[String, String] = Map.empty) {
-
-    def classContains(cls: String, member: String): Option[String] = {
-      val r = if (members contains MemberId(cls, member)) Some(cls)
-      else parents.get(cls).flatMap { c =>
-        //println(s"  parent $c")
-        classContains(c, member)
-      }
-      //println(s"Check $cls contains $member: $r")
-      r
-    }
-
-    // list parents, the first in the list is the hierarchy root (no more parents), the last is the class itself
-    def listParents(cls: String): Seq[String] = {
-      def listParentsRecurse(cls: String, ret: Seq[String]): Seq[String] = {
-        val p = parents.get(cls)
-        p match {
-          case Some(pp) => listParentsRecurse(pp, pp +: ret)
-          case None => ret
-        }
-      }
-
-      listParentsRecurse(cls, Seq(cls))
-    }
-
-    def mostDerived(c1: String, c2: String): Option[String] = {
-      //println(s"  Parents of $c1: ${listParents(c1)}")
-      //println(s"  Parents of $c2: ${listParents(c2)}")
-      // check if one is parent of the other
-      if (listParents(c1) contains c2) Some(c1)
-      else if (listParents(c2) contains c1) Some(c2)
-      else None
-    }
-
-    def commonBase(c1: String, c2: String): Option[String] = {
-      val p1 = listParents(c1)
-      val p2 = listParents(c2)
-      (p1 zip p2).takeWhile(p => p._1 == p._2).lastOption.map(_._1)
-    }
-  }
-
   def listPrototypeMemberNames(cls: AST_DefClass): Set[String] = {
     var existingMembers = Set.empty[String]
     cls.walk {
@@ -708,7 +674,7 @@ object Transform {
   }
 
   def listClassMembers(node: AST_Node) = {
-    var listMembers = ClassInfo()
+    var listMembers = SymbolTypes.stdClassInfo
 
     node.walk {
       case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), base, _) =>

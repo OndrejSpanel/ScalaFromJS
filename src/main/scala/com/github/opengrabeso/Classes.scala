@@ -68,6 +68,11 @@ object Classes {
     }
   }
 
+  def getParents(tpe: String)(ctx: ExpressionTypeContext): Seq[String] = {
+    ctx.classInfo.listParents(tpe)
+  }
+
+
   def findInParents(tpe: String, member: String)(ctx: ExpressionTypeContext): Option[String] = {
     ctx.classInfo.classContains(tpe, member)
     /*
