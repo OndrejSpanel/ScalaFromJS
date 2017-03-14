@@ -75,6 +75,7 @@ object InferTypes {
         }
       }
 
+      //println(s"Member type was $id: ${inferred.getMember(id)}")
 
       val symType = kind(inferred.getMember(id), tpe)
       //println(s"Adding member type $idAccess - $id: $tpe -> $symType")
@@ -412,7 +413,6 @@ object InferTypes {
             }
           }
 
-          //println(s"Dot call $call")
           // TODO: use function types only for member functions
           // fill class symbols (if they exists)
           for {

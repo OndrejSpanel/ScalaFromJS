@@ -120,7 +120,7 @@ object SymbolTypes {
   }
 
   def typeUnionFunction(f1: FunctionType, f2: FunctionType)(implicit classOps: ClassOps): TypeDesc = {
-    val ret = typeIntersect(f1.ret, f2.ret)
+    val ret = typeUnion(f1.ret, f2.ret)
     val args = for ((a1, a2) <- f1.args.zipAll(f2.args, NoType, NoType)) yield {
       typeUnion(a1, a2)
     }
