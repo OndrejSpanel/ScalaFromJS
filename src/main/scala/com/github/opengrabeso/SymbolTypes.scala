@@ -170,7 +170,7 @@ object SymbolTypes {
     new SymbolTypes(idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)}, Map.empty)
   }
 
-  case class ClassInfo(members: Map[String, Set[String]] = Map.empty, parents: Map[String, String] = Map.empty) {
+  case class ClassInfo(members: Map[String, Seq[String]] = Map.empty, parents: Map[String, String] = Map.empty) {
 
     lazy val children = parents.groupBy(_._2).mapValues(_.keys.toSet)
 
@@ -244,7 +244,7 @@ object SymbolTypes {
   }
 
   val libs = Map(
-    "Math" -> Set(
+    "Math" -> Seq(
       "min", "max", "abs",
       "sin", "cos", "tan", "asin", "acos", "atan",
       "sqrt", "ceil", "floor", "round"

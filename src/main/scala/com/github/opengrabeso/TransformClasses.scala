@@ -399,7 +399,7 @@ object TransformClasses {
               //println(s"Detect this.$mem")
               if (!existingMembers.contains(mem)) {
                 newMembers = newMembers :+ mem
-                existingMembers += mem
+                existingMembers = existingMembers :+ mem
               }
               false
             case _ =>
