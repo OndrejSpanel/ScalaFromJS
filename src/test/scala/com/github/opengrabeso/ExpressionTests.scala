@@ -57,7 +57,7 @@ class ExpressionTests extends FunSuite with TestUtils {
         "def `match`(`val`: Animal)",
         "if (`val` == this) this",
         "`object`.`match`(x).move()",
-        "def `lazy`(`object`: Any, meters: Double)"
+        "def `lazy`(`object`:"
       )
       .forbidden(
         "`this`",

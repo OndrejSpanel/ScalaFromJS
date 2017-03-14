@@ -230,9 +230,6 @@ object InferTypes {
         case AST_Dot(expr, name) =>
           val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
           Some(SymbolAccessInfo(dot = clsId))
-        case AST_Call(AST_Dot(expr, name), _*) =>
-          val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
-          Some(SymbolAccessInfo(dot = clsId))
         case _ =>
           None
       }
@@ -399,7 +396,7 @@ object InferTypes {
           } {
             val memberId = MemberId(c, call)
             //println(s"memberId $memberId, args ${args.length}")
-            if (ctx.classInfo.members.contains(memberId)) {
+            if (ctx.classInfo.containsMember(c, call)) {
               val tpe = inferFunction(args)
 
               //println(s"Infer par types for a var member call $c.$call as $tpe")
@@ -438,12 +435,13 @@ object InferTypes {
 
   def multipass(n: AST_Extended): AST_Extended = {
 
-    def inferTypesStep(n: AST_Extended, maxDepth: Int = 50): AST_Extended = {
-      //println(s"Type inference: ${n.types}")
+    def inferTypesStep(n: AST_Extended, maxDepth: Int = 15): AST_Extended = {
+      //println(s"Type inference: ${n.types} steps $maxDepth")
       val r = inferTypes(n)
+      val cr = ClassesByMembers(r)
       //println(s"Type inference done: ${r.types}")
-      if (r.types != n.types && maxDepth > 0) inferTypesStep(r, maxDepth - 1)
-      else r
+      if (cr.types != n.types && maxDepth > 0) inferTypesStep(cr, maxDepth - 1)
+      else cr
     }
 
     inferTypesStep(n)

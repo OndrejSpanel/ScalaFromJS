@@ -673,14 +673,14 @@ object Transform {
     classes
   }
 
-  def listPrototypeMemberNames(cls: AST_DefClass): Set[String] = {
-    var existingMembers = Set.empty[String]
+  def listPrototypeMemberNames(cls: AST_DefClass): Seq[String] = {
+    var existingMembers = Seq.empty[String]
     cls.walk {
       case AST_ConciseMethod(AST_SymbolName(p), _) =>
-        existingMembers += p
+        existingMembers = existingMembers :+ p
         true
       case AST_ObjectKeyVal(p, _) =>
-        existingMembers += p
+        existingMembers = existingMembers :+ p
         true
       case _ =>
         false
@@ -688,9 +688,8 @@ object Transform {
     existingMembers
   }
 
-  def listClassMembers(node: AST_Node) = {
-    var listMembers = SymbolTypes.stdClassInfo
-
+  def listDefinedClassMembers(node: AST_Node) = {
+    var listMembers = ClassInfo()
     node.walk {
       case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), base, _) =>
         for (AST_SymbolName(parent) <- base) {
@@ -702,9 +701,10 @@ object Transform {
         // list data members
         val varMembers = for (VarName(member) <- classInlineBody(cls).body) yield member
 
-        val ids = (members ++ varMembers).map(MemberId(clsName, _))
+        val clsMembers = clsName -> (members ++ varMembers).distinct
 
-        listMembers = listMembers.copy(members = listMembers.members ++ ids)
+        listMembers = listMembers.copy(members = listMembers.members + clsMembers)
+        //println(s"listMembers $listMembers (++ $clsMembers)")
         false
       case _ =>
         false
@@ -712,6 +712,9 @@ object Transform {
     listMembers
   }
 
+  def listClassMembers(node: AST_Node) = {
+    SymbolTypes.stdClassInfo ++ listDefinedClassMembers(node)
+  }
 
   def removeVarClassScope(n: AST_Node): AST_Node = {
     object DefineAndReturnClass {
