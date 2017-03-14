@@ -27,7 +27,7 @@ object SymbolTypes {
     override def toString = "Any"
   }
   case object NoType extends TypeDesc { // subtype of all
-    override def toString = "Nothing"
+    override def toString = "Unit"
   }
 
   private val numberStr = "number"
@@ -250,6 +250,8 @@ object TypeInfo {
 }
 case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   def nonEmpty = source != AnyType || target != NoType
+
+  def known = source != AnyType && source!=NoType || target != NoType && target != AnyType
 
   //assert(source == AnyType || target == NoType)
   // source should be more specific than a target (target is a supertype, source a subtype)

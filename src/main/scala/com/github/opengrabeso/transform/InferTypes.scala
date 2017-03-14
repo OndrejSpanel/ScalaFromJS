@@ -50,42 +50,46 @@ object InferTypes {
     }
 
     def addInferredType(tid: Option[SymbolMapId], tpe: Option[TypeInfo], kind: TypeInferenceKind = target) = {
-      def noType = Seq("undefined", "null", "this", "super") // never infer anything about those identifiers
+      if (tpe.exists(_.known)) {
+        def noType = Seq("undefined", "null", "this", "super") // never infer anything about those identifiers
 
-      if (tid.exists(t => !(noType contains t.name))) {
-        val symType = kind(allTypes.get(tid), tpe)
-        //println(s"  Combined $symType = ${allTypes.get(tid)} * $tpe")
-        for (tp <- symType) {
-          if (tp.nonEmpty) {
-            //println(s"  Add type $tid: $tp")
-            inferred += tid -> tp
-            allTypes.t += tid -> tp
+        if (tid.exists(t => !(noType contains t.name))) {
+          val symType = kind(allTypes.get(tid), tpe)
+          //println(s"  Combined $symType = ${allTypes.get(tid)} * $tpe")
+          for (tp <- symType) {
+            if (tp.nonEmpty) {
+              //println(s"  Add type $tid: $tp")
+              inferred += tid -> tp
+              allTypes.t += tid -> tp
+            }
+            //println(s"All types ${allTypes.t.types}")
+            //println(s"inferred ${inferred.types}")
           }
-          //println(s"All types ${allTypes.t.types}")
-          //println(s"inferred ${inferred.types}")
         }
       }
     }
 
     def addInferredMemberType(idAccess: Option[MemberId], tpe: Option[TypeInfo], kind: TypeInferenceKind = target) = {
+      if (tpe.exists(_.known)) {
 
-      val id = idAccess.flatMap { i =>
-        classInfo.classContains(i.cls, i.name).map { containedIn =>
-          i.copy(cls = containedIn)
+        val id = idAccess.flatMap { i =>
+          classInfo.classContains(i.cls, i.name).map { containedIn =>
+            i.copy(cls = containedIn)
+          }
         }
-      }
 
-      //println(s"Member type was $id: ${inferred.getMember(id)}")
+        //println(s"Member type was $id: ${inferred.getMember(id)}")
 
-      val symType = kind(inferred.getMember(id), tpe)
-      //println(s"Adding member type $idAccess - $id: $tpe -> $symType")
+        val symType = kind(inferred.getMember(id), tpe)
+        //println(s"Adding member type $id: $tpe -> $symType")
 
-      for (tp <- symType) {
-        //println(s"Add member type $idAccess - $id: $tp")
-        //println("  " + classInfo)
-        if (tp.nonEmpty) {
-          inferred = inferred addMember id -> tp
-          allTypes.t = allTypes addMember id -> tp
+        for (tp <- symType) {
+          //println(s"Add member type $idAccess - $id: $tp")
+          //println("  " + classInfo)
+          if (tp.nonEmpty) {
+            inferred = inferred addMember id -> tp
+            allTypes.t = allTypes addMember id -> tp
+          }
         }
       }
     }
