@@ -75,7 +75,10 @@ object InferTypes {
         }
       }
 
+
       val symType = kind(inferred.getMember(id), tpe)
+      //println(s"Adding member type $idAccess - $id: $tpe -> $symType")
+
       for (tp <- symType) {
         //println(s"Add member type $idAccess - $id: $tp")
         //println("  " + classInfo)
@@ -98,32 +101,40 @@ object InferTypes {
 
     //println(functions.map(f => f._1.name))
 
-
-    def inferParsOrArgs(pars: js.Array[AST_SymbolFunarg], args: Seq[AST_Node]) = {
-      for {
-        (Some(par), arg) <- pars.map(_.thedef.nonNull) zip args
-      } {
-        val tp = expressionType(arg)(ctx)
-        if (tp.exists(_.nonEmpty)) {
-          //println(s"Infer par ${par.name} as $tp")
-          addInferredType(par, tp)
-        }
-
+    def inferArgsGen[T](pars: Seq[T], args: Seq[AST_Node])(parType: T => Option[TypeInfo]) = {
+      for ((par, arg) <- pars zip args) {
         arg match {
           case AST_SymbolRefDef(a) => // TODO: SymbolInfo
-            val tp = allTypes.get(par)
-            if (tp.exists(_.nonEmpty)) {
-              //println(s"Infer arg ${a.name} as $tp")
-              addInferredType(a, tp, source)
-            }
+            //println(s"Infer arg ${a.name} as $par")
+            addInferredType(a, parType(par), source)
           case _ =>
         }
       }
     }
 
+    def inferParsOrArgs(pars: js.Array[AST_SymbolFunarg], args: Seq[AST_Node]) = {
+
+      val parIds = pars.toSeq.map(_.thedef.nonNull).flatMap(_.map(id))
+
+      for ((Some(par), arg) <- parIds zip args) {
+        val tp = expressionType(arg)(ctx)
+        if (tp.exists(_.nonEmpty)) {
+          //println(s"Infer par ${par} as $tp")
+          addInferredType(Some(par), tp)
+        }
+      }
+
+      inferArgsGen(parIds, args)(allTypes.get)
+    }
+
+    def inferArgs(funType: FunctionType, args: Seq[AST_Node]) = {
+      inferArgsGen(funType.args, args)(par => Some(TypeInfo.target(par)))
+    }
+
+
     def inferFunction(args: Seq[AST_Node]) = {
       val pars = args.map(expressionType(_)(ctx))
-      FunctionType(AnyType, pars.flatMap(_.map(_.declType)).toIndexedSeq)
+      FunctionType(AnyType, pars.map(_.fold[TypeDesc](NoType)(_.declType)).toIndexedSeq)
     }
 
     def inferFunctionReturn(value: AST_Node, r: TypeInfo) = {
@@ -373,33 +384,41 @@ object InferTypes {
         case AST_Call(AST_Dot(expr, call), args@_*) =>
 
           //println(s"Dot call $call")
-          // infer types for class member calls
+          // fill ctx.type function types information
+          for {
+            TypeDecl(ClassType(callOn)) <- expressionType(expr)(ctx)
+            c <- getParents(callOn)(ctx) // infer for all overrides
+          } {
+            val memberId = MemberId(c, call)
+            //println(s"memberId $memberId, args ${args.length}")
+            if (ctx.classInfo.members.contains(memberId)) {
+              val tpe = inferFunction(args)
+
+              //println(s"Infer par types for a var member call $c.$call as $tpe")
+              //println(allTypes)
+              addInferredMemberType(Some(memberId), Some(TypeInfo.target(tpe))) // target or source?
+
+              for (funType <- ctx.types.getMember(Some(memberId))) {
+                funType.declType match {
+                  case ft: FunctionType =>
+                    inferArgs(ft, args)
+                  case _ =>
+
+                }
+              }
+            }
+          }
+
+          //println(s"Dot call $call")
+          // TODO: use function types only for member functions
+          // fill class symbols (if they exists)
           for {
             TypeDecl(ClassType(callOn)) <- expressionType(expr)(ctx)
             clazz <- classes.get(callOn)
             c <- includeParents(clazz, Seq(clazz))(ctx) // infer for all overrides
+            m <- findMethod(c, call)
           } {
-            findMethod(c, call).fold {
-              val tpe = inferFunction(args)
-
-              //println(s"Infer arg types for a var member call ${c.name.get.name} as $tpe")
-              val memberId = c.name.nonNull.map(n => MemberId(n.name, call))
-              addInferredMemberType(memberId, Some(TypeInfo.target(tpe))) // target or source?
-
-              for {
-                AST_ObjectKeyVal(p, a) <- findProperty(c, call)
-                r <- allTypes.getMember(memberId)
-              } {
-                //println(s"Infer $p $r ${nodeClassName(a)}")
-                inferFunctionReturn(a, r)
-              }
-
-              // if there are any return statements, we can infer types for them
-              // beware of IIFE
-              // TODO: reverse inference
-            } { m =>
-              inferParsOrArgs(m.value.argnames, args)
-            }
+            inferParsOrArgs(m.value.argnames, args)
           }
 
         case _ =>

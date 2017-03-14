@@ -149,14 +149,16 @@ object SymbolTypes {
   def typeUnionOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
     val t1 = typeFromOption(tpe1)
     val t2 = typeFromOption(tpe2)
-    Some(t1.copy(target = typeUnion(t1.target, t2.target)))
+    val union = typeUnion(t1.target, t2.target)
+    //println(s"  union $t1 $t2 -> $union")
+    Some(t1.copy(target = union))
   }
 
   def typeIntersectOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
     val t1 = typeFromOption(tpe1)
     val t2 = typeFromOption(tpe2)
-    //println(s"  intersect $t1 $t2")
     val srcType = typeIntersect(t2.source, typeIntersect(t1.source, t2.sourceTypeFromTarget))
+    //println(s"  intersect $t1 $t2 -> $srcType")
     Some(t1.copy(source = srcType))
   }
 
