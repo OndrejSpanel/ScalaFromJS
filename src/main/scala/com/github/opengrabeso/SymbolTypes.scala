@@ -170,10 +170,20 @@ object SymbolTypes {
     new SymbolTypes(idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)}, Map.empty)
   }
 
-  case class ClassInfo(members: Set[MemberId] = Set.empty, parents: Map[String, String] = Map.empty) {
+  case class ClassInfo(members: Map[String, Set[String]] = Map.empty, parents: Map[String, String] = Map.empty) {
+
+    lazy val children = parents.groupBy(_._2).mapValues(_.keys.toSet)
+
+    //println(s"parents $parents")
+    //println(s"children $children")
+    //println(s"listChildren ${listChildren("X")}")
+
+    def containsMember(cls: String, member: String): Boolean = {
+      members.get(cls).exists(_.contains(member))
+    }
 
     def classContains(cls: String, member: String): Option[String] = {
-      val r = if (members contains MemberId(cls, member)) Some(cls)
+      val r = if (containsMember(cls, member)) Some(cls)
       else parents.get(cls).flatMap { c =>
         //println(s"  parent $c")
         classContains(c, member)
@@ -195,6 +205,25 @@ object SymbolTypes {
       listParentsRecurse(cls, Seq(cls))
     }
 
+    // list all children in no particular order
+    def listChildren(cls: String): Set[String] = {
+      def listChildrenRecurse(cls: String): Set[String] = {
+        val p = children.get(cls)
+        p match {
+          case Some(pp) =>
+            //println(s"  Some $pp")
+            Set(cls) ++ pp.flatMap(listChildrenRecurse)
+          case None =>
+            //println(s"  None $cls")
+            Set(cls)
+        }
+      }
+
+      listChildrenRecurse(cls)
+    }
+
+
+
     def mostDerived(c1: String, c2: String): Option[String] = {
       //println(s"  Parents of $c1: ${listParents(c1)}")
       //println(s"  Parents of $c2: ${listParents(c2)}")
@@ -214,23 +243,30 @@ object SymbolTypes {
 
   }
 
-  val numberMath = Seq(
-    "min", "max", "abs",
-    "sin", "cos", "tan", "asin", "acos", "atan",
-    "sqrt", "ceil", "floor", "round"
+  val libs = Map(
+    "Math" -> Set(
+      "min", "max", "abs",
+      "sin", "cos", "tan", "asin", "acos", "atan",
+      "sqrt", "ceil", "floor", "round"
+    )
   )
 
   private val numberFunction = FunctionType(number, IndexedSeq(number))
 
-  val stdLibraries = Seq("Math").map { k =>
+  val stdLibraries = libs.keys.map { k =>
     SymbolMapId(k, 0) -> TypeInfo.target(ClassType(k))// 0 is a special handling for global symbols
   }.toMap
 
-  val stdLibraryMembers = numberMath.map(k => MemberId("Math", k) -> numberFunction).toMap
+  val stdLibraryMembers: Map[MemberId, TypeInfo] = (for {
+    (cls, members) <- libs.toSeq
+    member <- members
+  } yield {
+    MemberId(cls, member) -> TypeInfo.target(numberFunction) // TODO: type data driven
+  })(collection.breakOut)
 
-  lazy val std: SymbolTypes = SymbolTypes(stdLibraries, stdLibraryMembers.mapValues(TypeInfo.target))
+  lazy val std: SymbolTypes = SymbolTypes(stdLibraries, stdLibraryMembers)
 
-  lazy val stdClassInfo: ClassInfo = ClassInfo(stdLibraryMembers.keySet, Map.empty)
+  lazy val stdClassInfo: ClassInfo = ClassInfo(libs, Map.empty)
 
 }
 

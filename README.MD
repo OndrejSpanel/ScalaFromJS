@@ -33,7 +33,7 @@ The most complicated parts are probably class detection and type inference.
 Class detection
 ---------------
 The converter detects some common ways how JS objects are written using prototypes and converts them to
-Scala classes.
+Scala classes. When not known otherwise, class types are derived from members used.
 
 Type inference
 --------------
@@ -42,7 +42,6 @@ Currently number, string and boolean types are detected and class types as well.
 
 TODO:
 
-- improve class constructor processing (define members from `this.member = xxx` statements)
 - improve `Array` and `Object` literal handling
 
 Developer notes

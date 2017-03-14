@@ -396,7 +396,7 @@ object InferTypes {
           } {
             val memberId = MemberId(c, call)
             //println(s"memberId $memberId, args ${args.length}")
-            if (ctx.classInfo.members.contains(memberId)) {
+            if (ctx.classInfo.containsMember(c, call)) {
               val tpe = inferFunction(args)
 
               //println(s"Infer par types for a var member call $c.$call as $tpe")
@@ -435,8 +435,8 @@ object InferTypes {
 
   def multipass(n: AST_Extended): AST_Extended = {
 
-    def inferTypesStep(n: AST_Extended, maxDepth: Int = 50): AST_Extended = {
-      //println(s"Type inference: ${n.types}")
+    def inferTypesStep(n: AST_Extended, maxDepth: Int = 15): AST_Extended = {
+      //println(s"Type inference: ${n.types} steps $maxDepth")
       val r = inferTypes(n)
       val cr = ClassesByMembers(r)
       //println(s"Type inference done: ${r.types}")

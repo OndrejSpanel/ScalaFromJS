@@ -701,9 +701,10 @@ object Transform {
         // list data members
         val varMembers = for (VarName(member) <- classInlineBody(cls).body) yield member
 
-        val ids = (members ++ varMembers).map(MemberId(clsName, _))
+        val clsMembers = clsName -> (members ++ varMembers)
 
-        listMembers = listMembers.copy(members = listMembers.members ++ ids)
+        listMembers = listMembers.copy(members = listMembers.members + clsMembers)
+        //println(s"listMembers $listMembers (++ $clsMembers)")
         false
       case _ =>
         false
