@@ -219,7 +219,7 @@ object SymbolTypes {
     SymbolMapId(k, 0) -> TypeInfo.target(ClassType(k))// 0 is a special handling for global symbols
   }.toMap
 
-  val stdLibraryMembers = numberMath.map(k => MemberId("Math", k) -> number).toMap
+  val stdLibraryMembers = numberMath.map(k => MemberId("Math", k) -> numberFunction).toMap
 
   lazy val std: SymbolTypes = SymbolTypes(stdLibraries, stdLibraryMembers.mapValues(TypeInfo.target))
 

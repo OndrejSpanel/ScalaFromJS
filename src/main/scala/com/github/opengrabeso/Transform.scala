@@ -543,6 +543,11 @@ object Transform {
     def unapply(arg: TypeInfo) = Some(arg.declType)
   }
 
+  def callReturn(funType: TypeInfo): TypeInfo = funType.declType match {
+    case FunctionType(ret, _) => TypeInfo.target(ret)
+    case _ => funType
+  }
+
   def expressionType(n: AST_Node)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
@@ -615,7 +620,7 @@ object Transform {
       case AST_Call(AST_SymbolRefDef(call), _*) =>
         val tid = id(call)
        // println(s"Infer type of call ${call.name}:$id as ${types.get(id)}")
-        types.get(tid)
+        types.get(tid).map(callReturn)
 
       case AST_Call(AST_Dot(cls, name), _*) =>
         //println(s"Infer type of member call $name")
@@ -625,7 +630,7 @@ object Transform {
           r <- types.getMember(Some(c), name)
         } yield {
           //println(s"  Infer type of member call $c.$name as $r")
-          r
+          callReturn(r)
         }
       case seq: AST_Seq =>
         expressionType(seq.cdr)(ctx)

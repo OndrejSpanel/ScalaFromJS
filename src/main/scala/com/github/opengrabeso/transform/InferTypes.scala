@@ -317,17 +317,28 @@ object InferTypes {
         case fun@AST_Defun(Defined(symDef), _, _) =>
           val allReturns = scanFunctionReturns(fun)
           //println(s"${symDef.name} returns $allReturns")
-          addInferredType(symDef.thedef.get, allReturns)
+          for {
+            retType <- allReturns
+            sd <- symDef.thedef
+          } {
+            // parameters do not matter here, they are infered as separate symbols
+            val funType = FunctionType(retType.declType, IndexedSeq())
+            addInferredType(sd, Some(TypeInfo.target(funType)))
+          }
 
         // TODO: derive getters and setters as well
         case AST_ConciseMethod(AST_SymbolName(sym), fun: AST_Lambda) =>
-          val tpe = scanFunctionReturns(fun)
+          val allReturns = scanFunctionReturns(fun)
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope.nonNull)
-          for (AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope) {
+          for {
+            retType <- allReturns
+            AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope
+          } {
             //println(s"Infer return type for method $cls.$sym as $tpe")
             val classId = MemberId(cls, sym)
-            addInferredMemberType(Some(classId), tpe)
+            val funType = FunctionType(retType.declType, IndexedSeq())
+            addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))
           }
 
         case AST_Call(AST_SymbolRefDef(call), args@_*) =>
