@@ -101,12 +101,12 @@ object InferTypes {
 
     //println(functions.map(f => f._1.name))
 
-    def inferArgsGen[T](pars: Seq[T], args: Seq[AST_Node])(parType: T => Option[TypeInfo]) = {
-      for ((par, arg) <- pars zip args) {
+    def inferArgsFromPars(pars: Seq[Option[TypeInfo]], args: Seq[AST_Node]) = {
+      for ((Some(par), arg) <- pars zip args) {
         arg match {
-          case AST_SymbolRefDef(a) => // TODO: SymbolInfo
-            //println(s"Infer arg ${a.name} as $par")
-            addInferredType(a, parType(par), source)
+          case SymbolInfo(a) =>
+            println(s"Infer arg $a as $par")
+            a.addSymbolInferredType(Some(par), source)
           case _ =>
         }
       }
@@ -119,16 +119,17 @@ object InferTypes {
       for ((Some(par), arg) <- parIds zip args) {
         val tp = expressionType(arg)(ctx)
         if (tp.exists(_.nonEmpty)) {
-          //println(s"Infer par ${par} as $tp")
+          //println(s"Infer par $par as $tp")
           addInferredType(Some(par), tp)
         }
       }
 
-      inferArgsGen(parIds, args)(allTypes.get)
+      inferArgsFromPars(parIds.map(allTypes.get), args)
     }
 
     def inferArgs(funType: FunctionType, args: Seq[AST_Node]) = {
-      inferArgsGen(funType.args, args)(par => Some(TypeInfo.target(par)))
+      val pars = funType.args.map(par => Some(TypeInfo.target(par)))
+      inferArgsFromPars(pars, args)
     }
 
 
