@@ -105,7 +105,7 @@ object InferTypes {
       for ((Some(par), arg) <- pars zip args) {
         arg match {
           case SymbolInfo(a) =>
-            println(s"Infer arg $a as $par")
+            //println(s"Infer arg $a as $par")
             a.addSymbolInferredType(Some(par), source)
           case _ =>
         }
@@ -135,7 +135,7 @@ object InferTypes {
 
     def inferFunction(args: Seq[AST_Node]) = {
       val pars = args.map(expressionType(_)(ctx))
-      FunctionType(AnyType, pars.map(_.fold[TypeDesc](NoType)(_.declType)).toIndexedSeq)
+      FunctionType(NoType, pars.map(_.fold[TypeDesc](NoType)(_.declType)).toIndexedSeq)
     }
 
     def inferFunctionReturn(value: AST_Node, r: TypeInfo) = {
@@ -180,7 +180,9 @@ object InferTypes {
           //println(s"  return expression ${nodeClassName(value)}")
           val tpe = expressionType(value)(ctx)
           //println(s"  Return type $tpe: expr ${ScalaOut.outputNode(value)}")
-          allReturns = typeUnionOption(allReturns, tpe)
+          if (tpe.isDefined) { // unknown types introduce Any return value, which we never get rid of
+            allReturns = typeUnionOption(allReturns, tpe)
+          }
           false
         case _ =>
           false
@@ -347,7 +349,7 @@ object InferTypes {
             retType <- allReturns
             AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope
           } {
-            //println(s"Infer return type for method $cls.$sym as $tpe")
+            //println(s"Infer return type for method $cls.$sym as $retType")
             val classId = MemberId(cls, sym)
             val funType = FunctionType(retType.declType, IndexedSeq())
             addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))

@@ -16,6 +16,8 @@ object SymbolTypes {
     override def toString = name
   }
   case class FunctionType(ret: TypeDesc, args: IndexedSeq[TypeDesc]) extends TypeDesc {
+    //println(s"FunctionType ${args.mkString("(",",",")")} => $ret")
+
     override def toString = {
       def outputType(o: TypeDesc) = o.toString
       args.map(outputType).mkString("(", ", ",")") + " => " + outputType(ret)

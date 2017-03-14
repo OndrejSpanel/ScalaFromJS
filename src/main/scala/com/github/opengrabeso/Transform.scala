@@ -544,7 +544,9 @@ object Transform {
   }
 
   def callReturn(funType: TypeInfo): TypeInfo = funType.declType match {
-    case FunctionType(ret, _) => TypeInfo.target(ret)
+    case FunctionType(ret, _) =>
+      //println(s"callReturn $ret")
+      TypeInfo.target(ret)
     case _ => funType
   }
 
@@ -619,7 +621,7 @@ object Transform {
         Some(TypeInfo.target(ClassType(call.name)))
       case AST_Call(AST_SymbolRefDef(call), _*) =>
         val tid = id(call)
-       // println(s"Infer type of call ${call.name}:$id as ${types.get(id)}")
+        //println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
         types.get(tid).map(callReturn)
 
       case AST_Call(AST_Dot(cls, name), _*) =>
