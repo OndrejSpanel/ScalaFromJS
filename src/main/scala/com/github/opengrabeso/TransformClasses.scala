@@ -7,6 +7,7 @@ import UglifyExt.Import._
 
 import scala.scalajs.js
 import js.JSConverters._
+import scala.collection.immutable.ListMap
 
 object TransformClasses {
 
@@ -38,7 +39,7 @@ object TransformClasses {
 
   case object ClassVarDeclMember extends ClassMember
 
-  case class ClassDef(base: Option[String] = None, members: Map[String, ClassMember] = Map.empty)
+  case class ClassDef(base: Option[String] = None, members: ListMap[String, ClassMember] = ListMap.empty)
 
   object ClassMemberDef {
     def unapply(arg: AST_Node) = arg match {
@@ -183,7 +184,7 @@ object TransformClasses {
           // looks like a constructor
           //println("Constructor " + sym.name)
           val constructor = ClassFunMember(args, body)
-          classes += sym.name -> ClassDef(members = Map("constructor" -> constructor))
+          classes += sym.name -> ClassDef(members = ListMap("constructor" -> constructor))
         }
         true
       case ClassMemberDef(name, funName, args, body) =>
