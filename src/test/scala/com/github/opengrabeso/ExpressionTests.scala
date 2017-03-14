@@ -52,7 +52,7 @@ class ExpressionTests extends FunSuite with TestUtils {
   test("Handle Scala keywords in identifiers") {
     execute check ConversionCheck(rsc("expressions/reserved.js"))
       .required(
-        "val `type` =",
+        "var `type`",
         "val `object` =",
         "def `match`(`val`: Animal)",
         "if (`val` == this) this",

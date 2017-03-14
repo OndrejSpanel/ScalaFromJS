@@ -32,9 +32,18 @@ object Transform {
   // detect variables which can be declared as val instead of var
   def detectVals(n: AST_Extended): AST_Extended = {
     // walk the tree, check for possible val replacements and perform them
-    val ret = n.top.transformAfter {(node, _) =>
+    val ret = n.top.transformBefore {(node, descend, transformer) =>
       node match {
+        case cm: AST_ConciseMethod =>
+          if (cm.key.name != inlineBodyName) {
+            // no var detection inside of inline class body (its variables are actually class members)
+            val n = cm.clone()
+            descend(n, transformer)
+            n
+          } else cm.clone()
+
         case AST_Var(varDef@AST_VarDef(varName, value)) if value.nonNull.nonEmpty => // var with init - search for a modification
+          //println(s"AST_VarDef ${varName.name}")
           varName.thedef.fold(node) { df =>
             assert(df.name == varName.name)
             // check if any reference is assignment target
@@ -60,7 +69,7 @@ object Transform {
               }
 
             }
-            if (!assignedInto) {
+            val n = if (!assignedInto) {
               val c = varDef.clone()
               c.name = new AST_SymbolConst {
                 fillTokens(this, varName)
@@ -73,10 +82,16 @@ object Transform {
                 fillTokens(this, node)
                 definitions = js.Array(c)
               }
-            } else node
+            } else {
+              node.clone()
+            }
+            descend(n, transformer) // may contain other scopes with initializations
+            n
           }
         case _ =>
-          node
+          val n = node.clone()
+          descend(n, transformer)
+          n
       }
     }
     AST_Extended(ret, n.types)
@@ -159,7 +174,7 @@ object Transform {
                 fillTokens(vv, orig)
                 fillTokens(vv.name, orig)
               }
-              //println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef")
+              //println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef, value ${nodeTreeToString(right)}")
               replaced ++= thedef.nonNull
               vr
             case _ =>
