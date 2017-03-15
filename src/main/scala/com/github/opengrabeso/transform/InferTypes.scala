@@ -425,6 +425,13 @@ object InferTypes {
             inferParsOrArgs(m.value.argnames, args)
           }
 
+        case AST_Sub(AST_SymbolRef(name, _, Defined(sym)), property) =>
+          expressionType(property)(ctx).map(_.declType) match {
+            case Some(`number`) =>
+              addInferredType(sym, Some(TypeInfo.target(ArrayType(AnyType))))
+            case _ =>
+
+          }
         case _ =>
       }
       true
