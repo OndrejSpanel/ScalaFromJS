@@ -14,9 +14,9 @@ import scala.language.implicitConversions
 
 object ClassesByMembers {
 
-  case class ClassDefInfo(members: Set[String], parentCount: Int)
+  case class ClassDefInfo(members: Set[String], funMembers: Set[String], parentCount: Int)
 
-  case class MemberList(classInfo: ClassInfo) {
+  case class MemberList(classInfo: ClassInfo, types: SymbolTypes) {
     var list = Map.empty[SymbolMapId, Set[String]]
 
     val defList = {
@@ -27,12 +27,23 @@ object ClassesByMembers {
         (c, v) <- classInfo.members
         cls <- classInfo.listChildren(c)
       } {
-        //println(s"Add def $cls $v")
-        members.get(cls).fold {
-          members += cls -> ClassDefInfo(v.toSet, 0)
-        } { m =>
-          members += cls -> ClassDefInfo(m.members ++ v, m.parentCount + 1)
+        //println(s"Cls $cls")
+        // partition members to function and normal
+        val (funMembers, varMembers) = v.partition { member =>
+          val memberType = types.getMember(Some(cls), member)
+          //println(s"  member $member: $memberType")
+          // when type not known, assume function (safer)
+          memberType.forall(_.declType.isInstanceOf[FunctionType])
+
         }
+        //println(s"Cls $cls: Fun $funMembers mem $varMembers")
+        //println(s"Add def $cls $v")
+        val updateCls = members.get(cls).fold {
+          ClassDefInfo(varMembers.toSet, funMembers.toSet, 0)
+        } { m =>
+          ClassDefInfo(m.members ++ varMembers.toSet, m.funMembers ++ funMembers.toSet, m.parentCount + 1)
+        }
+        members += cls -> updateCls
       }
       members
     }
@@ -40,12 +51,8 @@ object ClassesByMembers {
     def addMember(sym: SymbolDef, member: String) = {
       for (sid <- id(sym)) {
         //println(s"Add mem $sid $member")
-        list.get(sid).fold[Unit] {
-          list += sid -> Set(member)
-        } {
-          members =>
-            list += sid -> (members + member)
-        }
+        val memUpdated = list.get(sid).fold(Set(member))(_ + member)
+        list += sid -> memUpdated
       }
     }
 
@@ -79,7 +86,7 @@ object ClassesByMembers {
 
     implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes)
 
-    val byMembers = MemberList(classInfo)
+    val byMembers = MemberList(classInfo, allTypes.t)
 
     n.top.walkWithDescend { (node, descend, walker) =>
       //println(s"${nodeClassName(node)}")
@@ -90,8 +97,13 @@ object ClassesByMembers {
         case cls@AST_SymbolRefDef(sym) AST_Dot member =>
           val tpe = expressionType(cls)(ctx)
           if (tpe.isEmpty) {
-            //println(s"  $tpe.$member -- ${sym.name}")
-            byMembers.addMember(sym, member)
+            walker.parent().nonNull match {
+              case Some(_: AST_Call) =>
+                // TODO: add function member use
+              case _ =>
+                //println(s"  $tpe.$member -- ${sym.name}")
+                byMembers.addMember(sym, member)
+            }
           }
         case _ =>
       }
