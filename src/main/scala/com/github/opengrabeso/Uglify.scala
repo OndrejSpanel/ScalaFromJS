@@ -767,6 +767,10 @@ object UglifyExt {
       }
     }
 
+    object AST_Sub {
+      def unapply(arg: AST_Sub) = Some(arg.expression, arg.property)
+    }
+
   }
 
   object Import extends AST_Extractors
