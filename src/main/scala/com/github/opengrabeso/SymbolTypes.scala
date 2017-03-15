@@ -320,17 +320,11 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   // ... target is an upper bound, source a lower bound
   //assert(typeIntersect(source, target) == source)
   //assert(typeUnion(source, target) == target)
-  /*
-  def declType: TypeDesc = {
-    println(s"declType $target $source")
-    typeIntersect(source, target)(ClassOpsDummy)
-    //typeUnion(target, source)(ClassOpsDummy)
-  }
-  */
 
-  def declType: TypeDesc = target match {
-    case NoType => source
-    case _ => target
+  def declType: TypeDesc = (source, target) match {
+    case (_, NoType) => source
+    case (AnyType, _) => target
+    case _ => typeUnion(source, target)(ClassOpsDummy)
   }
 
   def sourceTypeFromTarget: TypeDesc = target match {
