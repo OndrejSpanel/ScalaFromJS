@@ -17,14 +17,30 @@ object SymbolTypes {
   }
   case class ArrayType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Array[${elem.toString}]"
+
+    def union(that: ArrayType)(implicit classOps: ClassOps) = ArrayType(typeUnion(elem, that.elem))
+    def intersect(that: ArrayType)(implicit classOps: ClassOps) = ArrayType(typeIntersect(elem, that.elem))
   }
   case class FunctionType(ret: TypeDesc, args: IndexedSeq[TypeDesc]) extends TypeDesc {
+
     //println(s"FunctionType ${args.mkString("(",",",")")} => $ret")
 
     override def toString = {
       def outputType(o: TypeDesc) = o.toString
       args.map(outputType).mkString("(", ", ",")") + " => " + outputType(ret)
     }
+
+    def op(that: FunctionType, combine: (TypeDesc, TypeDesc) => TypeDesc)(implicit classOps: ClassOps) = {
+      val ret = combine(this.ret, that.ret)
+      val args = for ((a1, a2) <- this.args.zipAll(that.args, NoType, NoType)) yield {
+        combine(a1, a2)
+      }
+      FunctionType(ret, args)
+    }
+
+    def union(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeUnion)
+
+    def intersect(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeIntersect)
   }
   case object AnyType extends TypeDesc { // supertype of all
     override def toString = "Any"
@@ -101,6 +117,11 @@ object SymbolTypes {
     def commonBase(c1: ClassType, c2: ClassType): TypeDesc
   }
 
+  object ClassOpsDummy extends ClassOps {
+    def mostDerived(c1: ClassType, c2: ClassType): TypeDesc = c1
+    def commonBase(c1: ClassType, c2: ClassType): TypeDesc = c2
+  }
+
   // intersect: assignment source
   def typeIntersect(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
     //println(s"typeIntersect $tpe1, $tpe2")
@@ -113,6 +134,11 @@ object SymbolTypes {
       case (NoType, _) => NoType
       case (c1: ClassType, c2: ClassType) =>
         classOps.mostDerived(c1, c2)
+      case (f1: FunctionType, f2: FunctionType) =>
+        f1 intersect f2
+      case (a1: ArrayType, a2: ArrayType) =>
+        //println(s"a1 intersect a2 $a1 $a2")
+        a1 intersect a2
       case (c1: ClassType, _) =>
         c1
       case (_, c2: ClassType) =>
@@ -120,19 +146,6 @@ object SymbolTypes {
       case _ =>
         tpe1 // should be Nothing, but we rather keep any of the types
     }
-  }
-
-  def typeUnionFunction(f1: FunctionType, f2: FunctionType)(implicit classOps: ClassOps): TypeDesc = {
-    val ret = typeUnion(f1.ret, f2.ret)
-    val args = for ((a1, a2) <- f1.args.zipAll(f2.args, NoType, NoType)) yield {
-      typeUnion(a1, a2)
-    }
-    FunctionType(ret, args)
-  }
-
-  def typeUnionArray(a1: ArrayType, a2: ArrayType)(implicit classOps: ClassOps): TypeDesc = {
-    val ret = typeUnion(a1.elem, a2.elem)
-    ArrayType(ret)
   }
 
   // union: assignment target
@@ -147,9 +160,9 @@ object SymbolTypes {
       case (c1: ClassType, c2: ClassType) =>
         classOps.commonBase(c1, c2)
       case (f1: FunctionType, f2: FunctionType) =>
-        typeUnionFunction(f1, f2)
+        f1 union f2
       case (a1: ArrayType, a2: ArrayType) =>
-        typeUnionArray(a1, a2)
+        a1 union a2
       case _ =>
         AnyType
     }
@@ -307,6 +320,14 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   // ... target is an upper bound, source a lower bound
   //assert(typeIntersect(source, target) == source)
   //assert(typeUnion(source, target) == target)
+  /*
+  def declType: TypeDesc = {
+    println(s"declType $target $source")
+    typeIntersect(source, target)(ClassOpsDummy)
+    //typeUnion(target, source)(ClassOpsDummy)
+  }
+  */
+
   def declType: TypeDesc = target match {
     case NoType => source
     case _ => target

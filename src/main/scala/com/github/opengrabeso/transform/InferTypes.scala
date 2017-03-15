@@ -239,11 +239,11 @@ object InferTypes {
     }
     case class SymbolAccessArray(symbol: SymbolDef) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
-        // TODO: // make array from the type
 
         val arrayTpe = tpe.map { t =>
           TypeInfo(ArrayType(t.source), ArrayType(t.target))
         }
+        //println(s"${symbol.name}: Array type $tpe $arrayTpe")
         addInferredType(id(symbol), arrayTpe, kind)
       }
 
@@ -463,7 +463,7 @@ object InferTypes {
         case AST_Sub(AST_SymbolRef(name, _, Defined(sym)), property) =>
           expressionType(property)(ctx).map(_.declType) match {
             case Some(`number`) =>
-              addInferredType(sym, Some(TypeInfo.target(ArrayType(AnyType))))
+              addInferredType(sym, Some(TypeInfo.target(ArrayType(NoType))))
             case _ =>
 
           }

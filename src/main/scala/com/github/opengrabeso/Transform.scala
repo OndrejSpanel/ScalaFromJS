@@ -602,7 +602,7 @@ object Transform {
         }
       case _: AST_Array =>
         // TODO: check inside of the array
-        Some(TypeInfo.target(ArrayType(AnyType)))
+        Some(TypeInfo.target(ArrayType(NoType)))
       case _: AST_Number =>
         Some(TypeInfo.target(number))
       case _: AST_String =>
