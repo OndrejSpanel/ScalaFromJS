@@ -30,7 +30,10 @@ XYZ.prototype.getX = function(){ return x; };
 XYZ.prototype.getY = function(){ return y; };
 XYZ.prototype.getZ = function(){ return z; };
 
-
+new X(0);
+new XY(0, 0);
+new Z(0);
+new XYZ(0, 0, 0);
 
 function f() {
     var cx, cy, cxy, cz, cxyz;
