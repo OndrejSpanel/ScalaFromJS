@@ -600,6 +600,9 @@ object Transform {
           //println(s"Infer type of member $c.$name as $r")
           r
         }
+      case _: AST_Array =>
+        // TODO: check inside of the array
+        Some(TypeInfo.target(ArrayType(AnyType)))
       case _: AST_Number =>
         Some(TypeInfo.target(number))
       case _: AST_String =>
