@@ -41,32 +41,67 @@ object Parameters {
     n
   }
 
+
+  class CompareWithUndefined(parName: String) {
+    def unapply(arg: AST_Node) = arg match {
+      case AST_Binary(AST_SymbolRefName(`parName`), op, AST_SymbolRefName("undefined")) =>
+        Some(op)
+      case _ =>
+        None
+    }
+  }
+
   def defaultValues(n: AST_Node): AST_Node = {
+
+    object InitStatement {
+      def unapply(arg: AST_Node) = arg match {
+        case c: AST_Constant => Some(c)
+        // TODO: accept only some forms of new or Array (avoid reordering dependent expressions)
+        case c: AST_Array => Some(c)
+        case c: AST_New => Some(c)
+        case _ =>
+          //println(s"${nodeClassName(arg)}")
+          None
+      }
+    }
 
     // the only use of a parameter is in a `x_par || value` form
     def introduceDefaultValue(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
       val parName = par.name
       //println(s"introduceDefaultValue $parName")
-      val references = par.thedef.nonNull.toSeq.flatMap(_.references)
 
-      val defByOr = if (references.size == 1) {
+      val defByOr = {
         // if there is only one reference, check if it is handling the default value
         object IsParDefaultHandling {
+
+          object CompareParWithUndefined extends CompareWithUndefined(parName)
+
           def unapply(arg: AST_Node) = arg match {
-            case AST_Binary(symRef@AST_SymbolRefName(`parName`), "||", init: AST_Constant) => Some(symRef, init)
+            // TODO: allow other initialization expressions, not only AST_Constant
+            case AST_Binary(symRef@AST_SymbolRefName(`parName`), "||", InitStatement(init)) =>
+              Some(symRef, init)
+            case AST_Conditional(CompareParWithUndefined("!=" | "!=="), symRef@AST_SymbolRefName(`parName`), InitStatement(init)) =>
+              Some(symRef, init)
+            case AST_Conditional(CompareParWithUndefined("==" | "==="), InitStatement(init), symRef@AST_SymbolRefName(`parName`)) =>
+              Some(symRef, init)
             case _ =>
               None
           }
         }
 
         var defValue = Option.empty[AST_Node]
+        var otherUse = false
         f.walk {
           case IsParDefaultHandling(_, init) =>
             //println(s"Detected def value for $parName")
-            defValue = Some(init)
+            if (!otherUse) defValue = Some(init)
             true // use inside of the def. value pattern must not set otherUse
+          case AST_SymbolRefName(`parName`) =>
+            otherUse = true
+            defValue = None
+            otherUse
           case _ =>
-            defValue.isDefined
+            otherUse
         }
         defValue.map { init =>
           par.init = js.Array(init)
@@ -81,7 +116,7 @@ object Parameters {
           }
         }
 
-      } else None
+      }
 
       defByOr.orElse {
         object SingleStatement {
@@ -91,20 +126,10 @@ object Parameters {
             case _ => None
           }
         }
-        object InitStatement {
-          def unapply(arg: AST_Node) = arg match {
-            case c: AST_Constant => Some(c)
-            case c: AST_Array => Some(c)
-            case c: AST_New => Some(c)
-            case _ =>
-              //println(s"${nodeClassName(arg)}")
-              None
-          }
-        }
         object IsParDefaultHandlingByIf {
           def unapply(arg: AST_Node) = arg match {
             case AST_If(
-            AST_Binary(symRef@AST_SymbolRefName(`parName`), "==" | "===", AST_SymbolRefName("undefined")),
+            AST_Binary(symRef@AST_SymbolRefName(`parName`), "==" | "===", AST_SymbolRefUndefined()),
             SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", InitStatement(init))),
             None
             ) =>
@@ -178,12 +203,11 @@ object Parameters {
       }
 
       object IsParDeprecated {
+
+        object CompareParWithUndefined extends CompareWithUndefined(parName)
+
         def unapply(arg: AST_Node) = arg match {
-          case AST_If(
-          AST_Binary(AST_SymbolRefName(`parName`), "!=" | "!==", AST_SymbolRefName("undefined")),
-          Statements(body),
-          None
-          ) if containsDeprecation(body) =>
+          case AST_If(CompareParWithUndefined("!=" | "!=="), Statements(body), None) if containsDeprecation(body) =>
             //println("IsParDeprecated")
             true
           case _ =>

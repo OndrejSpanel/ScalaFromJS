@@ -633,6 +633,13 @@ object UglifyExt {
       def unapply(arg: AST_SymbolRef) = AST_SymbolName.unapply(arg)
     }
 
+    object AST_SymbolRefUndefined {
+      def unapply(arg: AST_SymbolRef) = arg match {
+        case AST_SymbolRefName("undefined") => true
+        case _ => false
+      }
+    }
+
     object AST_SimpleStatement {
       def unapply(arg: AST_SimpleStatement) = Some(arg.body)
     }
@@ -705,6 +712,10 @@ object UglifyExt {
 
     object AST_New {
       def unapplySeq(arg: AST_New) = AST_Call.unapplySeq(arg)
+    }
+
+    object AST_Conditional {
+      def unapply(arg: AST_Conditional) = Some(arg.condition, arg.consequent, arg.alternative)
     }
 
     object AST_If {
