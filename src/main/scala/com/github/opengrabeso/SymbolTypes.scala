@@ -130,6 +130,11 @@ object SymbolTypes {
     FunctionType(ret, args)
   }
 
+  def typeUnionArray(a1: ArrayType, a2: ArrayType)(implicit classOps: ClassOps): TypeDesc = {
+    val ret = typeUnion(a1.elem, a2.elem)
+    ArrayType(ret)
+  }
+
   // union: assignment target
   def typeUnion(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
     (tpe1, tpe2) match {
@@ -143,6 +148,8 @@ object SymbolTypes {
         classOps.commonBase(c1, c2)
       case (f1: FunctionType, f2: FunctionType) =>
         typeUnionFunction(f1, f2)
+      case (a1: ArrayType, a2: ArrayType) =>
+        typeUnionArray(a1, a2)
       case _ =>
         AnyType
     }

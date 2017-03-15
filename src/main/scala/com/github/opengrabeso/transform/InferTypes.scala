@@ -195,7 +195,7 @@ object InferTypes {
       allReturns
     }
 
-    case class SymbolAccessInfo(symbol: Option[SymbolDef] = None, dot: Option[MemberId] = None) {
+    /*
       def unknownType(types: SymbolTypes): Boolean = {
         symbol.fold{
           dot.fold(false) { d =>
@@ -208,28 +208,63 @@ object InferTypes {
           n.types.get(s).isEmpty
         }
       }
+    * */
+    trait SymbolAccessInfo {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit
+      def unknownType(types: SymbolTypes): Boolean
+    }
 
+    case class SymbolAccessSymbol(symbol: SymbolDef) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
-        for (s <- symbol) {
-          addInferredType(s, tpe, kind)
-        }
-        for (d <- dot) {
-          addInferredMemberType(dot, tpe, kind)
-        }
+        addInferredType(id(symbol), tpe, kind)
       }
 
-      override def toString = {
-        symbol.fold(dot.fold("None")(_.toString))(_.name)
+      def unknownType(types: SymbolTypes) = {
+        //println(s"Check $s => ${n.types.get(s)}")
+        n.types.get(symbol).isEmpty
+      }
+
+    }
+
+    case class SymbolAccessDot(symbol: MemberId) extends SymbolAccessInfo {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
+        addInferredMemberType(Some(symbol), tpe, kind)
+      }
+
+      def unknownType(types: SymbolTypes) =  {
+        val p = findInParents(symbol.cls, symbol.name)(ctx)
+        //println(s"Check $d => $p = ${n.types.getMember(dot)}")
+        types.getMember(p.map(pp => symbol.copy(cls = pp))).isEmpty
+      }
+    }
+    case class SymbolAccessArray(symbol: SymbolDef) extends SymbolAccessInfo {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
+        // TODO: // make array from the type
+
+        val arrayTpe = tpe.map { t =>
+          TypeInfo(ArrayType(t.source), ArrayType(t.target))
+        }
+        addInferredType(id(symbol), arrayTpe, kind)
+      }
+
+      def unknownType(types: SymbolTypes) = {
+        // TODO: implement
+        false
       }
     }
 
     object SymbolInfo {
       def unapply(arg: AST_Node) = arg match {
         case AST_SymbolRefDef(symDef) =>
-          Some(SymbolAccessInfo(symbol = Some(symDef)))
+          Some(SymbolAccessSymbol(symDef))
+
+        case AST_Sub(AST_SymbolRefDef(symDef), property) if expressionType(property)(ctx).forall(_.declType != string) =>
+          Some(SymbolAccessArray(symDef))
+
         case AST_Dot(expr, name) =>
           val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
-          Some(SymbolAccessInfo(dot = clsId))
+          clsId.map(SymbolAccessDot)
+
         case _ =>
           None
       }
