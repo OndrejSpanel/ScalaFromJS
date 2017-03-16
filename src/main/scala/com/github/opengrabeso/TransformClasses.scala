@@ -161,7 +161,7 @@ object TransformClasses {
                   //println(s"Add fun member ${kv.key}")
                   ClassFunMember(args, body)
                 case v =>
-                  //println(s"Add var member ${kv.key}")
+                  //println(s"Add var member ${kv.key} ${nodeClassName(v)}")
                   ClassVarMember(v)
               }
               //println("  " + member)
@@ -287,31 +287,67 @@ object TransformClasses {
                 name = b
               }
             }
-            val funMembers = clazz.members.collect { case (k, m: ClassFunMember) =>
-              new AST_ConciseMethod {
-                key = new AST_SymbolRef {
-                  fillTokens(this, defun)
-                  name = k
-                }
-                value = new AST_Accessor {
-                  fillTokens(this, defun)
-                  argnames = m.args
-                  this.body = m.body.toJSArray
 
-                }
-              }: AST_ObjectProperty
+            object AsFunction {
+              def unapply(arg: ClassMember) = arg match {
+                case m: ClassFunMember =>
+                  Some(m.args.toSeq, m.body)
+
+                  /*
+                // - simple expression, like: isSnake: true
+                case ClassVarMember(c: AST_Constant) =>
+                  val body = new AST_SimpleStatement {
+                    fillTokens(this, c)
+                    body = c
+                  }
+                  Some(Seq.empty, Seq(body))
+                  */
+                // some var members should also be converted to fun members
+                // expected structure:
+                // - variable prefix + function body
+
+                case _ =>
+                  None
+              }
             }
 
-            val varMembers = clazz.members.collect { case (k, m: ClassVarMember) =>
-              new AST_ObjectKeyVal {
+
+            val mappedMembers = clazz.members.map { case (k, v) =>
+              def keyNode = new AST_SymbolRef {
                 fillTokens(this, defun)
-                // symbol lookup will be needed
-                key = k
-                value = m.value
-              }: AST_ObjectProperty
+                name = k
+              }
+              v match {
+                case AsFunction(args, body) =>
+                  new AST_ConciseMethod {
+                    key = keyNode
+
+                    value = new AST_Accessor {
+                      fillTokens(this, defun)
+                      argnames = args.toJSArray
+                      this.body = body.toJSArray
+
+                    }
+                  }: AST_ObjectProperty
+                case m: ClassVarMember =>
+                  new AST_ObjectGetter {
+                    fillTokens(this, defun)
+                    key = keyNode
+                    value = new AST_Function {
+                      fillTokens(this, defun)
+                      argnames = js.Array()
+                      this.body = js.Array(new AST_SimpleStatement {
+                        fillTokens(this, defun)
+                        body = m.value
+                      })
+                    }
+                  }: AST_ObjectProperty
+
+              }
+
             }
 
-            properties = (varMembers.toSeq ++ funMembers.toSeq).toJSArray
+            properties = mappedMembers.toJSArray
           }
         case _ =>
           node

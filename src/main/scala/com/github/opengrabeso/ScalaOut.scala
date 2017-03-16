@@ -304,7 +304,14 @@ object ScalaOut {
         identifierToOut(out, tn.name)
       case tn: AST_ObjectGetter =>
         out.eol()
-        out"def ${tn.key}${tn.value}\n"
+        // getter argument list should be empty
+        if (tn.value.argnames.isEmpty) {
+          out"def ${tn.key} = "
+          blockToOut(tn.value.body)
+          out.eol()
+        } else {
+          out"def ${tn.key} = ${tn.value}\n"
+        }
       case tn: AST_ObjectSetter =>
         out.eol()
         out"def ${tn.key}${tn.value}\n"
