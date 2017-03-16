@@ -8,15 +8,23 @@ import scala.language.implicitConversions
 object SymbolTypes {
 
 
-  sealed trait TypeDesc
+  sealed trait TypeDesc {
+    def knownItems: Int = 0
+  }
   case class SimpleType(name: String) extends TypeDesc {
     override def toString = name
+
+    override def knownItems = 1
   }
   case class ClassType(name: String) extends TypeDesc {
     override def toString = name
+
+    override def knownItems = 1
   }
   case class ArrayType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Array[${elem.toString}]"
+
+    override def knownItems = super.knownItems + elem.knownItems
 
     def union(that: ArrayType)(implicit classOps: ClassOps) = ArrayType(typeUnion(elem, that.elem))
     def intersect(that: ArrayType)(implicit classOps: ClassOps) = ArrayType(typeIntersect(elem, that.elem))
@@ -24,6 +32,7 @@ object SymbolTypes {
   case class FunctionType(ret: TypeDesc, args: IndexedSeq[TypeDesc]) extends TypeDesc {
 
     //println(s"FunctionType ${args.mkString("(",",",")")} => $ret")
+    override def knownItems = super.knownItems + ret.knownItems + args.map(_.knownItems).sum
 
     override def toString = {
       def outputType(o: TypeDesc) = o.toString
@@ -44,6 +53,7 @@ object SymbolTypes {
   }
   case object AnyType extends TypeDesc { // supertype of all
     override def toString = "Any"
+
   }
   case object NoType extends TypeDesc { // subtype of all
     override def toString = "Unit"
@@ -311,6 +321,8 @@ object TypeInfo {
 
 }
 case class TypeInfo(source: TypeDesc, target: TypeDesc) {
+  def knownItems = source.knownItems max target.knownItems
+
   def nonEmpty = source != AnyType || target != NoType
 
   def known = source != AnyType && source!=NoType || target != NoType && target != AnyType
@@ -359,6 +371,16 @@ case class SymbolTypes(types: Map[SymbolMapId, TypeInfo], members: Map[MemberId,
     kv._1.fold(this) { id =>
       copy(members = members + (id -> kv._2))
     }
+  }
+
+  def knownItems: Int = {
+    def sumTypeInfo(types: Iterable[TypeInfo]) = types.foldLeft(0)((s, i) => s + i.knownItems)
+    sumTypeInfo(types.values) + sumTypeInfo(members.values)
+  }
+
+  override def toString = {
+    types.mkString("types {{","\n", "}}") +
+    members.mkString("members {{","\n", "}}")
   }
 
 }
