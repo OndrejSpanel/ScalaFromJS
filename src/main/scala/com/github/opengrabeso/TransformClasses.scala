@@ -57,6 +57,20 @@ object TransformClasses {
     }
   }
 
+  object DefineProperties {
+    def unapply(arg: AST_Node) = arg match {
+      case AST_SimpleStatement(AST_Call(AST_SymbolRefName("Object") AST_Dot "defineProperties",
+      AST_SymbolRef(name, _, _) AST_Dot "prototype", properties@_*)) =>
+        Some(name, properties)
+
+      case AST_SimpleStatement(AST_Call(AST_SymbolRefName("Object") AST_Dot "defineProperties",
+      AST_SymbolRef(name, _, _), properties@_*)) =>
+        Some(name, properties)
+
+      case _ => None
+    }
+  }
+
   object ClassParentAndPrototypeDef {
     def unapply(arg: AST_Node) = arg match {
       // name.prototype = Object.assign( Object.create( sym.prototype ), {... prototype object ... } )
@@ -193,6 +207,13 @@ object TransformClasses {
           val member = ClassFunMember(args, body)
           classes += name -> clazz.copy(members = clazz.members + (funName -> member))
         }
+        true
+
+      case DefineProperties(name, properties) =>
+        for (clazz <- classes.get(name)) {
+          println(s"Detected DefineProperties $name")
+        }
+
         true
       case ClassPropertyDef(name, propName, value) =>
         //println(s"Assign $name.$funName")
@@ -356,6 +377,10 @@ object TransformClasses {
             }
 
             properties = mappedMembers.toJSArray
+          }
+        case DefineProperties(name, _) if classes.get(name).isDefined =>
+          new AST_EmptyStatement {
+            fillTokens(this, node)
           }
         case _ =>
           node
