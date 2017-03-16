@@ -20,11 +20,26 @@ object InferTypes {
     val classes = classListHarmony(n)
     //println("Classes:\n" + classes)
 
+
     val classInfo = listClassMembers(n.top)
 
     implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes) // note: ctx.allTypes is mutable
-
     import ctx.classOps
+
+    // optimization list each class including all parents
+    val parents  = (classes.values.flatMap { cls =>
+      val ps = includeParents(cls, Seq(cls))(ctx) // infer for all overrides
+      cls.name.nonNull.map(_.name -> ps)
+    }(collection.breakOut):Map[String, Seq[AST_DefClass]]).withDefaultValue(Seq())
+
+    val methods: Map[(AST_DefClass,String), AST_ConciseMethod] = {
+      classes.values.flatMap { cls =>
+        cls.properties.collect {
+          case m: AST_ConciseMethod => (cls, m.key.name) -> m
+        }
+      }(collection.breakOut)
+    }
+
 
     def typeFromOperation(op: String, n: AST_Node) = {
       op match {
@@ -427,37 +442,38 @@ object InferTypes {
           // fill ctx.type function types information
           for {
             TypeDecl(ClassType(callOn)) <- expressionType(expr)(ctx)
-            c <- getParents(callOn)(ctx) // infer for all overrides
           } {
-            val memberId = MemberId(c, call)
-            //println(s"memberId $memberId, args ${args.length}")
-            if (ctx.classInfo.containsMember(c, call)) {
-              val tpe = inferFunction(args)
 
-              //println(s"Infer par types for a var member call $c.$call as $tpe")
-              //println(allTypes)
-              addInferredMemberType(Some(memberId), Some(TypeInfo.target(tpe))) // target or source?
+            for {
+              c <- getParents(callOn)(ctx) // infer for all overrides
+            } {
+              val memberId = MemberId(c, call)
+              //println(s"memberId $memberId, args ${args.length}")
+              if (ctx.classInfo.containsMember(c, call)) {
+                val tpe = inferFunction(args)
 
-              for (funType <- ctx.types.getMember(Some(memberId))) {
-                funType.declType match {
-                  case ft: FunctionType =>
-                    inferArgs(ft, args)
-                  case _ =>
+                //println(s"Infer par types for a var member call $c.$call as $tpe")
+                //println(allTypes)
+                addInferredMemberType(Some(memberId), Some(TypeInfo.target(tpe))) // target or source?
 
+                for (funType <- ctx.types.getMember(Some(memberId))) {
+                  funType.declType match {
+                    case ft: FunctionType =>
+                      inferArgs(ft, args)
+                    case _ =>
+
+                  }
                 }
               }
             }
-          }
 
-          // TODO: use function types only for member functions
-          // fill class symbols (if they exists)
-          for {
-            TypeDecl(ClassType(callOn)) <- expressionType(expr)(ctx)
-            clazz <- classes.get(callOn)
-            c <- includeParents(clazz, Seq(clazz))(ctx) // infer for all overrides
-            m <- findMethod(c, call)
-          } {
-            inferParsOrArgs(m.value.argnames, args)
+            // fill class symbols (if they exists)
+            for {
+              c <- parents(callOn) // infer for all overrides
+              m <- methods.get(c, call)
+            } {
+              inferParsOrArgs(m.value.argnames, args)
+            }
           }
 
         case AST_Sub(AST_SymbolRef(name, _, Defined(sym)), property) =>
