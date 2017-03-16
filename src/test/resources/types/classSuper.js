@@ -15,5 +15,18 @@ Snake.prototype.move = function() {
     Animal.prototype.move.call(this, 5);
 };
 
+Snake.prototype.advance = function() {
+    var tempX = 0;
+    var tempY = "";
+    return function (dist) {
+        tempX = dist;
+        tempY = tempX.toString();
+        move();
+    }
+
+}();
+
+Snake.prototype.isSnake = true;
+
 var sam = new Snake("Sammy the Python");
 sam.move();
