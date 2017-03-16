@@ -479,13 +479,13 @@ object InferTypes {
     val maxDepth = 15
     def inferTypesStep(n: AST_Extended, depth: Int, metrics: Int): AST_Extended = {
       //println(s"Type inference: ${n.types} steps $maxDepth")
-      val now = System.currentTimeMillis()
+      //val now = System.currentTimeMillis()
       val r = inferTypes(n)
-      val again = System.currentTimeMillis()
-      println(s"Infer types step $depth: ${again - now} ms")
+      //val again = System.currentTimeMillis()
+      //println(s"Infer types step $depth, metrics: ${r.types.knownItems}: ${again - now} ms")
       val cr = ClassesByMembers(r)
       val newMetrics = cr.types.knownItems
-      println(s"Classes by members metrics $newMetrics, types: ${{System.currentTimeMillis()} - again} ms")
+      //println(s"Classes by members metrics: $newMetrics, types: ${{System.currentTimeMillis()} - again} ms")
 
       //println(s"Type inference done: ${cr.types}")
       // if metrics was not improved, use previous result

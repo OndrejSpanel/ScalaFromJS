@@ -884,7 +884,7 @@ object Transform {
       val now = System.nanoTime()
       val r = op(t)
       val duration = System.nanoTime() - now
-      println(s"step $op, duration ${duration / 1000000}")
+      //println(s"step $op, duration ${duration / 1000000}")
       r
     }
   }
