@@ -30,3 +30,23 @@ Snake.prototype.isSnake = true;
 
 var sam = new Snake("Sammy the Python");
 sam.move();
+
+Animal.defineProperties( Euler.prototype, {
+
+    fullName: {
+
+        get: function () {
+
+            return this.name;
+
+        },
+
+        set: function ( value ) {
+
+            this.name = value;
+            this.onChangeCallback();
+
+        }
+
+    },
+});
