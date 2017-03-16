@@ -289,19 +289,27 @@ object TransformClasses {
             }
 
             object AsFunction {
-              def unapply(arg: ClassMember) = arg match {
-                case m: ClassFunMember =>
-                  Some(m.args.toSeq, m.body)
+              def onlyVariables(ss: Seq[AST_Statement]) = ss.forall(s => s.isInstanceOf[AST_Var])
 
-                  /*
-                // - simple expression, like: isSnake: true
-                case ClassVarMember(c: AST_Constant) =>
-                  val body = new AST_SimpleStatement {
-                    fillTokens(this, c)
-                    body = c
-                  }
-                  Some(Seq.empty, Seq(body))
-                  */
+              object ReturnValue {
+                def unapply(arg: AST_Statement) = arg match {
+                  case AST_Return(Defined(body)) =>
+                    Some(body)
+                  case AST_SimpleStatement(body) =>
+                    Some(body)
+                  case _ =>
+                    None
+                }
+              }
+              def unapply(arg: ClassMember) = arg match {
+                case ClassFunMember(args, body) =>
+                  Some(args.toSeq, body)
+
+                case ClassVarMember(AST_BlockStatement(ss :+ ReturnValue(AST_Function(args, body)))) /*if onlyVariables(ss)*/ =>
+                  //println(nodeClassName(f))
+                  val newBody = ss ++ body
+                  Some(args.toSeq, newBody)
+
                 // some var members should also be converted to fun members
                 // expected structure:
                 // - variable prefix + function body
