@@ -881,7 +881,11 @@ object Transform {
 
     transforms.foldLeft(AST_Extended(n, SymbolTypes())) { (t,op) =>
       t.top.figure_out_scope()
-      op(t)
+      val now = System.nanoTime()
+      val r = op(t)
+      val duration = System.nanoTime() - now
+      println(s"step $op, duration ${duration / 1000000}")
+      r
     }
   }
 }
