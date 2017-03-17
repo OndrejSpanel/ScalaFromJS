@@ -213,7 +213,7 @@ object Transform {
 
   def handleIncrement(n: AST_Node): AST_Node = {
 
-    def substitute(node: AST_Node, expr: AST_SymbolRef, op: String) = {
+    def substitute(node: AST_Node, expr: AST_Node, op: String) = {
       new AST_Assign {
         fillTokens(this, node)
         left = expr
@@ -251,7 +251,7 @@ object Transform {
       }
 
       node match {
-        case AST_Unary(op@UnaryModification(), expr: AST_SymbolRef) =>
+        case AST_Unary(op@UnaryModification(), expr) =>
           if (nodeResultDiscarded(node, 0)) {
             substitute(node, expr, op)
           } else {
