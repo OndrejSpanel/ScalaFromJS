@@ -37,9 +37,12 @@ object TransformClasses {
 
   case class ClassVarMember(value: AST_Node) extends ClassMember
 
-  case object ClassVarDeclMember extends ClassMember
-
-  case class ClassDef(base: Option[String] = None, members: ListMap[String, ClassMember] = ListMap.empty)
+  case class ClassDef(
+    base: Option[String] = None,
+    members: ListMap[String, ClassMember] = ListMap.empty,
+    getters: ListMap[String, ClassFunMember] = ListMap.empty,
+    setters: ListMap[String, ClassFunMember] = ListMap.empty
+  )
 
   object ClassMemberDef {
     def unapply(arg: AST_Node) = arg match {
@@ -138,6 +141,10 @@ object TransformClasses {
     }
   }
 
+  def keyNode(orig: AST_Node, k: String) = new AST_SymbolRef {
+    fillTokens(this, orig)
+    name = k
+  }
 
   private def classList(n: AST_Extended) = {
     var classes = Map.empty[String, ClassDef]
@@ -172,6 +179,7 @@ object TransformClasses {
         false
     }
 
+
     def processPrototype(name: String, prototypeDef: AST_Object) = {
       for (clazz <- classes.get(name)) {
         classes += name -> prototypeDef.properties.foldLeft(clazz) { (clazz, m) =>
@@ -197,6 +205,7 @@ object TransformClasses {
         }
       }
     }
+
 
     n.top.walk {
       case _: AST_Toplevel =>
@@ -227,22 +236,25 @@ object TransformClasses {
               pp.value match {
                 case AST_Object(props) =>
                   props.foreach {
-                    case pp: AST_ObjectKeyVal =>
-                      println(s"  sub property ${pp.key} ${nodeClassName(pp.value)}")
-                    case pp: AST_ObjectSetter =>
-                      println(s"  sub setter ${nodeClassName(pp.key)}")
-                    case pp: AST_ObjectGetter =>
-                      println(s"  sub getter ${nodeClassName(pp.key)}")
-                    case pp: AST_ConciseMethod =>
-                      println(s"  sub method ${pp.key.name}")
-                    case ppp =>
-                      println(s"  sub unexpected property def ${nodeClassName(pp)}")
+                    case p: AST_ObjectKeyVal =>
+                      println(s"  sub property ${p.key} ${nodeClassName(p.value)}")
+
+                      (p.value,p.key) match {
+                        case (fun: AST_Function, "get") =>
+                          println(s"Add getter ${pp.key}")
+                          // new lookup needed for classes(name), multiple changes can be chained
+                          classes += name -> classes(name).copy(getters = clazz.getters + (pp.key -> ClassFunMember(fun.argnames, fun.body)))
+                        case (fun: AST_Function, "set") =>
+                          println(s"Add setter ${pp.key}")
+                          classes += name -> classes(name).copy(setters = clazz.setters + (pp.key -> ClassFunMember(fun.argnames, fun.body)))
+                        case _ =>
+                      }
+
+                    case _ =>
                   }
                 case _ =>
-                  println(s"  unexpected property node ${nodeClassName(pp.value)}")
               }
-            case pp =>
-              println(s"  unexpected property node ${nodeClassName(pp)}")
+            case _ =>
           }
         }
 
@@ -316,6 +328,7 @@ object TransformClasses {
     val createClasses = deleteProtos.transformAfter { (node, walker) =>
       node match {
         case defun@ClassDefine(sym, _, _) if classes contains sym.name =>
+
           //println(s"  ${walker.stack.map(nodeClassName).mkString("|")}")
           // check if there exists a type with this name
           val clazz = classes(sym.name)
@@ -372,16 +385,31 @@ object TransformClasses {
               }
             }
 
+            def newGetterOrSetter(node: AST_ObjectSetterOrGetter, k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement]) = {
+              fillTokens(this, defun)
+              node.key = keyNode(defun, k)
+              node.value = new AST_Function {
+                fillTokens(this, defun)
+                argnames = args
+                this.body = body.toJSArray
+              }
+              node
+            }
+
+            def newGetter(k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement]): AST_ObjectProperty = {
+              newGetterOrSetter(new AST_ObjectGetter, k, args, body)
+            }
+
+
+            def newSetter(k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement]): AST_ObjectProperty = {
+              newGetterOrSetter(new AST_ObjectSetter, k, args, body)
+            }
 
             val mappedMembers = clazz.members.map { case (k, v) =>
-              def keyNode = new AST_SymbolRef {
-                fillTokens(this, defun)
-                name = k
-              }
               v match {
                 case AsFunction(args, body) =>
                   new AST_ConciseMethod {
-                    key = keyNode
+                    key = keyNode(defun, k)
 
                     value = new AST_Accessor {
                       fillTokens(this, defun)
@@ -390,25 +418,29 @@ object TransformClasses {
 
                     }
                   }: AST_ObjectProperty
+
                 case m: ClassVarMember =>
-                  new AST_ObjectGetter {
+                  newGetter(k, js.Array(), js.Array(new AST_SimpleStatement {
                     fillTokens(this, defun)
-                    key = keyNode
-                    value = new AST_Function {
-                      fillTokens(this, defun)
-                      argnames = js.Array()
-                      this.body = js.Array(new AST_SimpleStatement {
-                        fillTokens(this, defun)
-                        body = m.value
-                      })
-                    }
-                  }: AST_ObjectProperty
+                    body = m.value
+                  }))
 
               }
 
             }
 
-            properties = mappedMembers.toJSArray
+            val mappedGetters = clazz.getters.map {
+              case (k, v) =>
+                println(s"newGetter $k")
+                newGetter(k, v.args, v.body)
+            }
+            val mappedSetters = clazz.setters.map {
+              case (k, v) =>
+                println(s"newSetter $k")
+                newSetter(k, v.args, v.body)
+            }
+
+            properties = (mappedMembers ++ mappedGetters ++ mappedSetters).toJSArray
           }
         case DefineProperties(name, _) if classes.get(name).isDefined =>
           new AST_EmptyStatement {

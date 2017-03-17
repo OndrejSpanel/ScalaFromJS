@@ -355,7 +355,8 @@ object Uglify extends js.Object {
     val quote: String =  js.native
   }
 
-  @js.native class AST_ObjectSetterOrGetter extends AST_ObjectProperty {
+  // beware: type does not exist in Uglify.js, do not match against it!
+  @js.native sealed abstract class AST_ObjectSetterOrGetter extends AST_ObjectProperty {
     // [string] the property name converted to a string for ObjectKeyVal.  For setters and getters this is an arbitrary AST_Node.
     override def key: AST_Node = js.native
     // [AST_Node] property value.  For setters and getters this is an AST_Function.

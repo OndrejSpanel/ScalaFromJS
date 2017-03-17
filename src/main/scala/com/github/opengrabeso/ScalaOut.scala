@@ -272,6 +272,22 @@ object ScalaOut {
     dumpComments(n)
 
     //noinspection ScalaUnusedSymbol
+    def accessorToOut(tn: AST_ObjectSetterOrGetter, postfix: String) = {
+      out.eol()
+      // getter argument list should be empty, setter not
+      if (tn.value.argnames.isEmpty) {
+        out"def ${tn.key}$postfix = "
+        blockBracedToOut(tn.value.body)
+        out.eol()
+      } else {
+        out"def ${tn.key}$postfix"
+        outputArgNames(tn.value, true)
+        out" = "
+        blockBracedToOut(tn.value.body)
+        out.eol()
+      }
+    }
+
     n match {
       case tn: AST_True => out("true")
       case tn: AST_False => out("false")
@@ -302,19 +318,10 @@ object ScalaOut {
       //case tn: AST_SymbolRef => identifierToOut(out, tn.name)
       case tn: AST_Symbol =>
         identifierToOut(out, tn.name)
-      case tn: AST_ObjectGetter =>
-        out.eol()
-        // getter argument list should be empty
-        if (tn.value.argnames.isEmpty) {
-          out"def ${tn.key} = "
-          blockToOut(tn.value.body)
-          out.eol()
-        } else {
-          out"def ${tn.key} = ${tn.value}\n"
-        }
       case tn: AST_ObjectSetter =>
-        out.eol()
-        out"def ${tn.key}${tn.value}\n"
+        accessorToOut(tn, "_=")
+      case tn: AST_ObjectGetter =>
+        accessorToOut(tn, "")
       case tn: AST_ObjectKeyVal =>
         out"var ${identifier(tn.key)} = ${tn.value}\n"
       //case tn: AST_ObjectProperty =>
