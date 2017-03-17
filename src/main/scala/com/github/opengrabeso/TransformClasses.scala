@@ -228,11 +228,11 @@ object TransformClasses {
         true
 
       case DefineProperties(name, properties) =>
-        for (clazz <- classes.get(name)) {
+        if (classes.contains(name)) {
           //println(s"Detected DefineProperties $name")
           properties.foreach {
             case AST_ObjectKeyVal(key, AST_Object(props)) =>
-              //println(s"  property ${key}")
+              //println(s"  property $key")
               props.foreach {
                 case p: AST_ObjectKeyVal =>
                   //println(s"  sub property ${p.key} ${nodeClassName(p.value)}")
@@ -240,10 +240,13 @@ object TransformClasses {
                     case (fun: AST_Function, "get") =>
                       //println(s"Add getter ${pp.key}")
                       // new lookup needed for classes(name), multiple changes can be chained
-                      classes += name -> classes(name).copy(getters = clazz.getters + (key -> ClassFunMember(fun.argnames, fun.body)))
+                      val c = classes(name)
+                      classes += name -> c.copy(getters = c.getters + (key -> ClassFunMember(fun.argnames, fun.body)))
                     case (fun: AST_Function, "set") =>
                       //println(s"Add setter ${pp.key}")
-                      classes += name -> classes(name).copy(setters = clazz.setters + (key -> ClassFunMember(fun.argnames, fun.body)))
+                      val c = classes(name)
+                      classes += name -> c.copy(setters = c.setters + (key -> ClassFunMember(fun.argnames, fun.body)))
+                      //println(classes)
                     case _ =>
                   }
 
