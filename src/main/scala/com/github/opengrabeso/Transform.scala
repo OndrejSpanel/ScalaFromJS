@@ -597,7 +597,7 @@ object Transform {
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(c), name)
         } yield {
-          //println(s"Infer type of member $c.$name as $r")
+          println(s"Infer type of member $c.$name as $r")
           r
         }
       case _: AST_Array =>
@@ -678,15 +678,25 @@ object Transform {
 
   def listPrototypeMemberNames(cls: AST_DefClass): Seq[String] = {
     var existingMembers = Seq.empty[String]
-    cls.walk {
+
+    def addAccessor(s: AST_ObjectSetterOrGetter) = {
+      s.key match {
+        case AST_SymbolRefName(name) =>
+          existingMembers = existingMembers :+ name
+        case _ =>
+      }
+    }
+
+    cls.properties.foreach {
       case AST_ConciseMethod(AST_SymbolName(p), _) =>
         existingMembers = existingMembers :+ p
-        true
       case AST_ObjectKeyVal(p, _) =>
         existingMembers = existingMembers :+ p
-        true
+      case s: AST_ObjectSetter =>
+        addAccessor(s)
+      case s: AST_ObjectGetter =>
+        addAccessor(s)
       case _ =>
-        false
     }
     existingMembers
   }
