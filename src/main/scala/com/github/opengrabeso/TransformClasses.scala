@@ -58,16 +58,25 @@ object TransformClasses {
   }
 
   object DefineProperties {
+
+    object DefinePropertiesObject {
+      def unapply(arg: AST_Node) = arg match {
+        case AST_SimpleStatement(AST_Call(AST_SymbolRefName("Object") AST_Dot "defineProperties",
+        AST_SymbolRef(name, _, _) AST_Dot "prototype", properties@_*)) =>
+          Some(name, properties)
+
+        case AST_SimpleStatement(AST_Call(AST_SymbolRefName("Object") AST_Dot "defineProperties",
+        AST_SymbolRef(name, _, _), properties@_*)) =>
+          Some(name, properties)
+
+        case _ => None
+      }
+    }
+
     def unapply(arg: AST_Node) = arg match {
-      case AST_SimpleStatement(AST_Call(AST_SymbolRefName("Object") AST_Dot "defineProperties",
-      AST_SymbolRef(name, _, _) AST_Dot "prototype", properties@_*)) =>
-        Some(name, properties)
-
-      case AST_SimpleStatement(AST_Call(AST_SymbolRefName("Object") AST_Dot "defineProperties",
-      AST_SymbolRef(name, _, _), properties@_*)) =>
-        Some(name, properties)
-
+      case DefinePropertiesObject(name, Seq(AST_Object(properties))) => Some(name, properties)
       case _ => None
+
     }
   }
 
@@ -212,6 +221,29 @@ object TransformClasses {
       case DefineProperties(name, properties) =>
         for (clazz <- classes.get(name)) {
           println(s"Detected DefineProperties $name")
+          properties.foreach {
+            case pp: AST_ObjectKeyVal =>
+              println(s"  property ${pp.key} ${nodeClassName(pp.value)}")
+              pp.value match {
+                case AST_Object(props) =>
+                  props.foreach {
+                    case pp: AST_ObjectKeyVal =>
+                      println(s"  sub property ${pp.key} ${nodeClassName(pp.value)}")
+                    case pp: AST_ObjectSetter =>
+                      println(s"  sub setter ${nodeClassName(pp.key)}")
+                    case pp: AST_ObjectGetter =>
+                      println(s"  sub getter ${nodeClassName(pp.key)}")
+                    case pp: AST_ConciseMethod =>
+                      println(s"  sub method ${pp.key.name}")
+                    case ppp =>
+                      println(s"  sub unexpected property def ${nodeClassName(pp)}")
+                  }
+                case _ =>
+                  println(s"  unexpected property node ${nodeClassName(pp.value)}")
+              }
+            case pp =>
+              println(s"  unexpected property node ${nodeClassName(pp)}")
+          }
         }
 
         true

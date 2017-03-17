@@ -730,6 +730,10 @@ object UglifyExt {
       def unapply(arg: AST_DefClass) = Some(arg.name, arg.`extends`, arg.properties)
     }
 
+
+    object AST_Object {
+      def unapply(arg: AST_Object) = Some(arg.properties.toSeq)
+    }
     object AST_ConciseMethod {
       def unapply(arg: AST_ConciseMethod) = Some(arg.key, arg.value)
     }
