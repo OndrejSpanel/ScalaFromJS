@@ -83,6 +83,20 @@ object TransformClasses {
     }
   }
 
+  object DefineProperty {
+    def unapply(arg: AST_Node) = arg match {
+      // Object.defineProperty(XXXX.prototype, "name", {...} //
+      case AST_SimpleStatement(AST_Call(
+      AST_SymbolRefName("Object") AST_Dot "defineProperty",
+      AST_SymbolRefDef(sym) AST_Dot "prototype",
+      prop: AST_String,
+      AST_Object(properties))) =>
+        Some(sym.name, prop.value, properties)
+      case _ => None
+
+    }
+  }
+
   object ClassParentAndPrototypeDef {
     def unapply(arg: AST_Node) = arg match {
       // name.prototype = Object.assign( Object.create( sym.prototype ), {... prototype object ... } )
@@ -206,8 +220,24 @@ object TransformClasses {
       }
     }
 
+    def defineSingleProperty(name: String, key: String, p: AST_ObjectKeyVal) = {
+      (p.value, p.key) match {
+        case (fun: AST_Function, "get") =>
+          //println(s"Add getter ${pp.key}")
+          // new lookup needed for classes(name), multiple changes can be chained
+          val c = classes(name)
+          classes += name -> c.copy(getters = c.getters + (key -> ClassFunMember(fun.argnames, fun.body)))
+        case (fun: AST_Function, "set") =>
+          //println(s"Add setter ${pp.key}")
+          val c = classes(name)
+          classes += name -> c.copy(setters = c.setters + (key -> ClassFunMember(fun.argnames, fun.body)))
+        //println(classes)
+        case _ =>
+      }
+    }
 
     n.top.walk {
+
       case _: AST_Toplevel =>
         false
       case ClassDefine(sym, args, body) =>
@@ -227,33 +257,24 @@ object TransformClasses {
         }
         true
 
-      case DefineProperties(name, properties) =>
-        if (classes.contains(name)) {
-          //println(s"Detected DefineProperties $name")
-          properties.foreach {
-            case AST_ObjectKeyVal(key, AST_Object(props)) =>
-              //println(s"  property $key")
-              props.foreach {
-                case p: AST_ObjectKeyVal =>
-                  //println(s"  sub property ${p.key} ${nodeClassName(p.value)}")
-                  (p.value,p.key) match {
-                    case (fun: AST_Function, "get") =>
-                      //println(s"Add getter ${pp.key}")
-                      // new lookup needed for classes(name), multiple changes can be chained
-                      val c = classes(name)
-                      classes += name -> c.copy(getters = c.getters + (key -> ClassFunMember(fun.argnames, fun.body)))
-                    case (fun: AST_Function, "set") =>
-                      //println(s"Add setter ${pp.key}")
-                      val c = classes(name)
-                      classes += name -> c.copy(setters = c.setters + (key -> ClassFunMember(fun.argnames, fun.body)))
-                      //println(classes)
-                    case _ =>
-                  }
+      case DefineProperty(name, prop, Seq(property: AST_ObjectKeyVal)) if classes.contains(name) =>
+        //println(s"Detected DefineProperty $name.$prop  ${nodeClassName(property)}")
+        defineSingleProperty(name, prop, property)
+        true
 
-                case _ =>
-              }
-            case _ =>
-          }
+      case DefineProperties(name, properties) if classes.contains(name) =>
+        //println(s"Detected DefineProperties $name")
+        properties.foreach {
+          case AST_ObjectKeyVal(key, AST_Object(props)) =>
+            //println(s"  property $key")
+            props.foreach {
+              case p: AST_ObjectKeyVal =>
+                //println(s"  sub property ${p.key} ${nodeClassName(p.value)}")
+                defineSingleProperty(name, key, p)
+
+              case _ =>
+            }
+          case _ =>
         }
 
         true
@@ -440,7 +461,11 @@ object TransformClasses {
 
             properties = (mappedMembers ++ mappedGetters ++ mappedSetters).toJSArray
           }
-        case DefineProperties(name, _) if classes.get(name).isDefined =>
+        case DefineProperties(name, _) if classes.contains(name) =>
+          new AST_EmptyStatement {
+            fillTokens(this, node)
+          }
+        case DefineProperty(name, _, _) if classes.contains(name) =>
           new AST_EmptyStatement {
             fillTokens(this, node)
           }
