@@ -1,4 +1,4 @@
-Type inference
+Type inference for setters
 
 ```
 function Animal(name) {

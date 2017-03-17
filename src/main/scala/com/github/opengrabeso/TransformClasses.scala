@@ -229,29 +229,24 @@ object TransformClasses {
 
       case DefineProperties(name, properties) =>
         for (clazz <- classes.get(name)) {
-          println(s"Detected DefineProperties $name")
+          //println(s"Detected DefineProperties $name")
           properties.foreach {
-            case pp: AST_ObjectKeyVal =>
-              println(s"  property ${pp.key} ${nodeClassName(pp.value)}")
-              pp.value match {
-                case AST_Object(props) =>
-                  props.foreach {
-                    case p: AST_ObjectKeyVal =>
-                      println(s"  sub property ${p.key} ${nodeClassName(p.value)}")
-
-                      (p.value,p.key) match {
-                        case (fun: AST_Function, "get") =>
-                          println(s"Add getter ${pp.key}")
-                          // new lookup needed for classes(name), multiple changes can be chained
-                          classes += name -> classes(name).copy(getters = clazz.getters + (pp.key -> ClassFunMember(fun.argnames, fun.body)))
-                        case (fun: AST_Function, "set") =>
-                          println(s"Add setter ${pp.key}")
-                          classes += name -> classes(name).copy(setters = clazz.setters + (pp.key -> ClassFunMember(fun.argnames, fun.body)))
-                        case _ =>
-                      }
-
+            case AST_ObjectKeyVal(key, AST_Object(props)) =>
+              //println(s"  property ${key}")
+              props.foreach {
+                case p: AST_ObjectKeyVal =>
+                  //println(s"  sub property ${p.key} ${nodeClassName(p.value)}")
+                  (p.value,p.key) match {
+                    case (fun: AST_Function, "get") =>
+                      //println(s"Add getter ${pp.key}")
+                      // new lookup needed for classes(name), multiple changes can be chained
+                      classes += name -> classes(name).copy(getters = clazz.getters + (key -> ClassFunMember(fun.argnames, fun.body)))
+                    case (fun: AST_Function, "set") =>
+                      //println(s"Add setter ${pp.key}")
+                      classes += name -> classes(name).copy(setters = clazz.setters + (key -> ClassFunMember(fun.argnames, fun.body)))
                     case _ =>
                   }
+
                 case _ =>
               }
             case _ =>
@@ -431,12 +426,12 @@ object TransformClasses {
 
             val mappedGetters = clazz.getters.map {
               case (k, v) =>
-                println(s"newGetter $k")
+                //println(s"newGetter $k")
                 newGetter(k, v.args, v.body)
             }
             val mappedSetters = clazz.setters.map {
               case (k, v) =>
-                println(s"newSetter $k")
+                //println(s"newSetter $k")
                 newSetter(k, v.args, v.body)
             }
 

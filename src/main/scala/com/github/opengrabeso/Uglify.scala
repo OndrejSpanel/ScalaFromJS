@@ -739,6 +739,13 @@ object UglifyExt {
       def unapply(arg: AST_ConciseMethod) = Some(arg.key, arg.value)
     }
 
+    object AST_ObjectGetter {
+      def unapply(arg: AST_ObjectGetter) = Some(arg.key, arg.value)
+    }
+    object AST_ObjectSetter {
+      def unapply(arg: AST_ObjectSetter) = Some(arg.key, arg.value)
+    }
+
     object AST_ObjectKeyVal {
       def unapply(arg: AST_ObjectKeyVal) = Some(arg.key, arg.value)
     }

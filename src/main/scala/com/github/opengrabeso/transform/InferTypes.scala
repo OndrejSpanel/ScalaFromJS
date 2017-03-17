@@ -18,9 +18,10 @@ object InferTypes {
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 
     val classes = classListHarmony(n)
-    //println("Classes:\n" + classes)
+    //println("Classes:\n" + classes.keys)
 
     val classInfo = listClassMembers(n.top)
+    //println("ClassInfo:\n" + classInfo)
 
     implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes) // note: ctx.allTypes is mutable
 
@@ -390,6 +391,19 @@ object InferTypes {
             val classId = MemberId(cls, sym)
             val funType = FunctionType(retType.declType, IndexedSeq())
             addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))
+          }
+        case AST_ObjectGetter(AST_SymbolName(sym), fun: AST_Lambda) =>
+          val allReturns = scanFunctionReturns(fun)
+          // method of which class is this?
+          val scope = findThisClass(fun.parent_scope.nonNull)
+          //println(s"Infer getter $allReturns ${scope.map(_.nesting)}")
+          for {
+            retType <- allReturns
+            AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope
+          } {
+            //println(s"Infer return type for getter $cls.$sym as $retType")
+            val classId = MemberId(cls, sym)
+            addInferredMemberType(Some(classId), Some(retType))
           }
 
         case AST_Call(AST_SymbolRefDef(call), args@_*) =>

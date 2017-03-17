@@ -597,7 +597,7 @@ object Transform {
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(c), name)
         } yield {
-          println(s"Infer type of member $c.$name as $r")
+          //println(s"Infer type of member $c.$name as $r")
           r
         }
       case _: AST_Array =>
