@@ -183,7 +183,7 @@ object TransformClasses {
           classes += name -> c.copy(setters = c.setters + (key -> ClassFunMember(fun.argnames, fun.body)))
         //println(classes)
         case (value, "value") =>
-          println(s"Add value $key")
+          //println(s"Add value $key")
           val c = defClass(name)
           classes += name -> c.copy(values = c.values + (key -> ClassVarMember(value)))
 
@@ -273,7 +273,7 @@ object TransformClasses {
             case AST_SimpleStatement(AST_Call(
             AST_SymbolRefName("Object") AST_Dot "defineProperty", _: AST_This, prop: AST_String,
             AST_Object(Seq(property: AST_ObjectKeyVal)))) =>
-              println(s"Detect defineProperty $sym.name.${prop.value}")
+              //println(s"Detect defineProperty $sym.name.${prop.value}")
               classes.defineSingleProperty(sym.name, prop.value, property)
               false
             case _ =>

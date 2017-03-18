@@ -8,6 +8,8 @@ Animal.prototype.move = function(meters) {
 
 function Snake() {
     Animal.apply(this, Array.prototype.slice.call(arguments));
+
+    Object.defineProperty(this, "kind", {value: "snake"})
 };
 Snake.prototype = new Animal();
 Snake.prototype.move = function() {
@@ -31,7 +33,7 @@ Snake.prototype.isSnake = true;
 var sam = new Snake("Sammy the Python");
 sam.move();
 
-Animal.defineProperties( Euler.prototype, {
+Object.defineProperties( Animal.prototype, {
 
     fullName: {
 
