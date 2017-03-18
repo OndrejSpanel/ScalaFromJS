@@ -3,6 +3,7 @@ import Transform._
 import Classes._
 import Uglify._
 import UglifyExt._
+import JsUtils._
 import UglifyExt.Import._
 
 import scala.scalajs.js
@@ -527,11 +528,7 @@ object TransformClasses {
 
     val cleanupClasses = createClasses.transformAfter { (node, walker) =>
       // find enclosing class (if any)
-      def thisClass = walker.stack.collectFirst {
-        case c: AST_DefClass =>
-          //println(s"${c.name.get.name}")
-          c
-      }
+      def thisClass = findThisClassInWalker(walker)
 
       object IsSuperClass {
         def unapply(name: String): Boolean = {
@@ -576,7 +573,16 @@ object TransformClasses {
           call.args = args.toJSArray
           call
 
+        // this.constructor, typically as new this.constructor( ... )
+        case (_: AST_This) AST_Dot "constructor" =>
+          //println("this.constructor")
+          thisClass.flatMap(_.name.nonNull.map(_.name)).fold(node)(cls => new AST_SymbolRef {
+            fillTokens(this, node)
+            name = cls
+          })
+
         case _ =>
+          //println(nodeClassName(node))
           node
       }
     }
