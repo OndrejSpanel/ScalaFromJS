@@ -513,16 +513,17 @@ object InferTypes {
   def multipass(n: AST_Extended): AST_Extended = {
     val maxDepth = 15
     def inferTypesStep(n: AST_Extended, depth: Int, metrics: Int): AST_Extended = {
-      //println(s"Type inference: ${n.types} steps $maxDepth")
-      //val now = System.currentTimeMillis()
+      val log = false
+      //if (log) println(s"Type inference: ${n.types} steps $maxDepth")
+      val now = System.currentTimeMillis()
       val r = inferTypes(n)
-      //val again = System.currentTimeMillis()
-      //println(s"Infer types step $depth, metrics: ${r.types.knownItems}: ${again - now} ms")
+      val again = System.currentTimeMillis()
+      if (log) println(s"Infer types step $depth, metrics: ${r.types.knownItems}: ${again - now} ms")
       val cr = ClassesByMembers(r)
       val newMetrics = cr.types.knownItems
-      //println(s"Classes by members metrics: $newMetrics, types: ${{System.currentTimeMillis()} - again} ms")
+      if (log) println(s"Classes by members metrics: $newMetrics, types: ${{System.currentTimeMillis()} - again} ms")
 
-      //println(s"Type inference done: ${cr.types}")
+      //if (log) println(s"Type inference done: ${cr.types}")
       // if metrics was not improved, use previous result
       if (newMetrics > metrics && depth < maxDepth) inferTypesStep(cr, depth + 1, newMetrics)
       else r
