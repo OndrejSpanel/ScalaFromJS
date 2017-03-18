@@ -140,8 +140,8 @@ object SymbolTypes {
         tpe1
       case (t, AnyType) => t
       case (AnyType, t) => t
-      case (_, NoType) => NoType
-      case (NoType, _) => NoType
+      case (t, NoType) => t // while technically incorrect, we always prefer some types against no type
+      case (NoType, t) => t
       case (c1: ClassType, c2: ClassType) =>
         classOps.mostDerived(c1, c2)
       case (f1: FunctionType, f2: FunctionType) =>
@@ -149,12 +149,12 @@ object SymbolTypes {
       case (a1: ArrayType, a2: ArrayType) =>
         //println(s"a1 intersect a2 $a1 $a2")
         a1 intersect a2
-      case (c1: ClassType, _) =>
+      case (c1: ClassType, _) => // while technically incorrect, we always prefer a class type against a non-class one
         c1
       case (_, c2: ClassType) =>
         c2
       case _ =>
-        tpe1 // should be Nothing, but we rather keep any of the types
+        NoType // should be Nothing, but we rather keep any of the types
     }
   }
 
@@ -173,6 +173,10 @@ object SymbolTypes {
         f1 union f2
       case (a1: ArrayType, a2: ArrayType) =>
         a1 union a2
+      case (c1: ClassType, _) => // while technically incorrect, we always prefer a class type against a non-class one
+        c1
+      case (_, c2: ClassType) =>
+        c2
       case _ =>
         AnyType
     }
