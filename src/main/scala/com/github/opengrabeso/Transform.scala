@@ -588,7 +588,7 @@ object Transform {
 
       case s@AST_SymbolRefDef(symDef) =>
         //val thisScope = findThisScope(Some(symDef.scope))
-        //println(s"Sym ${symDef.name} scope ${thisScope.map(_.name.get.name)} type ${types.get(symDef)}")
+        //println(s"Sym ${symDef.name} type ${types.get(symDef)}")
         types.get(symDef)
 
       case AST_Dot(cls, name) =>

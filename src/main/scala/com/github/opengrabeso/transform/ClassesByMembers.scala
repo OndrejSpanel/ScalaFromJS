@@ -120,8 +120,9 @@ object ClassesByMembers {
       descend(node, walker)
 
       node match {
-        case cls@AST_SymbolRefDef(sym) AST_Dot member =>
-          val tpe = expressionType(cls)(ctx)
+        case AST_SymbolRefDef(sym) AST_Dot member =>
+          //println(s"Symbol ${sym.name}")
+          val tpe = ctx.types.get(sym)
           if (tpe.isEmpty) {
             walker.parent().nonNull match {
               case Some(_: AST_Call) =>
