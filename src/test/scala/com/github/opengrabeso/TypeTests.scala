@@ -1,7 +1,7 @@
 package com.github.opengrabeso
 
-import org.scalatest.FunSuite
 import Resources.{getResource => rsc}
+import org.scalatest.FunSuite
 
 class TypeTests extends FunSuite with TestUtils {
   test("Detect vals, infer var type") {
@@ -118,6 +118,16 @@ class TypeTests extends FunSuite with TestUtils {
         "cxy: XY",
         "cxyz: XYZ",
         "t: Any"
+      )
+  }
+
+  test("Class properties should be defined") {
+    execute check ConversionCheck(rsc("types/classSuper.js"))
+      .required(
+        "def fullName =",
+        "def fullName_=(value",
+        "def isSnake =",
+        "var kind = \"snake\""
       )
   }
 }

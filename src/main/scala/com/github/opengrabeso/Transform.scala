@@ -213,7 +213,7 @@ object Transform {
 
   def handleIncrement(n: AST_Node): AST_Node = {
 
-    def substitute(node: AST_Node, expr: AST_SymbolRef, op: String) = {
+    def substitute(node: AST_Node, expr: AST_Node, op: String) = {
       new AST_Assign {
         fillTokens(this, node)
         left = expr
@@ -251,7 +251,7 @@ object Transform {
       }
 
       node match {
-        case AST_Unary(op@UnaryModification(), expr: AST_SymbolRef) =>
+        case AST_Unary(op@UnaryModification(), expr) =>
           if (nodeResultDiscarded(node, 0)) {
             substitute(node, expr, op)
           } else {
@@ -590,6 +590,7 @@ object Transform {
         //val thisScope = findThisScope(Some(symDef.scope))
         //println(s"Sym ${symDef.name} scope ${thisScope.map(_.name.get.name)} type ${types.get(symDef)}")
         types.get(symDef)
+
       case AST_Dot(cls, name) =>
         //println(s"Infer type of member $name, et ${expressionType(cls)(ctx)}")
         for {
@@ -678,15 +679,25 @@ object Transform {
 
   def listPrototypeMemberNames(cls: AST_DefClass): Seq[String] = {
     var existingMembers = Seq.empty[String]
-    cls.walk {
+
+    def addAccessor(s: AST_ObjectSetterOrGetter) = {
+      s.key match {
+        case AST_SymbolRefName(name) =>
+          existingMembers = existingMembers :+ name
+        case _ =>
+      }
+    }
+
+    cls.properties.foreach {
       case AST_ConciseMethod(AST_SymbolName(p), _) =>
         existingMembers = existingMembers :+ p
-        true
       case AST_ObjectKeyVal(p, _) =>
         existingMembers = existingMembers :+ p
-        true
+      case s: AST_ObjectSetter =>
+        addAccessor(s)
+      case s: AST_ObjectGetter =>
+        addAccessor(s)
       case _ =>
-        false
     }
     existingMembers
   }

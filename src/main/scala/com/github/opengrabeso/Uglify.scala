@@ -355,7 +355,8 @@ object Uglify extends js.Object {
     val quote: String =  js.native
   }
 
-  @js.native class AST_ObjectSetterOrGetter extends AST_ObjectProperty {
+  // beware: type does not exist in Uglify.js, do not match against it!
+  @js.native sealed abstract class AST_ObjectSetterOrGetter extends AST_ObjectProperty {
     // [string] the property name converted to a string for ObjectKeyVal.  For setters and getters this is an arbitrary AST_Node.
     override def key: AST_Node = js.native
     // [AST_Node] property value.  For setters and getters this is an AST_Function.
@@ -730,14 +731,30 @@ object UglifyExt {
       def unapply(arg: AST_DefClass) = Some(arg.name, arg.`extends`, arg.properties)
     }
 
+    object AST_Sub {
+      def unapply(arg: AST_Sub) = Some(arg.expression, arg.property)
+    }
+
+    object AST_Object {
+      def unapply(arg: AST_Object) = Some(arg.properties.toSeq)
+    }
     object AST_ConciseMethod {
       def unapply(arg: AST_ConciseMethod) = Some(arg.key, arg.value)
+    }
+
+    object AST_ObjectGetter {
+      def unapply(arg: AST_ObjectGetter) = Some(arg.key, arg.value)
+    }
+    object AST_ObjectSetter {
+      def unapply(arg: AST_ObjectSetter) = Some(arg.key, arg.value)
     }
 
     object AST_ObjectKeyVal {
       def unapply(arg: AST_ObjectKeyVal) = Some(arg.key, arg.value)
     }
 
+
+    // helpers, composite extractors
     object Defined {
       def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
     }
@@ -767,8 +784,21 @@ object UglifyExt {
       }
     }
 
-    object AST_Sub {
-      def unapply(arg: AST_Sub) = Some(arg.expression, arg.property)
+
+    object Statements {
+      def unapply(arg: AST_Node) = arg match {
+        case AST_BlockStatement(body) => Some(body)
+        case s@AST_SimpleStatement(body) => Some(Seq(s))
+        case _ => None
+      }
+    }
+
+    object SingleStatement {
+      def unapply(arg: AST_Node) = arg match {
+        case AST_BlockStatement(Seq(AST_SimpleStatement(body))) => Some(body)
+        case AST_SimpleStatement(body) => Some(body)
+        case _ => None
+      }
     }
 
   }

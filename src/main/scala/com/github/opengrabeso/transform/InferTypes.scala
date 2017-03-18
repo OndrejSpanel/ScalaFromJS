@@ -18,9 +18,10 @@ object InferTypes {
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 
     val classes = classListHarmony(n)
-    //println("Classes:\n" + classes)
+    //println("Classes:\n" + classes.keys)
 
     val classInfo = listClassMembers(n.top)
+    //println("ClassInfo:\n" + classInfo)
 
     implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes) // note: ctx.allTypes is mutable
 
@@ -192,7 +193,13 @@ object InferTypes {
         case _ =>
           false
       }
-      allReturns
+      allReturns.orElse {
+        //println("Infer no return function")
+        node.body.toSeq match {
+          case Seq(AST_SimpleStatement(ex)) => expressionType(ex)(ctx)
+          case _ => None
+        }
+      }
     }
 
     /*
@@ -390,6 +397,34 @@ object InferTypes {
             val classId = MemberId(cls, sym)
             val funType = FunctionType(retType.declType, IndexedSeq())
             addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))
+          }
+        case AST_ObjectGetter(AST_SymbolName(sym), fun: AST_Lambda) =>
+          val allReturns = scanFunctionReturns(fun)
+          // method of which class is this?
+          val scope = findThisClass(fun.parent_scope.nonNull)
+          //println(s"Infer getter $sym as $allReturns")
+          for {
+            retType <- allReturns
+            AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope
+          } {
+            //println(s"Infer return type for getter $cls.$sym as $retType")
+            val classId = MemberId(cls, sym)
+            addInferredMemberType(Some(classId), Some(retType))
+          }
+        case AST_ObjectSetter(AST_SymbolName(sym), fun: AST_Lambda) =>
+          // method of which class is this?
+          val scope = findThisClass(fun.parent_scope.nonNull)
+          //println(s"Infer setter $sym")
+
+          for {
+            arg <- fun.argnames.headOption
+            retType <- allTypes.get(arg.thedef.nonNull.flatMap(id))
+            AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope
+          } {
+            //println(s"Infer return type for setter $cls.$sym as $retType")
+            val classId = MemberId(cls, sym)
+            // target, because setter parameter is typically used as a source for the property variable, which sets source only
+            addInferredMemberType(Some(classId), Some(TypeInfo.target(retType.declType)))
           }
 
         case AST_Call(AST_SymbolRefDef(call), args@_*) =>

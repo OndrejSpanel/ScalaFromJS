@@ -119,13 +119,6 @@ object Parameters {
       }
 
       defByOr.orElse {
-        object SingleStatement {
-          def unapply(arg: AST_Statement) = arg match {
-            case AST_BlockStatement(Seq(AST_SimpleStatement(body))) => Some(body)
-            case AST_SimpleStatement(body) => Some(body)
-            case _ => None
-          }
-        }
         object IsParDefaultHandlingByIf {
           def unapply(arg: AST_Node) = arg match {
             case AST_If(
@@ -182,14 +175,6 @@ object Parameters {
     def removeOneDeprecated(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
       val parName = par.name
       //println(s"removeOneDeprecated $parName")
-
-      object Statements {
-        def unapply(arg: AST_Node) = arg match {
-          case AST_BlockStatement(body) => Some(body)
-          case s@AST_SimpleStatement(body) => Some(Seq(s))
-          case _ => None
-        }
-      }
 
       def containsDeprecation(body: Seq[AST_Statement]) = {
         body.exists {
