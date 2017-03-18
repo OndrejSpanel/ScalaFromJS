@@ -34,7 +34,16 @@ object Classes {
     }
   }
 
-  // ignore function scopes, find a class one
+  def findThisClassInWalker(walker: TreeWalker): Option[AST_DefClass] = {
+    //println(walker.stack.map(nodeClassName).mkString(":"))
+    walker.stack.reverse.collectFirst {
+      case c: AST_DefClass =>
+        //println(s"Found ${c.name.map(_.name)}")
+        c
+    }
+  }
+
+    // ignore function scopes, find a class one
   def findThisClass(scope: Option[AST_Scope]): Option[AST_DefClass] = {
     //println(s"  ${scope.map(nodeClassName)} ${scope.map(_.nesting)}")
     scope match {
