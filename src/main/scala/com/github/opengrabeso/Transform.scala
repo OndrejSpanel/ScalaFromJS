@@ -883,6 +883,7 @@ object Transform {
       onTopNode(varInitialization), // already done, but another pass is needed after TransformClasses
       objectAssign _,
       onTopNode(removeVarClassScope),
+      onTopNode(Parameters.inlineConstructorVars), // before type inference, so that parameter types are inferred
       InferTypes.multipass _,
       onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)

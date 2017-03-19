@@ -215,6 +215,16 @@ object ScalaOut {
       }
     }
 
+    def outputClassArgNames(tn: AST_Lambda) = {
+      out("(")
+      outputNodes(tn.argnames) { n =>
+        if (!n.name.endsWith(SymbolTypes.parSuffix)) out("var ")
+        out"$n"
+        outputArgType(n)
+      }
+      out(")")
+    }
+
     def outputArgNames(tn: AST_Lambda, types: Boolean = false) = {
       out("(")
       outputNodes(tn.argnames) { n =>
@@ -596,7 +606,7 @@ object ScalaOut {
         val constructor = Classes.findConstructor(tn).flatMap{c => NodeIsLambda.unapply(c.value)}
         val accessor = Classes.classInlineBody(tn)
 
-        outputArgNames(accessor, true)
+        outputClassArgNames(accessor)
 
         for (base <- tn.`extends`) {
           out" extends $base"
