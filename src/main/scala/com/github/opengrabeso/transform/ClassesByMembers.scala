@@ -14,9 +14,9 @@ import scala.language.implicitConversions
 
 object ClassesByMembers {
 
-  case class ClassDefInfo(members: Set[String], funMembers: Set[String], parentCount: Int)
+  case class ClassDefInfo(members: Set[String], propMembers: Set[String], funMembers: Set[String], parentCount: Int)
 
-  case class MemberList(classInfo: ClassInfo, types: SymbolTypes) {
+  case class MemberList(classes: Map[String, AST_DefClass]) {
 
     case class ClassUseInfo(members: Set[String], funMembers: Set[String]) {
       def addMember(member: String): ClassUseInfo = copy(members = members + member)
@@ -28,28 +28,42 @@ object ClassesByMembers {
     val defList = {
       var members = Map.empty[String, ClassDefInfo]
 
-      //println(s"classInfo.members ${classInfo.members}")
+      //println(s"classes ${classes.keys}")
       for {
-        (c, v) <- classInfo.members
-        cls <- classInfo.listChildren(c)
+        (clsName, cls) <- classes
       } {
-        //println(s"Cls $cls")
-        // partition members to function and normal
-        val (funMembers, varMembers) = v.partition { member =>
-          val memberType = types.getMember(Some(cls), member)
-          //println(s"  member $member: $memberType")
-          // when type not known, assume function (safer)
-          memberType.forall(_.declType.isInstanceOf[FunctionType])
+        val parentName = for {
+          parent <- getParent(cls)
+          AST_SymbolName(name) <- parent.name.nonNull
+        } yield name
 
-        }
+        //println(s"Class $clsName parent $parentName")
+
+        // TODO: inherit parent members
+        val propertiesSeq = cls.properties.toSeq
+
+        val funMembers = propertiesSeq.collect { case c: AST_ConciseMethod => c.key.name }
+        val getters = propertiesSeq.collect {case AST_ObjectGetter(AST_SymbolRefName(name), _) => name}
+        val setters = propertiesSeq.collect {case AST_ObjectSetter(AST_SymbolRefName(name), _) => name}
+        val values = propertiesSeq.collect {case c: AST_ObjectKeyVal => c.key}
+
+        val propMembers = getters.toSet ++ setters.toSet ++ values.toSet
+
+        val varMembers = for {
+          body <- findInlineBody(cls).toSeq
+          AST_Var(AST_VarDef(AST_SymbolName(varName), _)) <- body.value.body
+        } yield varName
+
         //println(s"Cls $cls: Fun $funMembers mem $varMembers")
         //println(s"Add def $cls $v")
-        val updateCls = members.get(cls).fold {
-          ClassDefInfo(varMembers.toSet, funMembers.toSet, 0)
+        val parentMembers = parentName.fold(Option.empty[ClassDefInfo])(members.get(_))
+
+        val updateCls = parentMembers.fold {
+          ClassDefInfo(varMembers.toSet, funMembers.toSet, propMembers, 0)
         } { m =>
-          ClassDefInfo(m.members ++ varMembers.toSet, m.funMembers ++ funMembers.toSet, m.parentCount + 1)
+          ClassDefInfo(m.members ++ varMembers.toSet, m.funMembers ++ funMembers.toSet, m.propMembers ++ propMembers, m.parentCount + 1)
         }
-        members += cls -> updateCls
+        members += clsName -> updateCls
       }
       members
     }
@@ -82,7 +96,7 @@ object ClassesByMembers {
     def bestMatch(useName: String, useInfo: ClassUseInfo): Option[String] = {
       defList.headOption.flatMap { _ =>
         val best = defList.map { case (cls, ms) =>
-          (
+          val r = (
             (ms.members intersect useInfo.members).size + (ms.funMembers intersect useInfo.funMembers).size, // prefer the class having most common members
             -ms.members.size, // prefer a smaller class
             -ms.parentCount, // prefer a less derived class
@@ -90,7 +104,8 @@ object ClassesByMembers {
             cls // keep ordering stable, otherwise each iteration may select a random class
             //, ms.members intersect useInfo.members, ms.funMembers intersect useInfo.funMembers // debugging
           )
-          //println(s"  Score $ms -> $members: $r")
+          //println(s"  Score $ms -> ${useInfo.members}: $r")
+          r
         }.max //By(b => (b._1, b._2, b._3, b._4))
         // if there are no common members, do not infer any type
         if (best._1 > 0) {
@@ -113,7 +128,7 @@ object ClassesByMembers {
 
     implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes)
 
-    val byMembers = MemberList(classInfo, allTypes.t)
+    val byMembers = MemberList(classes)
 
     n.top.walkWithDescend { (node, descend, walker) =>
       //println(s"${nodeClassName(node)}")

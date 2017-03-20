@@ -68,6 +68,13 @@ object Classes {
     thisScope.flatMap(superClass)
   }
 
+  def getParent(clazz: AST_DefClass): Option[AST_DefClass] = {
+    clazz.`extends`.nonNull.collect {
+      case c: AST_DefClass => c
+    }
+  }
+
+
   def includeParents(clazz: AST_DefClass, ret: Seq[AST_DefClass])(ctx: ExpressionTypeContext): Seq[AST_DefClass] = {
     clazz.`extends`.nonNull match {
       case Some(cls: AST_SymbolRef) =>
