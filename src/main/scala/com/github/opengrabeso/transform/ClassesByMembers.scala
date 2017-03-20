@@ -111,12 +111,12 @@ object ClassesByMembers {
             cls // keep ordering stable, otherwise each iteration may select a random class
             //, ms.members intersect useInfo.members, ms.funMembers intersect useInfo.funMembers // debugging
           )
-          println(s"  Score $ms -> ${useInfo.members}: $r")
+          //println(s"  Score $ms -> ${useInfo.members}: $r")
           r
         }.max //By(b => (b._1, b._2, b._3, b._4))
         // if there are no common members, do not infer any type
         if (best._1 > 0) {
-          println(s"$useInfo: Best $best")
+          //println(s"$useInfo: Best $best")
           Some(best._5)
         }
         else None
