@@ -4,12 +4,12 @@ package transform
 import Uglify._
 import UglifyExt._
 import UglifyExt.Import._
-import JsUtils._
 import scalajs.js
+import Transform._
 
 object Parameters {
 
-  def processAllFunctions(n: AST_Node, removeDeprecatedValue: (AST_Lambda, AST_SymbolFunarg) => Option[AST_Lambda]): AST_Node = {
+  def processAllFunctions(n: AST_Node, process: (AST_Lambda, AST_SymbolFunarg) => Option[AST_Lambda]): AST_Node = {
 
     def processOneFunction(f: AST_Lambda): AST_Lambda = {
 
@@ -17,7 +17,7 @@ object Parameters {
         case Seq() =>
           f
         case head +: tail =>
-          removeDeprecatedValue(f, head).fold(f) {
+          process(f, head).fold(f) {
             processArguments(_, tail)
           }
       }
@@ -40,7 +40,6 @@ object Parameters {
 
     n
   }
-
 
   class CompareWithUndefined(parName: String) {
     def unapply(arg: AST_Node) = arg match {
@@ -235,7 +234,8 @@ object Parameters {
 
   }
 
-  def inlineConstructorVars(n: AST_Node): AST_Node = {
+  def inlineConstructorVars(n: AST_Extended): AST_Extended = {
+    var types = n.types
     def handleConstructorVars(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
       // inline all parameters, or constructor only?
       val parName = par.name
@@ -273,10 +273,25 @@ object Parameters {
           val parIndex = f.argnames.indexOf(par)
           val parNode = f.argnames(parIndex).clone()
 
+          val oldParSym = parNode.thedef
+
+          // change varSym declaration location, so that type information works
+          varSym.orig = js.Array(parNode)
+
           parNode.thedef = varSym
           parNode.name = varSym.name
 
           f.argnames(parIndex) = parNode
+
+          // redirect also a symbol type
+          for {
+            parSym <- oldParSym
+            tpe <- types.get(parSym)
+          } {
+            //println(s"${parSym.name} -> ${varSym.name} Redirect type $tpe")
+            types += SymbolTypes.id(varSym) -> tpe
+          }
+
 
           f.transformAfter { (node, _) =>
             node match {
@@ -293,7 +308,10 @@ object Parameters {
       } else Some(f)
     }
 
-    processAllFunctions(n, handleConstructorVars)
+    val processed = processAllFunctions(n.top, handleConstructorVars)
+    //println(s"Before: ${n.types}")
+    //println(s"After: $types")
+    AST_Extended(processed.asInstanceOf[AST_Toplevel], types)
 
   }
 }

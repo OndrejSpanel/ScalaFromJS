@@ -209,6 +209,7 @@ object ScalaOut {
 
     def outputArgType(n: AST_SymbolFunarg) = {
       val typeString = n.thedef.nonNull.fold(SymbolTypes.any.toString)(input.types.getAsScala(_))
+      //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeString")
       out": $typeString"
       for (init <- n.init.nonNull.flatMap(_.headOption)) {
         out" = $init"
@@ -221,6 +222,14 @@ object ScalaOut {
         if (!n.name.endsWith(SymbolTypes.parSuffix)) out("var ")
         out"$n"
         outputArgType(n)
+      }
+      out(")")
+    }
+
+    def outputArgNamesNoTypes(tn: AST_Lambda) = {
+      out("(")
+      outputNodes(tn.argnames) { n =>
+        out"$n"
       }
       out(")")
     }
@@ -660,7 +669,7 @@ object ScalaOut {
         constructor.foreach { lambda =>
           if (lambda.body.nonEmpty) {
             out("constructor")
-            outputArgNames(accessor)
+            outputArgNamesNoTypes(accessor)
             out.eol()
           }
         }

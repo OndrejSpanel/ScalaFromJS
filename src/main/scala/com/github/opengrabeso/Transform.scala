@@ -715,7 +715,17 @@ object Transform {
         // list data members
         val varMembers = for (VarName(member) <- classInlineBody(cls).body) yield member
 
-        val clsMembers = clsName -> (members ++ varMembers).distinct
+        val parMembers = for {
+          constructor <- findConstructor(cls).toSeq
+          args <- constructor.value.argnames
+          argName = args.name
+          if !argName.endsWith(parSuffix)
+        } yield {
+          argName
+        }
+
+        //println(s"$clsName: parMembers $parMembers")
+        val clsMembers = clsName -> (members ++ varMembers ++ parMembers).distinct
 
         listMembers = listMembers.copy(members = listMembers.members + clsMembers)
         //println(s"listMembers $listMembers (++ $clsMembers)")
@@ -883,10 +893,10 @@ object Transform {
       onTopNode(varInitialization), // already done, but another pass is needed after TransformClasses
       objectAssign _,
       onTopNode(removeVarClassScope),
-      onTopNode(Parameters.inlineConstructorVars), // before type inference, so that parameter types are inferred
       InferTypes.multipass _,
       onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
+      Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
       detectVals _,
       relations _
     )
