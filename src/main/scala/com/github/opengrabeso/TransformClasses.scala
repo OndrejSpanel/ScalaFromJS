@@ -542,6 +542,11 @@ object TransformClasses {
         name = "super"
       }
 
+
+      def removeHeadThis(args: Seq[AST_Node]) = {
+        if (args.headOption.exists(_.isInstanceOf[AST_This])) args.tail else args
+      }
+
       node match {
         // Animal.apply(this, Array.prototype.slice.call(arguments))
         case call@AST_Call(
@@ -557,7 +562,7 @@ object TransformClasses {
         case call@AST_Call(AST_SymbolRefName(IsSuperClass()) AST_Dot "call", args@_*) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
           call.expression = newAST_Super
-          call.args = args.toJSArray
+          call.args = removeHeadThis(args).toJSArray
           call
         // Light.prototype.copy.call( this, source );
         case call@AST_Call(
@@ -570,7 +575,7 @@ object TransformClasses {
             expression = newAST_Super
             property = func
           }
-          call.args = args.toJSArray
+          call.args = removeHeadThis(args).toJSArray
           call
 
         // this.constructor, typically as new this.constructor( ... )
