@@ -395,14 +395,6 @@ object Transform {
   def removeTrailingBreak(n: AST_Node): AST_Node = {
 
     n.transformAfter { (node, transformer) =>
-      def lastInSwitch(n: AST_Node): Boolean = {
-        transformer.parent().nonNull match {
-          case Some(ss: AST_Switch) =>
-            ss.body.lastOption.contains(n)
-          case _ =>
-            false
-        }
-      }
 
       node match {
         case sw: AST_Switch =>
@@ -420,8 +412,9 @@ object Transform {
 
           val groupedBody = for (g <- conditionGrouped) yield {
             // all but the last are empty
-            def processGroup(e: Seq[AST_SwitchBranch], ret: AST_SwitchBranch) = {
+            def processGroup(e: Seq[AST_SwitchBranch], ret: AST_SwitchBranch): AST_SwitchBranch = {
               def join(c1: AST_SwitchBranch, c2: AST_SwitchBranch) = {
+                //println(s"Join ${ScalaOut.outputNode(c1)} ${ScalaOut.outputNode(c2)}")
                 assert(c1.body.isEmpty)
                 (c1, c2) match {
                   case (case1: AST_Case, case2: AST_Case) =>
@@ -443,7 +436,8 @@ object Transform {
               }
               e match {
                 case head +: tail =>
-                  join(ret, head)
+                  processGroup(tail, join(ret, head))
+
                 case _ =>
                   ret
               }
@@ -461,9 +455,11 @@ object Transform {
                 newBody append s
               case Some(_: AST_Return) =>
                 newBody append s
-              case _ if !lastInSwitch(s) =>
+              case _  =>
                 // fall through branches - warn
-                s.body = s.body ++ js.Array(unsupported("Missing break", s))
+                if (s != groupedBody.last) {
+                  s.body = s.body ++ js.Array(unsupported("Missing break", s))
+                }
                 newBody append s
             }
           }
