@@ -14,7 +14,14 @@ import scala.language.implicitConversions
 
 object ClassesByMembers {
 
-  case class ClassDefInfo(members: Set[String], propMembers: Set[String], funMembers: Set[String], parentCount: Int)
+  case class ClassDefInfo(members: Set[String], propMembers: Set[String], funMembers: Set[String], parentCount: Int) {
+    def + (that: ClassDefInfo): ClassDefInfo = ClassDefInfo(
+      members ++ that.members,
+      propMembers ++ that.propMembers,
+      funMembers ++ that.funMembers,
+      (parentCount max that.parentCount) + 1
+    )
+  }
 
   case class MemberList(classes: Map[String, AST_DefClass]) {
 
@@ -58,11 +65,8 @@ object ClassesByMembers {
         //println(s"Add def $cls $v")
         val parentMembers = parentName.fold(Option.empty[ClassDefInfo])(members.get(_))
 
-        val updateCls = parentMembers.fold {
-          ClassDefInfo(varMembers.toSet, funMembers.toSet, propMembers, 0)
-        } { m =>
-          ClassDefInfo(m.members ++ varMembers.toSet, m.funMembers ++ funMembers.toSet, m.propMembers ++ propMembers, m.parentCount + 1)
-        }
+        val clsDef = ClassDefInfo(varMembers.toSet, propMembers, funMembers.toSet, 0)
+        val updateCls = parentMembers.fold(clsDef)(_ + clsDef)
         members += clsName -> updateCls
       }
       members
@@ -96,20 +100,23 @@ object ClassesByMembers {
     def bestMatch(useName: String, useInfo: ClassUseInfo): Option[String] = {
       defList.headOption.flatMap { _ =>
         val best = defList.map { case (cls, ms) =>
+          val msVars = ms.members ++ ms.propMembers
+          val msFuns = ms.funMembers
+
           val r = (
-            (ms.members intersect useInfo.members).size + (ms.funMembers intersect useInfo.funMembers).size, // prefer the class having most common members
+            (msVars intersect useInfo.members).size + (msFuns intersect useInfo.funMembers).size, // prefer the class having most common members
             -ms.members.size, // prefer a smaller class
             -ms.parentCount, // prefer a less derived class
             matchNames(useName, cls), // prefer a class with a matching name
             cls // keep ordering stable, otherwise each iteration may select a random class
             //, ms.members intersect useInfo.members, ms.funMembers intersect useInfo.funMembers // debugging
           )
-          //println(s"  Score $ms -> ${useInfo.members}: $r")
+          println(s"  Score $ms -> ${useInfo.members}: $r")
           r
         }.max //By(b => (b._1, b._2, b._3, b._4))
         // if there are no common members, do not infer any type
         if (best._1 > 0) {
-          //println(s"$useInfo: Best $best")
+          println(s"$useInfo: Best $best")
           Some(best._5)
         }
         else None
