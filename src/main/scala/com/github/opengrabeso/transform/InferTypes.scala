@@ -84,6 +84,13 @@ object InferTypes {
         val symType = kind(inferred.getMember(id), tpe)
         //println(s"Adding member type $id: $tpe -> $symType")
 
+        if (idAccess.contains(MemberId("Vector3", "x")) && tpe.exists(_.declType != number)) {
+          println("Suspicious Vector3.x type $tpe")
+        } else if (idAccess.exists(_.name == "x") && tpe.exists(_.declType != number)) {
+          println(s"Suspicious $idAccess type $tpe")
+
+        }
+
         for (tp <- symType) {
           //println(s"Add member type $idAccess - $id: $tp")
           //println("  " + classInfo)
@@ -512,7 +519,7 @@ object InferTypes {
 
   def multipass(n: AST_Extended): AST_Extended = {
     val maxDepth = 15
-    val byMembersAfter = 2
+    val byMembersAfter = 3
     def inferTypesStep(n: AST_Extended, depth: Int, metrics: Int, byMembers: Int): AST_Extended = {
       val log = false
       //if (log) println(s"Type inference: ${n.types} steps $maxDepth")
