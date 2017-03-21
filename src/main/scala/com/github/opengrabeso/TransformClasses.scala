@@ -808,9 +808,11 @@ object TransformClasses {
     }.transformAfter { (node, _) =>
       node match {
         case PrototypeVariable(clsName, protoFunSym, assign) =>
-          assign.body.asInstanceOf[AST_Assign].right = prototypeVariableDefs(protoFunSym)
+          println("Replace prototype assignment")
+          assign.body.asInstanceOf[AST_Assign].right = prototypeVariableDefs(protoFunSym).transformAfter((node, _) => node) // deep clone
           node
         case PrototypeVariableDef(_, _, _) =>
+          println("Remove prototype variable def")
           new AST_EmptyStatement {
             fillTokens(this, node)
           }
