@@ -173,10 +173,6 @@ object SymbolTypes {
         f1 union f2
       case (a1: ArrayType, a2: ArrayType) =>
         a1 union a2
-      case (c1: ClassType, _) => // while technically incorrect, we always prefer a class type against a non-class one
-        c1
-      case (_, c2: ClassType) =>
-        c2
       case _ =>
         AnyType
     }
