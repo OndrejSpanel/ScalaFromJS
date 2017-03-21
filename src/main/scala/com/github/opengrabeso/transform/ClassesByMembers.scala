@@ -14,7 +14,7 @@ import scala.language.implicitConversions
 
 object ClassesByMembers {
 
-  case class ClassDefInfo(members: Set[String], propMembers: Set[String], funMembers: Set[String], parentCount: Int) {
+  case class ClassDefInfo(members: Set[String], propMembers: Set[String], funMembers: Map[String, Int], parentCount: Int) {
     def + (that: ClassDefInfo): ClassDefInfo = ClassDefInfo(
       members ++ that.members,
       propMembers ++ that.propMembers,
@@ -25,9 +25,9 @@ object ClassesByMembers {
 
   case class MemberList(classes: Map[String, AST_DefClass]) {
 
-    case class ClassUseInfo(members: Set[String], funMembers: Set[String]) {
+    case class ClassUseInfo(members: Set[String] = Set.empty, funMembers: Map[String, Int] = Map.empty) {
       def addMember(member: String): ClassUseInfo = copy(members = members + member)
-      def addFunMember(member: String): ClassUseInfo = copy(funMembers = funMembers + member)
+      def addFunMember(member: String, pars: Int): ClassUseInfo = copy(funMembers = funMembers + (member -> pars))
     }
 
     var list = Map.empty[SymbolMapId, ClassUseInfo]
@@ -49,7 +49,7 @@ object ClassesByMembers {
         // TODO: inherit parent members
         val propertiesSeq = cls.properties.toSeq
 
-        val funMembers = propertiesSeq.collect { case c: AST_ConciseMethod => c.key.name }
+        val funMembers = propertiesSeq.collect { case c: AST_ConciseMethod => c.key.name -> c.value.argnames.length }
         val getters = propertiesSeq.collect {case AST_ObjectGetter(AST_SymbolRefName(name), _) => name}
         val setters = propertiesSeq.collect {case AST_ObjectSetter(AST_SymbolRefName(name), _) => name}
         val values = propertiesSeq.collect {case c: AST_ObjectKeyVal => c.key}
@@ -65,7 +65,7 @@ object ClassesByMembers {
         //println(s"Add def $cls $v")
         val parentMembers = parentName.fold(Option.empty[ClassDefInfo])(members.get(_))
 
-        val clsDef = ClassDefInfo(varMembers.toSet, propMembers, funMembers.toSet, 0)
+        val clsDef = ClassDefInfo(varMembers.toSet, propMembers, funMembers.toMap, 0)
         val updateCls = parentMembers.fold(clsDef)(_ + clsDef)
         members += clsName -> updateCls
       }
@@ -75,19 +75,15 @@ object ClassesByMembers {
     def addMember(sym: SymbolDef, member: String) = {
       for (sid <- id(sym)) {
         //println(s"Add mem $sid $member")
-        val memUpdated = list.get(sid).fold {
-          ClassUseInfo(Set(member), Set())
-        }(_.addMember(member))
+        val memUpdated = list.get(sid).fold(ClassUseInfo(members = Set(member)))(_.addMember(member))
         list += sid -> memUpdated
       }
     }
 
-    def addFunMember(sym: SymbolDef, member: String) = {
+    def addFunMember(sym: SymbolDef, member: String, pars: Int) = {
       for (sid <- id(sym)) {
         //println(s"Add fun mem $sid $member")
-        val memUpdated = list.get(sid).fold {
-          ClassUseInfo(Set(), Set(member))
-        }(_.addFunMember(member))
+        val memUpdated = list.get(sid).fold(ClassUseInfo(funMembers = Map(member -> pars)))(_.addFunMember(member, pars))
         list += sid -> memUpdated
       }
     }
@@ -104,7 +100,7 @@ object ClassesByMembers {
           val msFuns = ms.funMembers
 
           val r = (
-            (msVars intersect useInfo.members).size + (msFuns intersect useInfo.funMembers).size, // prefer the class having most common members
+            (msVars intersect useInfo.members).size + (msFuns.toSet intersect useInfo.funMembers.toSet).size, // prefer the class having most common members
             -ms.members.size, // prefer a smaller class
             -ms.parentCount, // prefer a less derived class
             matchNames(useName, cls), // prefer a class with a matching name
@@ -149,7 +145,7 @@ object ClassesByMembers {
             //println(s"Symbol ${sym.name} parent ${walker.parent().nonNull.map(nodeClassName)}")
             walker.parent().nonNull match {
               case Some(c: AST_Call) if c.expression == node =>
-                byMembers.addFunMember(sym, member)
+                byMembers.addFunMember(sym, member, c.args.length)
               case _ =>
                 //println(s"  $tpe.$member -- ${sym.name}")
                 byMembers.addMember(sym, member)
