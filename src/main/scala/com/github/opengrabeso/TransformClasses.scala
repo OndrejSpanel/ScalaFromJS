@@ -238,7 +238,7 @@ object TransformClasses {
 
     def processPrototype(name: String, prototypeDef: AST_Object) = {
       for (clazz <- classes.get(name)) {
-        println(s"Processing $clazz")
+        //println(s"Processing $clazz")
         classes += name -> prototypeDef.properties.foldLeft(clazz) { (clazz, m) =>
           //println(s"Property ${m.key}")
           m match {
@@ -747,62 +747,81 @@ object TransformClasses {
     // is order a problem?
 
     var prototypeVariableSymbols = Map.empty[SymbolDef, AST_SymbolRef]
-    var prototypeVariableAssigns = Map.empty[SymbolDef, AST_Assign]
+    var prototypeVariableStatements = Map.empty[SymbolDef, AST_SimpleStatement]
 
     object PrototypeVariable {
       def unapply(arg: AST_Node) = arg match  {
-        case AST_SimpleStatement(assign@AST_Assign((clsSym: AST_SymbolRef) AST_Dot "prototype", "=", AST_SymbolRefDef(protoFunSym))) =>
-          Some(clsSym, protoFunSym, assign)
+        case s@AST_SimpleStatement(AST_Assign((clsSym: AST_SymbolRef) AST_Dot "prototype", "=", AST_SymbolRefDef(protoFunSym))) =>
+          Some(clsSym, protoFunSym, s)
         case _ => None
       }
     }
     n.walk {
-      case PrototypeVariable(clsSym, protoFunSym, assign) =>
+      case PrototypeVariable(clsSym, protoFunSym, s) =>
         println(s"Detected prototype variable ${protoFunSym.name} for ${clsSym.name}")
         prototypeVariableSymbols += protoFunSym -> clsSym
-        prototypeVariableAssigns += protoFunSym -> assign
+        prototypeVariableStatements += protoFunSym -> s
         false
       case _ =>
         false
     }
 
     var prototypeVariableDefs = Map.empty[SymbolDef, AST_Node]
+    var prototypeVariableVars = Map.empty[SymbolDef, AST_Var]
 
     object PrototypeVariableDef {
       def unapply(arg: AST_Node) = arg match {
-        case AST_Var(AST_VarDef(AST_Symbol(_, _, Defined(symDef)), Defined(init))) if prototypeVariableSymbols contains symDef =>
-          Some(symDef, init)
+        case v@AST_Var(AST_VarDef(AST_Symbol(_, _, Defined(symDef)), Defined(init))) if prototypeVariableSymbols contains symDef =>
+          Some(symDef, init, v)
         case _ => None
 
       }
     }
 
     n.walk {
-      case PrototypeVariableDef(symDef, init) =>
+      case PrototypeVariableDef(symDef, init, v) =>
         println(s"Detected prototype variable init ${symDef.name}")
         prototypeVariableDefs += symDef -> init
+        prototypeVariableVars += symDef -> v.asInstanceOf[AST_Var]
         false
       case _ =>
         false
     }
 
-    n.transformAfter { (node, _) =>
+    // swap pairs in prototypeVariableStatements / prototypeVariableVars
+    val toSwap = prototypeVariableStatements.toSeq.flatMap { case (k, v) =>
+      prototypeVariableVars.get(k).map { vv => v -> vv}
+    }.toMap
+    val toSwapInverse = toSwap.map(_.swap)
+
+    val toSwapAll: Map[AST_Node, AST_Statement] = toSwap ++ toSwapInverse
+
+    n.transformBefore {(node, descend, transformer) =>
+      val swapped = toSwapAll.get(node)
+      swapped.fold {
+        descend(node, transformer)
+        node
+      } { swapped =>
+        println(s"Swapped ${nodeClassName(node)} with ${nodeClassName(swapped)}")
+        swapped.transformAfter((node, _) => node) // deep clone
+      }
+    }.transformAfter { (node, _) =>
       node match {
         case PrototypeVariable(clsName, protoFunSym, assign) =>
+          assign.body.asInstanceOf[AST_Assign].right = prototypeVariableDefs(protoFunSym)
+          node
+        case PrototypeVariableDef(_, _, _) =>
           new AST_EmptyStatement {
             fillTokens(this, node)
           }
-        case PrototypeVariableDef(symDef, _) =>
-          val assign = prototypeVariableAssigns(symDef)
-          assign.right = prototypeVariableDefs(symDef)
-          assign
         case _ =>
           node
       }
     }.transformAfter { (node, _) =>
       node match {
-        case symRef@AST_SymbolRef(_,_,Defined(symDef)) =>
+        case symRef@AST_Symbol(_,_,Defined(symDef)) =>
           prototypeVariableSymbols.get(symDef).fold[AST_Node](symRef) { clsSymRef =>
+            println(s"Replace prototype variable use ${symDef.name}")
             new AST_Dot {
               fillTokens(this, symRef)
               expression = clsSymRef.clone()

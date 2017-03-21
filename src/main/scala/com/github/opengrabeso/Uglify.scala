@@ -94,7 +94,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_Directive extends AST_Statement
 
-  @js.native class AST_SimpleStatement extends AST_Statement {
+  @js.native class AST_SimpleStatement extends AST_Statement with CloneSelf[AST_SimpleStatement] {
     var body: AST_Node = js.native // [AST_Node] an expression node (should not be instanceof AST_Statement)
   }
 
