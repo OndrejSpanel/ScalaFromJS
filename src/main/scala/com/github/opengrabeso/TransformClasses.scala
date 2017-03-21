@@ -156,7 +156,7 @@ object TransformClasses {
 
       /// XXX.prototype = new { ... }
       case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRefName(name), "prototype"), "=", prototypeDef: AST_Object)) =>
-        //println(s"Match prototype def $name")
+        println(s"Match prototype def $name")
         Some(name,prototypeDef)
 
       case _ => None
@@ -238,6 +238,7 @@ object TransformClasses {
 
     def processPrototype(name: String, prototypeDef: AST_Object) = {
       for (clazz <- classes.get(name)) {
+        println(s"Processing $clazz")
         classes += name -> prototypeDef.properties.foldLeft(clazz) { (clazz, m) =>
           //println(s"Property ${m.key}")
           m match {
@@ -746,6 +747,7 @@ object TransformClasses {
     // is order a problem?
 
     var prototypeVariableSymbols = Map.empty[SymbolDef, AST_SymbolRef]
+    var prototypeVariableAssigns = Map.empty[SymbolDef, AST_Assign]
 
     object PrototypeVariable {
       def unapply(arg: AST_Node) = arg match  {
@@ -755,9 +757,10 @@ object TransformClasses {
       }
     }
     n.walk {
-      case PrototypeVariable(clsSym, protoFunSym, _) =>
+      case PrototypeVariable(clsSym, protoFunSym, assign) =>
         println(s"Detected prototype variable ${protoFunSym.name} for ${clsSym.name}")
         prototypeVariableSymbols += protoFunSym -> clsSym
+        prototypeVariableAssigns += protoFunSym -> assign
         false
       case _ =>
         false
@@ -786,12 +789,13 @@ object TransformClasses {
     n.transformAfter { (node, _) =>
       node match {
         case PrototypeVariable(clsName, protoFunSym, assign) =>
-          assign.right = prototypeVariableDefs(protoFunSym)
-          node
-        case PrototypeVariableDef(_, _) =>
           new AST_EmptyStatement {
             fillTokens(this, node)
           }
+        case PrototypeVariableDef(symDef, _) =>
+          val assign = prototypeVariableAssigns(symDef)
+          assign.right = prototypeVariableDefs(symDef)
+          assign
         case _ =>
           node
       }
