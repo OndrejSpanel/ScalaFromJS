@@ -60,6 +60,20 @@ object InferTypes {
           for (tp <- symType) {
             if (tp.nonEmpty) {
               //println(s"  Add type $tid: $tp")
+
+              /*
+              if (tid.exists(_.name == "x") && tpe.exists(_.declType != number)) {
+                println(s"Suspicious $tid type $tpe")
+
+              }
+
+              if (tid.contains(SymbolMapId("value", 294250)) && tpe.exists(_.declType != number)) {
+                println(s"Suspicious value $tid type $tpe")
+              } else if (tid.contains(SymbolMapId("value", 294250))) {
+                println(s"Inferred value $tid type $tpe")
+              }
+              */
+
               inferred += tid -> tp
               allTypes.t += tid -> tp
             }
@@ -84,12 +98,15 @@ object InferTypes {
         val symType = kind(inferred.getMember(id), tpe)
         //println(s"Adding member type $id: $tpe -> $symType")
 
+        /*
         if (idAccess.contains(MemberId("Vector3", "x")) && tpe.exists(_.declType != number)) {
-          println("Suspicious Vector3.x type $tpe")
+          println("Suspicious member Vector3.x type $tpe")
         } else if (idAccess.exists(_.name == "x") && tpe.exists(_.declType != number)) {
-          println(s"Suspicious $idAccess type $tpe")
-
+          println(s"Suspicious member $idAccess type $tpe")
+        } else if (idAccess.exists(_.name == "_x") && tpe.exists(_.declType != number)) {
+          println(s"Suspicious member $idAccess type $tpe")
         }
+        */
 
         for (tp <- symType) {
           //println(s"Add member type $idAccess - $id: $tp")
