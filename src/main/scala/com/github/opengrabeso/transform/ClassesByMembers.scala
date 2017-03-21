@@ -84,7 +84,7 @@ object ClassesByMembers {
 
     def addFunMember(sym: SymbolDef, member: String) = {
       for (sid <- id(sym)) {
-        //println(s"Add mem $sid $member")
+        //println(s"Add fun mem $sid $member")
         val memUpdated = list.get(sid).fold {
           ClassUseInfo(Set(), Set(member))
         }(_.addFunMember(member))
@@ -111,7 +111,7 @@ object ClassesByMembers {
             cls // keep ordering stable, otherwise each iteration may select a random class
             //, ms.members intersect useInfo.members, ms.funMembers intersect useInfo.funMembers // debugging
           )
-          //println(s"  Score $ms -> ${useInfo.members}: $r")
+          //println(s"  Score $ms -> members: ${useInfo.members}, funs: ${useInfo.funMembers}: $r")
           r
         }.max //By(b => (b._1, b._2, b._3, b._4))
         // if there are no common members, do not infer any type
@@ -146,8 +146,9 @@ object ClassesByMembers {
           //println(s"Symbol ${sym.name}")
           val tpe = ctx.types.get(sym)
           if (tpe.isEmpty) {
+            //println(s"Symbol ${sym.name} parent ${walker.parent().nonNull.map(nodeClassName)}")
             walker.parent().nonNull match {
-              case Some(_: AST_Call) =>
+              case Some(c: AST_Call) if c.expression == node =>
                 byMembers.addFunMember(sym, member)
               case _ =>
                 //println(s"  $tpe.$member -- ${sym.name}")
