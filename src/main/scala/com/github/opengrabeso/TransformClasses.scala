@@ -5,6 +5,7 @@ import Uglify._
 import UglifyExt._
 import JsUtils._
 import UglifyExt.Import._
+import SymbolTypes._
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -745,7 +746,8 @@ object TransformClasses {
     // and replace YYYY with XXX.prototype
     // is order a problem?
 
-    var prototypeVariableSymbols = Map.empty[SymbolDef, AST_SymbolRef]
+    // use SymbolMapId, not SymbolDef, so that it is stable across transform
+    var prototypeVariableSymbols = Map.empty[SymbolMapId, AST_SymbolRef]
 
     object PrototypeVariable {
       def unapply(arg: AST_Node) = arg match  {
@@ -756,8 +758,10 @@ object TransformClasses {
     }
     n.walk {
       case PrototypeVariable(clsSym, protoFunSym, _) =>
-        println(s"Detected prototype variable ${protoFunSym.name} for ${clsSym.name}")
-        prototypeVariableSymbols += protoFunSym -> clsSym
+        //println(s"Detected prototype variable ${protoFunSym.name} for ${clsSym.name}")
+        for (i<- id(protoFunSym)) {
+          prototypeVariableSymbols += i -> clsSym
+        }
         false
       case _ =>
         false
@@ -767,7 +771,7 @@ object TransformClasses {
 
     object PrototypeVariableDef {
       def unapply(arg: AST_Node) = arg match {
-        case AST_Var(AST_VarDef(AST_Symbol(_, _, Defined(symDef)), Defined(init))) if prototypeVariableSymbols contains symDef =>
+        case AST_Var(AST_VarDef(AST_Symbol(_, _, Defined(symDef)), Defined(init))) if id(symDef) exists (prototypeVariableSymbols contains _) =>
           Some(symDef, init)
         case _ => None
 
@@ -776,7 +780,7 @@ object TransformClasses {
 
     n.walk {
       case PrototypeVariableDef(symDef, init) =>
-        println(s"Detected prototype variable init ${symDef.name}")
+        //println(s"Detected prototype variable init ${symDef.name}")
         prototypeVariableDefs += symDef -> init
         false
       case _ =>
@@ -798,14 +802,15 @@ object TransformClasses {
     }.transformAfter { (node, _) =>
       node match {
         case symRef@AST_SymbolRef(_,_,Defined(symDef)) =>
-          prototypeVariableSymbols.get(symDef).fold[AST_Node](symRef) { clsSymRef =>
-            new AST_Dot {
-              fillTokens(this, symRef)
-              expression = clsSymRef.clone()
-              property = "prototype"
+          id(symDef).flatMap { i =>
+            prototypeVariableSymbols.get(i).map { clsSymRef =>
+              new AST_Dot {
+                fillTokens(this, symRef)
+                expression = clsSymRef.clone()
+                property = "prototype"
+              }
             }
-          }
-          symRef
+          }.getOrElse(symRef)
         case _ =>
           node
       }
