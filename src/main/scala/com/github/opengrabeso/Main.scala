@@ -67,7 +67,8 @@ object Main extends js.JSApp {
         // this prevents error flashing while typing
         DelayedOutput.trigger(System.currentTimeMillis, 2000, err.getLocalizedMessage)
       }, { scalaCode =>
-        DelayedOutput.trigger(System.currentTimeMillis, 0, scalaCode)
+        val prefix = s"/* ScalaFromJS build ${Main.version()}*/\n\n"
+        DelayedOutput.trigger(System.currentTimeMillis, 0, prefix + scalaCode)
       }
     )
   }
