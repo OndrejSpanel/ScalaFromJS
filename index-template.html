@@ -53,8 +53,6 @@
 <script type="text/javascript" src="./scalafromjs-jsdeps.js"></script>
 <!-- Include Scala.js compiled code -->
 <script type="text/javascript" src="./scalafromjs-{{opt}}.js"></script>
-<!-- Run JSApp -->
-<script type="text/javascript" src="./scalafromjs-launcher.js"></script>
 
 <h1>ScalaFromJS: Online JavaScript to Scala converter</h1>
 
@@ -74,7 +72,7 @@
   <div id="footer" style="background-color:#aaf;overflow:auto">
     <p style="color:#fff">
       © 2017 <a href="https://github.com/OndrejSpanel" style="color:inherit">Ondřej Španěl</a>
-      Built at <script>document.write(Main().version())</script>
+      Built at <script>document.write(version())</script>
     </p>
     <p style="color:#fff">
       Written in Scala, uses <a href="https://github.com/mishoo/UglifyJS2" style="color:inherit">Uglify JS</a> for Javascript parsing, online version compiled with Scala.js

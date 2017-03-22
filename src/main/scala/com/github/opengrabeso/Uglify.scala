@@ -3,7 +3,7 @@ package com.github.opengrabeso
 import scala.language.implicitConversions
 import scala.scalajs.js
 import scala.scalajs.js.RegExp
-import scala.scalajs.js.annotation.{JSImport, JSName, ScalaJSDefined}
+import scala.scalajs.js.annotation.{JSGlobal, JSImport, JSName, ScalaJSDefined}
 import JsUtils._
 
 object Helpers {
@@ -14,7 +14,7 @@ object Helpers {
   }
 }
 
-@JSName("UglifyJS")
+@JSGlobal("UglifyJS")
 @js.native
 object Uglify extends js.Object {
   import Helpers._

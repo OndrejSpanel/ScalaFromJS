@@ -66,9 +66,7 @@ Seq(
 
 skip in packageJSDependencies := false
 
-persistLauncher in Compile := true
-
-persistLauncher in Test := false
+scalaJSUseMainModuleInitializer := true
 
 lazy val rsc = (project in file("resource-objects")).
   settings(
@@ -91,7 +89,7 @@ deployTask := {
   val baseName = name.value.toLowerCase
   val buildDir = (target in Compile).value / ("scala-" + binVersion)
   val deployDir = baseDirectory.value / "docs" / "live"
-  val toDeploy = Seq("%-jsdeps.js", "%-launcher.js", "%-opt.js", "index.html")
+  val toDeploy = Seq("%-jsdeps.js", "%-opt.js", "index.html")
   for (suffix <- toDeploy)  {
     val fullName = suffix.replace("%", baseName)
     val builtFile = buildDir / fullName
