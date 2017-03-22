@@ -639,7 +639,7 @@ object Transform {
         //println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
         types.get(tid).map(callReturn)
 
-      case AST_Call(AST_Dot(cls, name), _*) =>
+      case AST_Call(cls AST_Dot name, _*) =>
         //println(s"Infer type of member call $name")
         for {
           TypeDecl(ClassType(callOn)) <- expressionType(cls)(ctx)
@@ -829,7 +829,7 @@ object Transform {
       node match {
         case t: AST_Toplevel =>
           val newBody = t.body.flatMap {
-            case s@AST_SimpleStatement(AST_Call(AST_Dot(AST_SymbolRef("Object", _, _), "assign"), ts@AST_SymbolRefDef(sym), x: AST_Object)) =>
+            case s@AST_SimpleStatement(AST_Call(AST_SymbolRefName("Object") AST_Dot "assign", ts@AST_SymbolRefDef(sym), x: AST_Object)) =>
               //println(s"Assign to ${sym.name}")
               // iterate through the object defintion
               // each property replace with an individual assignment statement

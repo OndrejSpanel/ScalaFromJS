@@ -47,18 +47,18 @@ object TransformClasses {
     setters: ListMap[String, ClassFunMember] = ListMap.empty
   )
 
-  object ClassMemberDef {
+  object ClassPropertyDef {
     def unapply(arg: AST_Node) = arg match {
-      case AST_SimpleStatement(AST_Assign(AST_Dot(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), funName), "=", AST_Function(args, body))) =>
-        Some(name, funName, args, body)
+      case AST_SimpleStatement(AST_Assign(AST_SymbolRef(name, _, _) AST_Dot "prototype" AST_Dot funName, "=", value)) =>
+        Some(name, funName, value)
       case _ => None
     }
   }
 
-  object ClassPropertyDef {
+  object ClassMemberDef {
     def unapply(arg: AST_Node) = arg match {
-      case AST_SimpleStatement(AST_Assign(AST_Dot(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), funName), "=", value)) =>
-        Some(name, funName, value)
+      case ClassPropertyDef(name, funName, AST_Function(args, body)) =>
+        Some(name, funName, args, body)
       case _ => None
     }
   }
@@ -104,19 +104,19 @@ object TransformClasses {
     def unapply(arg: AST_Node) = arg match {
       // name.prototype = Object.assign( Object.create( sym.prototype ), {... prototype object ... } )
       case AST_SimpleStatement(
-      AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=",
+      AST_Assign(AST_SymbolRef(name, _, _) AST_Dot "prototype", "=",
       AST_Call(
-      AST_Dot(AST_SymbolRefName("Object"), "assign"),
-      AST_Call(AST_Dot(AST_SymbolRef("Object", _, _), "create"), AST_Dot(AST_SymbolRefDef(sym), "prototype")), prototypeDef: AST_Object)
+      AST_SymbolRefName("Object") AST_Dot "assign",
+      AST_Call(AST_SymbolRefName("Object") AST_Dot "create", AST_SymbolRefDef(sym) AST_Dot "prototype"), prototypeDef: AST_Object)
       )) =>
         //println(s"ClassParentAndPrototypeDef $name extends ${sym.name}")
         Some(name, sym.name, prototypeDef)
 
       // Object.assign( name.prototype, sym.prototype, {prototype object} )
       case AST_SimpleStatement(AST_Call(
-      AST_Dot(AST_SymbolRefName("Object"), "assign"),
-      AST_Dot(AST_SymbolRefName(name), "prototype"),
-      AST_Dot(AST_SymbolRef(sym, _, _), "prototype"),
+      AST_SymbolRefName("Object") AST_Dot "assign",
+      AST_SymbolRefName(name) AST_Dot "prototype",
+      AST_SymbolRef(sym, _, _) AST_Dot "prototype",
       prototypeDef: AST_Object
       )) =>
         //println(s"ClassParentAndPrototypeDef2 $name extends $sym")
@@ -129,13 +129,13 @@ object TransformClasses {
 
   object ClassParentDef {
     def unapply(arg: AST_Node) = arg match {
-      case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", AST_New(AST_SymbolRefDef(sym), _*))) =>
+      case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(name) AST_Dot "prototype", "=", AST_New(AST_SymbolRefDef(sym), _*))) =>
         Some(name, sym)
 
       // name.prototype = Object.create( sym.prototype );
       case AST_SimpleStatement(AST_Assign(
-      AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=",
-      AST_Call(AST_Dot(AST_SymbolRef("Object", _, _), "create"), AST_Dot(AST_SymbolRefDef(sym), "prototype"))
+      AST_SymbolRefName(name) AST_Dot "prototype", "=",
+      AST_Call(AST_SymbolRefName("Object") AST_Dot "create", AST_SymbolRefDef(sym) AST_Dot "prototype")
       )) =>
         Some(name, sym)
 
@@ -148,14 +148,14 @@ object TransformClasses {
 
       //Object.assign( XXX.prototype, { ... })
       case AST_SimpleStatement(AST_Call(
-      AST_Dot(AST_SymbolRefName("Object"), "assign"),
-      AST_Dot(AST_SymbolRefName(name), "prototype"), prototypeDef: AST_Object
+      AST_SymbolRefName("Object") AST_Dot "assign",
+      AST_SymbolRefName(name) AST_Dot "prototype", prototypeDef: AST_Object
       )) =>
         //println(s"Match prototype def $name")
         Some(name,prototypeDef)
 
       /// XXX.prototype = new { ... }
-      case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRefName(name), "prototype"), "=", prototypeDef: AST_Object)) =>
+      case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(name) AST_Dot "prototype", "=", prototypeDef: AST_Object)) =>
         //println(s"Match prototype def $name")
         Some(name,prototypeDef)
 
@@ -214,7 +214,7 @@ object TransformClasses {
         false
 
       // any use of XXX.prototype probably marks a class
-      case AST_Dot(AST_SymbolRef(name, _, _), "prototype") =>
+      case AST_SymbolRefName(name) AST_Dot "prototype" =>
         classNames += name
         false
 
@@ -619,7 +619,7 @@ object TransformClasses {
           var existingMembers = listPrototypeMemberNames(cls)
 
           cls.walk {
-            case AST_Dot(IsThis(), mem) =>
+            case IsThis() AST_Dot mem =>
               //println(s"Detect this.$mem")
               if (!existingMembers.contains(mem)) {
                 newMembers = newMembers :+ mem
@@ -702,7 +702,7 @@ object TransformClasses {
                     sym
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
-                  case AST_Dot(_: AST_This, member) if !transformer.parent().isInstanceOf[AST_Call] =>
+                  case (_: AST_This) AST_Dot member if !transformer.parent().isInstanceOf[AST_Call] =>
                     new AST_SymbolRef {
                       fillTokens(this, node)
                       name = member

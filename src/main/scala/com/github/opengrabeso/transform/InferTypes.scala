@@ -480,7 +480,7 @@ object InferTypes {
             inferConstructorCall(args, sup)
           }
 
-        case AST_Call(AST_Dot(expr, call), args@_*) =>
+        case AST_Call(expr AST_Dot call, args@_*) =>
 
           //println(s"Dot call $call")
           // fill ctx.type function types information
