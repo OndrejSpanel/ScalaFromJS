@@ -736,6 +736,9 @@ object TransformClasses {
     AST_Extended(ret, n.types)
   }
 
+  /**
+    * motivation: handle KeyframeTrack.prototype = KeyframeTrackPrototype in Three.js
+    * */
   def inlinePrototypeVariables(n: AST_Node): AST_Node = {
     // convert:
     // XXX.prototype = YYYY
@@ -756,7 +759,7 @@ object TransformClasses {
     }
     n.walk {
       case PrototypeVariable(clsSym, protoFunSym, _) =>
-        println(s"Detected prototype variable ${protoFunSym.name} for ${clsSym.name}")
+        //println(s"Detected prototype variable ${protoFunSym.name} for ${clsSym.name}")
         prototypeVariableSymbols += protoFunSym -> clsSym
         false
       case _ =>
@@ -776,7 +779,7 @@ object TransformClasses {
 
     n.walk {
       case PrototypeVariableDef(symDef, init) =>
-        println(s"Detected prototype variable init ${symDef.name}")
+        //println(s"Detected prototype variable init ${symDef.name}")
         prototypeVariableDefs += symDef -> init
         false
       case _ =>
@@ -812,9 +815,16 @@ object TransformClasses {
 
   }
 
+  /**
+    * motivation: handle KeyframeTrack constructor implemented using KeyframeTrackConstructor.apply call
+    * */
+  def inlineConstructorFunction(n: AST_Node): AST_Node = {
+    n
+  }
 
   val transforms = Seq(
     onTopNode(inlinePrototypeVariables),
+    onTopNode(inlineConstructorFunction),
     convertProtoClasses _,
     fillVarMembers _,
     inlineConstructors _
