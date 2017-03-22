@@ -819,7 +819,58 @@ object TransformClasses {
     * motivation: handle KeyframeTrack constructor implemented using KeyframeTrackConstructor.apply call
     * */
   def inlineConstructorFunction(n: AST_Node): AST_Node = {
-    n
+    // list constructor functions
+    // XXXXX.prototype.constructor = XXXXX
+    var constructorSymbols = Map.empty[SymbolDef, AST_Statement]
+
+    object PrototypeConstructor {
+      def unapply(arg: AST_Node) = arg match {
+        case s@AST_SimpleStatement(AST_Assign(
+        AST_SymbolRefDef(clsSym) AST_Dot "prototype" AST_Dot "constructor", "=", AST_SymbolRefDef(protoFunSym)
+        ))
+          if clsSym.name == protoFunSym.name
+        =>
+          Some(clsSym, s)
+        case _ => None
+      }
+    }
+
+    n.walk {
+      case PrototypeConstructor(clsSym, s) =>
+        println(s"Detected constructor function for ${clsSym.name}")
+        constructorSymbols += clsSym -> s
+        true
+      case _ =>
+        false
+    }
+
+    var constructorFunctions = Map.empty[SymbolDef, SymbolDef] // implementation -> class constructor
+    // find constructors implemented by calling another function
+    // function XXXXX( name, times, values, interpolation ) { YYYYY.apply( this, arguments ); }
+    n.walk {
+      case AST_Defun(
+      Defined(AST_SymbolDef(fun)), args, Seq(AST_SimpleStatement(AST_Call(
+      AST_SymbolRefDef(implementFun) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")
+      )))
+      ) if constructorSymbols contains fun =>
+        println(s"Defined function ${fun.name} using ${implementFun.name}")
+        constructorFunctions += implementFun -> fun
+        false
+      case _ =>
+        false
+    }
+
+    n.transformAfter { (node, _) =>
+      node match {
+        case n@AST_SymbolRef(_, _, Defined(symDef)) =>
+          constructorFunctions.get(symDef).fold(node) { impl =>
+            n.thedef = impl
+            n.name = impl.name
+            n
+          }
+        case _ => node
+      }
+    }
   }
 
   val transforms = Seq(
