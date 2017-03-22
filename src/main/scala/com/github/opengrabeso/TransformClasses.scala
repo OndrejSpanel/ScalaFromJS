@@ -154,6 +154,11 @@ object TransformClasses {
         //println(s"Match prototype def $name")
         Some(name,prototypeDef)
 
+      /// XXX.prototype = new { ... }
+      case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRefName(name), "prototype"), "=", prototypeDef: AST_Object)) =>
+        //println(s"Match prototype def $name")
+        Some(name,prototypeDef)
+
       case _ => None
     }
   }
@@ -731,7 +736,172 @@ object TransformClasses {
     AST_Extended(ret, n.types)
   }
 
+  /**
+    * motivation: handle KeyframeTrack.prototype = KeyframeTrackPrototype in Three.js
+    * */
+  def inlinePrototypeVariables(n: AST_Node): AST_Node = {
+    // convert:
+    // XXX.prototype = YYYY
+    // YYYY = ....
+    // to
+    // XXX.prototype = ....
+    // and replace YYYY with XXX.prototype
+    // is order a problem?
+
+    var prototypeVariableSymbols = Map.empty[SymbolDef, AST_SymbolRef]
+
+    object PrototypeVariable {
+      def unapply(arg: AST_Node) = arg match  {
+        case AST_SimpleStatement(assign@AST_Assign((clsSym: AST_SymbolRef) AST_Dot "prototype", "=", AST_SymbolRefDef(protoFunSym))) =>
+          Some(clsSym, protoFunSym, assign)
+        case _ => None
+      }
+    }
+    n.walk {
+      case PrototypeVariable(clsSym, protoFunSym, _) =>
+        //println(s"Detected prototype variable ${protoFunSym.name} for ${clsSym.name}")
+        prototypeVariableSymbols += protoFunSym -> clsSym
+        false
+      case _ =>
+        false
+    }
+
+    var prototypeVariableDefs = Map.empty[SymbolDef, AST_Node]
+
+    object PrototypeVariableDef {
+      def unapply(arg: AST_Node) = arg match {
+        case AST_Var(AST_VarDef(AST_Symbol(_, _, Defined(symDef)), Defined(init))) if prototypeVariableSymbols contains symDef =>
+          Some(symDef, init)
+        case _ => None
+
+      }
+    }
+
+    n.walk {
+      case PrototypeVariableDef(symDef, init) =>
+        //println(s"Detected prototype variable init ${symDef.name}")
+        prototypeVariableDefs += symDef -> init
+        false
+      case _ =>
+        false
+    }
+
+    n.transformAfter { (node, _) =>
+      node match {
+        case PrototypeVariable(clsName, protoFunSym, assign) =>
+          assign.right = prototypeVariableDefs(protoFunSym)
+          node
+        case PrototypeVariableDef(_, _) =>
+          new AST_EmptyStatement {
+            fillTokens(this, node)
+          }
+        case _ =>
+          node
+      }
+    }.transformAfter { (node, _) =>
+      node match {
+        case symRef@AST_SymbolRef(_,_,Defined(symDef)) =>
+          prototypeVariableSymbols.get(symDef).fold[AST_Node](symRef) { clsSymRef =>
+            new AST_Dot {
+              fillTokens(this, symRef)
+              expression = clsSymRef.clone()
+              property = "prototype"
+            }
+          }
+        case _ =>
+          node
+      }
+    }
+
+  }
+
+  /**
+    * motivation: handle KeyframeTrack constructor implemented using KeyframeTrackConstructor.apply call
+    * */
+  def inlineConstructorFunction(n: AST_Node): AST_Node = {
+    // list constructor functions
+    // XXXXX.prototype.constructor = XXXXX
+    var constructorSymbols = Map.empty[SymbolDef, AST_Statement]
+
+    object PrototypeConstructor {
+      def unapply(arg: AST_Node) = arg match {
+        case s@AST_SimpleStatement(AST_Assign(
+        AST_SymbolRefDef(clsSym) AST_Dot "prototype" AST_Dot "constructor", "=", AST_SymbolRefDef(protoFunSym)
+        )) if clsSym.name == protoFunSym.name =>
+          Some(clsSym, s)
+        case _ => None
+      }
+    }
+
+    n.walk {
+      case PrototypeConstructor(clsSym, s) =>
+        //println(s"Detected constructor function for ${clsSym.name}")
+        constructorSymbols += clsSym -> s
+        true
+      case _ =>
+        false
+    }
+
+    var implToConstructor = Map.empty[SymbolDef, SymbolDef] // implementation -> class constructor
+    // find constructors implemented by calling another function
+    // function XXXXX( name, times, values, interpolation ) { YYYYY.apply( this, arguments ); }
+    n.walk {
+      case AST_Defun(
+      Defined(AST_SymbolDef(fun)), args, Seq(AST_SimpleStatement(AST_Call(
+      AST_SymbolRefDef(implementFun) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")
+      )))) if constructorSymbols contains fun =>
+        //println(s"Defined function ${fun.name} using ${implementFun.name}")
+        implToConstructor += implementFun -> fun
+        false
+      case _ =>
+        false
+    }
+
+    var constructorFunctionDefs = Map.empty[SymbolDef, AST_Defun]
+    n.walk {
+      case defun@AST_Defun(Defined(AST_SymbolDef(fun)), _, _) if implToConstructor contains fun =>
+        //println(s"Stored function def ${fun.name}")
+        constructorFunctionDefs += fun -> defun
+        true
+      case _  =>
+        false
+    }
+
+
+    val constructorToImpl = implToConstructor.map(_.swap)
+
+    n.transformAfter { (node, _) =>
+      node match {
+        // rewrite the symbol YYYYY use to  XXXXX
+        case n@AST_SymbolRef(_, _, Defined(symDef)) =>
+          implToConstructor.get(symDef).fold(node) { impl =>
+            n.thedef = impl
+            n.name = impl.name
+            n
+          }
+        // inline XXXXX.apply(this, arguments) - was already rewritten from YYYYY (transformAfter transforms children first)
+        case defun@AST_Defun(_, _, Seq(AST_SimpleStatement(AST_Call(
+          AST_SymbolRefDef(symDef) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")
+        )))) =>
+          //println(s"Detect ${symDef.name}.apply")
+          constructorToImpl.get(symDef).flatMap(constructorFunctionDefs.get).fold(node) { funDef =>
+            //println(s"Found body of ${funDef.name.map(_.name)} in ${defun.name.map(_.name)}")
+            defun.body = funDef.body.toJSArray
+            defun
+          }
+        // remove the original implementation
+        case defun@AST_Defun(Defined(AST_SymbolDef(sym)), _, _) if implToConstructor contains sym =>
+          new AST_EmptyStatement {
+            fillTokens(this, defun)
+          }
+        case _ => node
+      }
+    }
+  }
+
   val transforms = Seq(
+    onTopNode(inlinePrototypeVariables),
+    onTopNode(inlineConstructorFunction),
     convertProtoClasses _,
     fillVarMembers _,
     inlineConstructors _
