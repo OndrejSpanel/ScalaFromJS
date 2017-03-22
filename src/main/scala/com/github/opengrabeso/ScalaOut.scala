@@ -621,21 +621,31 @@ object ScalaOut {
         }
 
         // find a constructor and output it
-        val constructor = Classes.findConstructor(tn).map(_.value)
-        if (constructor.isDefined) {
+
+        val isStaticOnly = tn.`extends` match {
+          case Defined(AST_SymbolName("static_^")) =>
+            true
+          case _ =>
+            false
+        }
+
+        for {
+          inlineBody <- Classes.findInlineBody(tn)
+          if !isStaticOnly
+        } {
           out.eol(2)
 
           out"class ${tn.name}"
 
-          val accessor = Classes.classInlineBody(tn)
+          val constructor = Classes.findConstructor(tn).map(_.value)
 
-          outputClassArgNames(accessor)
+          outputClassArgNames(inlineBody.value)
 
           for (base <- tn.`extends`) {
             out" extends $base"
 
             // find the super constructor call and use its parameters
-            accessor.body.foreach {
+            inlineBody.value.body.foreach {
               case AST_SimpleStatement(call@AST_Call(_: AST_Super, pars@_*)) =>
                 out("(")
                 outputNodes(pars)(nodeToOut)
@@ -648,7 +658,7 @@ object ScalaOut {
 
           // class body should be a list of variable declarations, constructor statements may follow
 
-          accessor.body.foreach {
+          inlineBody.value.body.foreach {
             case AST_Var(AST_VarDef(AST_SymbolName(s), init)) =>
               val clsName = tn.name.nonNull.map(_.name)
               val sType = input.types.getMember(clsName, s).map(_.declType)
@@ -680,18 +690,15 @@ object ScalaOut {
           constructor.foreach { lambda =>
             if (lambda.body.nonEmpty) {
               out("constructor")
-              outputArgNamesNoTypes(accessor)
+              outputArgNamesNoTypes(inlineBody.value)
               out.eol()
             }
           }
 
           if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
-          for (p <- functionMembers) {
-            if (p.value != accessor) {
-              nodeToOut(p)
-            }
-          }
+          for (p <- functionMembers if p != inlineBody) nodeToOut(p)
+
           out.unindent()
           out.eol()
           out("}\n\n")

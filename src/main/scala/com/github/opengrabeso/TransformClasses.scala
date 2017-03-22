@@ -48,7 +48,9 @@ object TransformClasses {
     getters: ListMap[String, ClassFunMember] = ListMap.empty,
     setters: ListMap[String, ClassFunMember] = ListMap.empty,
     // static members (both data and functions)
-    membersStatic: ListMap[String, ClassMember] = ListMap.empty
+    membersStatic: ListMap[String, ClassMember] = ListMap.empty,
+    // when empty, no need to emit class, only object - no JS corresponding constructor exists
+    staticOnly: Boolean = false
   )
 
   object ClassPropertyDef {
@@ -278,7 +280,7 @@ object TransformClasses {
 
 
     def processPrototype(name: String, prototypeDef: AST_Object, isStatic: Boolean = false) = {
-      val clazz = classes.getOrElse(name, new ClassDef)
+      val clazz = classes.getOrElse(name, ClassDef(staticOnly = isStatic))
       classes += name -> prototypeDef.properties.foldLeft(clazz) { (clazz, m) =>
         //println(s"Property ${m.key}")
         m match {
@@ -590,7 +592,14 @@ object TransformClasses {
 
           val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
 
-          newClass(sym, js.undefined, mappedStatic)
+          val markerBase = new AST_SymbolRef {
+            /*_*/
+            fillTokens(this, node)
+            /*_*/
+            name = "static_^"
+          }
+
+          newClass(sym, markerBase, mappedStatic)
 
         case DefineProperties(name, _) if classes.contains(name) =>
           emptyNode
