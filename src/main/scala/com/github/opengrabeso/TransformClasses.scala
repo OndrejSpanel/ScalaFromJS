@@ -420,17 +420,17 @@ object TransformClasses {
       node match {
         case t: AST_Block =>
           val newBody = t.body.filter {
-            case ClassMemberDef(name, _, _, _) if classes.get(name).isDefined =>
+            case ClassMemberDef(name, _, _, _) if classes contains name =>
               false
-            case ClassPropertyDef(name, _, _) if classes.get(name).isDefined =>
+            case ClassPropertyDef(name, _, _) if classes contains name =>
               false
-            case ClassParentDef(name, _) if classes.get(name).isDefined =>
+            case ClassParentDef(name, _) if classes contains name =>
               false
-            case ClassPrototypeDef(_, _) =>
+            case ClassPrototypeDef(name, _) if classes contains name =>
               false
-            case ClassParentAndPrototypeDef(_, _, _) =>
+            case ClassParentAndPrototypeDef(name, _, _) if classes contains name =>
               false
-            case DefineStaticMember(_, _, _) =>
+            case DefineStaticMember(name, _, _) if classes contains name =>
               false
             case _  =>
               true
