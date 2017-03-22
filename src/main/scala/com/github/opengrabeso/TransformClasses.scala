@@ -305,6 +305,12 @@ object TransformClasses {
       }
     }
 
+    def removeStaticMember(name: String, member: String) = {
+      for (cls <- classes.get(name)) {
+        classes += name -> cls.copy(membersStatic = cls.membersStatic - member)
+      }
+    }
+
     n.top.walk {
 
       case _: AST_Toplevel =>
@@ -414,9 +420,30 @@ object TransformClasses {
 
     val classes = classList(n)
 
+
     //println(classes.classes)
 
-    val deleteProtos = n.top.transformAfter { (node, _) =>
+    // we delete only initialization for static members, nothing else
+    var staticMemberDeleted = Set.empty[(String, String)]
+
+    def verifyStaticMember(clsName: String, member: String) = {
+      val verify = classes.get(clsName).exists(_.membersStatic.contains(member))
+      println(s"Verifying $clsName.$member: $verify")
+      verify
+    }
+
+    def verifyStaticMemberOnce(clsName: String, member: String) = {
+      if (verifyStaticMember(clsName, member)) {
+        if (staticMemberDeleted(clsName -> member)) {
+          false
+        } else {
+          staticMemberDeleted += clsName -> member
+          true
+        }
+      } else false
+    }
+
+    val deleteProtos = n.top.transformAfter { (node, transformer) =>
       node match {
         case t: AST_Block =>
           val newBody = t.body.filter {
@@ -430,7 +457,7 @@ object TransformClasses {
               false
             case ClassParentAndPrototypeDef(name, _, _) if classes contains name =>
               false
-            case DefineStaticMember(name, _, _) if classes contains name =>
+            case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
               false
             case _  =>
               true
@@ -605,7 +632,7 @@ object TransformClasses {
           emptyNode
         case DefineProperty(name, _, _) if classes.contains(name) =>
           emptyNode
-        case DefineStaticMember(name, _, _) if classes.contains(name) =>
+        case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
           emptyNode
         case _ =>
           node

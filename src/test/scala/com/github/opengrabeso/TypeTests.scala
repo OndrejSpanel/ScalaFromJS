@@ -140,7 +140,11 @@ class TypeTests extends FunSuite with TestUtils {
         "object Utils",
         "def pi =",
         "def funA(",
-        "def funB("
+        "def funB(",
+        "Cls.z = 0", "Cls.z = 1",
+        "Utils.x = 11"
+      ).forbidden(
+        "def z"
       )
   }
 }
