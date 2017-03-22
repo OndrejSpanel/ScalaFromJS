@@ -135,10 +135,10 @@ class TypeTests extends FunSuite with TestUtils {
     execute check ConversionCheck(rsc("types/static.js"))
       .required(
         "object Cls",
-        "var defX = ",
+        "def defX = ",
         "def defY() = ",
         "object Utils",
-        "var pi =",
+        "def pi =",
         "def funA(",
         "def funB("
       )
