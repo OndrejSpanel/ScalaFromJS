@@ -361,6 +361,8 @@ object Uglify extends js.Object {
     override def key: AST_Node = js.native
     // [AST_Node] property value.  For setters and getters this is an AST_Function.
     override def value: AST_Function = js.native
+    // [boolean] whether this method is static (classes only)
+    var `static`: Boolean = js.native
   }
   @js.native class AST_ObjectSetter extends AST_ObjectSetterOrGetter
   @js.native class AST_ObjectGetter extends AST_ObjectSetterOrGetter

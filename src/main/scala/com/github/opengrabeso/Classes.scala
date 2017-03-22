@@ -134,6 +134,7 @@ object Classes {
           argnames = js.Array()
           this.body = js.Array()
         }
+        `static` = false
       }
       cls.properties = cls.properties :+ newInlineBody
       newInlineBody

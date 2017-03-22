@@ -41,10 +41,14 @@ object TransformClasses {
 
   case class ClassDef(
     base: Option[String] = None,
+    // members (both data and function)
     members: ListMap[String, ClassMember] = ListMap.empty,
+    // value properties
     values: ListMap[String, ClassVarMember] = ListMap.empty,
     getters: ListMap[String, ClassFunMember] = ListMap.empty,
-    setters: ListMap[String, ClassFunMember] = ListMap.empty
+    setters: ListMap[String, ClassFunMember] = ListMap.empty,
+    // static members (both data and functions)
+    membersStatic: ListMap[String, ClassMember] = ListMap.empty
   )
 
   object ClassPropertyDef {
@@ -97,6 +101,16 @@ object TransformClasses {
         Some(sym.name, prop.value, properties)
       case _ => None
 
+    }
+  }
+
+  object DefineStaticMember {
+    def unapply(arg: AST_Node) = arg match {
+      // Cls.defX = 0;
+      // Cls.defY = function() {return 0;};
+      case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(clsName) AST_Dot member, "=", value)) =>
+        Some(clsName, member, value)
+      case _ => None
     }
   }
 
@@ -170,6 +184,7 @@ object TransformClasses {
 
 
   class ClassList {
+
     var classes = Map.empty[String, ClassDef]
 
     def += (kv: (String, ClassDef)): Unit = classes += kv
@@ -198,6 +213,21 @@ object TransformClasses {
 
       }
     }
+
+    def defineStaticMember(name: String, key: String, value: AST_Node) = {
+      val c = defClass(name)
+      val member = value match {
+        case AST_Function(args, body) =>
+          println(s"Define static fun $key")
+          ClassFunMember(args, body)
+        case _ =>
+          println(s"Define static var $key")
+          ClassVarMember(value)
+      }
+      classes += name -> c.copy(membersStatic = c.membersStatic + (key -> member))
+
+    }
+
   }
 
   implicit def classesFromClassList(cl: ClassList):  Map[String, ClassDef] = cl.classes
@@ -346,6 +376,13 @@ object TransformClasses {
       case ClassPrototypeDef(name, prototypeDef) =>
         processPrototype(name, prototypeDef)
         true
+
+      // note: after ClassPrototypeDef, as  prototype definition would match static member definition as well
+      case DefineStaticMember(clsName, member, value) =>
+        println(s"Define static member $clsName.$member as ${nodeClassName(value)}")
+        classes.defineStaticMember(clsName, member, value)
+        true
+
       case _ =>
         false
     }
@@ -377,6 +414,8 @@ object TransformClasses {
               false
             case ClassParentAndPrototypeDef(_, _, _) =>
               false
+            case DefineStaticMember(_, _, _) =>
+              false
             case _  =>
               true
           }
@@ -389,12 +428,100 @@ object TransformClasses {
     }
 
     val createClasses = deleteProtos.transformAfter { (node, walker) =>
+      def emptyNode = new AST_EmptyStatement {
+        fillTokens(this, node)
+      }
+
       node match {
         case defun@ClassDefine(sym, _, _) if classes contains sym.name =>
 
           //println(s"  ${walker.stack.map(nodeClassName).mkString("|")}")
           // check if there exists a type with this name
           val clazz = classes(sym.name)
+
+          object AsFunction {
+            def onlyVariables(ss: Seq[AST_Statement]) = ss.forall(s => s.isInstanceOf[AST_Var])
+
+            object ReturnValue {
+              def unapply(arg: AST_Statement) = arg match {
+                case AST_Return(Defined(body)) =>
+                  Some(body)
+                case AST_SimpleStatement(body) =>
+                  Some(body)
+                case _ =>
+                  None
+              }
+            }
+            def unapply(arg: ClassMember) = arg match {
+              case ClassFunMember(args, body) =>
+                Some(args.toSeq, body)
+
+              case ClassVarMember(AST_BlockStatement(ss :+ ReturnValue(AST_Function(args, body)))) /*if onlyVariables(ss)*/ =>
+                //println(nodeClassName(f))
+                val newBody = ss ++ body
+                Some(args.toSeq, newBody)
+
+              // some var members should also be converted to fun members
+              // expected structure:
+              // - variable prefix + function body
+
+              case _ =>
+                None
+            }
+          }
+
+          def newValue(k: String, v: AST_Node) = {
+            new AST_ObjectKeyVal {
+              fillTokens(this, v)
+              key = k
+              value = v
+            }
+          }
+
+          def newGetterOrSetter(node: AST_ObjectSetterOrGetter, k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement], isStatic: Boolean) = {
+            fillTokens(node, defun)
+            node.key = keyNode(defun, k)
+            node.`static` = isStatic
+            node.value = new AST_Function {
+              fillTokens(this, defun)
+              argnames = args
+              this.body = body.toJSArray
+            }
+            node
+          }
+
+          def newMember(k: String, v: ClassMember, isStatic: Boolean = false) = {
+            v match {
+              case AsFunction(args, body) =>
+                new AST_ConciseMethod {
+                  key = keyNode(defun, k)
+                  `static` = isStatic
+                  value = new AST_Accessor {
+                    fillTokens(this, defun)
+                    argnames = args.toJSArray
+                    this.body = body.toJSArray
+
+                  }
+                }: AST_ObjectProperty
+
+              case m: ClassVarMember =>
+                newGetter(k, js.Array(), js.Array(new AST_SimpleStatement {
+                  fillTokens(this, defun)
+                  body = m.value
+                }), isStatic)
+
+            }
+          }
+
+          def newGetter(k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement], isStatic: Boolean = false): AST_ObjectProperty = {
+            newGetterOrSetter(new AST_ObjectGetter, k, args, body, isStatic)
+          }
+
+
+          def newSetter(k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement], isStatic: Boolean = false): AST_ObjectProperty = {
+            newGetterOrSetter(new AST_ObjectSetter, k, args, body, isStatic)
+          }
+
           new AST_DefClass {
             fillTokens(this, defun)
             name = new AST_SymbolDefClass {
@@ -416,116 +543,20 @@ object TransformClasses {
                 name = b
               }
             }
+            val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }
+            val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
+            val mappedSetters = clazz.setters.map { case (k, v) => newSetter(k, v.args, v.body) }
+            val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value) }
+            val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
 
-            object AsFunction {
-              def onlyVariables(ss: Seq[AST_Statement]) = ss.forall(s => s.isInstanceOf[AST_Var])
-
-              object ReturnValue {
-                def unapply(arg: AST_Statement) = arg match {
-                  case AST_Return(Defined(body)) =>
-                    Some(body)
-                  case AST_SimpleStatement(body) =>
-                    Some(body)
-                  case _ =>
-                    None
-                }
-              }
-              def unapply(arg: ClassMember) = arg match {
-                case ClassFunMember(args, body) =>
-                  Some(args.toSeq, body)
-
-                case ClassVarMember(AST_BlockStatement(ss :+ ReturnValue(AST_Function(args, body)))) /*if onlyVariables(ss)*/ =>
-                  //println(nodeClassName(f))
-                  val newBody = ss ++ body
-                  Some(args.toSeq, newBody)
-
-                // some var members should also be converted to fun members
-                // expected structure:
-                // - variable prefix + function body
-
-                case _ =>
-                  None
-              }
-            }
-
-            def newValue(k: String, v: AST_Node) = {
-              new AST_ObjectKeyVal {
-                fillTokens(this, v)
-                key = k
-                value = v
-              }
-            }
-
-            def newGetterOrSetter(node: AST_ObjectSetterOrGetter, k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement]) = {
-              fillTokens(this, defun)
-              node.key = keyNode(defun, k)
-              node.value = new AST_Function {
-                fillTokens(this, defun)
-                argnames = args
-                this.body = body.toJSArray
-              }
-              node
-            }
-
-            def newGetter(k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement]): AST_ObjectProperty = {
-              newGetterOrSetter(new AST_ObjectGetter, k, args, body)
-            }
-
-
-            def newSetter(k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement]): AST_ObjectProperty = {
-              newGetterOrSetter(new AST_ObjectSetter, k, args, body)
-            }
-
-            val mappedMembers = clazz.members.map { case (k, v) =>
-              v match {
-                case AsFunction(args, body) =>
-                  new AST_ConciseMethod {
-                    key = keyNode(defun, k)
-
-                    value = new AST_Accessor {
-                      fillTokens(this, defun)
-                      argnames = args.toJSArray
-                      this.body = body.toJSArray
-
-                    }
-                  }: AST_ObjectProperty
-
-                case m: ClassVarMember =>
-                  newGetter(k, js.Array(), js.Array(new AST_SimpleStatement {
-                    fillTokens(this, defun)
-                    body = m.value
-                  }))
-
-              }
-            }
-
-            val mappedGetters = clazz.getters.map {
-              case (k, v) =>
-                //println(s"newGetter $k")
-                newGetter(k, v.args, v.body)
-            }
-            val mappedSetters = clazz.setters.map {
-              case (k, v) =>
-                //println(s"newSetter $k")
-                newSetter(k, v.args, v.body)
-            }
-            val mappedValues = clazz.values.map {
-              case (k, v) =>
-                //println(s"newValue $k")
-                newValue(k, v.value)
-
-            }
-
-            properties = (mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues).toJSArray
+            properties = (mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues ++ mappedStatic).toJSArray
           }
         case DefineProperties(name, _) if classes.contains(name) =>
-          new AST_EmptyStatement {
-            fillTokens(this, node)
-          }
+          emptyNode
         case DefineProperty(name, _, _) if classes.contains(name) =>
-          new AST_EmptyStatement {
-            fillTokens(this, node)
-          }
+          emptyNode
+        case DefineStaticMember(name, _, _) if classes.contains(name) =>
+          emptyNode
         case _ =>
           node
       }

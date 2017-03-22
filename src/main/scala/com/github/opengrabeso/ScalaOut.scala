@@ -601,6 +601,25 @@ object ScalaOut {
       //case tn: AST_Toplevel => outputUnknownNode(tn)
       //case tn: AST_Scope => outputUnknownNode(tn)
       case tn: AST_DefClass =>
+
+        val (staticProperties, nonStaticProperties) = tn.properties.partition {
+          case m: AST_ConciseMethod => m.`static`
+          case m: AST_ObjectSetter => m.`static`
+          case m: AST_ObjectGetter => m.`static`
+          case _ => false
+        }
+
+        if (staticProperties.nonEmpty) {
+          out.eol(2)
+
+          out"object ${tn.name} {\n"
+          out.indent()
+          staticProperties.foreach(nodeToOut)
+          out.unindent()
+          out("}\n")
+
+        }
+
         out.eol(2)
         out"class ${tn.name}"
 
@@ -654,15 +673,14 @@ object ScalaOut {
 
         //blockToOut(tn.body)
 
-        val (functionMembers, varMembers) = tn.properties.partition {
+        val (functionMembers, varMembers) = nonStaticProperties.partition {
           case _: AST_ConciseMethod => true
           case _ => false
         }
 
         //out(s"${functionMembers.length} ${varMembers.length}")
-        for (p <- varMembers) {
-          nodeToOut(p)
-        }
+        varMembers.foreach(nodeToOut)
+
         if ((varMembers.nonEmpty || tn.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
 
         // call the constructor after all variable declarations
