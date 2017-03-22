@@ -49,7 +49,7 @@ object Transform {
             // check if any reference is assignment target
             val assignedInto = df.references.exists { ref =>
               //println(s"Reference to ${df.name} in scope ${ref.scope.get.nesting}")
-              assert(ref.thedef.exists(_ == df))
+              assert(ref.thedef contains df)
               ref.scope.exists { s =>
                 var detect = false
                 s.walk {
@@ -128,7 +128,7 @@ object Transform {
             if (df.references.nonEmpty) {
               // find the first reference
               val firstRef = df.references.minBy { ref =>
-                assert(ref.thedef.exists(_ == df))
+                assert(ref.thedef contains df)
                 ref.start.map(_.pos).getOrElse(Int.MaxValue)
               }
               // if the first ref is in the current scope, we might merge it with the declaration
@@ -236,7 +236,7 @@ object Transform {
             true
           case Some(f: AST_For) =>
             // can be substituted inside of for unless used as a condition
-            f.init.exists(_ == n) || f.step.exists(_ == n)
+            f.init.contains(n) || f.step.contains(n)
           case Some(s: AST_Seq ) =>
             if (s.cdr !=n) true
             else if (parentLevel < transformer.stack.length - 2) {
@@ -347,7 +347,7 @@ object Transform {
       case Some(block: AST_Block) =>
         (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1, transformer)
       case Some(ii: AST_If) =>
-        (ii.body == n || ii.alternative.exists(_ == n)) && nodeLast(ii, parentLevel + 1, transformer)
+        (ii.body == n || ii.alternative.contains(n)) && nodeLast(ii, parentLevel + 1, transformer)
       case None =>
         true
       case _ =>
