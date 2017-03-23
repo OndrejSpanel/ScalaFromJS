@@ -594,8 +594,12 @@ object UglifyExt {
   }
 
   implicit class AST_NodeOps[T <: AST_Node](val node: T) {
+
+
+
     def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
     def walkWithDescend(walker: (AST_Node, (AST_Node, TreeWalker) => Unit, TreeWalker) => Boolean): Unit = {
+
       var w: TreeWalker = null
       w = new TreeWalker((node, descend) => walker(node, descend, w))
       node.walk_js(w)
@@ -843,7 +847,7 @@ object UglifyExt {
     to.end = from.end
   }
 
-  def unsupported(message: String, source: AST_Node) = {
+  def unsupported(message: String, source: AST_Node, include: Option[AST_Node] = None) = {
     new AST_SimpleStatement {
       fillTokens(this, source)
       body = new AST_Call {
@@ -857,10 +861,11 @@ object UglifyExt {
             fillTokens(this, source)
             value = message
             quote = "'"
-          },
+          }
+        ) ++ include.map(inc =>
           new AST_SimpleStatement {
             fillTokens(this, source)
-            body = source
+            body = inc
           }
         )
       }

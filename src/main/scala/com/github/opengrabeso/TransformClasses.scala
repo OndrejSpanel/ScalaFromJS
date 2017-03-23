@@ -320,7 +320,7 @@ object TransformClasses {
             ClassFunMember(m.value.argnames, m.value.body)
           case _ =>
             // prototype contains something other than a key: val pair - what to do with it?
-            val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m.value)
+            val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m.value, Some(m.value))
 
             ClassVarMember(member)
         }
