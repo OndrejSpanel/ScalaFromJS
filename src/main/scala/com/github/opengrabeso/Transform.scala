@@ -97,7 +97,24 @@ object Transform {
   }
 
   def convertConstToFunction(n: AST_Node): AST_Node = {
-    n
+    n.transformAfter { (node, _) =>
+      node match {
+        case AST_Const(AST_VarDef(sym, Defined(AST_Function(args, body)))) =>
+          new AST_Defun {
+            defun =>
+            name = new AST_SymbolDefun {
+              name = sym.name
+              thedef = sym.thedef
+              scope = sym.scope
+              init = js.Array[AST_Node](defun)
+            }
+            fillTokens(this, node)
+            argnames = args
+            this.body = body.toJSArray
+          }
+        case _ => node
+      }
+    }
   }
 
   // convert === to ==
