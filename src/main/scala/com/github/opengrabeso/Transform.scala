@@ -734,8 +734,8 @@ object Transform {
     )
 
     transforms.zipWithIndex.foldLeft(AST_Extended(n, SymbolTypes())) { (t,op) =>
-      t.top.figure_out_scope()
       val now = System.nanoTime()
+      t.top.figure_out_scope()
       val r = op._1(t)
       val duration = System.nanoTime() - now
       //println(s"step ${op._2}, duration ${duration / 1000000}")
