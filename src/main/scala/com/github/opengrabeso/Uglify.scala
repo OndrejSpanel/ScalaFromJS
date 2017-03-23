@@ -616,39 +616,48 @@ object UglifyExt {
 
   trait AST_Extractors {
 
-    class DefExtractor[X](func: PartialFunction[AST_Node, X]) {
-      def unapply(arg: AST_Node): Option[X] = func.lift(arg)
-    }
-    class DefExtractorSimple[AST_T <: AST_Node, X](func: AST_T => X) {
-      def unapply(arg: AST_Node): Option[X] = Some(func(arg))
+    // note: in Scala 2.12 this can be implemented using a function, it is a Single Abstract Method interface
+    trait Extractor[-T, +X] {
+      def unapply(arg: T): Option[X]
     }
 
-    def extract[X](func: PartialFunction[AST_Node, X]): DefExtractor[X] = new DefExtractor[X](func)
-    def extractSimple[AST_T <: AST_Node, X](func: AST_T => X): DefExtractorSimple[AST_T, X] = new DefExtractorSimple[AST_T, X](func)
+    object DefineExtractor {
 
-    val AST_Binary = extractSimple((arg: AST_Binary) => (arg.left, arg.operator, arg.right))
+      class Match[AST_T <: AST_Node, X](func: PartialFunction[AST_T, X]) extends Extractor[AST_T, X] {
+        def unapply(arg: AST_T): Option[X] = func.lift(arg)
+      }
 
-    val AST_Assign = extractSimple((arg: AST_Assign) => AST_Binary.unapply(arg))
+      class Simple[AST_T <: AST_Node, X](func: AST_T => X) extends Extractor[AST_T, X] {
+        def unapply(arg: AST_T): Option[X] = Some(func(arg))
+      }
 
-    object AST_Symbol {
-      def unapply(arg: AST_Symbol) = Some((arg.name, arg.scope, arg.thedef))
+      class Forward[AST_T <: AST_Node, X](extractor: Extractor[AST_T, X]) {
+        def unapply(arg: AST_T): Option[X] = extractor.unapply(arg)
+      }
+
+
+      // inspired by http://stackoverflow.com/a/15159921/16673
+      class ForwardBuilder[AST_T <: AST_Node] {
+        def apply[X](ex: Extractor[AST_T, X]): Forward[AST_T, X] = new Forward[AST_T, X](ex)
+      }
+
+      def extract[AST_T <: AST_Node, X](func: PartialFunction[AST_T, X]): Match[AST_T, X] = new Match[AST_T, X](func)
+
+      def simple[AST_T <: AST_Node, X](func: AST_T => X): Simple[AST_T, X] = new Simple[AST_T, X](func)
+
+      def forward[AST_T <: AST_Node]: ForwardBuilder[AST_T] = new ForwardBuilder[AST_T]
     }
-    object AST_SymbolName {
-      def unapply(arg: AST_Symbol) = Some(arg.name)
-    }
+
+    import DefineExtractor._
+
+    val AST_Binary = simple((arg: AST_Binary) => (arg.left, arg.operator, arg.right))
+
+    val AST_Assign = forward[AST_Assign](AST_Binary)
+
+    val AST_Symbol = simple((arg: AST_Symbol) => (arg.name, arg.scope, arg.thedef))
 
     object AST_SymbolRef {
       def unapply(arg: AST_SymbolRef) = AST_Symbol.unapply(arg)
-    }
-    object AST_SymbolRefName {
-      def unapply(arg: AST_SymbolRef) = AST_SymbolName.unapply(arg)
-    }
-
-    object AST_SymbolRefUndefined {
-      def unapply(arg: AST_SymbolRef) = arg match {
-        case AST_SymbolRefName("undefined") => true
-        case _ => false
-      }
     }
 
     object AST_SimpleStatement {
@@ -768,6 +777,20 @@ object UglifyExt {
 
 
     // helpers, composite extractors
+    val AST_SymbolName = simple ((arg: AST_Symbol) => arg.name)
+
+
+    object AST_SymbolRefName {
+      def unapply(arg: AST_SymbolRef) = AST_SymbolName.unapply(arg)
+    }
+
+    object AST_SymbolRefUndefined {
+      def unapply(arg: AST_SymbolRef) = arg match {
+        case AST_SymbolRefName("undefined") => true
+        case _ => false
+      }
+    }
+
     object Defined {
       def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
     }
@@ -778,7 +801,7 @@ object UglifyExt {
 
     object AST_SymbolDef {
       def unapply(arg: AST_Node): Option[SymbolDef] = arg match {
-        case AST_Symbol(_, _, Defined(sym)) => Some(sym)
+        case AST_Symbol((_, _, Defined(sym))) => Some(sym)
         case _ => None
       }
     }
