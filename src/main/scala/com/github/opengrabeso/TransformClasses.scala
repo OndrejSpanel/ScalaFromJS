@@ -117,8 +117,10 @@ object TransformClasses {
   }
 
   object DefineStaticMembers {
-    def unapply(arg: AST_Node) = arg match {
-      case AST_Definitions(AST_VarDef(sym: AST_Symbol, objDef: AST_Object)) =>
+    def unapply(arg: AST_Node): Option[(AST_SymbolVarOrConst, AST_Object)] = None
+
+    def unapplyX(arg: AST_Node) = arg match {
+      case AST_Definitions(AST_VarDef(sym: AST_Symbol, Defined(objDef: AST_Object))) =>
         //println(s"Detect static class definition ${sym.name}")
         Some(sym, objDef)
       case _ =>
