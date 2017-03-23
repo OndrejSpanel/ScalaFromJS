@@ -24,7 +24,7 @@ object TransformClasses {
         Some(sym, args, body)
 
       // var ClassName = function() {}
-      case AST_Var(AST_VarDef(sym: AST_Symbol, Defined(AST_Lambda(args, body)))) =>
+      case AST_Definitions(AST_VarDef(sym: AST_Symbol, Defined(AST_Lambda(args, body)))) =>
         Some(sym, args, body)
 
       case _ =>
@@ -118,7 +118,7 @@ object TransformClasses {
 
   object DefineStaticMembers {
     def unapply(arg: AST_Node) = arg match {
-      case AST_Var(AST_VarDef(sym: AST_Symbol, objDef: AST_Object)) =>
+      case AST_Definitions(AST_VarDef(sym: AST_Symbol, objDef: AST_Object)) =>
         //println(s"Detect static class definition ${sym.name}")
         Some(sym, objDef)
       case _ =>
@@ -878,7 +878,7 @@ object TransformClasses {
 
     object PrototypeVariableDef {
       def unapply(arg: AST_Node) = arg match {
-        case AST_Var(AST_VarDef(AST_Symbol(_, _, Defined(symDef)), Defined(init))) if prototypeVariableSymbols contains symDef =>
+        case AST_Definitions(AST_VarDef(AST_Symbol(_, _, Defined(symDef)), Defined(init))) if prototypeVariableSymbols contains symDef =>
           Some(symDef, init)
         case _ => None
 

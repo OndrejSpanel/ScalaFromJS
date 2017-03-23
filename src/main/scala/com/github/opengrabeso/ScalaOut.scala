@@ -659,7 +659,7 @@ object ScalaOut {
           // class body should be a list of variable declarations, constructor statements may follow
 
           inlineBody.value.body.foreach {
-            case AST_Var(AST_VarDef(AST_SymbolName(s), init)) =>
+            case AST_Definitions(AST_VarDef(AST_SymbolName(s), init)) =>
               val clsName = tn.name.nonNull.map(_.name)
               val sType = input.types.getMember(clsName, s).map(_.declType)
               val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))

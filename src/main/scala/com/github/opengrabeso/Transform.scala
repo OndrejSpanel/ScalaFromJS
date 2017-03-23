@@ -30,9 +30,9 @@ object Transform {
   // individual sensible transformations
 
   // detect variables which can be declared as val instead of var
-  def detectVals(n: AST_Extended): AST_Extended = {
+  def detectVals(n: AST_Node): AST_Node = {
     // walk the tree, check for possible val replacements and perform them
-    val ret = n.top.transformBefore {(node, descend, transformer) =>
+    n.transformBefore {(node, descend, transformer) =>
       node match {
         case cm: AST_ConciseMethod =>
           if (cm.key.name != inlineBodyName) {
@@ -94,12 +94,15 @@ object Transform {
           n
       }
     }
-    AST_Extended(ret, n.types)
+  }
+
+  def convertConstToFunction(n: AST_Node): AST_Node = {
+    n
   }
 
   // convert === to ==
-  def relations(n: AST_Extended): AST_Extended = {
-    val ret = n.top.transformAfter { (node, _) =>
+  def relations(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, _) =>
       node match {
         case bin@AST_Binary(_, "===", _) =>
           bin.operator = "=="
@@ -111,7 +114,6 @@ object Transform {
           node
       }
     }
-    AST_Extended(ret, n.types)
   }
 
   // merge variable declaration and first assignment if possible
@@ -736,6 +738,7 @@ object Transform {
     SymbolTypes.stdClassInfo ++ listDefinedClassMembers(node)
   }
 
+  // get rid of transform var XXX = function(){ function XXX(); return XXX; }()
   def removeVarClassScope(n: AST_Node): AST_Node = {
     object DefineAndReturnClass {
       private object ReturnedExpression {
@@ -758,7 +761,7 @@ object Transform {
 
     n.transformAfter { (node, _) =>
       node match {
-        case AST_Var(AST_VarDef(AST_SymbolDef(sym), Defined(AST_BlockStatement(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
+        case AST_Definitions(AST_VarDef(AST_SymbolDef(sym), Defined(AST_BlockStatement(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
           defClass
         case _ =>
           node
@@ -882,7 +885,9 @@ object Transform {
       onTopNode(varInitialization),
       readJSDoc _,
       onTopNode(iife), // removes also trailing return within the IIFE construct
-      onTopNode(removeDoubleScope) // after iife (often introduced by it)
+      onTopNode(removeDoubleScope), // after iife (often introduced by it)
+      onTopNode(detectVals), // before convertValToFunction
+      onTopNode(convertConstToFunction)
     ) ++ TransformClasses.transforms ++ Seq(
       onTopNode(Parameters.removeDeprecated),
       onTopNode(Parameters.defaultValues),
@@ -893,8 +898,8 @@ object Transform {
       onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
       Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
-      detectVals _,
-      relations _
+      onTopNode(detectVals),
+      onTopNode(relations)
     )
 
     transforms.foldLeft(AST_Extended(n, SymbolTypes())) { (t,op) =>
