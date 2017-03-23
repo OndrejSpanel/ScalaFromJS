@@ -307,6 +307,10 @@ object ScalaOut {
       }
     }
 
+    if (false) {
+      out"/*${nodeClassName(n)}*/"
+    }
+
     n match {
       case tn: AST_True => out("true")
       case tn: AST_False => out("false")
@@ -342,9 +346,11 @@ object ScalaOut {
       case tn: AST_ObjectGetter =>
         accessorToOut(tn, "")
       case tn: AST_ObjectKeyVal =>
+        //out"/*${nodeClassName(n)}*/"
         out"var ${identifier(tn.key)} = ${tn.value}\n"
       //case tn: AST_ObjectProperty =>
       case tn: AST_ConciseMethod =>
+        //out"/*${nodeClassName(n)}*/"
         val keyName = tn.key.name /*match {
           case "constructor" => "this"
           case x => x
@@ -583,6 +589,11 @@ object ScalaOut {
         outputArgNames(tn, true)
         out(" = ")
         blockBracedToOut(tn.body)
+      case tn: AST_Accessor =>
+        outputArgNames(tn)
+        out(" = ")
+        //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
+        blockBracedToOut(tn.body)
       case tn: AST_Function =>
         outputArgNames(tn)
         out(" => ")
@@ -592,100 +603,114 @@ object ScalaOut {
         outputArgNames(tn)
         out(" => ")
         blockBracedToOut(tn.body)
-      case tn: AST_Accessor =>
-        outputArgNames(tn, true)
-        out(" = ")
-        //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
-        blockBracedToOut(tn.body)
       case tn: AST_Lambda => outputUnknownNode(tn)
       //case tn: AST_Toplevel => outputUnknownNode(tn)
       //case tn: AST_Scope => outputUnknownNode(tn)
       case tn: AST_DefClass =>
-        out.eol(2)
-        out"class ${tn.name}"
 
-        // find a constructor and output it
-        object NodeIsLambda {
-          def unapply(arg: AST_Node) = arg match {
-            case l: AST_Lambda => Some(l)
-            case _ => None
-          }
-        }
-
-        val constructor = Classes.findConstructor(tn).flatMap{c => NodeIsLambda.unapply(c.value)}
-        val accessor = Classes.classInlineBody(tn)
-
-        outputClassArgNames(accessor)
-
-        for (base <- tn.`extends`) {
-          out" extends $base"
-
-          // find the super constructor call and use its parameters
-          val superCall = accessor.body.collectFirst {
-            case AST_SimpleStatement(call@AST_Call(_: AST_Super, pars@_*)) =>
-              out("(")
-              outputNodes(pars)(nodeToOut)
-              out(")")
-
-          }
-
-
-        }
-        out" {\n"
-        out.indent()
-
-        // class body should be a list of variable declarations, constructor statements may follow
-
-        accessor.body.foreach {
-          case AST_Var(AST_VarDef(AST_SymbolName(s), init)) =>
-            val clsName = tn.name.nonNull.map(_.name)
-            val sType = input.types.getMember(clsName, s).map(_.declType)
-            val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
-            out"var ${identifier(s)}: $sTypeName"
-            for (i <- init) {
-              out" = $init"
-            }
-            out.eol()
-          case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
-          case ss =>
-            //out(nodeTreeToString(ss))
-            nodeToOut(ss)
-        }
-
-        //blockToOut(tn.body)
-
-        val (functionMembers, varMembers) = tn.properties.partition {
-          case _: AST_ConciseMethod => true
+        val (staticProperties, nonStaticProperties) = tn.properties.partition {
+          case m: AST_ConciseMethod => m.`static`
+          case m: AST_ObjectSetter => m.`static`
+          case m: AST_ObjectGetter => m.`static`
           case _ => false
         }
 
-        //out(s"${functionMembers.length} ${varMembers.length}")
-        for (p <- varMembers) {
-          nodeToOut(p)
-        }
-        if ((varMembers.nonEmpty || tn.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
+        if (staticProperties.nonEmpty) {
+          out.eol(2)
 
-        // call the constructor after all variable declarations
-        constructor.foreach { lambda =>
-          if (lambda.body.nonEmpty) {
-            out("constructor")
-            outputArgNamesNoTypes(accessor)
-            out.eol()
+          out"object ${tn.name} {\n"
+          out.indent()
+          staticProperties.foreach(nodeToOut)
+          out.unindent()
+          out("}\n")
+
+        }
+
+        // find a constructor and output it
+
+        val isStaticOnly = tn.`extends` match {
+          case Defined(AST_SymbolName("static_^")) =>
+            true
+          case _ =>
+            false
+        }
+
+        for {
+          inlineBody <- Classes.findInlineBody(tn)
+          if !isStaticOnly
+        } {
+          out.eol(2)
+
+          out"class ${tn.name}"
+
+          val constructor = Classes.findConstructor(tn).map(_.value)
+
+          outputClassArgNames(inlineBody.value)
+
+          for (base <- tn.`extends`) {
+            out" extends $base"
+
+            // find the super constructor call and use its parameters
+            inlineBody.value.body.foreach {
+              case AST_SimpleStatement(call@AST_Call(_: AST_Super, pars@_*)) =>
+                out("(")
+                outputNodes(pars)(nodeToOut)
+                out(")")
+              case _ =>
+            }
           }
-        }
+          out" {\n"
+          out.indent()
 
-        if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
+          // class body should be a list of variable declarations, constructor statements may follow
 
-        for (p <- functionMembers) {
-          if (p.value != accessor) {
-            nodeToOut(p)
+          inlineBody.value.body.foreach {
+            case AST_Definitions(AST_VarDef(AST_SymbolName(s), init)) =>
+              val clsName = tn.name.nonNull.map(_.name)
+              val sType = input.types.getMember(clsName, s).map(_.declType)
+              val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
+              out"var ${identifier(s)}: $sTypeName"
+              for (i <- init) {
+                out" = $init"
+              }
+              out.eol()
+            case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
+            case ss =>
+              //out(nodeTreeToString(ss))
+              nodeToOut(ss)
           }
+
+          //blockToOut(tn.body)
+
+          val (functionMembers, varMembers) = nonStaticProperties.partition {
+            case _: AST_ConciseMethod => true
+            case _ => false
+          }
+
+          //out(s"${functionMembers.length} ${varMembers.length}")
+          varMembers.foreach(nodeToOut)
+
+          if ((varMembers.nonEmpty || tn.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
+
+          // call the constructor after all variable declarations
+          constructor.foreach { lambda =>
+            if (lambda.body.nonEmpty) {
+              out("constructor")
+              outputArgNamesNoTypes(inlineBody.value)
+              out.eol()
+            }
+          }
+
+          if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
+
+          for (p <- functionMembers if p != inlineBody) nodeToOut(p)
+
+          out.unindent()
+          out.eol()
+          out("}\n\n")
+          // classes have no body
+          //blockBracedToOut(tn.body)
         }
-        out.unindent()
-        out.eol()
-        out("}\n\n")
-        // classes have no body
-        //blockBracedToOut(tn.body)
       case tn: AST_Block =>
         blockBracedToOut(tn.body)
       //case tn: AST_BlockStatement =>

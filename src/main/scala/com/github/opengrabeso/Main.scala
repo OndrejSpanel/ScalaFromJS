@@ -10,7 +10,7 @@ import scala.scalajs.js.timers._
 import org.scalajs.dom
 import org.scalajs.dom.Event
 
-import scala.util.Try
+import scala.util.{Success, Try}
 
 object Main extends js.JSApp {
 
@@ -60,7 +60,13 @@ object Main extends js.JSApp {
 
     Persist.store("source", code)
 
-    Try(convert(code)).fold(
+    val conversionResult = if (true) {
+      Success (convert(code))
+    } else {
+      Try(convert(code))
+    }
+
+    conversionResult.fold(
       { err =>
         // if result is an error, wait before displaying it
         // this prevents error flashing while typing

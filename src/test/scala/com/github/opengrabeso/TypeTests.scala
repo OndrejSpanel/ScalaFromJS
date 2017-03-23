@@ -130,4 +130,23 @@ class TypeTests extends FunSuite with TestUtils {
         "var kind = \"snake\""
       )
   }
+
+  test("Static members should be handled as objects") {
+    execute check ConversionCheck(rsc("types/static.js"))
+      .required(
+        "object Cls",
+        "def defX = ",
+        "def defY() = ",
+        "def z = ",
+        "object Utils",
+        "def pi =",
+        "def funA(",
+        "def funB(",
+        "Cls.z = 1",
+        "Utils.x = 11"
+      ).forbidden(
+        "Cls.defX =",
+        "Cls.defY ="
+      )
+  }
 }

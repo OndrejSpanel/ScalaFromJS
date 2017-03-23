@@ -237,7 +237,7 @@ object Uglify extends js.Object {
 
   @js.native sealed abstract class AST_Exit extends AST_Jump {
     // [AST_Node?] the value returned or thrown by this statement; could be null for AST_Return
-    val value: js.UndefOr[AST_Node]  = js.native
+    var value: js.UndefOr[AST_Node]  = js.native
   }
 
   @js.native class AST_Return extends AST_Exit
@@ -257,8 +257,8 @@ object Uglify extends js.Object {
   }
 
   @js.native class AST_Var extends AST_Definitions with CloneSelf[AST_Var]
-  @js.native class AST_Const extends AST_Definitions
-  @js.native class AST_Let extends AST_Definitions
+  @js.native class AST_Const extends AST_Definitions with CloneSelf[AST_Const]
+  @js.native class AST_Let extends AST_Definitions with CloneSelf[AST_Let]
 
   @js.native class AST_VarDef extends AST_Node with CloneSelf[AST_VarDef] {
     // [AST_SymbolVar|AST_SymbolConst] name of the variable
@@ -321,21 +321,21 @@ object Uglify extends js.Object {
 
   @js.native class AST_Conditional extends AST_Node {
     // [AST_Node]
-    val condition: AST_Node = js.native
+    var condition: AST_Node = js.native
     // [AST_Node]
-    val consequent: AST_Node = js.native
+    var consequent: AST_Node = js.native
     // [AST_Node]
-    val alternative: AST_Node = js.native
+    var alternative: AST_Node = js.native
   }
 
   @js.native class AST_Array extends AST_Node {
     // [AST_Node*] array of elements
-    val elements: js.Array[AST_Node] = js.native
+    var elements: js.Array[AST_Node] = js.native
   }
 
-  @js.native class AST_Object extends AST_Node {
+  @js.native class AST_Object extends AST_Node with CloneSelf[AST_Object] {
     // [AST_ObjectProperty*] array of properties
-    val properties: js.Array[AST_ObjectProperty] = js.native
+    var properties: js.Array[AST_ObjectProperty] = js.native
   }
 
   @js.native sealed abstract class AST_ObjectProperty extends AST_Node {
@@ -358,9 +358,11 @@ object Uglify extends js.Object {
   // beware: type does not exist in Uglify.js, do not match against it!
   @js.native sealed abstract class AST_ObjectSetterOrGetter extends AST_ObjectProperty {
     // [string] the property name converted to a string for ObjectKeyVal.  For setters and getters this is an arbitrary AST_Node.
-    override def key: AST_Node = js.native
+    override def key: AST_Symbol = js.native
     // [AST_Node] property value.  For setters and getters this is an AST_Function.
     override def value: AST_Function = js.native
+    // [boolean] whether this method is static (classes only)
+    var `static`: Boolean = js.native
   }
   @js.native class AST_ObjectSetter extends AST_ObjectSetterOrGetter
   @js.native class AST_ObjectGetter extends AST_ObjectSetterOrGetter
@@ -592,8 +594,12 @@ object UglifyExt {
   }
 
   implicit class AST_NodeOps[T <: AST_Node](val node: T) {
+
+
+
     def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
     def walkWithDescend(walker: (AST_Node, (AST_Node, TreeWalker) => Unit, TreeWalker) => Boolean): Unit = {
+
       var w: TreeWalker = null
       w = new TreeWalker((node, descend) => walker(node, descend, w))
       node.walk_js(w)
@@ -669,6 +675,9 @@ object UglifyExt {
       def unapplySeq(arg: AST_Var) = AST_Definitions.unapplySeq(arg)
     }
 
+    object AST_Const {
+      def unapplySeq(arg: AST_Const) = AST_Definitions.unapplySeq(arg)
+    }
 
     object AST_SymbolDeclaration {
       def unapply(arg: AST_SymbolDeclaration) = Some(arg.thedef, arg.name, arg.init)
@@ -779,11 +788,14 @@ object UglifyExt {
 
     object VarName {
       def unapply(arg: AST_Node) = arg match {
-        case AST_Var(AST_VarDef(AST_SymbolName(s), _)) => Some(s)
+        case AST_Definitions(AST_VarDef(AST_SymbolName(s), _)) => Some(s)
         case _ => None
       }
     }
 
+    object UnaryModification {
+      def unapply(arg: String): Boolean = arg == "++" || arg == "--"
+    }
 
     object Statements {
       def unapply(arg: AST_Node) = arg match {
@@ -835,7 +847,7 @@ object UglifyExt {
     to.end = from.end
   }
 
-  def unsupported(message: String, source: AST_Node) = {
+  def unsupported(message: String, source: AST_Node, include: Option[AST_Node] = None) = {
     new AST_SimpleStatement {
       fillTokens(this, source)
       body = new AST_Call {
@@ -850,9 +862,21 @@ object UglifyExt {
             value = message
             quote = "'"
           }
+        ) ++ include.map(inc =>
+          new AST_SimpleStatement {
+            fillTokens(this, source)
+            body = inc
+          }
         )
       }
     }
+  }
+
+  def propertyName(prop: AST_ObjectProperty): String = prop match {
+    case p: AST_ObjectKeyVal => p.key
+    case p: AST_ObjectSetter => p.key.name
+    case p: AST_ObjectGetter => p.key.name
+    case p: AST_ConciseMethod => p.key.name
   }
 
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {
