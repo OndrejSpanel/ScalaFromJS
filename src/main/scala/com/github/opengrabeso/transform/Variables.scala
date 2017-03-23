@@ -130,10 +130,13 @@ object Variables {
             false
           }
 
+          //println(s"Detected modified members $modifiedMembers")
+
           val newProps = props.map {
             case kv@AST_ObjectKeyVal(k, f@AST_Function(args, body)) =>
-
-              new AST_ConciseMethod {
+              if (modifiedMembers contains k) {
+                kv
+              } else new AST_ConciseMethod {
                 fillTokens(this, kv)
                 key = new AST_SymbolMethod {
                   fillTokens(this, f)
