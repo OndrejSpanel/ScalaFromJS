@@ -789,6 +789,9 @@ object UglifyExt {
       }
     }
 
+    object UnaryModification {
+      def unapply(arg: String): Boolean = arg == "++" || arg == "--"
+    }
 
     object Statements {
       def unapply(arg: AST_Node) = arg match {
