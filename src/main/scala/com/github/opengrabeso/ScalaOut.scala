@@ -589,6 +589,11 @@ object ScalaOut {
         outputArgNames(tn, true)
         out(" = ")
         blockBracedToOut(tn.body)
+      case tn: AST_Accessor =>
+        outputArgNames(tn)
+        out(" = ")
+        //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
+        blockBracedToOut(tn.body)
       case tn: AST_Function =>
         outputArgNames(tn)
         out(" => ")
@@ -597,11 +602,6 @@ object ScalaOut {
       case tn: AST_Arrow =>
         outputArgNames(tn)
         out(" => ")
-        blockBracedToOut(tn.body)
-      case tn: AST_Accessor =>
-        outputArgNames(tn, true)
-        out(" = ")
-        //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
         blockBracedToOut(tn.body)
       case tn: AST_Lambda => outputUnknownNode(tn)
       //case tn: AST_Toplevel => outputUnknownNode(tn)

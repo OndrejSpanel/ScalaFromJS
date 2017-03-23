@@ -321,21 +321,21 @@ object Uglify extends js.Object {
 
   @js.native class AST_Conditional extends AST_Node {
     // [AST_Node]
-    val condition: AST_Node = js.native
+    var condition: AST_Node = js.native
     // [AST_Node]
-    val consequent: AST_Node = js.native
+    var consequent: AST_Node = js.native
     // [AST_Node]
-    val alternative: AST_Node = js.native
+    var alternative: AST_Node = js.native
   }
 
   @js.native class AST_Array extends AST_Node {
     // [AST_Node*] array of elements
-    val elements: js.Array[AST_Node] = js.native
+    var elements: js.Array[AST_Node] = js.native
   }
 
-  @js.native class AST_Object extends AST_Node {
+  @js.native class AST_Object extends AST_Node with CloneSelf[AST_Object] {
     // [AST_ObjectProperty*] array of properties
-    val properties: js.Array[AST_ObjectProperty] = js.native
+    var properties: js.Array[AST_ObjectProperty] = js.native
   }
 
   @js.native sealed abstract class AST_ObjectProperty extends AST_Node {

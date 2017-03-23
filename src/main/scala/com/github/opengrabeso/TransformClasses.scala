@@ -459,8 +459,8 @@ object TransformClasses {
               false
             case ClassParentAndPrototypeDef(name, _, _) if classes contains name =>
               false
-            case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
-              false
+            //case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
+            //  false
             case _  =>
               true
           }
@@ -634,8 +634,8 @@ object TransformClasses {
           emptyNode
         case DefineProperty(name, _, _) if classes.contains(name) =>
           emptyNode
-        case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
-          emptyNode
+        //case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
+        //  emptyNode
         case _ =>
           node
       }

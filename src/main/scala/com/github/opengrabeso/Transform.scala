@@ -96,6 +96,40 @@ object Transform {
     }
   }
 
+  // detect function key values can be declared as concise methods instead
+  def detectMethods(n: AST_Node): AST_Node = {
+    n.transformBefore {(node, descend, transformer) =>
+      node match {
+        case obj@AST_Object(props) =>
+          val newProps = props.map {
+            case kv@AST_ObjectKeyVal(k, f@AST_Function(args, body)) =>
+              new AST_ConciseMethod {
+                fillTokens(this, kv)
+                key = new AST_SymbolMethod {
+                  fillTokens(this, f)
+                  name = k
+                  // thedef - nowhere to get it?
+                }
+                value = new AST_Accessor {
+                  fillTokens(this, f)
+                  argnames = args
+                  this.body = body.toJSArray
+                }
+              }
+
+            case p => p
+          }
+          val newObj = obj.clone()
+          newObj.properties = newProps.toJSArray
+          newObj
+        case _ =>
+          val n = node.clone()
+          descend(n, transformer)
+          n
+      }
+    }
+  }
+
   def convertConstToFunction(n: AST_Node): AST_Node = {
     n.transformAfter { (node, _) =>
       node match {
@@ -904,6 +938,7 @@ object Transform {
       onTopNode(iife), // removes also trailing return within the IIFE construct
       onTopNode(removeDoubleScope), // after iife (often introduced by it)
       onTopNode(detectVals), // before convertValToFunction
+      onTopNode(detectMethods), // before convertValToFunction
       onTopNode(convertConstToFunction)
     ) ++ TransformClasses.transforms ++ Seq(
       onTopNode(Parameters.removeDeprecated),
