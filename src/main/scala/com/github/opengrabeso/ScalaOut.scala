@@ -307,6 +307,10 @@ object ScalaOut {
       }
     }
 
+    if (false) {
+      out"/*${nodeClassName(n)}*/"
+    }
+
     n match {
       case tn: AST_True => out("true")
       case tn: AST_False => out("false")
@@ -342,9 +346,11 @@ object ScalaOut {
       case tn: AST_ObjectGetter =>
         accessorToOut(tn, "")
       case tn: AST_ObjectKeyVal =>
+        //out"/*${nodeClassName(n)}*/"
         out"var ${identifier(tn.key)} = ${tn.value}\n"
       //case tn: AST_ObjectProperty =>
       case tn: AST_ConciseMethod =>
+        //out"/*${nodeClassName(n)}*/"
         val keyName = tn.key.name /*match {
           case "constructor" => "this"
           case x => x
