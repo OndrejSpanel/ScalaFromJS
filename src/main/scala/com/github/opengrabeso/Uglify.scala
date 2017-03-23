@@ -615,12 +615,20 @@ object UglifyExt {
   }
 
   trait AST_Extractors {
-    object AST_Binary {
-      def unapply(arg: AST_Binary) = Some((arg.left, arg.operator, arg.right))
+
+    class DefExtractor[X](func: PartialFunction[AST_Node, X]) {
+      def unapply(arg: AST_Node): Option[X] = func.lift(arg)
     }
-    object AST_Assign {
-      def unapply(arg: AST_Assign) = AST_Binary.unapply(arg)
+    class DefExtractorSimple[AST_T <: AST_Node, X](func: AST_T => X) {
+      def unapply(arg: AST_Node): Option[X] = Some(func(arg))
     }
+
+    def extract[X](func: PartialFunction[AST_Node, X]): DefExtractor[X] = new DefExtractor[X](func)
+    def extractSimple[AST_T <: AST_Node, X](func: AST_T => X): DefExtractorSimple[AST_T, X] = new DefExtractorSimple[AST_T, X](func)
+
+    val AST_Binary = extractSimple((arg: AST_Binary) => (arg.left, arg.operator, arg.right))
+
+    val AST_Assign = extractSimple((arg: AST_Assign) => AST_Binary.unapply(arg))
 
     object AST_Symbol {
       def unapply(arg: AST_Symbol) = Some((arg.name, arg.scope, arg.thedef))
