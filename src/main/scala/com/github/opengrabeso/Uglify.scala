@@ -623,8 +623,10 @@ object UglifyExt {
 
     object DefineExtractor {
 
-      class Match[AST_T <: AST_Node, X](func: PartialFunction[AST_T, X]) extends Extractor[AST_T, X] {
-        def unapply(arg: AST_T): Option[X] = func.lift(arg)
+      def none[AST_T <: AST_Node, X]: PartialFunction[AST_T, Option[X]] = {case _ => None}
+
+      class Match[AST_T <: AST_Node, X](func: PartialFunction[AST_T, Option[X]]) extends Extractor[AST_T, X] {
+        def unapply(arg: AST_T): Option[X] = (func orElse none)(arg)
       }
 
       class Simple[AST_T <: AST_Node, X](func: AST_T => X) extends Extractor[AST_T, X] {
@@ -641,7 +643,7 @@ object UglifyExt {
         def apply[X](ex: Extractor[AST_T, X]): Forward[AST_T, X] = new Forward[AST_T, X](ex)
       }
 
-      def extract[AST_T <: AST_Node, X](func: PartialFunction[AST_T, X]): Match[AST_T, X] = new Match[AST_T, X](func)
+      def extract[AST_T <: AST_Node, X](func: PartialFunction[AST_T, Option[X]]): Match[AST_T, X] = new Match[AST_T, X](func)
 
       def simple[AST_T <: AST_Node, X](func: AST_T => X): Simple[AST_T, X] = new Simple[AST_T, X](func)
 
