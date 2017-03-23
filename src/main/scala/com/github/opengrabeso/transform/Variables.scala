@@ -113,48 +113,61 @@ object Variables {
   def detectMethods(n: AST_Node): AST_Node = {
     n.transformBefore {(node, descend, transformer) =>
       node match {
-        case AST_Definitions(AST_VarDef(AST_SymbolDef(df), Defined(obj@AST_Object(props)))) =>
+        case obj@AST_Object(props) =>
+        //case AST_Definitions(AST_VarDef(AST_SymbolDef(df), Defined(obj@AST_Object(props)))) =>
           // check which members are ever written to - we can convert all others to getters and methods
+          transformer.parent(1).nonNull match {
+            case Some(AST_Definitions(AST_VarDef(AST_SymbolDef(df), Defined(o: AST_Object)))) =>
+              //println(s"Scan object ${df.name} for methods")
+              assert(o == obj)
 
-          object IsDf extends Extractor[String] {
-            def unapply(arg: AST_Node) = arg match {
-              case AST_SymbolRefDef(`df`) AST_Dot key => Some(key)
-              case _ => None
-            }
-          }
-          object IsDfModified extends IsModified(IsDf)
 
-          var modifiedMembers = Set.empty[String]
-          walkReferences(df, IsDfModified) { key =>
-            modifiedMembers += key
-            false
-          }
-
-          //println(s"Detected modified members $modifiedMembers")
-
-          val newProps = props.map {
-            case kv@AST_ObjectKeyVal(k, f@AST_Function(args, body)) =>
-              if (modifiedMembers contains k) {
-                kv
-              } else new AST_ConciseMethod {
-                fillTokens(this, kv)
-                key = new AST_SymbolMethod {
-                  fillTokens(this, f)
-                  name = k
-                  // thedef - nowhere to get it?
-                }
-                value = new AST_Accessor {
-                  fillTokens(this, f)
-                  argnames = args
-                  this.body = body.toJSArray
+              object IsDf extends Extractor[String] {
+                def unapply(arg: AST_Node) = arg match {
+                  case AST_SymbolRefDef(`df`) AST_Dot key => Some(key)
+                  case _ => None
                 }
               }
+              object IsDfModified extends IsModified(IsDf)
 
-            case p => p
+              var modifiedMembers = Set.empty[String]
+              walkReferences(df, IsDfModified) { key =>
+                modifiedMembers += key
+                false
+              }
+
+              //println(s"Detected modified members $modifiedMembers")
+
+              val newProps = props.map {
+                case kv@AST_ObjectKeyVal(k, f@AST_Function(args, body)) =>
+                  if (modifiedMembers contains k) {
+                    kv
+                  } else new AST_ConciseMethod {
+                    fillTokens(this, kv)
+                    key = new AST_SymbolMethod {
+                      fillTokens(this, f)
+                      name = k
+                      // thedef - nowhere to get it?
+                    }
+                    value = new AST_Accessor {
+                      fillTokens(this, f)
+                      argnames = args
+                      this.body = body.toJSArray
+                    }
+                  }
+
+                case p => p
+              }
+              val newObj = obj.clone()
+              newObj.properties = newProps.toJSArray
+              newObj
+
+            case None =>
+              node
+            case Some(p) =>
+              //println(s"Parent ${nodeClassName(p)}")
+              node
           }
-          val newObj = obj.clone()
-          newObj.properties = newProps.toJSArray
-          newObj
         case _ =>
           val n = node.clone()
           descend(n, transformer)

@@ -237,7 +237,7 @@ object Uglify extends js.Object {
 
   @js.native sealed abstract class AST_Exit extends AST_Jump {
     // [AST_Node?] the value returned or thrown by this statement; could be null for AST_Return
-    val value: js.UndefOr[AST_Node]  = js.native
+    var value: js.UndefOr[AST_Node]  = js.native
   }
 
   @js.native class AST_Return extends AST_Exit
@@ -358,7 +358,7 @@ object Uglify extends js.Object {
   // beware: type does not exist in Uglify.js, do not match against it!
   @js.native sealed abstract class AST_ObjectSetterOrGetter extends AST_ObjectProperty {
     // [string] the property name converted to a string for ObjectKeyVal.  For setters and getters this is an arbitrary AST_Node.
-    override def key: AST_Node = js.native
+    override def key: AST_Symbol = js.native
     // [AST_Node] property value.  For setters and getters this is an AST_Function.
     override def value: AST_Function = js.native
     // [boolean] whether this method is static (classes only)
@@ -857,10 +857,21 @@ object UglifyExt {
             fillTokens(this, source)
             value = message
             quote = "'"
+          },
+          new AST_SimpleStatement {
+            fillTokens(this, source)
+            body = source
           }
         )
       }
     }
+  }
+
+  def propertyName(prop: AST_ObjectProperty): String = prop match {
+    case p: AST_ObjectKeyVal => p.key
+    case p: AST_ObjectSetter => p.key.name
+    case p: AST_ObjectGetter => p.key.name
+    case p: AST_ConciseMethod => p.key.name
   }
 
   def uglify(code: String, options: Options = defaultUglifyOptions): String = {

@@ -24,6 +24,10 @@ var Utils = {
 
     funB: function (a, b) {
         return a + b;
+    },
+
+    funC: function (a, b) {
+        return a + b;
     }
 };
 
@@ -34,3 +38,5 @@ function f() {
 }
 
 Cls.z = 1;
+
+Utils.funC = function(a, b) {return a*b;};

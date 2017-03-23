@@ -33,11 +33,26 @@ object TransformClasses {
     }
   }
 
-  sealed trait ClassMember
+  sealed trait ClassMember {
+    def definedFrom(init: AST_Node): Boolean
+  }
 
-  case class ClassFunMember(args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement]) extends ClassMember
+  case class ClassFunMember(args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement]) extends ClassMember {
+    def definedFrom(init: AST_Node) = init match {
+      case func: AST_Lambda =>
+        // reference equality of the first member is enough, nodes are unique
+        //println(s"Defined func from: ${ScalaOut.outputNode(body.head)} ${ScalaOut.outputNode(func.body.head)}")
+        func.body.head == body.head
+      case _ => false
+    }
+  }
 
-  case class ClassVarMember(value: AST_Node) extends ClassMember
+  case class ClassVarMember(value: AST_Node) extends ClassMember {
+    def definedFrom(init: AST_Node) = {
+      //println(s"Defined value from: ${ScalaOut.outputNode(value)} ${ScalaOut.outputNode(init)}")
+      value == init
+    }
+  }
 
   case class ClassDef(
     base: Option[String] = None,
@@ -117,9 +132,9 @@ object TransformClasses {
   }
 
   object DefineStaticMembers {
-    def unapply(arg: AST_Node): Option[(AST_SymbolVarOrConst, AST_Object)] = None
+    //def unapply(arg: AST_Node): Option[(AST_SymbolVarOrConst, AST_Object)] = None
 
-    def unapplyX(arg: AST_Node) = arg match {
+    def unapply(arg: AST_Node) = arg match {
       case AST_Definitions(AST_VarDef(sym: AST_Symbol, Defined(objDef: AST_Object))) =>
         //println(s"Detect static class definition ${sym.name}")
         Some(sym, objDef)
@@ -230,16 +245,19 @@ object TransformClasses {
     }
 
     def defineStaticMember(name: String, key: String, value: AST_Node) = {
+      //println(s"defineStaticMember $name.$key ${ScalaOut.outputNode(value)}")
       val c = defClass(name)
-      val member = value match {
-        case AST_Function(args, body) =>
-          //println(s"Define static fun $key")
-          ClassFunMember(args, body)
-        case _ =>
-          //println(s"Define static var $key")
-          ClassVarMember(value)
+      if (!(c.membersStatic contains key)) {
+        val member = value match {
+          case AST_Function(args, body) =>
+            //println(s"Define static fun $key")
+            ClassFunMember(args, body)
+          case _ =>
+            //println(s"Define static var $key")
+            ClassVarMember(value)
+        }
+        classes += name -> c.copy(membersStatic = c.membersStatic + (key -> member))
       }
-      classes += name -> c.copy(membersStatic = c.membersStatic + (key -> member))
 
     }
 
@@ -285,10 +303,11 @@ object TransformClasses {
       val clazz = classes.getOrElse(name, ClassDef(staticOnly = isStatic))
       classes += name -> prototypeDef.properties.foldLeft(clazz) { (clazz, m) =>
         //println(s"Property ${m.key}")
-        m match {
-          case kv: AST_ObjectKeyVal if kv.key != "constructor" =>
+        val key = propertyName(m)
 
-            val member: ClassMember = kv.value match {
+        val member: ClassMember = m match {
+          case kv: AST_ObjectKeyVal /*if key != "constructor"*/ => // skipping constructor? Why?
+            kv.value match {
               case AST_Function(args, body) =>
                 //println(s"Add fun member ${kv.key}")
                 ClassFunMember(args, body)
@@ -297,13 +316,17 @@ object TransformClasses {
                 ClassVarMember(v)
             }
             //println("  " + member)
-            if (!isStatic) clazz.copy(members = clazz.members + (kv.key -> member))
-            else clazz.copy(membersStatic = clazz.membersStatic + (kv.key -> member))
+          case m: AST_ConciseMethod =>
+            ClassFunMember(m.value.argnames, m.value.body)
           case _ =>
             // prototype contains something other than a key: val pair - what to do with it?
-            clazz
+            val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m.value)
+
+            ClassVarMember(member)
         }
 
+        if (!isStatic) clazz.copy(members = clazz.members + (key -> member))
+        else clazz.copy(membersStatic = clazz.membersStatic + (key -> member))
       }
     }
 
@@ -459,8 +482,12 @@ object TransformClasses {
               false
             case ClassParentAndPrototypeDef(name, _, _) if classes contains name =>
               false
-            //case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
-            //  false
+            case DefineStaticMember(name, member, statement)  =>
+              // verify we are deleting only the initialization, not any other use
+              val clsMember = classes.get(name).flatMap(_.membersStatic.get(member))
+              val isInit = clsMember.exists(_.definedFrom(statement))
+              //println(s"Static member $name.$member - init $isInit")
+              !isInit // return false for init to filter it out
             case _  =>
               true
           }
