@@ -594,15 +594,69 @@ object UglifyExt {
   }
 
   implicit class AST_NodeOps[T <: AST_Node](val node: T) {
+    trait Safeguard {
+      var depth = 0
+      final val maxDepth = 100
 
+      final def enter() = {
+        depth += 1
+        //println(s"Enter $depth")
 
+        if (depth >= maxDepth) {
+          throw new StackOverflowError
+        }
+      }
 
-    def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
+      final def leave() = {
+        //println(s"Leave $depth")
+        depth -=1
+      }
+    }
+
+    class SafeWalk(f: AST_Node => Boolean) extends Safeguard {
+      final def apply(n: AST_Node): Boolean = {
+        enter()
+        val r = f(n)
+        leave()
+        r
+      }
+    }
+    class SafeWalkWithDescend(f: (AST_Node, (AST_Node, TreeWalker) => Unit, TreeWalker) => Boolean) extends Safeguard {
+      final def apply(n: AST_Node, descend: (AST_Node, TreeWalker) => Unit, walker: TreeWalker): Boolean = {
+        enter()
+        val r = f(n, descend, walker)
+        leave()
+        r
+      }
+    }
+
+    val makeSafe = false
+
+    def walk(walker: AST_Node => Boolean): Unit = {
+      if (makeSafe) {
+        def walkerWithDescend(n: AST_Node, descend: (AST_Node, TreeWalker) => Unit, tWalker: TreeWalker): Boolean = {
+          val r = walker(n)
+          if (!r) {
+            descend(n, tWalker)
+          }
+          r
+        }
+
+        walkWithDescend(walkerWithDescend)
+      } else {node.walk_js(new TreeWalker((node, _) => walker(node)))}
+    }
+
     def walkWithDescend(walker: (AST_Node, (AST_Node, TreeWalker) => Unit, TreeWalker) => Boolean): Unit = {
-
-      var w: TreeWalker = null
-      w = new TreeWalker((node, descend) => walker(node, descend, w))
-      node.walk_js(w)
+      if (makeSafe) {
+        val safe = new SafeWalkWithDescend(walker)
+        var w: TreeWalker = null
+        w = new TreeWalker((node, descend) => safe(node, descend, w))
+        node.walk_js(w)
+      } else {
+        var w: TreeWalker = null
+        w = new TreeWalker((node, descend) => walker(node, descend, w))
+        node.walk_js(w)
+      }
     }
 
     def transformBefore(before: (AST_Node, (AST_Node, TreeTransformer) => AST_Node, TreeTransformer) => AST_Node): T = {
