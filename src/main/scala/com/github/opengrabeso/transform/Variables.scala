@@ -14,6 +14,46 @@ import scala.language.implicitConversions
 
 
 object Variables {
+
+  trait Extractor[X] {
+    def unapply(arg: AST_Node): Option[X]
+  }
+
+  class IsModified[X](extract: Extractor[X]) extends Extractor[X] {
+    def unapply(arg: AST_Node): Option[X] = arg match {
+      case AST_Assign(extract(x), _, _) =>
+        //println(s"  Detected assignment modification of ${df.name}")
+        Some(x)
+      case AST_Unary(UnaryModification(), extract(x)) =>
+        Some(x)
+      case _ =>
+        None
+    }
+  }
+
+  def walkReferences[X](df: SymbolDef, isDfModified: Extractor[X])(onModification: X => Boolean): Boolean = {
+    df.references.exists { ref =>
+      //println(s"Reference to ${df.name} in scope ${ref.scope.get.nesting}")
+      assert(ref.thedef contains df)
+      ref.scope.exists { s =>
+        var abort = false
+        s.walk {
+          case ss: AST_Scope =>
+            ss != ref.scope // do not descend into any other scopes, they are listed in references if needed
+          case isDfModified(x) =>
+            //println(s"  Detected modification of ${df.name}")
+            if (onModification(x)) abort = true
+            abort
+          case _ =>
+            abort
+        }
+        abort
+      }
+
+    }
+  }
+
+
   // detect variables which can be declared as val instead of var
   def detectVals(n: AST_Node): AST_Node = {
     // walk the tree, check for possible val replacements and perform them
@@ -32,28 +72,16 @@ object Variables {
           varName.thedef.fold(node) { df =>
             assert(df.name == varName.name)
             // check if any reference is assignment target
-            val assignedInto = df.references.exists { ref =>
-              //println(s"Reference to ${df.name} in scope ${ref.scope.get.nesting}")
-              assert(ref.thedef contains df)
-              ref.scope.exists { s =>
-                var detect = false
-                s.walk {
-                  case ss: AST_Scope => ss != ref.scope // do not descend into any other scopes, they are listed in references if needed
-                  case AST_Assign(AST_SymbolRef(_, _, `df`), _, _) =>
-                    //println(s"  Detected assignment modification of ${df.name}")
-                    detect = true
-                    detect
-                  case AST_Unary(UnaryModification(), AST_SymbolRef(_, _, `df`)) =>
-                    //println(s"  Detected unary modification of ${df.name}")
-                    detect = true
-                    detect
-                  case _ =>
-                    detect
-                }
-                detect
-              }
 
+            object IsDf extends Extractor[Unit] {
+              def unapply(arg: AST_Node) = arg match {
+                case AST_SymbolRefDef(`df`) => Some(())
+                case _ => None
+              }
             }
+            object IsDfModified extends IsModified(IsDf)
+
+            val assignedInto = walkReferences(df, IsDfModified)(_ => true)
             val n = if (!assignedInto) {
               val c = varDef.clone()
               c.name = new AST_SymbolConst {
@@ -85,9 +113,26 @@ object Variables {
   def detectMethods(n: AST_Node): AST_Node = {
     n.transformBefore {(node, descend, transformer) =>
       node match {
-        case obj@AST_Object(props) =>
+        case AST_Definitions(AST_VarDef(AST_SymbolDef(df), Defined(obj@AST_Object(props)))) =>
+          // check which members are ever written to - we can convert all others to getters and methods
+
+          object IsDf extends Extractor[String] {
+            def unapply(arg: AST_Node) = arg match {
+              case AST_SymbolRefDef(`df`) AST_Dot key => Some(key)
+              case _ => None
+            }
+          }
+          object IsDfModified extends IsModified(IsDf)
+
+          var modifiedMembers = Set.empty[String]
+          walkReferences(df, IsDfModified) { key =>
+            modifiedMembers += key
+            false
+          }
+
           val newProps = props.map {
             case kv@AST_ObjectKeyVal(k, f@AST_Function(args, body)) =>
+
               new AST_ConciseMethod {
                 fillTokens(this, kv)
                 key = new AST_SymbolMethod {
