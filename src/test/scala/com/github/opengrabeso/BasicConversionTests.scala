@@ -30,7 +30,7 @@ class BasicConversionTests extends FunSuite with TestUtils {
   }
 
   test("Indenting") {
-    val result = Convert(rsc("control/indent.js"))
+    val result = Convert(rsc("control/indent.js"), header = false)
     assert(result == normalizeEol(rsc("control/indent.scala")))
   }
 
