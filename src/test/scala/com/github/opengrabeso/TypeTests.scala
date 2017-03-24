@@ -77,6 +77,20 @@ class TypeTests extends FunSuite with TestUtils {
 
   }
 
+  test("Default values should be inferred for parameters") {
+    execute check ConversionCheck(rsc("types/defaultValues.js"))
+      .required(
+        "a: Any",
+        "d: Double = 0",
+        "c: Double = 1",
+        "b: Double = 2",
+        "aa: Any",
+        "dd: Double = 0",
+        "cc: Double = 1",
+        "bb: Double = 2"
+      )
+  }
+
   test("JS class in IIFE") {
     execute check ConversionCheck(rsc("types/classVariants.js"))
       .required(

@@ -590,7 +590,7 @@ object ScalaOut {
         out(" = ")
         blockBracedToOut(tn.body)
       case tn: AST_Accessor =>
-        outputArgNames(tn)
+        outputArgNames(tn, true)
         out(" = ")
         //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
         blockBracedToOut(tn.body)
