@@ -103,4 +103,6 @@ object Main extends js.JSApp {
 
   @JSExportTopLevel("version")
   def version(): String = {BuildInfo.builtAtString}
+
+  def fingerprint(): String = {s"${BuildInfo.name}: ${BuildInfo.builtAtString}"}
 }

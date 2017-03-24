@@ -175,7 +175,15 @@ object ScalaOut {
     } {
       if (!(input.commentsDumped contains c.pos)) {
         if (c.`type` == "comment2") {
-          out"/*${c.value}*/\n"
+          // process line by line, fix indenting
+          val content = c.value.toString
+          out("/*")
+          for (l <- content.linesWithSeparators) {
+            // note: it might be smarter to check previous indenting level by scanning all lines rather than trimming all whitespaces
+            // this is better for ASCI art or tables, where leading white space are used to position the text
+            out(l.dropWhile(" \t" contains _))
+          }
+          out("*/\n")
         } else {
           out"//${c.value}\n"
         }
