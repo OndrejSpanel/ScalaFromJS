@@ -304,29 +304,35 @@ object TransformClasses {
       classes += name -> prototypeDef.properties.foldLeft(clazz) { (clazz, m) =>
         //println(s"Property ${m.key}")
         val key = propertyName(m)
+        // constructor key most often references the constructor function - this is handled separately
+        if (key == "constructor") {
+          clazz
+        } else {
 
-        val member: ClassMember = m match {
-          case kv: AST_ObjectKeyVal /*if key != "constructor"*/ => // skipping constructor? Why?
-            kv.value match {
-              case AST_Function(args, body) =>
-                //println(s"Add fun member ${kv.key}")
-                ClassFunMember(args, body)
-              case v =>
-                //println(s"Add var member ${kv.key} ${nodeClassName(v)}")
-                ClassVarMember(v)
-            }
+          val member: ClassMember = m match {
+            case kv: AST_ObjectKeyVal => // skipping constructor? Why?
+
+              kv.value match {
+                case AST_Function(args, body) =>
+                  //println(s"Add fun member ${kv.key}")
+                  ClassFunMember(args, body)
+                case v =>
+                  //println(s"Add var member ${kv.key} ${nodeClassName(v)}")
+                  ClassVarMember(v)
+              }
             //println("  " + member)
-          case m: AST_ConciseMethod =>
-            ClassFunMember(m.value.argnames, m.value.body)
-          case _ =>
-            // prototype contains something other than a key: val pair - what to do with it?
-            val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m.value, Some(m.value))
+            case m: AST_ConciseMethod =>
+              ClassFunMember(m.value.argnames, m.value.body)
+            case _ =>
+              // prototype contains something other than a key: val pair - what to do with it?
+              val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m.value, Some(m.value))
 
-            ClassVarMember(member)
+              ClassVarMember(member)
+          }
+
+          if (!isStatic) clazz.copy(members = clazz.members + (key -> member))
+          else clazz.copy(membersStatic = clazz.membersStatic + (key -> member))
         }
-
-        if (!isStatic) clazz.copy(members = clazz.members + (key -> member))
-        else clazz.copy(membersStatic = clazz.membersStatic + (key -> member))
       }
     }
 
