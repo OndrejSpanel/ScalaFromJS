@@ -71,7 +71,13 @@ class TypeTests extends FunSuite with TestUtils {
       .required(
         "class Employe",
         "class Janitor",
+        "extends Person",
         "extends Employee",
+        "def nameGetter =",
+        "def nameFunc() =",
+        "val localVar = age",
+        "def constructor(name: String, age: Double, salary: Double)",
+        "class Person(var name: String, var age: Double)",
         "def printEmployeeDetails() ="
     )
 
