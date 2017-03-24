@@ -36,7 +36,7 @@ trait TestUtils {
       }
     }
 
-    val convert = Main.convert(code)
+    val convert = Convert(code)
 
     def execute() = {
       checkResult(convert).failed.foreach(throw _)

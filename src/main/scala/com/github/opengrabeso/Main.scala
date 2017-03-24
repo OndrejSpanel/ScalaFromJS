@@ -1,7 +1,5 @@
 package com.github.opengrabeso
 
-import Uglify._
-import UglifyExt._
 import buildinfo.BuildInfo
 
 import scala.scalajs.js
@@ -48,22 +46,15 @@ object Main extends js.JSApp {
     def action(result: String) = out.asInstanceOf[js.Dynamic].value = result
   }
 
-  def convert(code: String): String = {
-    val ast = parse(code, defaultUglifyOptions.parse)
-    ast.figure_out_scope()
-    val astOptimized = Transform(ast)
-    ScalaOut.output(astOptimized, code)
-  }
-
   def doConversion(persist: Boolean = true) = {
     val code = in.asInstanceOf[js.Dynamic].value.asInstanceOf[String]
 
     Persist.store("source", code)
 
     val conversionResult = if (true) {
-      Success (convert(code))
+      Success (Convert(code))
     } else {
-      Try(convert(code))
+      Try(Convert(code))
     }
 
     conversionResult.fold(
@@ -104,7 +95,11 @@ object Main extends js.JSApp {
   }
 
   def main(): Unit = {
-    dom.window.addEventListener("load", windowLoaded)
+    if (!js.isUndefined(dom.window.document)) {
+      dom.window.addEventListener("load", windowLoaded)
+    } else {
+      println("Node.js - Command line")
+    }
   }
 
   @JSExportTopLevel("version")
