@@ -98,7 +98,7 @@ object Main extends js.JSApp {
     if (!js.isUndefined(dom.window.document)) {
       dom.window.addEventListener("load", windowLoaded)
     } else {
-      println("Node.js - Command line")
+      CommandLine()
     }
   }
 
