@@ -352,7 +352,7 @@ object Uglify extends js.Object {
     override def key: String = js.native
 
     // [string] the original quote character
-    val quote: String =  js.native
+    var quote: String =  js.native
   }
 
   // beware: type does not exist in Uglify.js, do not match against it!

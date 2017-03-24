@@ -141,6 +141,7 @@ object Variables {
               val newProps = props.map {
                 case kv@AST_ObjectKeyVal(k, f@AST_Function(args, body)) =>
                   if (modifiedMembers contains k) {
+                    //println(s"Modified member $k")
                     kv
                   } else new AST_ConciseMethod {
                     fillTokens(this, kv)

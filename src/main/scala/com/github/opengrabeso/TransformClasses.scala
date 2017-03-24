@@ -310,18 +310,22 @@ object TransformClasses {
         } else {
 
           val member: ClassMember = m match {
-            case kv: AST_ObjectKeyVal => // skipping constructor? Why?
-
-              kv.value match {
-                case AST_Function(args, body) =>
-                  //println(s"Add fun member ${kv.key}")
-                  ClassFunMember(args, body)
-                case v =>
-                  //println(s"Add var member ${kv.key} ${nodeClassName(v)}")
-                  ClassVarMember(v)
+            case kv: AST_ObjectKeyVal =>
+              //println(s"Add AST_ObjectKeyVal $key")
+              if (isStatic) {
+                ClassVarMember(kv.value)
+              } else {
+                kv.value match {
+                  case AST_Function(args, body) =>
+                    //println(s"Add fun member ${kv.key}")
+                    ClassFunMember(args, body)
+                  case v =>
+                    //println(s"Add var member ${kv.key} ${nodeClassName(v)}")
+                    ClassVarMember(v)
+                }
               }
-            //println("  " + member)
             case m: AST_ConciseMethod =>
+              //println(s"Add AST_ConciseMethod $key")
               ClassFunMember(m.value.argnames, m.value.body)
             case _ =>
               // prototype contains something other than a key: val pair - what to do with it?
@@ -526,11 +530,12 @@ object TransformClasses {
             }
           }
 
-          def unapply(arg: ClassMember) = arg match {
-            case ClassFunMember(args, body) =>
+          def unapply(arg: (ClassMember, Boolean)) = arg match {
+            case (ClassFunMember(args, body), _) =>
               Some(args.toSeq, body)
 
-            case ClassVarMember(AST_BlockStatement(ss :+ ReturnValue(AST_Function(args, body)))) /*if onlyVariables(ss)*/ =>
+            // non-static functions should always be represented as functions if possible
+            case (ClassVarMember(AST_BlockStatement(ss :+ ReturnValue(AST_Function(args, body)))), false) /*if onlyVariables(ss)*/ =>
               //println(nodeClassName(f))
               val newBody = ss ++ body
               Some(args.toSeq, newBody)
@@ -544,11 +549,14 @@ object TransformClasses {
           }
         }
 
-        def newValue(k: String, v: AST_Node) = {
+        def newValue(k: String, v: AST_Node, isStatic: Boolean) = {
           new AST_ObjectKeyVal {
             fillTokens(this, v)
             key = k
             value = v
+            // hack - use quote to mark static values
+            quote = if (isStatic) "'" else "\""
+
           }
         }
 
@@ -565,7 +573,7 @@ object TransformClasses {
         }
 
         def newMember(k: String, v: ClassMember, isStatic: Boolean = false) = {
-          v match {
+          (v, isStatic) match {
             case AsFunction(args, body) =>
               new AST_ConciseMethod {
                 key = keyNode(tokensFrom, k)
@@ -578,11 +586,13 @@ object TransformClasses {
                 }
               }: AST_ObjectProperty
 
-            case m: ClassVarMember =>
+            case (m: ClassVarMember, false) =>
               newGetter(k, js.Array(), js.Array(new AST_SimpleStatement {
                 fillTokens(this, tokensFrom)
                 body = m.value
               }), isStatic)
+            case (m: ClassVarMember, true) =>
+              newValue(k, m.value, isStatic)
 
           }
         }
@@ -640,7 +650,7 @@ object TransformClasses {
           val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }
           val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
           val mappedSetters = clazz.setters.map { case (k, v) => newSetter(k, v.args, v.body) }
-          val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value) }
+          val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value, false) }
           val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
 
           val properties = mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues ++ mappedStatic

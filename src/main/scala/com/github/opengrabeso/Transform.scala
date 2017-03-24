@@ -414,10 +414,14 @@ object Transform {
         // not allowing undefined overrides
         None // Some(TypeInfo(AnyType, NoType))
 
-      case s@AST_SymbolRefDef(symDef) =>
-        //val thisScope = findThisScope(Some(symDef.scope))
-        //println(s"Sym ${symDef.name} type ${types.get(symDef)}")
-        types.get(symDef)
+      case AST_SymbolRefDef(symDef) =>
+        // if the symbol is a class name, use it as a class type directly
+        val rt = types.get(symDef).orElse {
+          val r = classes.get(symDef.name).flatMap(_.name.nonNull.map(_.name)).map(c => TypeInfo.target(ClassType(c)))
+          r
+        }
+        //println(s"Sym ${symDef.name} type $rt")
+        rt
 
       case AST_Dot(cls, name) =>
         //println(s"Infer type of member $name, et ${expressionType(cls)(ctx)}")

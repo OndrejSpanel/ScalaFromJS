@@ -620,6 +620,7 @@ object ScalaOut {
           case m: AST_ConciseMethod => m.`static`
           case m: AST_ObjectSetter => m.`static`
           case m: AST_ObjectGetter => m.`static`
+          case m: AST_ObjectKeyVal => m.quote == "'"
           case _ => false
         }
 

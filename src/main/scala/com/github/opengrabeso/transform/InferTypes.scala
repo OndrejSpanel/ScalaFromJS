@@ -358,6 +358,7 @@ object InferTypes {
         case AST_Assign(left, _, right) =>
           val leftT = expressionType(left)(ctx)
           val rightT = expressionType(right)(ctx)
+          //println(s"Infer assign $leftT - $rightT")
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
             for (SymbolInfo(symInfo) <- Some(left)) {
               //println(s"Infer assign: $symInfo = $rightT")
@@ -450,6 +451,18 @@ object InferTypes {
             // target, because setter parameter is typically used as a source for the property variable, which sets source only
             addInferredMemberType(Some(classId), Some(TypeInfo.target(retType.declType)))
           }
+        case AST_ObjectKeyVal(name, value) =>
+          val scope = findThisClassInWalker(walker)
+          for {
+            AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope
+          } {
+            val classId = MemberId(cls, name)
+            // target, because setter parameter is typically used as a source for the property variable, which sets source only
+            val tpe = expressionType(value)(ctx)
+            //println(s"Infer type for value $cls.$name as $tpe")
+            addInferredMemberType(Some(classId), tpe)
+          }
+
 
         case AST_Call(AST_SymbolRefDef(call), args@_*) =>
           //println(s"Call ${call.name}")
