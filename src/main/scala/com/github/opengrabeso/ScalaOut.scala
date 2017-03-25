@@ -484,6 +484,7 @@ object ScalaOut {
           out(" else ")
           nodeToOut(a)
         }
+        out.eol()
       case tn: AST_With => outputUnknownNode(tn, true)
       case tn: AST_ForIn =>
         out("for (")
