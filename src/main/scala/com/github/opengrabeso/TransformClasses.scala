@@ -705,24 +705,47 @@ object TransformClasses {
         if (args.headOption.exists(_.isInstanceOf[AST_This])) args.tail else args
       }
 
+      def getClassArguments: Seq[AST_Node] = {
+        val args = findThisClassInWalker(walker).toSeq.flatMap { defClass =>
+          findInlineBody(defClass).orElse(findConstructor(defClass)).toSeq.flatMap(_.value.argnames)
+        }
+        args.map { a =>
+          new AST_SymbolRef {
+            fillTokens(this, a)
+            name = a.name
+            scope = a.scope
+            thedef = a.thedef
+          }
+        }
+      }
+
       node match {
         // Animal.apply(this, Array.prototype.slice.call(arguments))
         case call@AST_Call(
         AST_SymbolRefName(IsSuperClass()) AST_Dot "apply",
         _: AST_This,
-        AST_Call(AST_SymbolRefName("Array") AST_Dot "prototype" AST_Dot "slice" AST_Dot "call",args@_*)
+        AST_Call(AST_SymbolRefName("Array") AST_Dot "prototype" AST_Dot "slice" AST_Dot "call", AST_SymbolRefName("arguments"))
         ) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
           call.expression = newAST_Super
-          call.args = args.toJSArray
+          call.args = getClassArguments.toJSArray
           call
+        // Super.apply(this, arguments)
+        case call@AST_Call(AST_SymbolRefName(IsSuperClass()) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")) =>
+          // TODO: check class constructor arguments as pass them
+          call.expression = newAST_Super
+          call.args = getClassArguments.toJSArray
+          call
+
         // Light.call( this, skyColor, intensity )
         case call@AST_Call(AST_SymbolRefName(IsSuperClass()) AST_Dot "call", args@_*) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
           call.expression = newAST_Super
           call.args = removeHeadThis(args).toJSArray
           call
-        // Light.prototype.copy.call( this, source );
+
+
+        // Light.prototype.call( this, source );
         case call@AST_Call(
         AST_SymbolRefName(IsSuperClass()) AST_Dot "prototype" AST_Dot func AST_Dot "call",
         _: AST_This, args@_*
@@ -735,6 +758,7 @@ object TransformClasses {
           }
           call.args = removeHeadThis(args).toJSArray
           call
+
 
         // this.constructor, typically as new this.constructor( ... )
         case (_: AST_This) AST_Dot "constructor" =>
@@ -942,7 +966,7 @@ object TransformClasses {
     n.transformAfter { (node, _) =>
       node match {
         case PrototypeVariable(clsName, protoFunSym, assign) =>
-          assign.right = prototypeVariableDefs(protoFunSym)
+          prototypeVariableDefs.get(protoFunSym).foreach (pv => assign.right = pv)
           node
         case PrototypeVariableDef(_, _) =>
           new AST_EmptyStatement {
