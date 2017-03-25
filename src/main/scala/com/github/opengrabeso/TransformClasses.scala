@@ -125,8 +125,8 @@ object TransformClasses {
     def unapply(arg: AST_Node) = arg match {
       // Cls.defX = 0;
       // Cls.defY = function() {return 0;};
-      case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(clsName) AST_Dot member, "=", value)) =>
-        Some(clsName, member, value)
+      case AST_SimpleStatement(AST_Assign(AST_SymbolRef(clsName, Defined(scope), Defined(clsSym)) AST_Dot member, "=", value)) =>
+        Some(clsName, clsSym, scope, member, value)
       case _ => None
     }
   }
@@ -435,9 +435,13 @@ object TransformClasses {
         true
 
       // note: after ClassPrototypeDef, as  prototype definition would match static member definition as well
-      case DefineStaticMember(clsName, member, value) =>
-        //println(s"Define static member $clsName.$member as ${nodeClassName(value)}")
-        classes.defineStaticMember(clsName, member, value)
+      case DefineStaticMember(clsName, clsSym, scope, member, value) =>
+        // is it the same scope as the class definition? If not, do not consider it as a static init
+        //println(s"Nesting ${scope.nesting} .. ${clsSym.scope.nesting}")
+        if (scope == clsSym.scope) {
+          //println(s"Define static member $clsName.$member as ${nodeClassName(value)}")
+          classes.defineStaticMember(clsName, member, value)
+        }
         true
 
       case _ =>
@@ -492,7 +496,7 @@ object TransformClasses {
               false
             case ClassParentAndPrototypeDef(name, _, _) if classes contains name =>
               false
-            case DefineStaticMember(name, member, statement)  =>
+            case DefineStaticMember(name, _, _, member, statement)  =>
               // verify we are deleting only the initialization, not any other use
               val clsMember = classes.get(name).flatMap(_.membersStatic.get(member))
               val isInit = clsMember.exists(_.definedFrom(statement))
