@@ -444,7 +444,7 @@ object Transform {
         Some(TypeInfo.target(boolean))
       case tern: AST_Conditional =>
         val t1 = expressionType(tern.consequent)(ctx)
-        val t2 = expressionType(tern.consequent)(ctx)
+        val t2 = expressionType(tern.alternative)(ctx)
         typeUnionOption(t1, t2)
       case AST_Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
