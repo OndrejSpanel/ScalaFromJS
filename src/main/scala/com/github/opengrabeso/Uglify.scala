@@ -122,8 +122,6 @@ object Uglify extends js.Object {
     val enclosed: js.UndefOr[js.Array[SymbolDef]] = js.native
     // [integer/S] current index for mangling variables (used internally by the mangler)
     val cname: js.UndefOr[Int] = js.native
-    // the nesting level of this scope (0 means toplevel)
-    val nesting: Int = js.native
   }
 
   @js.native class AST_Toplevel extends AST_Scope with CloneSelf[AST_Toplevel] {
@@ -827,6 +825,10 @@ object UglifyExt {
         nd.CTOR.name.asInstanceOf[String]
       } else s
     }
+  }
+
+  def scopeName(n: AST_Scope): String = {
+    nodeClassName(n) + ":" + n.start.fold("")(pos => pos.line.toString)
   }
 
   def nodeTreeToString(t: AST_Node): String = {
