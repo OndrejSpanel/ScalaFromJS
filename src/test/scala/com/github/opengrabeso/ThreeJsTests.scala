@@ -1,7 +1,5 @@
 package com.github.opengrabeso
 
-import Resources.{getResource => rsc}
-
 import org.scalatest.FunSuite
 
 class ThreeJsTests extends FunSuite with TestUtils {

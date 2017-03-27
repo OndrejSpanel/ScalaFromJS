@@ -50,4 +50,17 @@ trait TestUtils {
     def check(setup: ConversionCheck) = setup.execute()
   }
 
+  def rsc(path: String) = {
+    import scalajs.js.Dynamic.{global => g}
+    val fs = g.require("fs")
+    val process = g.require("process")
+
+    // TODO: facade instead of Dynamic
+    def readFile(name: String): String = {
+      fs.readFileSync(name).toString
+    }
+
+    readFile("src/test/resources/" + path)
+  }
+
 }

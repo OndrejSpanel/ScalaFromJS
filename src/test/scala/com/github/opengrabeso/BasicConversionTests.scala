@@ -1,7 +1,6 @@
 package com.github.opengrabeso
 
 import org.scalatest.FunSuite
-import Resources.{getResource => rsc}
 
 class BasicConversionTests extends FunSuite with TestUtils {
 

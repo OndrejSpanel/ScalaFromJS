@@ -1,6 +1,5 @@
 package com.github.opengrabeso
 
-import Resources.{getResource => rsc}
 import org.scalatest.FunSuite
 
 class FlowControlTests extends FunSuite with TestUtils {

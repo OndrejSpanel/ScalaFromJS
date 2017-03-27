@@ -3,7 +3,6 @@ package com.github.opengrabeso
 import com.github.opengrabeso.Uglify._
 import com.github.opengrabeso.UglifyExt._
 import org.scalatest.FunSuite
-import Resources.{getResource => rsc}
 
 class ParsingTests extends FunSuite with TestUtils {
   test("Basic test") {

@@ -1,7 +1,5 @@
 package com.github.opengrabeso
 
-import Resources.{getResource => rsc}
-
 import org.scalatest.FunSuite
 
 class ExpressionTests extends FunSuite with TestUtils {
