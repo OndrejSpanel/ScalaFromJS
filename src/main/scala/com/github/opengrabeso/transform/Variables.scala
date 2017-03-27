@@ -32,24 +32,26 @@ object Variables {
   }
 
   def walkReferences[X](df: SymbolDef, isDfModified: Extractor[X])(onModification: X => Boolean): Boolean = {
-    df.references.exists { ref =>
-      //println(s"Reference to ${df.name} in scope ${ref.scope.get.nesting}")
+    // ++ orig is a hotfix for issue https://github.com/mishoo/UglifyJS2/issues/1702 - include orig, likely to help
+    val scopes = (df.references ++ df.orig).flatMap { ref =>
       assert(ref.thedef contains df)
-      ref.scope.exists { s =>
-        var abort = false
-        s.walk {
-          case ss: AST_Scope =>
-            ss != ref.scope // do not descend into any other scopes, they are listed in references if needed
-          case isDfModified(x) =>
-            //println(s"  Detected modification of ${df.name}")
-            if (onModification(x)) abort = true
-            abort
-          case _ =>
-            abort
-        }
-        abort
-      }
+      ref.scope.nonNull
+    }.toSet
 
+    scopes.exists { s =>
+      //println(s"Reference to ${df.name} in scope ${scopeName(s)}")
+      var abort = false
+      s.walk {
+        case ss: AST_Scope =>
+          ss != s // do not descend into any other scopes, they are listed in references if needed
+        case isDfModified(x) =>
+          //println(s"  Detected modification of ${df.name}")
+          if (onModification(x)) abort = true
+          abort
+        case _ =>
+          abort
+      }
+      abort
     }
   }
 
