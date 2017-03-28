@@ -9,9 +9,15 @@ import scala.scalajs.js
 
 object ScalaOut {
 
-  class Config {
+  object Config {
+    val default = new Config
+  }
+
+  case class Config(unknowns: Boolean = true, parts: Seq[(Int, String)] = Seq.empty) {
     // annotate unknown constructs with a comment (source is always passed through)
-    var unknowns = true
+    def withParts(p: Seq[(Int, String)]) = {
+      copy(parts = p)
+    }
   }
 
   abstract class Output extends ((String) => Unit) {
@@ -23,6 +29,8 @@ object ScalaOut {
 
     def indent(): Unit = changeIndent(+1)
     def unindent(): Unit = changeIndent(-1)
+
+    def submitLocation(loc: Int): Unit = {}
   }
 
   abstract class NiceOutput extends Output {
@@ -55,10 +63,6 @@ object ScalaOut {
 
     }
 
-  }
-
-  object Config {
-    val default = new Config
   }
 
   case class InputContext(input: String, types: SymbolTypes) {
@@ -772,14 +776,22 @@ object ScalaOut {
     }
   }
 
-  def output(ast: Transform.AST_Extended, input: String, outConfig: Config = Config.default): String = {
-    val sb = new StringBuilder
+  def output(ast: Transform.AST_Extended, input: String, outConfig: Config = Config.default): Seq[String] = {
+    val sb = Array.fill(outConfig.parts.size max 1)(new StringBuilder)
+    var currentSb = 0
     val ret = new NiceOutput {
-      def out(x: String) = sb append x
+      override def out(x: String) = sb(currentSb) append x
+
+      override def submitLocation(loc: Int) = {
+        // check if we have crossed a file boundary, start a new output file if needed
+        if (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb)._1) {
+          currentSb += 1
+        }
+      }
     }
     val inputContext = InputContext(input, ast.types)
     blockToOut(ast.top.body)(outConfig, inputContext, ret)
-    sb.result
+    sb.map(_.result)
   }
 
   def nodeSource(n: AST_Node, input: String) = {

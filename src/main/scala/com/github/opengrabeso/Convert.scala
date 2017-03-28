@@ -8,7 +8,7 @@ object Convert {
     val ast = parse(code, defaultUglifyOptions.parse)
     val astOptimized = Transform(ast)
     val prefix = if (header) s"/* ${Main.fingerprint()}*/\n\n" else ""
-    prefix + ScalaOut.output(astOptimized, code)
+    prefix + ScalaOut.output(astOptimized, code).mkString
   }
 
 

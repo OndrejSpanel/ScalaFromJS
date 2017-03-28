@@ -71,26 +71,37 @@ object CommandLine {
 
     controlFile.toOption.fold{
       val astOptimized = Transform(ast)
-      val output = prefix + ScalaOut.output(astOptimized, code)
+      val output = prefix + ScalaOut.output(astOptimized, code).mkString
       writeFile(out, output)
     }{ project =>
-      val compositeFile = (project.exports ++ project.imports).map { filename =>
+      val inputFileNames = project.exports ++ project.imports
+
+      def loadFiles(names: Seq[String]) = names.map { filename =>
         val singlePath = resolveSibling(in, filename)
-
         readFile(singlePath.toString)
+      }
 
-      }.mkString
+      val exportsFiles = loadFiles(project.exports)
+      val importsFiles = loadFiles(project.imports)
+
+
+      val fileOffsets = exportsFiles.scanLeft(0){ (offset, file) =>
+        offset + file.length
+      }
+      println(fileOffsets zip (project.exports :+ ""))
+
+      val compositeFile = (exportsFiles ++ importsFiles).mkString
 
       val ast = parse(compositeFile, defaultUglifyOptions.parse)
 
       val astOptimized = Transform(ast)
-      val output = prefix + ScalaOut.output(astOptimized, code)
+      val output = prefix + ScalaOut.output(astOptimized, code).mkString("\n/*|*/\n")
+      // TODO: process output
       writeFile(out, output)
     }
   }
 
   def apply() = {
-    println("Node.js - Command line")
     println(s"  args ${argv.mkString(",")}")
 
     convertFileToFile("temp/input.js", "temp/output.scala")
