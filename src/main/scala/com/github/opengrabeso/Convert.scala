@@ -5,10 +5,9 @@ import UglifyExt._
 
 object Convert {
   def apply(code: String, header: Boolean = true): String = {
-    val prefix = if (header) s"/* ${Main.fingerprint()}*/\n\n" else ""
     val ast = parse(code, defaultUglifyOptions.parse)
-    ast.figure_out_scope()
     val astOptimized = Transform(ast)
+    val prefix = if (header) s"/* ${Main.fingerprint()}*/\n\n" else ""
     prefix + ScalaOut.output(astOptimized, code)
   }
 

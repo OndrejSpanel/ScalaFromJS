@@ -403,6 +403,12 @@ object Uglify extends js.Object {
   @js.native class AST_SymbolLambda extends AST_SymbolDeclaration
   @js.native class AST_SymbolCatch extends AST_SymbolDeclaration
   @js.native class AST_SymbolDefClass extends AST_SymbolDeclaration
+  @js.native class AST_SymbolImport extends AST_SymbolDeclaration
+  @js.native class AST_SymbolImportForeign extends AST_SymbolDeclaration
+  @js.native class AST_NameImport extends AST_Node {
+    var foreign_name: AST_SymbolImportForeign = js.native // The name being imported (as specified in the module)
+    var name: AST_SymbolImport = js.native // The name as it becomes available to this module
+  }
 
   @js.native class AST_Label extends AST_Symbol {
     // [AST_LoopControl*] a list of nodes referring to this label
@@ -455,6 +461,16 @@ object Uglify extends js.Object {
 
   @js.native class AST_DefClass extends AST_Class
 
+  @js.native class AST_Export extends AST_Node {
+    var module_name: js.UndefOr[AST_String] = js.native // String literal describing where this module came from
+  }
+
+  @js.native class AST_Import extends AST_Node {
+    var imported_name: AST_SymbolImport = js.native //  The name of the variable holding the module's default export
+    var imported_names: js.Array[AST_NameImport] = js.native //  The names of non-default imported variables
+    var module_name: AST_String = js.native // String literal describing where this module came from
+
+  }
 
   @js.native
   class Compressor(options: UglifyExt.Options.Compress) extends js.Object
