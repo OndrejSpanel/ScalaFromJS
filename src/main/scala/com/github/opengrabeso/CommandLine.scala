@@ -12,7 +12,9 @@ import scala.util.{Failure, Success, Try}
 object CommandLine {
 
   val fs = g.require("fs")
+  val os = g.require("os")
   val process = g.require("process")
+  val path = g.require("path")
 
   // TODO: facade instead of Dynamic
 
@@ -22,6 +24,19 @@ object CommandLine {
 
   def writeFile(name: String, content: String): Unit = {
     fs.writeFileSync(name, content)
+  }
+
+  lazy val separator = path.sep.asInstanceOf[String]
+
+  def terminateBySeparator(path: String): String = {
+    if (path endsWith separator) path else path + separator
+  }
+
+  def tempDir(prefix: String): String = {
+    val dir = os.tmpdir().asInstanceOf[String]
+    val tempBase = terminateBySeparator(dir)
+    val tempDir = fs.mkdtempSync(tempBase + prefix).asInstanceOf[String]
+    terminateBySeparator(tempDir)
   }
 
   lazy val argv: Seq[String] = {
@@ -77,7 +92,8 @@ object CommandLine {
     path.dropRight(ext.length) + extension(pathWithExtension)
   }
 
-  def convertFileToFile(in: String, out: String): Unit = {
+  // return filenames of the output files
+  def convertFileToFile(in: String, out: String): Seq[String] = {
     val code = readFile(in)
 
     val ast = parse(code, defaultUglifyOptions.parse)
@@ -87,6 +103,7 @@ object CommandLine {
       val astOptimized = Transform(ast)
       val output = s"/* ${Main.fingerprint()}*/\n\n" + ScalaOut.output(astOptimized, code).mkString
       writeFile(out, output)
+      Seq(out)
     }{ project =>
       def loadFiles(names: Seq[String]) = names.map { filename =>
         val singlePath = resolveSibling(in, filename)
@@ -109,7 +126,7 @@ object CommandLine {
       val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
       val output = ScalaOut.output(astOptimized, code, outConfig)
 
-      for ( (outCode, inFile) <- output zip project.exports) {
+      for ( (outCode, inFile) <- output zip project.exports) yield {
 
         val outFileBase = resolveSibling(out, inFile)
 
@@ -118,6 +135,7 @@ object CommandLine {
         val extendedPrefix = s"/*\n${Main.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
         println(s"Write $outFileCombined from $inFile (out: $out)")
         writeFile(outFileCombined, extendedPrefix + outCode)
+        outFileCombined
       }
     }
   }

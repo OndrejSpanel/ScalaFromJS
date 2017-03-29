@@ -14,16 +14,19 @@ trait TestUtils {
     val standardForbidden = Seq(";", "/* Unsupported:")
   }
 
-  case class ConversionCheck(code: String, mustHave: Seq[String] = Seq(), mustNotHave: Seq[String] = ConversionCheck.standardForbidden) {
-    def requiredNothing = copy(mustHave = Seq())
-    def forbiddenNothing = copy(mustNotHave = Seq())
+  case class TestSetup(mustHave: Seq[String] = Seq.empty[String], mustNotHave: Seq[String] = ConversionCheck.standardForbidden)
 
-    def required(add: String*) = copy(mustHave = mustHave ++ add)
-    def forbidden(add: String*) = copy(mustNotHave = mustNotHave ++ add)
+  case class TestCheck(setup: TestSetup = TestSetup(), getResult: () => String) {
+
+    def requiredNothing: TestCheck = copy(setup = setup.copy(mustHave = Seq()))
+    def forbiddenNothing: TestCheck = copy(setup = setup.copy(mustNotHave = Seq()))
+
+    def required(add: String*) = copy(setup = setup.copy(mustHave = setup.mustHave ++ add))
+    def forbidden(add: String*) = copy(setup = setup.copy(mustNotHave = setup.mustNotHave ++ add))
 
     def checkResult(result: String): Try[Unit] = {
-      val missing = mustHave.filter(s => !result.contains(normalizeEol(s)))
-      val forbidden = mustNotHave.filter(s => result.contains(normalizeEol(s)))
+      val missing = setup.mustHave.filter(s => !result.contains(normalizeEol(s)))
+      val forbidden = setup.mustNotHave.filter(s => result.contains(normalizeEol(s)))
       if (missing.isEmpty & forbidden.isEmpty) {
         Success(())
       } else Failure {
@@ -36,19 +39,14 @@ trait TestUtils {
       }
     }
 
-    val convert = Convert(code)
-
     def execute() = {
-      checkResult(convert).failed.foreach(throw _)
+      checkResult(getResult()).failed.foreach(throw _)
     }
-
-    //noinspection UnitMethodIsParameterless
-    def unary_~ = execute()
   }
 
-  object execute {
-    def check(setup: ConversionCheck) = setup.execute()
-  }
+  def ResultCheck(result: String) = TestCheck(getResult = () => result)
+
+  def ConversionCheck(code: String) = TestCheck(getResult = () => Convert(code))
 
   def rsc(path: String) = {
     import scalajs.js.Dynamic.{global => g}
@@ -62,5 +60,10 @@ trait TestUtils {
 
     readFile("src/test/resources/" + path)
   }
+
+  object execute {
+    def check(setup: TestCheck) = setup.execute()
+  }
+
 
 }

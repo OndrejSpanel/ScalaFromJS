@@ -2,7 +2,7 @@ package com.github.opengrabeso
 
 import org.scalatest.FunSuite
 
-class CommandLineTest extends FunSuite {
+class CommandLineTest extends FunSuite with TestUtils {
 
   import CommandLine._
 
@@ -21,4 +21,13 @@ class CommandLineTest extends FunSuite {
     assert(shortName("a.js") == "a.js")
   }
 
+  test("Single file conversion") {
+    val temp = tempDir("ScalaFromJS-test-")
+    val out = convertFileToFile("src/test/resources/files/a.js", temp + "aaa.scala")
+    out.foreach { f =>
+      val outCode = readFile(f)
+      execute check ResultCheck(outCode).required("def A()")
+    }
+
+  }
 }
