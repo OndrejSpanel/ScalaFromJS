@@ -13,7 +13,7 @@ object ScalaOut {
     val default = new Config
   }
 
-  case class Config(unknowns: Boolean = true, parts: Seq[Int] = Seq.empty) {
+  case class Config(unknowns: Boolean = true, parts: Seq[Int] = Seq(Int.MaxValue)) {
     // annotate unknown constructs with a comment (source is always passed through)
     def withParts(p: Seq[Int]) = {
       copy(parts = p)
@@ -784,7 +784,7 @@ object ScalaOut {
     var currentSb = 0
     val ret = new NiceOutput {
       override def out(x: String) = {
-        if (currentSb < outConfig.parts.length) {
+        if (currentSb < sb.length) {
           sb(currentSb) append x
         }
       }
@@ -793,10 +793,10 @@ object ScalaOut {
         // start new files only when there is no indenting (top-level)
         if (currentIndentLevel == 0) {
           // check if we have crossed a file boundary, start a new output file if needed
-          println(s"loc $loc of ${outConfig.parts}")
+          //println(s"loc $loc of ${outConfig.parts}")
           if (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb)) {
-            println(s"Advance to $currentSb")
             currentSb += 1
+            println(s"Advance to $currentSb at $loc")
           }
         }
       }
