@@ -796,7 +796,7 @@ object ScalaOut {
           //println(s"loc $loc of ${outConfig.parts}")
           if (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb)) {
             currentSb += 1
-            println(s"Advance to $currentSb at $loc")
+            //println(s"Advance to $currentSb at $loc")
           }
         }
       }

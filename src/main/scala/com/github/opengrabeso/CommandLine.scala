@@ -5,14 +5,15 @@ import UglifyExt._
 
 import scala.scalajs.js
 import js.Dynamic.{global => g}
-import js.DynamicImplicits._
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
 object CommandLine {
 
   val fs = g.require("fs")
+  val os = g.require("os")
   val process = g.require("process")
+  val path = g.require("path")
 
   // TODO: facade instead of Dynamic
 
@@ -20,8 +21,50 @@ object CommandLine {
     fs.readFileSync(name).toString
   }
 
+  def removeFile(name: String): Unit = {
+    //println(s"Remove file $name")
+    fs.unlinkSync(name)
+  }
+
   def writeFile(name: String, content: String): Unit = {
     fs.writeFileSync(name, content)
+  }
+
+  lazy val separator = path.sep.asInstanceOf[String]
+
+  def terminateBySeparator(path: String): String = {
+    if (path endsWith separator) path else path + separator
+  }
+
+  // replace separator with a slash
+  def separatorAsSlash(path: String) = path.replace(separator, "/")
+
+  // replace slash with a platform specific separator
+  def separatorAsPlatform(path: String) = path.replace("/", separator)
+
+  def withTempDir(prefix: String)(perform: String => Unit): Unit = {
+    val dir = os.tmpdir().asInstanceOf[String]
+    val tempBase = terminateBySeparator(dir)
+    val tempDir = fs.mkdtempSync(tempBase + prefix).asInstanceOf[String]
+    val dirName = separatorAsSlash(terminateBySeparator(tempDir))
+    try {
+      perform(dirName)
+    } finally {
+      try {
+        rmdir(dirName)
+      } catch {
+        case scala.util.control.NonFatal(_) =>
+      }
+    }
+  }
+
+  def rmdir(path: String) = {
+    // safety check: never ever delete a root path
+    if (path.isEmpty || path.count(_ == '/') < 2) {
+      throw new UnsupportedOperationException("Refused to delete '$path'")
+    }
+    //println(s"rmdir $path")
+    fs.rmdirSync(path)
   }
 
   lazy val argv: Seq[String] = {
@@ -77,7 +120,9 @@ object CommandLine {
     path.dropRight(ext.length) + extension(pathWithExtension)
   }
 
-  def convertFileToFile(in: String, out: String): Unit = {
+  // return filenames of the output files
+  def convertFileToFile(in: String, out: String): Seq[String] = {
+    //println(s"Convert $in to $out")
     val code = readFile(in)
 
     val ast = parse(code, defaultUglifyOptions.parse)
@@ -87,6 +132,7 @@ object CommandLine {
       val astOptimized = Transform(ast)
       val output = s"/* ${Main.fingerprint()}*/\n\n" + ScalaOut.output(astOptimized, code).mkString
       writeFile(out, output)
+      Seq(out)
     }{ project =>
       def loadFiles(names: Seq[String]) = names.map { filename =>
         val singlePath = resolveSibling(in, filename)
@@ -99,7 +145,7 @@ object CommandLine {
 
 
       val fileOffsets = exportsFiles.scanLeft(0)((offset, file) => offset + file.length)
-      println(fileOffsets.drop(1) zip project.exports)
+      //println(fileOffsets.drop(1) zip project.exports)
 
       val compositeFile = (exportsFiles ++ importsFiles).mkString
 
@@ -109,15 +155,16 @@ object CommandLine {
       val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
       val output = ScalaOut.output(astOptimized, code, outConfig)
 
-      for ( (outCode, inFile) <- output zip project.exports) {
+      for ( (outCode, inFile) <- output zip project.exports) yield {
 
         val outFileBase = resolveSibling(out, inFile)
 
         val outFileCombined = changeExtension(outFileBase, out)
 
         val extendedPrefix = s"/*\n${Main.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
-        println(s"Write $outFileCombined from $inFile (out: $out)")
+        //println(s"Write $outFileCombined from $inFile (out: $out)")
         writeFile(outFileCombined, extendedPrefix + outCode)
+        outFileCombined
       }
     }
   }
