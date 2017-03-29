@@ -21,13 +21,37 @@ class CommandLineTest extends FunSuite with TestUtils {
     assert(shortName("a.js") == "a.js")
   }
 
-  test("Single file conversion") {
-    val temp = tempDir("ScalaFromJS-test-")
-    val out = convertFileToFile("src/test/resources/files/a.js", temp + "aaa.scala")
-    out.foreach { f =>
-      val outCode = readFile(f)
-      execute check ResultCheck(outCode).required("def A()")
-    }
 
+  def forEachFileWithCleanup(files: Seq[String])(f: String => Unit): Unit = {
+    try {
+      files.foreach(f)
+    } finally {
+      try {
+        files.foreach(removeFile)
+      } catch {
+        // ignore errors while removing files, to avoid them hiding the test failure
+        case scala.util.control.NonFatal(_)  =>
+      }
+    }
+  }
+  test("Single file conversion") {
+    withTempDir("ScalaFromJS-test-") { temp =>
+      val out = convertFileToFile("src/test/resources/files/a.js", temp + "aaa.scala")
+      assert(out.nonEmpty)
+      forEachFileWithCleanup(out) { f =>
+        val outCode = readFile(f)
+        execute check ResultCheck(outCode).required("def A()")
+      }
+    }
+  }
+
+  test("Multiple file conversion") {
+    withTempDir("ScalaFromJS-test-") { temp =>
+      val out = convertFileToFile("src/test/resources/files/input.js", temp + "xxx.scala")
+      forEachFileWithCleanup(out) { f =>
+        val outCode = readFile(f)
+        execute check ResultCheck(outCode).required("/*", "*/", "def ", "() =")
+      }
+    }
   }
 }

@@ -5,7 +5,6 @@ import UglifyExt._
 
 import scala.scalajs.js
 import js.Dynamic.{global => g}
-import js.DynamicImplicits._
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
 
@@ -22,6 +21,11 @@ object CommandLine {
     fs.readFileSync(name).toString
   }
 
+  def removeFile(name: String): Unit = {
+    //println(s"Remove file $name")
+    fs.unlinkSync(name)
+  }
+
   def writeFile(name: String, content: String): Unit = {
     fs.writeFileSync(name, content)
   }
@@ -32,11 +36,35 @@ object CommandLine {
     if (path endsWith separator) path else path + separator
   }
 
-  def tempDir(prefix: String): String = {
+  // replace separator with a slash
+  def separatorAsSlash(path: String) = path.replace(separator, "/")
+
+  // replace slash with a platform specific separator
+  def separatorAsPlatform(path: String) = path.replace("/", separator)
+
+  def withTempDir(prefix: String)(perform: String => Unit): Unit = {
     val dir = os.tmpdir().asInstanceOf[String]
     val tempBase = terminateBySeparator(dir)
     val tempDir = fs.mkdtempSync(tempBase + prefix).asInstanceOf[String]
-    terminateBySeparator(tempDir)
+    val dirName = separatorAsSlash(terminateBySeparator(tempDir))
+    try {
+      perform(dirName)
+    } finally {
+      try {
+        rmdir(dirName)
+      } catch {
+        case scala.util.control.NonFatal(_) =>
+      }
+    }
+  }
+
+  def rmdir(path: String) = {
+    // safety check: never ever delete a root path
+    if (path.isEmpty || path.count(_ == '/') < 2) {
+      throw new UnsupportedOperationException("Refused to delete '$path'")
+    }
+    //println(s"rmdir $path")
+    fs.rmdirSync(path)
   }
 
   lazy val argv: Seq[String] = {
@@ -94,6 +122,7 @@ object CommandLine {
 
   // return filenames of the output files
   def convertFileToFile(in: String, out: String): Seq[String] = {
+    //println(s"Convert $in to $out")
     val code = readFile(in)
 
     val ast = parse(code, defaultUglifyOptions.parse)
@@ -116,7 +145,7 @@ object CommandLine {
 
 
       val fileOffsets = exportsFiles.scanLeft(0)((offset, file) => offset + file.length)
-      println(fileOffsets.drop(1) zip project.exports)
+      //println(fileOffsets.drop(1) zip project.exports)
 
       val compositeFile = (exportsFiles ++ importsFiles).mkString
 
@@ -133,7 +162,7 @@ object CommandLine {
         val outFileCombined = changeExtension(outFileBase, out)
 
         val extendedPrefix = s"/*\n${Main.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
-        println(s"Write $outFileCombined from $inFile (out: $out)")
+        //println(s"Write $outFileCombined from $inFile (out: $out)")
         writeFile(outFileCombined, extendedPrefix + outCode)
         outFileCombined
       }

@@ -1,9 +1,11 @@
 package com.github.opengrabeso
 
+import org.scalatest.Assertions
+
 import scala.language.implicitConversions
 import scala.util.{Failure, Success, Try}
 
-trait TestUtils {
+trait TestUtils extends Assertions {
   implicit class AnyExt(val value: Any) {
     def any: Any = value
   }
@@ -40,7 +42,7 @@ trait TestUtils {
     }
 
     def execute() = {
-      checkResult(getResult()).failed.foreach(throw _)
+      checkResult(getResult()).failed.foreach(x => fail(x.getMessage))
     }
   }
 
