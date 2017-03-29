@@ -7,7 +7,6 @@ import UglifyExt._
 import UglifyExt.Import._
 import Classes._
 
-import scala.collection.mutable
 import scala.scalajs.js
 import js.JSConverters._
 import scala.language.implicitConversions
@@ -31,34 +30,57 @@ object Variables {
     }
   }
 
-  def walkReferences[X](df: SymbolDef, isDfModified: Extractor[X])(onModification: X => Boolean): Boolean = {
-    // ++ orig is a hotfix for issue https://github.com/mishoo/UglifyJS2/issues/1702 - include orig, likely to help
-    val scopes = (df.references ++ df.orig).flatMap { ref =>
-      assert(ref.thedef contains df)
-      ref.scope.nonNull
-    }.toSet
 
-    scopes.exists { s =>
-      //println(s"Reference to ${df.name} in scope ${scopeName(s)}")
-      var abort = false
-      s.walk {
-        case ss: AST_Scope =>
-          ss != s // do not descend into any other scopes, they are listed in references if needed
-        case isDfModified(x) =>
-          //println(s"  Detected modification of ${df.name}")
-          if (onModification(x)) abort = true
-          abort
-        case _ =>
-          abort
+  case class ReferenceScopes(refs: Map[SymbolDef, Set[AST_Scope]]) {
+    def walkReferences[X](df: SymbolDef, isDfModified: Extractor[X])(onModification: X => Boolean): Boolean = {
+      // ++ orig is a hotfix for issue https://github.com/mishoo/UglifyJS2/issues/1702 - include orig, likely to help
+      val scopes = refs.getOrElse(df, Seq())
+
+      scopes.exists { s =>
+        //println(s"Reference to ${df.name} in scope ${scopeName(s)}")
+        var abort = false
+        s.walk {
+          case ss: AST_Scope =>
+            ss != s // do not descend into any other scopes, they are listed in references if needed
+          case isDfModified(x) =>
+            //println(s"  Detected modification of ${df.name}")
+            if (onModification(x)) abort = true
+            abort
+          case _ =>
+            abort
+        }
+        abort
       }
-      abort
     }
   }
 
+  def buildReferenceStacks(n: AST_Node) = {
+    var refs = Map.empty[SymbolDef, Set[AST_Scope]]
+
+    n.walkWithDescend { (node, descend, walker) =>
+      node match {
+        case AST_SymbolRefDef(symDef) =>
+          val old = refs.getOrElse(symDef, Set())
+
+          val stack = walker.stack.toSeq.collect {
+            case s: AST_Scope => s
+          }
+
+          refs += symDef -> (old ++ stack)
+        case _ =>
+      }
+
+      false // descend(node, walker)
+    }
+
+    ReferenceScopes(refs)
+  }
 
   // detect variables which can be declared as val instead of var
   def detectVals(n: AST_Node): AST_Node = {
     // walk the tree, check for possible val replacements and perform them
+    val refs = buildReferenceStacks(n)
+
     n.transformBefore {(node, descend, transformer) =>
       node match {
         case cm: AST_ConciseMethod =>
@@ -83,7 +105,7 @@ object Variables {
             }
             object IsDfModified extends IsModified(IsDf)
 
-            val assignedInto = walkReferences(df, IsDfModified)(_ => true)
+            val assignedInto = refs.walkReferences(df, IsDfModified)(_ => true)
             val n = if (!assignedInto) {
               val c = varDef.clone()
               c.name = new AST_SymbolConst {
@@ -113,6 +135,8 @@ object Variables {
 
   // detect function key values can be declared as concise methods instead
   def detectMethods(n: AST_Node): AST_Node = {
+    val refs = buildReferenceStacks(n)
+
     n.transformBefore {(node, descend, transformer) =>
       node match {
         case obj@AST_Object(props) =>
@@ -133,7 +157,7 @@ object Variables {
               object IsDfModified extends IsModified(IsDf)
 
               var modifiedMembers = Set.empty[String]
-              walkReferences(df, IsDfModified) { key =>
+              refs.walkReferences(df, IsDfModified) { key =>
                 modifiedMembers += key
                 false
               }
