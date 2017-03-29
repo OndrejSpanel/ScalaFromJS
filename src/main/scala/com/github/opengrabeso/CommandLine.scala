@@ -7,7 +7,6 @@ import scala.scalajs.js
 import js.Dynamic.{global => g}
 import js.DynamicImplicits._
 import scala.collection.mutable
-import java.nio.file.Paths
 import scala.util.{Failure, Success, Try}
 
 object CommandLine {
@@ -95,7 +94,8 @@ object CommandLine {
       val ast = parse(compositeFile, defaultUglifyOptions.parse)
 
       val astOptimized = Transform(ast)
-      val output = prefix + ScalaOut.output(astOptimized, code).mkString("\n/*|*/\n")
+      val outConfig = ScalaOut.Config().withParts(fileOffsets)
+      val output = prefix + ScalaOut.output(astOptimized, code, outConfig).mkString("\n/*|*/\n")
       // TODO: process output
       writeFile(out, output)
     }

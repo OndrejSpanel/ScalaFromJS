@@ -13,9 +13,9 @@ object ScalaOut {
     val default = new Config
   }
 
-  case class Config(unknowns: Boolean = true, parts: Seq[(Int, String)] = Seq.empty) {
+  case class Config(unknowns: Boolean = true, parts: Seq[Int] = Seq.empty) {
     // annotate unknown constructs with a comment (source is always passed through)
-    def withParts(p: Seq[(Int, String)]) = {
+    def withParts(p: Seq[Int]) = {
       copy(parts = p)
     }
   }
@@ -38,6 +38,8 @@ object ScalaOut {
 
     private var eolDone = Int.MaxValue
     private var indentLevel = 0
+
+    protected def currentIndentLevel = indentLevel
 
     override def changeIndent(ch: Int): Unit = indentLevel += ch
 
@@ -198,13 +200,12 @@ object ScalaOut {
 
 
   def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
-    def source = (for {
-      s <- n.start
-      e <- n.end
-    } yield input.input.slice(s.pos, e.endpos)).getOrElse("")
+    def source = nodeSource(n, input.input)
     // http://lisperator.net/uglifyjs/ast
-    // listed in reverse order, so that most specific classes match first
-    //noinspection ScalaUnusedSymbol
+    for (s <- n.start) {
+      out.submitLocation(s.pos)
+    }
+
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions) = {
       tn.definitions.foreach { v =>
         val decl = if (isVal) "val" else "var"
@@ -323,6 +324,8 @@ object ScalaOut {
       out"/*${nodeClassName(n)}*/"
     }
 
+    // listed in reverse order, so that most specific classes match first
+    //noinspection ScalaUnusedSymbol
     n match {
       case tn: AST_True => out("true")
       case tn: AST_False => out("false")
@@ -732,7 +735,7 @@ object ScalaOut {
         nodeToOut(tn.body)
         out.eol()
       case tn: AST_Directive =>
-        if (source != """"use strict";""") { // east use strict silently
+        if (source != """"use strict";""" && source != "'use strict';") { // east use strict silently
           outputUnknownNode(tn)
           out.eol()
         }
@@ -780,12 +783,21 @@ object ScalaOut {
     val sb = Array.fill(outConfig.parts.size max 1)(new StringBuilder)
     var currentSb = 0
     val ret = new NiceOutput {
-      override def out(x: String) = sb(currentSb) append x
+      override def out(x: String) = {
+        if (currentSb < outConfig.parts.length) {
+          sb(currentSb) append x
+        }
+      }
 
       override def submitLocation(loc: Int) = {
-        // check if we have crossed a file boundary, start a new output file if needed
-        if (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb)._1) {
-          currentSb += 1
+        // start new files only when there is no indenting (top-level)
+        if (currentIndentLevel == 0) {
+          // check if we have crossed a file boundary, start a new output file if needed
+          println(s"loc $loc of ${outConfig.parts}")
+          if (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb)) {
+            println(s"Advance to $currentSb")
+            currentSb += 1
+          }
         }
       }
     }
@@ -794,8 +806,8 @@ object ScalaOut {
     sb.map(_.result)
   }
 
-  def nodeSource(n: AST_Node, input: String) = {
-    def source = (for {
+  def nodeSource(n: AST_Node, input: String): String = {
+    (for {
       s <- n.start
       e <- n.end
     } yield input.slice(s.pos, e.endpos)).getOrElse("")
