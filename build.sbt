@@ -46,6 +46,8 @@ skip in packageJSDependencies := false
 
 scalaJSUseMainModuleInitializer := true
 
+scalaJSModuleKind := ModuleKind.CommonJSModule
+
 scalaJSOptimizerOptions in fastOptJS ~= { _.withDisableOptimizer(true) }
 
 

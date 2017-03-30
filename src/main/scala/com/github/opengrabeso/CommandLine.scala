@@ -130,7 +130,7 @@ object CommandLine {
     val controlFile = loadControlFile(ast)
     controlFile.toOption.fold{
       val astOptimized = Transform(ast)
-      val output = s"/* ${Main.fingerprint()}*/\n\n" + ScalaOut.output(astOptimized, code).mkString
+      val output = s"/* ${ScalaFromJS.fingerprint()}*/\n\n" + ScalaOut.output(astOptimized, code).mkString
       writeFile(out, output)
       Seq(out)
     }{ project =>
@@ -161,7 +161,7 @@ object CommandLine {
 
         val outFileCombined = changeExtension(outFileBase, out)
 
-        val extendedPrefix = s"/*\n${Main.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
+        val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
         //println(s"Write $outFileCombined from $inFile (out: $out)")
         writeFile(outFileCombined, extendedPrefix + outCode)
         outFileCombined

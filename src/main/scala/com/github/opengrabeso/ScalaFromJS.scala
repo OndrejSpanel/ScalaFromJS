@@ -3,14 +3,14 @@ package com.github.opengrabeso
 import buildinfo.BuildInfo
 
 import scala.scalajs.js
-import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel, JSName}
+import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
 import org.scalajs.dom
 import org.scalajs.dom.Event
 
 import scala.util.{Success, Try}
 
-object Main extends js.JSApp {
+object ScalaFromJS extends js.JSApp {
 
   private lazy val in = dom.document.getElementById("in")
   private lazy val out = dom.document.getElementById("out")
