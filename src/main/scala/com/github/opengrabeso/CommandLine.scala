@@ -4,21 +4,40 @@ import Uglify._
 import UglifyExt._
 
 import scala.scalajs.js
-import js.Dynamic.{global => g}
 import scala.collection.mutable
+import scala.scalajs.js.annotation.JSImport
 import scala.util.{Failure, Success, Try}
 
+@JSImport("fs", JSImport.Namespace)
+@js.native
+object FS extends js.Object {
+  def readFileSync(name: String): js.Dynamic = js.native
+
+  def unlinkSync(name: String): Unit = js.native
+}
+
+@JSImport("process", JSImport.Namespace)
+@js.native
+object Process extends js.Object
+
+@JSImport("path", JSImport.Namespace)
+@js.native
+object Path extends js.Object
+
+@JSImport("os", JSImport.Namespace)
+@js.native
+object OS extends js.Object
+
 object CommandLine {
-
-  val fs = g.require("fs")
-  val os = g.require("os")
-  val process = g.require("process")
-  val path = g.require("path")
-
   // TODO: facade instead of Dynamic
+  val fs = FS.asInstanceOf[js.Dynamic]
+  val process = Process.asInstanceOf[js.Dynamic]
+  val path = Path.asInstanceOf[js.Dynamic]
+  val os = OS.asInstanceOf[js.Dynamic]
+
 
   def readFile(name: String): String = {
-    fs.readFileSync(name).toString
+    FS.readFileSync(name).toString
   }
 
   def removeFile(name: String): Unit = {
@@ -170,7 +189,8 @@ object CommandLine {
   }
 
   def apply() = {
-    println(s"  args ${argv.mkString(",")}")
+    val realArgs = argv.drop(2)
+    println(s"  args ${realArgs.mkString(",")}")
 
     convertFileToFile("temp/input.js", "temp/output.scala")
 
