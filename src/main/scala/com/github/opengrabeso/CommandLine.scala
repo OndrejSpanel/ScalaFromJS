@@ -4,40 +4,28 @@ import Uglify._
 import UglifyExt._
 
 import scala.scalajs.js
+import js.Dynamic.{global => g}
 import scala.collection.mutable
-import scala.scalajs.js.annotation.JSImport
+import scala.scalajs.js.annotation._
 import scala.util.{Failure, Success, Try}
 
-@JSImport("fs", JSImport.Namespace)
+@JSGlobal("$r")
 @js.native
-object FS extends js.Object {
-  def readFileSync(name: String): js.Dynamic = js.native
+object Require extends js.Any
 
-  def unlinkSync(name: String): Unit = js.native
-}
-
-@JSImport("process", JSImport.Namespace)
-@js.native
-object Process extends js.Object
-
-@JSImport("path", JSImport.Namespace)
-@js.native
-object Path extends js.Object
-
-@JSImport("os", JSImport.Namespace)
-@js.native
-object OS extends js.Object
 
 object CommandLine {
-  // TODO: facade instead of Dynamic
-  val fs = FS.asInstanceOf[js.Dynamic]
-  val process = Process.asInstanceOf[js.Dynamic]
-  val path = Path.asInstanceOf[js.Dynamic]
-  val os = OS.asInstanceOf[js.Dynamic]
+  val req = Require.asInstanceOf[js.Dynamic]
 
+  val fs = req("fs")
+  val os = req("os")
+  val process = req("process")
+  val path = req("path")
+
+  // TODO: facade instead of Dynamic
 
   def readFile(name: String): String = {
-    FS.readFileSync(name).toString
+    fs.readFileSync(name).toString
   }
 
   def removeFile(name: String): Unit = {
@@ -162,16 +150,28 @@ object CommandLine {
       val exportsFiles = loadFiles(project.exports)
       val importsFiles = loadFiles(project.imports)
 
+      for ((file, name) <- (exportsFiles ++ importsFiles) zip (project.exports ++ project.imports)) {
+        try {
+          println(s"Parse $name")
+          parse(file, defaultUglifyOptions.parse)
+        } catch {
+          case util.control.NonFatal(ex) =>
+            ex.printStackTrace()
+        }
+      }
 
       val fileOffsets = exportsFiles.scanLeft(0)((offset, file) => offset + file.length)
       //println(fileOffsets.drop(1) zip project.exports)
 
       val compositeFile = (exportsFiles ++ importsFiles).mkString
 
+      println("Parse all")
       val ast = parse(compositeFile, defaultUglifyOptions.parse)
+      println("Parse done")
 
       val astOptimized = Transform(ast)
       val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
+      println(s"$outConfig")
       val output = ScalaOut.output(astOptimized, code, outConfig)
 
       for ( (outCode, inFile) <- output zip project.exports) yield {
@@ -192,7 +192,11 @@ object CommandLine {
     val realArgs = argv.drop(2)
     println(s"  args ${realArgs.mkString(",")}")
 
-    convertFileToFile("temp/input.js", "temp/output.scala")
+    if (realArgs.length == 2) {
+      convertFileToFile(realArgs(0), realArgs(1))
+    } else {
+      convertFileToFile("temp/input.js", "temp/output.scala")
+    }
 
   }
 }
