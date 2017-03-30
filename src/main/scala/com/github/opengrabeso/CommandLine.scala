@@ -4,7 +4,6 @@ import Uglify._
 import UglifyExt._
 
 import scala.scalajs.js
-import js.Dynamic.{global => g}
 import scala.collection.mutable
 import scala.scalajs.js.annotation._
 import scala.util.{Failure, Success, Try}
@@ -150,13 +149,15 @@ object CommandLine {
       val exportsFiles = loadFiles(project.exports)
       val importsFiles = loadFiles(project.imports)
 
-      for ((file, name) <- (exportsFiles ++ importsFiles) zip (project.exports ++ project.imports)) {
-        try {
-          println(s"Parse $name")
-          parse(file, defaultUglifyOptions.parse)
-        } catch {
-          case util.control.NonFatal(ex) =>
-            ex.printStackTrace()
+      if (false) { // debugging the parse - parse files one by one to pinpoint a problem location
+        for ((file, name) <- (exportsFiles ++ importsFiles) zip (project.exports ++ project.imports)) {
+          try {
+            println(s"Parse $name")
+            parse(file, defaultUglifyOptions.parse)
+          } catch {
+            case util.control.NonFatal(ex) =>
+              ex.printStackTrace()
+          }
         }
       }
 
@@ -165,13 +166,13 @@ object CommandLine {
 
       val compositeFile = (exportsFiles ++ importsFiles).mkString
 
-      println("Parse all")
+      //println("Parse all")
       val ast = parse(compositeFile, defaultUglifyOptions.parse)
-      println("Parse done")
+      //println("Parse done")
 
       val astOptimized = Transform(ast)
       val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
-      println(s"$outConfig")
+      //println(s"$outConfig")
       val output = ScalaOut.output(astOptimized, code, outConfig)
 
       for ( (outCode, inFile) <- output zip project.exports) yield {
