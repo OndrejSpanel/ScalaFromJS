@@ -40,11 +40,22 @@ Seq(
     task := task.dependsOn(generateIndexTask(indexHtml, postfix)).value
 }
 
+import complete.DefaultParsers._
 
+lazy val runa = inputKey[Unit]("Run app with arguments")
+
+runa := {
+  (fastOptJS in Compile).value // build it first
+  val args: Seq[String] = spaceDelimited("<arg>").parsed
+  val npmRun = "node index.js" + args.map("\"" + _ + "\"").mkString(" "," ","")
+  npmRun.!
+}
 
 skip in packageJSDependencies := false
 
 scalaJSUseMainModuleInitializer := true
+
+scalaJSModuleKind := ModuleKind.CommonJSModule
 
 scalaJSOptimizerOptions in fastOptJS ~= { _.withDisableOptimizer(true) }
 

@@ -4,16 +4,22 @@ import Uglify._
 import UglifyExt._
 
 import scala.scalajs.js
-import js.Dynamic.{global => g}
 import scala.collection.mutable
+import scala.scalajs.js.annotation._
 import scala.util.{Failure, Success, Try}
 
-object CommandLine {
+@JSGlobal("$r")
+@js.native
+object Require extends js.Any
 
-  val fs = g.require("fs")
-  val os = g.require("os")
-  val process = g.require("process")
-  val path = g.require("path")
+
+object CommandLine {
+  val req = Require.asInstanceOf[js.Dynamic]
+
+  val fs = req("fs")
+  val os = req("os")
+  val process = req("process")
+  val path = req("path")
 
   // TODO: facade instead of Dynamic
 
@@ -130,7 +136,7 @@ object CommandLine {
     val controlFile = loadControlFile(ast)
     controlFile.toOption.fold{
       val astOptimized = Transform(ast)
-      val output = s"/* ${Main.fingerprint()}*/\n\n" + ScalaOut.output(astOptimized, code).mkString
+      val output = s"/* ${ScalaFromJS.fingerprint()}*/\n\n" + ScalaOut.output(astOptimized, code).mkString
       writeFile(out, output)
       Seq(out)
     }{ project =>
@@ -143,16 +149,30 @@ object CommandLine {
       val exportsFiles = loadFiles(project.exports)
       val importsFiles = loadFiles(project.imports)
 
+      if (false) { // debugging the parse - parse files one by one to pinpoint a problem location
+        for ((file, name) <- (exportsFiles ++ importsFiles) zip (project.exports ++ project.imports)) {
+          try {
+            println(s"Parse $name")
+            parse(file, defaultUglifyOptions.parse)
+          } catch {
+            case util.control.NonFatal(ex) =>
+              ex.printStackTrace()
+          }
+        }
+      }
 
       val fileOffsets = exportsFiles.scanLeft(0)((offset, file) => offset + file.length)
       //println(fileOffsets.drop(1) zip project.exports)
 
       val compositeFile = (exportsFiles ++ importsFiles).mkString
 
+      //println("Parse all")
       val ast = parse(compositeFile, defaultUglifyOptions.parse)
+      //println("Parse done")
 
       val astOptimized = Transform(ast)
       val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
+      //println(s"$outConfig")
       val output = ScalaOut.output(astOptimized, code, outConfig)
 
       for ( (outCode, inFile) <- output zip project.exports) yield {
@@ -161,7 +181,7 @@ object CommandLine {
 
         val outFileCombined = changeExtension(outFileBase, out)
 
-        val extendedPrefix = s"/*\n${Main.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
+        val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
         //println(s"Write $outFileCombined from $inFile (out: $out)")
         writeFile(outFileCombined, extendedPrefix + outCode)
         outFileCombined
@@ -170,9 +190,14 @@ object CommandLine {
   }
 
   def apply() = {
-    println(s"  args ${argv.mkString(",")}")
+    val realArgs = argv.drop(2)
+    println(s"  args ${realArgs.mkString(",")}")
 
-    convertFileToFile("temp/input.js", "temp/output.scala")
+    if (realArgs.length == 2) {
+      convertFileToFile(realArgs(0), realArgs(1))
+    } else {
+      convertFileToFile("temp/input.js", "temp/output.scala")
+    }
 
   }
 }
