@@ -73,6 +73,40 @@ object CommandLine {
     fs.rmdirSync(path)
   }
 
+  object ErrorCode {
+    def unapply(arg: Any) = {
+      val argDyn = arg.asInstanceOf[js.Dynamic]
+      argDyn.code match {
+        case c if js.isUndefined(c) => None
+        case c => Some(c.toString)
+
+      }
+      Some(argDyn.code.asInstanceOf[String])
+    }
+  }
+  def mkdir(path: String) = {
+    //println(s"mkdir $path")
+    try {
+      fs.mkdirSync(path)
+    } catch {
+      case js.JavaScriptException(ErrorCode("EEXIST"))  =>
+    }
+  }
+  /*
+  * create all parent directories
+  * @param path to the file we want to create
+  * */
+
+  def mkAllDirs(path: String) = {
+    val subpaths = path.split("/", -1)
+    //println(subpaths.mkString(" - "))
+    subpaths.tail.foldLeft(subpaths.head) { (folder, elem) =>
+      mkdir(folder)
+      folder + "/" + elem
+    }
+
+  }
+
   lazy val argv: Seq[String] = {
     process.argv.asInstanceOf[js.Array[String]]
   }
@@ -183,6 +217,7 @@ object CommandLine {
 
         val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
         //println(s"Write $outFileCombined from $inFile (out: $out)")
+        mkAllDirs(outFileCombined)
         writeFile(outFileCombined, extendedPrefix + outCode)
         outFileCombined
       }
