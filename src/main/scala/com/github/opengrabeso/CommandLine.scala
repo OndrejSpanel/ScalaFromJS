@@ -4,8 +4,6 @@ import Uglify._
 import UglifyExt._
 
 import scala.scalajs.js
-import scala.collection.mutable
-import scala.util.{Failure, Success, Try}
 
 
 object CommandLine {
@@ -121,31 +119,6 @@ object CommandLine {
     process.argv.asInstanceOf[js.Array[String]]
   }
 
-  case class ConvertProject(imports: Seq[String], exports: Seq[String])
-
-  def loadControlFile(ast: AST_Toplevel): Try[ConvertProject] = {
-    // check export / import statements
-    val importBuffer = new mutable.ArrayBuffer[String]
-    val exportBuffer = new mutable.ArrayBuffer[String]
-    ast.walk {
-      case i: AST_Import =>
-        importBuffer append i.module_name.value
-        false
-      case e: AST_Export =>
-        e.module_name.foreach { name =>
-          exportBuffer append name.value
-        }
-        false
-      case _ =>
-        false
-
-    }
-    if (exportBuffer.nonEmpty) {
-      Success(ConvertProject(importBuffer, exportBuffer))
-    } else {
-      Failure(new NoSuchElementException)
-    }
-  }
 
   def resolveSibling(path: String, short: String): String = {
     val dir = path.lastIndexOf('/')
@@ -177,7 +150,7 @@ object CommandLine {
 
     val ast = parse(code, defaultUglifyOptions.parse)
 
-    val controlFile = loadControlFile(ast)
+    val controlFile = ConvertProject.loadControlFile(ast)
     controlFile.toOption.fold{
       val astOptimized = Transform(ast)
       val output = s"/* ${ScalaFromJS.fingerprint()}*/\n\n" + ScalaOut.output(astOptimized, code).mkString
