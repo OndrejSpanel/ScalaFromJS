@@ -145,65 +145,51 @@ object CommandLine {
 
   // return filenames of the output files
   def convertFileToFile(in: String, out: String): Seq[String] = {
-    //println(s"Convert $in to $out")
-    val code = readFile(in)
+    println(s"Convert $in to $out")
 
-    val ast = parse(code, defaultUglifyOptions.parse)
+    val project = ConvertProject.loadControlFile(in)
 
-    val controlFile = ConvertProject.loadControlFile(ast)
-    controlFile.toOption.fold{
-      val astOptimized = Transform(ast)
-      val output = s"/* ${ScalaFromJS.fingerprint()}*/\n\n" + ScalaOut.output(astOptimized, code).mkString
-      writeFile(out, output)
-      Seq(out)
-    }{ project =>
-      def loadFiles(names: Seq[String]) = names.map { filename =>
-        val singlePath = resolveSibling(in, filename)
-        readFile(singlePath.toString)
-      }
+    val exportsImports = project.items.sortBy(!_.exported)
 
-
-      val exportsFiles = loadFiles(project.exports)
-      val importsFiles = loadFiles(project.imports)
-
-      if (false) { // debugging the parse - parse files one by one to pinpoint a problem location
-        for ((file, name) <- (exportsFiles ++ importsFiles) zip (project.exports ++ project.imports)) {
-          try {
-            println(s"Parse $name")
-            parse(file, defaultUglifyOptions.parse)
-          } catch {
-            case util.control.NonFatal(ex) =>
-              ex.printStackTrace()
-          }
+    if (false) { // debugging the parse - parse files one by one to pinpoint a problem location
+      for (ConvertProject.Item(name, code, _) <- exportsImports) {
+        try {
+          println(s"Parse $name")
+          parse(code, defaultUglifyOptions.parse)
+        } catch {
+          case util.control.NonFatal(ex) =>
+            ex.printStackTrace()
         }
       }
+    }
 
-      val fileOffsets = exportsFiles.scanLeft(0)((offset, file) => offset + file.length)
-      //println(fileOffsets.drop(1) zip project.exports)
+    val exports = exportsImports.takeWhile(_.exported)
 
-      val compositeFile = (exportsFiles ++ importsFiles).mkString
+    val fileOffsets = exports.scanLeft(0)((offset, file) => offset + file.code.length)
+    //println(fileOffsets.drop(1) zip project.exports)
 
-      //println("Parse all")
-      val ast = parse(compositeFile, defaultUglifyOptions.parse)
-      //println("Parse done")
+    val compositeFile = exportsImports.map(_.code).mkString
 
-      val astOptimized = Transform(ast)
-      val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
-      //println(s"$outConfig")
-      val output = ScalaOut.output(astOptimized, code, outConfig)
+    //println("Parse all")
+    val ast = parse(compositeFile, defaultUglifyOptions.parse)
+    //println("Parse done")
 
-      for ( (outCode, inFile) <- output zip project.exports) yield {
+    val astOptimized = Transform(ast)
+    val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
+    println(s"$outConfig")
+    val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
 
-        val outFileBase = resolveSibling(out, inFile)
+    for ( (outCode, ConvertProject.Item(inFile, _, _)) <- output zip exports) yield {
 
-        val outFileCombined = changeExtension(outFileBase, out)
+      val outFileBase = resolveSibling(out, inFile)
 
-        val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
-        //println(s"Write $outFileCombined from $inFile (out: $out)")
-        mkAllDirs(outFileCombined)
-        writeFile(outFileCombined, extendedPrefix + outCode)
-        outFileCombined
-      }
+      val outFileCombined = changeExtension(outFileBase, out)
+
+      val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
+      //println(s"Write $outFileCombined from $inFile (out: $out)")
+      mkAllDirs(outFileCombined)
+      writeFile(outFileCombined, extendedPrefix + outCode)
+      outFileCombined
     }
   }
 
