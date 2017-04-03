@@ -156,7 +156,7 @@ object CommandLine {
   def shortName(path: String): String = {
     val dir = path.lastIndexOf('/')
     if (dir < 0) path
-    path.drop(dir + 1)
+    else path.drop(dir + 1)
   }
 
   def extension(path: String): String = {
