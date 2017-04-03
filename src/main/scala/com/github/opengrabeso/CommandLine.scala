@@ -150,6 +150,7 @@ object CommandLine {
     val project = ConvertProject.loadControlFile(in)
 
     val exportsImports = project.items.sortBy(!_.exported)
+    println(s"exportsImports ${exportsImports.map(_.copy(code = ""))}")
 
     if (false) { // debugging the parse - parse files one by one to pinpoint a problem location
       for (ConvertProject.Item(name, code, _) <- exportsImports) {
@@ -170,7 +171,7 @@ object CommandLine {
 
     val compositeFile = exportsImports.map(_.code).mkString
 
-    //println("Parse all")
+    println(s"Parse all {{$compositeFile}}")
     val ast = parse(compositeFile, defaultUglifyOptions.parse)
     //println("Parse done")
 
@@ -200,7 +201,7 @@ object CommandLine {
     if (realArgs.length == 2) {
       convertFileToFile(realArgs(0), realArgs(1))
     } else {
-      convertFileToFile("temp/input.js", "temp/output.scala")
+      convertFileToFile("temp/test.js", "temp/out/test.scala")
     }
 
   }
