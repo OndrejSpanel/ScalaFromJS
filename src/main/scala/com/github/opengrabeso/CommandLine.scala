@@ -5,21 +5,16 @@ import UglifyExt._
 
 import scala.scalajs.js
 import scala.collection.mutable
-import scala.scalajs.js.annotation._
 import scala.util.{Failure, Success, Try}
-
-@JSGlobal("$r")
-@js.native
-object Require extends js.Any
 
 
 object CommandLine {
-  val req = Require.asInstanceOf[js.Dynamic]
+  lazy val require = js.Dynamic.global.require
 
-  val fs = req("fs")
-  val os = req("os")
-  val process = req("process")
-  val path = req("path")
+  lazy val fs = require("fs")
+  lazy val os = require("os")
+  lazy val process = require("process")
+  lazy val path = require("path")
 
   // TODO: facade instead of Dynamic
 
@@ -84,12 +79,27 @@ object CommandLine {
       Some(argDyn.code.asInstanceOf[String])
     }
   }
-  def mkdir(path: String) = {
+  def mkdir(path: String): Unit = {
     //println(s"mkdir $path")
     try {
       fs.mkdirSync(path)
     } catch {
+      case ex@js.JavaScriptException(ErrorCode("EPERM")) =>
+        // check if it already exists
+        try {
+          // if the directory exists, do not care about permission failure while creating it
+          val stat = fs.statSync(path)
+          if (!stat.isDirectory().asInstanceOf[Boolean]) {
+            throw ex
+          }
+        } catch {
+          case js.JavaScriptException(x) =>
+            // when stat has failed, throw the original exception
+            throw ex
+        }
+
       case js.JavaScriptException(ErrorCode("EEXIST"))  =>
+        // if exists, everything is OK
     }
   }
   /*
