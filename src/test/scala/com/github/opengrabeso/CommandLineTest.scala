@@ -49,6 +49,7 @@ class CommandLineTest extends FunSuite with TestUtils {
     withTempDir("ScalaFromJS-test-") { temp =>
       val out = convertFileToFile("src/test/resources/files/input.js", temp + "xxx.scala")
       forEachFileWithCleanup(out) { f =>
+        assert(f.endsWith(".scala"))
         val outCode = readFile(f)
         execute check ResultCheck(outCode).required("/*", "*/", "def ", "() =")
       }
