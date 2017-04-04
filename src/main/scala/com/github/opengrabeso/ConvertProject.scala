@@ -3,19 +3,23 @@ package com.github.opengrabeso
 import Uglify._
 import UglifyExt._
 import CommandLine._
+import com.github.opengrabeso.Transform.AST_Extended
 
+import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import scala.scalajs.js
 import scala.scalajs.js.JavaScriptException
 
 object ConvertProject {
 
-  case class Item(name: String, code: String, exported: Boolean, fullName: String)
+  case class Item(code: String, exported: Boolean, fullName: String) {
+    override def toString = s"($fullName:$exported)"
+  }
 
   def loadControlFile(in: String): ConvertProject = {
 
     val code = readFile(in)
-    val project = ConvertProject(Seq(Item(in, code, true, in)))
+    val project = ConvertProject(ListMap(in -> Item(code, true, in)))
 
     project.resolveImportsExports
   }
@@ -23,20 +27,21 @@ object ConvertProject {
 
 import ConvertProject._
 
-case class ConvertProject(items: Seq[Item]) {
-  lazy val code = items.map(_.code).mkString
-  lazy val offsets = items.scanLeft(0)((offset, file) => offset + file.code.length)
+case class ConvertProject(items: Map[String, Item]) {
+  lazy val values = items.values.toIndexedSeq
+  lazy val code = values.map(_.code).mkString
+  lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
 
   def indexOfItem(offset: Int): Int = offsets.prefixLength(_ <= offset) - 1
 
   def pathForOffset(offset: Int): String = {
     val index = indexOfItem(offset)
-    if (items.isDefinedAt(index)) items(index).fullName
+    if (values.isDefinedAt(index)) values(index).fullName
     else ""
   }
 
   final def resolveImportsExports: ConvertProject = {
-    def readFileWithPath(path: String): (String, String) = {
+    def readFileAsJs(path: String): (String, String) = {
       val code = readFile(path)
       // try parsing, if unable, return a comment file instead
       try {
@@ -53,20 +58,21 @@ case class ConvertProject(items: Seq[Item]) {
 
     }
 
-    def readFileInProject(name: String, base: String): (String, String) = {
+
+    def readJsFile(name: String): (String, String) = {
       // imports often miss .js extension
       val extension = ".js"
-      val singlePath = resolveSibling(base, name)
       //println(s"Read file $name as $singlePath (in $base)")
       try {
-        readFileWithPath(singlePath)
+        readFileAsJs(name)
       } catch {
-        case ex@js.JavaScriptException(ErrorCode("ENOENT" | "EISDIR")) if !singlePath.endsWith(extension) =>
-          readFileWithPath(singlePath + extension)
+        case ex@js.JavaScriptException(ErrorCode("ENOENT" | "EISDIR")) if !name.endsWith(extension) =>
+          readFileAsJs(name + extension)
       }
     }
 
     val ast = try {
+      println("** Parse\n" + items.mkString("\n"))
       parse(code, defaultUglifyOptions.parse)
     } catch {
       case ex@JavaScriptException(err: JS_Parse_Error) =>
@@ -84,7 +90,7 @@ case class ConvertProject(items: Seq[Item]) {
     ast.walk {
       case i: AST_Import =>
         i.start.foreach { s =>
-          importBuffer append i.module_name.value -> pathForOffset(s.pos)
+          importBuffer append readJsFile(resolveSibling(pathForOffset(s.pos), i.module_name.value))
         }
         false
       case e: AST_Export =>
@@ -92,9 +98,9 @@ case class ConvertProject(items: Seq[Item]) {
         e.start.foreach { s =>
           val index = indexOfItem(s.pos)
           //println(s"index of ${s.pos} = $index in $offsets")
-          if (items.isDefinedAt(index) && items(index).exported) {
+          if (values.isDefinedAt(index) && values(index).exported) {
             e.module_name.foreach { name =>
-              exportBuffer append name.value -> pathForOffset(s.pos)
+              exportBuffer append readJsFile(resolveSibling(pathForOffset(s.pos), name.value))
             }
           }
         }
@@ -105,31 +111,31 @@ case class ConvertProject(items: Seq[Item]) {
     }
 
     // check if there are new items added into the project
-    val toImport = importBuffer.filter(nb => !items.exists(_.name == nb._1))
-    val toExport = exportBuffer.filter(nb => !items.exists(_.name == nb._1))
-    val markAsExports = exportBuffer.filter(nb => items.exists(i => i.name == nb._1 && !i.exported)).toSet
+    val toImport = importBuffer.filter(name => !items.contains(name._2))
+    val toExport = exportBuffer.filter(name => !items.contains(name._2))
+    val markAsExports = exportBuffer.filter(name => items.get(name._2).exists(!_.exported)).toSet
 
     if (toImport.isEmpty && toExport.isEmpty && markAsExports.isEmpty) {
       //println(s"Do not add to ${items.map(_.name).mkString(",")}")
       this
     } else {
 
-      /*
-        println(s"Add to ${items.map(_.name).mkString(",")}")
-        println(s"  imports ${toImport.mkString(",")}")
-        println(s"  exports ${toExport.mkString(",")}")
-        println(s"  markAsExports ${markAsExports.mkString(",")}")
-        */
+      println(s"Add to ${items.mapValues(_.fullName).mkString("(","\n",")")}")
+      println(s"  imports ${toImport.map(_._2).mkString("(","\n",")")}")
+      println(s"  exports ${toExport.map(_._2).mkString("(","\n",")")}")
+      println(s"  markAsExports ${markAsExports.mkString("(","\n",")")}")
 
-      def mapFile(nb: (String, String), exported: Boolean): Item = {
-        val (code, path) = readFileInProject(nb._1, nb._2)
-        Item(nb._1, code, exported, path)
+      def mapFile(cp: (String, String), exported: Boolean): (String, Item) = {
+        val (code, path) = cp
+        path -> Item(code, exported, path)
       }
 
-      val old = items.map(i => i.copy(exported = i.exported || markAsExports.exists(_._1 == i.name)))
+      val old = items.mapValues(i => i.copy(exported = i.exported || markAsExports.exists(_._2 == i.fullName)))
       val imports = toImport.map(nb => mapFile(nb, false))
       val exports = toExport.map(nb => mapFile(nb, true))
 
+      assert((old.keySet intersect imports.map(_._1).toSet).isEmpty)
+      assert((old.keySet intersect exports.map(_._1).toSet).isEmpty)
       //println(s"  old ${old.map(_.name).mkString(",")}")
 
       ConvertProject(old ++ imports ++ exports).resolveImportsExports
@@ -137,11 +143,11 @@ case class ConvertProject(items: Seq[Item]) {
   }
 
   def convert: Seq[(String, String)] = {
-    val exportsImports = items.sortBy(!_.exported)
+    val exportsImports = values.sortBy(!_.exported)
     //println(s"exportsImports ${exportsImports.map(_.copy(code = ""))}")
 
     if (false) { // debugging the parse - parse files one by one to pinpoint a problem location
-      for (ConvertProject.Item(name, code, _, _) <- exportsImports) {
+      for (ConvertProject.Item(code, _, name) <- exportsImports) {
         try {
           println(s"Parse $name")
           parse(code, defaultUglifyOptions.parse)
@@ -159,16 +165,22 @@ case class ConvertProject(items: Seq[Item]) {
 
     val compositeFile = exportsImports.map(_.code).mkString
 
-    //println(s"Parse all {{$compositeFile}}")
+    val log = true
+    val now = System.currentTimeMillis()
+    if (log) {
+      println(s"Parse ${compositeFile.lines.length} lines")
+      println(items.mapValues(_.copy(code = "")).mkString("\n"))
+    }
     val ast = parse(compositeFile, defaultUglifyOptions.parse)
+    if (log) println(s"Parsed in ${System.currentTimeMillis() - now} ms, ${compositeFile.lines.length} lines")
     //println("Parse done")
 
-    val astOptimized = Transform(ast)
+    val astOptimized = if (false) Transform(ast) else AST_Extended(ast, SymbolTypes())
     val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
 
-    for ( (outCode, ConvertProject.Item(inFile, _, _, _)) <- output zip exports) yield {
+    for ( (outCode, ConvertProject.Item(_, _, inFile)) <- output zip exports) yield {
       inFile -> outCode
     }
   }

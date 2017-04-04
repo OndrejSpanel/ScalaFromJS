@@ -18,6 +18,8 @@ libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
 
 buildInfoOptions += BuildInfoOption.BuildTime
 
+cancelable in Global := true
+
 def generateIndexTask(index: String, suffix: String) = Def.task {
   val source = baseDirectory.value / "index-template.html"
   val target = (crossTarget in Compile).value / index
@@ -57,7 +59,7 @@ scalaJSUseMainModuleInitializer := true
 
 scalaJSModuleKind := ModuleKind.CommonJSModule
 
-scalaJSOptimizerOptions in fastOptJS ~= { _.withDisableOptimizer(true) }
+//scalaJSOptimizerOptions in fastOptJS ~= { _.withDisableOptimizer(true) }
 
 
 lazy val deployTask = TaskKey[Unit]("deploy")
