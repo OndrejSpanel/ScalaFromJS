@@ -17,11 +17,12 @@ object ConvertProject {
   }
 
   def loadControlFile(in: String): ConvertProject = {
+    Time("loadControlFile") {
+      val code = readFile(in)
+      val project = ConvertProject(ListMap(in -> Item(code, true, in)))
 
-    val code = readFile(in)
-    val project = ConvertProject(ListMap(in -> Item(code, true, in)))
-
-    project.resolveImportsExports
+      project.resolveImportsExports
+    }
   }
 }
 
@@ -59,20 +60,27 @@ case class ConvertProject(items: Map[String, Item]) {
     }
 
 
+    /**@return (content, path) */
     def readJsFile(name: String): (String, String) = {
+      // first try if it is already loaded
+
       // imports often miss .js extension
       val extension = ".js"
-      //println(s"Read file $name as $singlePath (in $base)")
-      try {
-        readFileAsJs(name)
-      } catch {
-        case ex@js.JavaScriptException(ErrorCode("ENOENT" | "EISDIR")) if !name.endsWith(extension) =>
-          readFileAsJs(name + extension)
+      items.get(name).orElse(items.get(name + extension)).fold {
+        //println(s"Read file $name as $singlePath (in $base)")
+        try {
+          readFileAsJs(name)
+        } catch {
+          case ex@js.JavaScriptException(ErrorCode("ENOENT" | "EISDIR")) if !name.endsWith(extension) =>
+            readFileAsJs(name + extension)
+        }
+      } { item =>
+        item.code -> item.fullName
       }
     }
 
     val ast = try {
-      println("** Parse\n" + items.mkString("\n"))
+      //println("** Parse\n" + items.mkString("\n"))
       parse(code, defaultUglifyOptions.parse)
     } catch {
       case ex@JavaScriptException(err: JS_Parse_Error) =>
@@ -120,10 +128,12 @@ case class ConvertProject(items: Map[String, Item]) {
       this
     } else {
 
-      println(s"Add to ${items.mapValues(_.fullName).mkString("(","\n",")")}")
-      println(s"  imports ${toImport.map(_._2).mkString("(","\n",")")}")
-      println(s"  exports ${toExport.map(_._2).mkString("(","\n",")")}")
-      println(s"  markAsExports ${markAsExports.mkString("(","\n",")")}")
+      if (false) {
+        println(s"Add to ${items.mapValues(_.fullName).mkString("(", "\n", ")")}")
+        println(s"  imports ${toImport.map(_._2).mkString("(", "\n", ")")}")
+        println(s"  exports ${toExport.map(_._2).mkString("(", "\n", ")")}")
+        println(s"  markAsExports ${markAsExports.mkString("(", "\n", ")")}")
+      }
 
       def mapFile(cp: (String, String), exported: Boolean): (String, Item) = {
         val (code, path) = cp
@@ -165,15 +175,9 @@ case class ConvertProject(items: Map[String, Item]) {
 
     val compositeFile = exportsImports.map(_.code).mkString
 
-    val log = true
-    val now = System.currentTimeMillis()
-    if (log) {
-      println(s"Parse ${compositeFile.lines.length} lines")
-      println(items.mapValues(_.copy(code = "")).mkString("\n"))
+    val ast = Time(s"Parse ${compositeFile.lines.length} lines") {
+      parse(compositeFile, defaultUglifyOptions.parse)
     }
-    val ast = parse(compositeFile, defaultUglifyOptions.parse)
-    if (log) println(s"Parsed in ${System.currentTimeMillis() - now} ms, ${compositeFile.lines.length} lines")
-    //println("Parse done")
 
     val astOptimized = if (false) Transform(ast) else AST_Extended(ast, SymbolTypes())
     val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
