@@ -1,9 +1,28 @@
 package com.github.opengrabeso
 
 import scala.scalajs.js
+import scala.scalajs.js.annotation.JSGlobal
+
+@JSGlobal("$require")
+@js.native
+object Require extends js.Any
 
 object CommandLine {
-  lazy val require = js.Dynamic.global.require
+  def getRequire: js.Dynamic = {
+    // workaround:
+    // js.Dynamic.global.require is undefined when running using "runa" sbt task (node.exe index.js)
+    // test and run work fine
+    // we do not need require when running in a browser (no file access)
+    val r = js.Dynamic.global.require
+    if (js.isUndefined(r)) {
+      Require.asInstanceOf[js.Dynamic]
+    } else r
+  }
+
+  lazy val require = getRequire
+
+  println(s"require $require")
+  println(s"global ${js.Dynamic.global}")
 
   lazy val fs = require("fs")
   lazy val os = require("os")
