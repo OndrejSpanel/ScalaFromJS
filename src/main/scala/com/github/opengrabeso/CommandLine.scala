@@ -140,8 +140,13 @@ object CommandLine {
     if (dir < 0) short
     else {
       val currentPrefix = "./"
-      val skipCurrent = if (short.startsWith(currentPrefix)) short.drop(currentPrefix.length) else short
-      path.take(dir + 1) + skipCurrent
+      val parentPrefix ="../"
+      if (short.startsWith(parentPrefix)) {
+        resolveSibling(path.take(dir), short.drop(parentPrefix.length))
+      } else {
+        val shortFixed = if (short.startsWith(currentPrefix)) short.drop(currentPrefix.length) else short
+        path.take(dir + 1) + shortFixed
+      }
     }
   }
 
