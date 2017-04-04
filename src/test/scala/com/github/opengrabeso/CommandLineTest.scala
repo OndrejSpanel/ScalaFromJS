@@ -8,6 +8,8 @@ class CommandLineTest extends FunSuite with TestUtils {
 
   test("testResolveSibling") {
     assert(resolveSibling("temp/a.js", "x.scala") == "temp/x.scala")
+    assert(resolveSibling("temp/in/a.js", "../x.scala") == "temp/x.scala")
+    assert(resolveSibling("temp/in/on/a.js", "../../x.scala") == "temp/x.scala")
   }
 
   test("testChangeExtension") {
@@ -21,6 +23,11 @@ class CommandLineTest extends FunSuite with TestUtils {
     assert(shortName("a.js") == "a.js")
   }
 
+  test("relativePath") {
+    assert(relativePath("temp/in/a.js", "temp/in/b.js") == "b.js")
+    assert(relativePath("temp/in/a.js", "temp/in/on/b.js") == "on/b.js")
+    assert(relativePath("temp/in/a.js", "temp/b.js") == "temp/b.js")
+  }
 
   def forEachFileWithCleanup(files: Seq[String])(f: String => Unit): Unit = {
     try {
