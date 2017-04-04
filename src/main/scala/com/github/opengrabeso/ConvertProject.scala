@@ -179,7 +179,7 @@ case class ConvertProject(items: Map[String, Item]) {
       parse(compositeFile, defaultUglifyOptions.parse)
     }
 
-    val astOptimized = if (false) Transform(ast) else AST_Extended(ast, SymbolTypes())
+    val astOptimized = if (true) Transform(ast) else AST_Extended(ast, SymbolTypes())
     val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
