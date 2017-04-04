@@ -48,11 +48,17 @@ class CommandLineTest extends FunSuite with TestUtils {
   test("Multiple file conversion") {
     withTempDir("ScalaFromJS-test-") { temp =>
       val out = convertFileToFile("src/test/resources/files/input.js", temp + "xxx.scala")
+      val sb = new StringBuilder
       forEachFileWithCleanup(out) { f =>
         assert(f.endsWith(".scala"))
         val outCode = readFile(f)
-        execute check ResultCheck(outCode).required("/*", "*/", "def ", "() =")
+        sb append outCode
+        execute check ResultCheck(outCode).required("/*", "*/")
       }
+      val outCode = sb.result
+      execute check ResultCheck(outCode)
+        .required("/*", "*/", "def ", "() =", "def A", "def B", "def D")
+        .forbidden("def C", "def E")
     }
   }
 }

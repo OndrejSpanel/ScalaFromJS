@@ -23,13 +23,16 @@ object ConvertProject {
 import ConvertProject._
 
 case class ConvertProject(items: Seq[Item]) {
-  def resolveImportsExports(in: String): ConvertProject = {
+  lazy val code = items.map(_.code).mkString
+  lazy val offsets = items.scanLeft(0)((offset, file) => offset + file.code.length)
+
+  def indexOfItem(offset: Int): Int = offsets.prefixLength(_ <= offset) - 1
+
+  final def resolveImportsExports(in: String): ConvertProject = {
     def readFileInProject(name: String) = {
       val singlePath = resolveSibling(in, name)
       readFile(singlePath.toString)
     }
-
-    val code = items.map(_.code).mkString
 
     val ast = parse(code, defaultUglifyOptions.parse)
 
@@ -41,9 +44,17 @@ case class ConvertProject(items: Seq[Item]) {
         importBuffer append i.module_name.value
         false
       case e: AST_Export =>
-        e.module_name.foreach { name =>
-          exportBuffer append name.value
+        // ignore exports in imported files
+        e.start.foreach { s =>
+          val index = indexOfItem(s.pos)
+          //println(s"index of ${s.pos} = $index in $offsets")
+          if (items.isDefinedAt(index) && items(index).exported) {
+            e.module_name.foreach { name =>
+              exportBuffer append name.value
+            }
+          }
         }
+
         false
       case _ =>
         false
@@ -55,20 +66,22 @@ case class ConvertProject(items: Seq[Item]) {
     val markAsExports = exportBuffer.filter(name => items.exists(i => i.name == name && !i.exported)).toSet
 
     if (toImport.isEmpty && toExport.isEmpty && markAsExports.isEmpty) {
-      println(s"Do not add to ${items.map(_.name).mkString(",")}")
+      //println(s"Do not add to ${items.map(_.name).mkString(",")}")
       this
     } else {
 
+      /*
       println(s"Add to ${items.map(_.name).mkString(",")}")
       println(s"  imports ${toImport.mkString(",")}")
       println(s"  exports ${toExport.mkString(",")}")
       println(s"  markAsExports ${markAsExports.mkString(",")}")
+      */
 
       val old = items.map(i => i.copy(exported = i.exported || markAsExports.contains(i.name)))
       val imports = toImport.map(name => Item(name, readFileInProject(name), false))
       val exports = toExport.map(name => Item(name, readFileInProject(name), true))
 
-      println(s"  old ${old.map(_.name).mkString(",")}")
+      //println(s"  old ${old.map(_.name).mkString(",")}")
 
       ConvertProject(old ++ imports ++ exports).resolveImportsExports(in)
     }

@@ -145,12 +145,12 @@ object CommandLine {
 
   // return filenames of the output files
   def convertFileToFile(in: String, out: String): Seq[String] = {
-    println(s"Convert $in to $out")
+    //println(s"Convert $in to $out")
 
     val project = ConvertProject.loadControlFile(in)
 
     val exportsImports = project.items.sortBy(!_.exported)
-    println(s"exportsImports ${exportsImports.map(_.copy(code = ""))}")
+    //println(s"exportsImports ${exportsImports.map(_.copy(code = ""))}")
 
     if (false) { // debugging the parse - parse files one by one to pinpoint a problem location
       for (ConvertProject.Item(name, code, _) <- exportsImports) {
@@ -171,13 +171,13 @@ object CommandLine {
 
     val compositeFile = exportsImports.map(_.code).mkString
 
-    println(s"Parse all {{$compositeFile}}")
+    //println(s"Parse all {{$compositeFile}}")
     val ast = parse(compositeFile, defaultUglifyOptions.parse)
     //println("Parse done")
 
     val astOptimized = Transform(ast)
     val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
-    println(s"$outConfig")
+    //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
 
     for ( (outCode, ConvertProject.Item(inFile, _, _)) <- output zip exports) yield {
