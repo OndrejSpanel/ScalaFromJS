@@ -21,8 +21,8 @@ object CommandLine {
 
   lazy val require = getRequire
 
-  println(s"require $require")
-  println(s"global ${js.Dynamic.global}")
+  //println(s"require $require")
+  //println(s"global ${js.Dynamic.global}")
 
   lazy val fs = require("fs")
   lazy val os = require("os")
