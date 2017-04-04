@@ -745,6 +745,10 @@ object ScalaOut {
       case ex: AST_Export if ex.module_name.isEmpty && ex.exported_definition.nonEmpty =>
         out("/* export */ ")
         ex.exported_definition.foreach(nodeToOut)
+      case tn: AST_Export =>
+        out(s"/* $source */")
+      case tn: AST_Import =>
+        out(s"/* $source */")
       case tn =>
         outputUnknownNode(tn)
         out.eol()

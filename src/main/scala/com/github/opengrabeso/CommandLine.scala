@@ -1,15 +1,28 @@
 package com.github.opengrabeso
 
-import Uglify._
-import UglifyExt._
-
 import scala.scalajs.js
-import scala.collection.mutable
-import scala.util.{Failure, Success, Try}
+import scala.scalajs.js.annotation.JSGlobal
 
+@JSGlobal("$require")
+@js.native
+object Require extends js.Any
 
 object CommandLine {
-  lazy val require = js.Dynamic.global.require
+  def getRequire: js.Dynamic = {
+    // workaround:
+    // js.Dynamic.global.require is undefined when running using "runa" sbt task (node.exe index.js)
+    // test and run work fine
+    // we do not need require when running in a browser (no file access)
+    val r = js.Dynamic.global.require
+    if (js.isUndefined(r)) {
+      Require.asInstanceOf[js.Dynamic]
+    } else r
+  }
+
+  lazy val require = getRequire
+
+  println(s"require $require")
+  println(s"global ${js.Dynamic.global}")
 
   lazy val fs = require("fs")
   lazy val os = require("os")
@@ -121,31 +134,6 @@ object CommandLine {
     process.argv.asInstanceOf[js.Array[String]]
   }
 
-  case class ConvertProject(imports: Seq[String], exports: Seq[String])
-
-  def loadControlFile(ast: AST_Toplevel): Try[ConvertProject] = {
-    // check export / import statements
-    val importBuffer = new mutable.ArrayBuffer[String]
-    val exportBuffer = new mutable.ArrayBuffer[String]
-    ast.walk {
-      case i: AST_Import =>
-        importBuffer append i.module_name.value
-        false
-      case e: AST_Export =>
-        e.module_name.foreach { name =>
-          exportBuffer append name.value
-        }
-        false
-      case _ =>
-        false
-
-    }
-    if (exportBuffer.nonEmpty) {
-      Success(ConvertProject(importBuffer, exportBuffer))
-    } else {
-      Failure(new NoSuchElementException)
-    }
-  }
 
   def resolveSibling(path: String, short: String): String = {
     val dir = path.lastIndexOf('/')
@@ -173,64 +161,22 @@ object CommandLine {
   // return filenames of the output files
   def convertFileToFile(in: String, out: String): Seq[String] = {
     //println(s"Convert $in to $out")
-    val code = readFile(in)
 
-    val ast = parse(code, defaultUglifyOptions.parse)
+    val project = ConvertProject.loadControlFile(in)
 
-    val controlFile = loadControlFile(ast)
-    controlFile.toOption.fold{
-      val astOptimized = Transform(ast)
-      val output = s"/* ${ScalaFromJS.fingerprint()}*/\n\n" + ScalaOut.output(astOptimized, code).mkString
-      writeFile(out, output)
-      Seq(out)
-    }{ project =>
-      def loadFiles(names: Seq[String]) = names.map { filename =>
-        val singlePath = resolveSibling(in, filename)
-        readFile(singlePath.toString)
-      }
+    val converted = project.convert
 
+    for ( (inFile, outCode) <- converted) yield {
 
-      val exportsFiles = loadFiles(project.exports)
-      val importsFiles = loadFiles(project.imports)
+      val outFileBase = resolveSibling(out, inFile)
 
-      if (false) { // debugging the parse - parse files one by one to pinpoint a problem location
-        for ((file, name) <- (exportsFiles ++ importsFiles) zip (project.exports ++ project.imports)) {
-          try {
-            println(s"Parse $name")
-            parse(file, defaultUglifyOptions.parse)
-          } catch {
-            case util.control.NonFatal(ex) =>
-              ex.printStackTrace()
-          }
-        }
-      }
+      val outFileCombined = changeExtension(outFileBase, out)
 
-      val fileOffsets = exportsFiles.scanLeft(0)((offset, file) => offset + file.length)
-      //println(fileOffsets.drop(1) zip project.exports)
-
-      val compositeFile = (exportsFiles ++ importsFiles).mkString
-
-      //println("Parse all")
-      val ast = parse(compositeFile, defaultUglifyOptions.parse)
-      //println("Parse done")
-
-      val astOptimized = Transform(ast)
-      val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
-      //println(s"$outConfig")
-      val output = ScalaOut.output(astOptimized, code, outConfig)
-
-      for ( (outCode, inFile) <- output zip project.exports) yield {
-
-        val outFileBase = resolveSibling(out, inFile)
-
-        val outFileCombined = changeExtension(outFileBase, out)
-
-        val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
-        //println(s"Write $outFileCombined from $inFile (out: $out)")
-        mkAllDirs(outFileCombined)
-        writeFile(outFileCombined, extendedPrefix + outCode)
-        outFileCombined
-      }
+      val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
+      //println(s"Write $outFileCombined from $inFile (out: $out)")
+      mkAllDirs(outFileCombined)
+      writeFile(outFileCombined, extendedPrefix + outCode)
+      outFileCombined
     }
   }
 
@@ -241,7 +187,7 @@ object CommandLine {
     if (realArgs.length == 2) {
       convertFileToFile(realArgs(0), realArgs(1))
     } else {
-      convertFileToFile("temp/input.js", "temp/output.scala")
+      convertFileToFile("temp/test.js", "temp/out/test.scala")
     }
 
   }
