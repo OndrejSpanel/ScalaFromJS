@@ -22,7 +22,7 @@ class ThreeJsTests extends FunSuite with TestUtils {
     execute check ProjectCheck(rscPath("threejs/math-example.js")).required(
       "def dot(v: Vector3) =", // should be inferred from usage example
       "def applyAxisAngle(axis: Vector3, angle: Double) =" // should be inferred from Quaternion
-    )
+    ).forbidden("def demo")
 
   }
 }

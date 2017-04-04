@@ -12,8 +12,8 @@ import scala.scalajs.js.JavaScriptException
 
 object ConvertProject {
 
-  case class Item(code: String, exported: Boolean, fullName: String) {
-    override def toString = s"($fullName:$exported)"
+  case class Item(code: String, included: Boolean, fullName: String) {
+    override def toString = s"($fullName:$included)"
   }
 
   def loadControlFile(in: String): ConvertProject = {
@@ -51,9 +51,12 @@ case class ConvertProject(items: Map[String, Item]) {
       } catch {
         case JavaScriptException(ex) if ex.isInstanceOf[JS_Parse_Error] =>
           //println(s"Parse ex: ${ex.toString} in $path")
-          // TODO: embed wrapped code as a variable
           //val wrap = "// " + shortName(path) + "\n/*\n" + code + "\n*/\n"
-          val wrap = "// " + shortName(path) + "\n"
+          val short = shortName(path)
+          val dot = short.indexOf('.')
+          val simpleName = if (dot <0) short else short.take(dot)
+          // TODO: embed wrapped code as a variable (note: JS syntax is needed)
+          val wrap = s"var $simpleName = " + "\"\"\n"
           wrap -> path
       }
 
@@ -93,12 +96,17 @@ case class ConvertProject(items: Map[String, Item]) {
     }
 
     // check export / import statements
-    val importBuffer = new mutable.ArrayBuffer[(String, String)]
-    val exportBuffer = new mutable.ArrayBuffer[(String, String)]
+    val exampleBuffer = new mutable.ArrayBuffer[(String, String)]
+    val includeBuffer = new mutable.ArrayBuffer[(String, String)]
     ast.walk {
       case i: AST_Import =>
         i.start.foreach { s =>
-          importBuffer append readJsFile(resolveSibling(pathForOffset(s.pos), i.module_name.value))
+          val example = s.comments_before.exists {commentToken =>
+            val comment = commentToken.value.asInstanceOf[String]
+            comment contains "@example"
+          }
+          val target = if (example) exampleBuffer else includeBuffer
+          target append readJsFile(resolveSibling(pathForOffset(s.pos), i.module_name.value))
         }
         false
       case e: AST_Export =>
@@ -106,9 +114,9 @@ case class ConvertProject(items: Map[String, Item]) {
         e.start.foreach { s =>
           val index = indexOfItem(s.pos)
           //println(s"index of ${s.pos} = $index in $offsets")
-          if (values.isDefinedAt(index) && values(index).exported) {
+          if (values.isDefinedAt(index) && values(index).included) {
             e.module_name.foreach { name =>
-              exportBuffer append readJsFile(resolveSibling(pathForOffset(s.pos), name.value))
+              includeBuffer append readJsFile(resolveSibling(pathForOffset(s.pos), name.value))
             }
           }
         }
@@ -119,20 +127,20 @@ case class ConvertProject(items: Map[String, Item]) {
     }
 
     // check if there are new items added into the project
-    val toImport = importBuffer.filter(name => !items.contains(name._2))
-    val toExport = exportBuffer.filter(name => !items.contains(name._2))
-    val markAsExports = exportBuffer.filter(name => items.get(name._2).exists(!_.exported)).toSet
+    val toExample = exampleBuffer.filter(name => !items.contains(name._2))
+    val toInclude = includeBuffer.filter(name => !items.contains(name._2))
+    val markAsIncludes = includeBuffer.filter(name => items.get(name._2).exists(!_.included)).toSet
 
-    if (toImport.isEmpty && toExport.isEmpty && markAsExports.isEmpty) {
+    if (toExample.isEmpty && toInclude.isEmpty && markAsIncludes.isEmpty) {
       //println(s"Do not add to ${items.map(_.name).mkString(",")}")
       this
     } else {
 
       if (false) {
         println(s"Add to ${items.mapValues(_.fullName).mkString("(", "\n", ")")}")
-        println(s"  imports ${toImport.map(_._2).mkString("(", "\n", ")")}")
-        println(s"  exports ${toExport.map(_._2).mkString("(", "\n", ")")}")
-        println(s"  markAsExports ${markAsExports.mkString("(", "\n", ")")}")
+        println(s"  examples ${toExample.map(_._2).mkString("(", "\n", ")")}")
+        println(s"  includes ${toInclude.map(_._2).mkString("(", "\n", ")")}")
+        println(s"  markAsIncludes ${markAsIncludes.mkString("(", "\n", ")")}")
       }
 
       def mapFile(cp: (String, String), exported: Boolean): (String, Item) = {
@@ -140,20 +148,20 @@ case class ConvertProject(items: Map[String, Item]) {
         path -> Item(code, exported, path)
       }
 
-      val old = items.mapValues(i => i.copy(exported = i.exported || markAsExports.exists(_._2 == i.fullName)))
-      val imports = toImport.map(nb => mapFile(nb, false))
-      val exports = toExport.map(nb => mapFile(nb, true))
+      val old = items.mapValues(i => i.copy(included = i.included || markAsIncludes.exists(_._2 == i.fullName)))
+      val examples = toExample.map(nb => mapFile(nb, false))
+      val includes = toInclude.map(nb => mapFile(nb, true))
 
-      assert((old.keySet intersect imports.map(_._1).toSet).isEmpty)
-      assert((old.keySet intersect exports.map(_._1).toSet).isEmpty)
+      assert((old.keySet intersect examples.map(_._1).toSet).isEmpty)
+      assert((old.keySet intersect includes.map(_._1).toSet).isEmpty)
       //println(s"  old ${old.map(_.name).mkString(",")}")
 
-      ConvertProject(old ++ imports ++ exports).resolveImportsExports
+      ConvertProject(old ++ examples ++ includes).resolveImportsExports
     }
   }
 
   def convert: Seq[(String, String)] = {
-    val exportsImports = values.sortBy(!_.exported)
+    val exportsImports = values.sortBy(!_.included)
     //println(s"exportsImports ${exportsImports.map(_.copy(code = ""))}")
 
     if (false) { // debugging the parse - parse files one by one to pinpoint a problem location
@@ -168,7 +176,7 @@ case class ConvertProject(items: Map[String, Item]) {
       }
     }
 
-    val exports = exportsImports.takeWhile(_.exported)
+    val exports = exportsImports.takeWhile(_.included)
 
     val fileOffsets = exports.scanLeft(0)((offset, file) => offset + file.code.length)
     //println(fileOffsets.drop(1) zip project.exports)
