@@ -484,7 +484,14 @@ object Uglify extends js.Object {
 
   def parse(code: String, options: UglifyExt.Options.Parse): AST_Toplevel = js.native
 
-
+  @js.native
+  class JS_Parse_Error extends js.Object {
+    val message: String = js.native
+    val filename: String = js.native
+    val line: Int = js.native
+    val col: Int = js.native
+    val pos: Int = js.native
+  }
 }
 
 object UglifyExt {

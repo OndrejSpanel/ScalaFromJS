@@ -138,7 +138,11 @@ object CommandLine {
   def resolveSibling(path: String, short: String): String = {
     val dir = path.lastIndexOf('/')
     if (dir < 0) short
-    else path.take(dir + 1) + short
+    else {
+      val currentPrefix = "./"
+      val skipCurrent = if (short.startsWith(currentPrefix)) short.drop(currentPrefix.length) else short
+      path.take(dir + 1) + skipCurrent
+    }
   }
 
   def shortName(path: String): String = {
