@@ -301,6 +301,7 @@ object TransformClasses {
 
     def processPrototype(name: String, prototypeDef: AST_Object, isStatic: Boolean = false) = {
       val clazz = classes.getOrElse(name, ClassDef(staticOnly = isStatic))
+
       classes += name -> prototypeDef.properties.foldLeft(clazz) { (clazz, m) =>
         //println(s"Property ${m.key}")
         val key = propertyName(m)
@@ -308,34 +309,46 @@ object TransformClasses {
         if (key == "constructor") {
           clazz
         } else {
+          // TODO: static getters / setters?
+          def addMember(member: ClassMember)(cls: ClassDef) = {
+            if (!isStatic) cls.copy(members = cls.members + (key -> member))
+            else cls.copy(membersStatic = cls.membersStatic + (key -> member))
+          }
+          def addGetter(member: ClassFunMember)(cls: ClassDef) = cls.copy(getters = cls.getters + (key -> member))
+          def addSetter(member: ClassFunMember)(cls: ClassDef) = cls.copy(setters = cls.setters + (key -> member))
 
-          val member: ClassMember = m match {
+          val add = m match {
             case kv: AST_ObjectKeyVal =>
               //println(s"Add AST_ObjectKeyVal $key")
               if (isStatic) {
-                ClassVarMember(kv.value)
+                addMember(ClassVarMember(kv.value)) _
               } else {
                 kv.value match {
                   case AST_Function(args, body) =>
                     //println(s"Add fun member ${kv.key}")
-                    ClassFunMember(args, body)
+                    addMember(ClassFunMember(args, body)) _
                   case v =>
                     //println(s"Add var member ${kv.key} ${nodeClassName(v)}")
-                    ClassVarMember(v)
+                    addMember(ClassVarMember(v)) _
                 }
               }
             case m: AST_ConciseMethod =>
               //println(s"Add AST_ConciseMethod $key")
-              ClassFunMember(m.value.argnames, m.value.body)
+              addMember(ClassFunMember(m.value.argnames, m.value.body)) _
+            case p: AST_ObjectGetter =>
+              assert(!isStatic)
+              addGetter(ClassFunMember(p.value.argnames, p.value.body)) _
+            case p: AST_ObjectSetter =>
+              assert(!isStatic)
+              addSetter(ClassFunMember(p.value.argnames, p.value.body)) _
+
             case _ =>
               // prototype contains something other than a key: val pair - what to do with it?
               val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m.value, Some(m.value))
-
-              ClassVarMember(member)
+              addMember(ClassVarMember(member)) _
           }
 
-          if (!isStatic) clazz.copy(members = clazz.members + (key -> member))
-          else clazz.copy(membersStatic = clazz.membersStatic + (key -> member))
+          add(clazz)
         }
       }
     }
