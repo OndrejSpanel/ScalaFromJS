@@ -150,6 +150,17 @@ object CommandLine {
     }
   }
 
+  def relativePath(base: String, path: String): String = {
+    val dir = base.lastIndexOf('/')
+    if (dir < 0) path
+    else {
+      val baseDir = base.take(dir + 1)
+      if (path.startsWith(baseDir)) path.drop(baseDir.length)
+      else path
+    }
+
+  }
+
   def shortName(path: String): String = {
     val dir = path.lastIndexOf('/')
     if (dir < 0) path
@@ -177,9 +188,13 @@ object CommandLine {
 
     for ( (inFile, outCode) <- converted) yield {
 
-      val outFileBase = resolveSibling(out, inFile)
+      val inRelative = relativePath(in, inFile)
+
+      val outFileBase = resolveSibling(out, inRelative)
 
       val outFileCombined = changeExtension(outFileBase, out)
+
+      //println(s"out: $out, in: $in, inFile: $inFile -> $outFileCombined")
 
       val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
       //println(s"Write $outFileCombined from $inFile (out: $out)")
