@@ -87,4 +87,42 @@ case class ConvertProject(items: Seq[Item]) {
     }
 
   }
+
+
+  def convert: Seq[(String, String)] = {
+    val exportsImports = items.sortBy(!_.exported)
+    //println(s"exportsImports ${exportsImports.map(_.copy(code = ""))}")
+
+    if (false) { // debugging the parse - parse files one by one to pinpoint a problem location
+      for (ConvertProject.Item(name, code, _) <- exportsImports) {
+        try {
+          println(s"Parse $name")
+          parse(code, defaultUglifyOptions.parse)
+        } catch {
+          case util.control.NonFatal(ex) =>
+            ex.printStackTrace()
+        }
+      }
+    }
+
+    val exports = exportsImports.takeWhile(_.exported)
+
+    val fileOffsets = exports.scanLeft(0)((offset, file) => offset + file.code.length)
+    //println(fileOffsets.drop(1) zip project.exports)
+
+    val compositeFile = exportsImports.map(_.code).mkString
+
+    //println(s"Parse all {{$compositeFile}}")
+    val ast = parse(compositeFile, defaultUglifyOptions.parse)
+    //println("Parse done")
+
+    val astOptimized = Transform(ast)
+    val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
+    //println(s"$outConfig")
+    val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
+
+    for ( (outCode, ConvertProject.Item(inFile, _, _)) <- output zip exports) yield {
+      inFile -> outCode
+    }
+  }
 }

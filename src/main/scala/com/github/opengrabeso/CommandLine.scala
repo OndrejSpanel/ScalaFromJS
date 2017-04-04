@@ -1,10 +1,6 @@
 package com.github.opengrabeso
 
-import Uglify._
-import UglifyExt._
-
 import scala.scalajs.js
-
 
 object CommandLine {
   lazy val require = js.Dynamic.global.require
@@ -149,38 +145,9 @@ object CommandLine {
 
     val project = ConvertProject.loadControlFile(in)
 
-    val exportsImports = project.items.sortBy(!_.exported)
-    //println(s"exportsImports ${exportsImports.map(_.copy(code = ""))}")
+    val converted = project.convert
 
-    if (false) { // debugging the parse - parse files one by one to pinpoint a problem location
-      for (ConvertProject.Item(name, code, _) <- exportsImports) {
-        try {
-          println(s"Parse $name")
-          parse(code, defaultUglifyOptions.parse)
-        } catch {
-          case util.control.NonFatal(ex) =>
-            ex.printStackTrace()
-        }
-      }
-    }
-
-    val exports = exportsImports.takeWhile(_.exported)
-
-    val fileOffsets = exports.scanLeft(0)((offset, file) => offset + file.code.length)
-    //println(fileOffsets.drop(1) zip project.exports)
-
-    val compositeFile = exportsImports.map(_.code).mkString
-
-    //println(s"Parse all {{$compositeFile}}")
-    val ast = parse(compositeFile, defaultUglifyOptions.parse)
-    //println("Parse done")
-
-    val astOptimized = Transform(ast)
-    val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
-    //println(s"$outConfig")
-    val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
-
-    for ( (outCode, ConvertProject.Item(inFile, _, _)) <- output zip exports) yield {
+    for ( (inFile, outCode) <- converted) yield {
 
       val outFileBase = resolveSibling(out, inFile)
 
