@@ -420,7 +420,7 @@ object Uglify extends js.Object {
   @js.native class AST_This extends AST_Symbol
   @js.native class AST_Super extends AST_Symbol
 
-  @js.native sealed abstract class AST_Constant extends AST_Symbol
+  @js.native sealed abstract class AST_Constant extends AST_Node
 
   @js.native class AST_String extends AST_Constant {
     // [string] the contents of this string
