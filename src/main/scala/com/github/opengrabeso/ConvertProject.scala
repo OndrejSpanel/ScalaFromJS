@@ -19,7 +19,7 @@ object ConvertProject {
   def loadControlFile(in: String): ConvertProject = {
     Time("loadControlFile") {
       val code = readFile(in)
-      val project = ConvertProject(ListMap(in -> Item(code, true, in)))
+      val project = ConvertProject(in, ListMap(in -> Item(code, true, in)))
 
       project.resolveImportsExports
     }
@@ -28,7 +28,7 @@ object ConvertProject {
 
 import ConvertProject._
 
-case class ConvertProject(items: Map[String, Item]) {
+case class ConvertProject(root: String, items: Map[String, Item]) {
   lazy val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
   lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
@@ -156,7 +156,7 @@ case class ConvertProject(items: Map[String, Item]) {
       assert((old.keySet intersect includes.map(_._1).toSet).isEmpty)
       //println(s"  old ${old.map(_.name).mkString(",")}")
 
-      ConvertProject(old ++ examples ++ includes).resolveImportsExports
+      ConvertProject(root, old ++ examples ++ includes).resolveImportsExports
     }
   }
 
@@ -188,7 +188,7 @@ case class ConvertProject(items: Map[String, Item]) {
     }
 
     val astOptimized = if (true) Transform(ast) else AST_Extended(ast, SymbolTypes())
-    val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1)
+    val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1).withRoot(root)
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
 
