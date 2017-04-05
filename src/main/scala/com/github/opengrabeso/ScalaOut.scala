@@ -32,7 +32,7 @@ object ScalaOut {
     def withParts(parts: Seq[Int]) = copy(parts = parts)
 
     def formatImport(imported_names: Seq[String], module_name: String, source: String) = {
-      val comment = s"// $source\n"
+      val comment = s"/* $source */\n" // we cannot use //, some imports are multiline in the JS source
       // TODO: when importing many members, use wildcard instead
       val gen = if (imported_names.isEmpty) ""
       else {
