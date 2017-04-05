@@ -472,9 +472,9 @@ object Uglify extends js.Object {
 
   @js.native class AST_Import extends AST_Node {
     //  The name of the variable holding the module's default export
-    var imported_name: AST_SymbolImport = js.native
+    var imported_name: js.UndefOr[AST_SymbolImport] = js.native
     //  The names of non-default imported variables
-    var imported_names: js.Array[AST_NameImport] = js.native
+    var imported_names: js.UndefOr[js.Array[AST_NameImport]] = js.native
     // String literal describing where this module came from
     var module_name: AST_String = js.native
   }

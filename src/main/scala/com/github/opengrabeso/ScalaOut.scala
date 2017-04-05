@@ -34,18 +34,21 @@ object ScalaOut {
     def formatImport(imported_names: Seq[String], module_name: String, source: String) = {
       val comment = s"// $source\n"
       // TODO: when importing many members, use wildcard instead
-      val members = if (imported_names.length > 1) {
-        s"{${imported_names.mkString(",")}}"
-      } else imported_names.mkString
+      val gen = if (imported_names.isEmpty) ""
+      else {
+        val members = if (imported_names.length > 1) {
+          s"{${imported_names.mkString(",")}}"
+        } else imported_names.mkString
 
-      // last part of the name is not the package name
-      val lastPart = module_name.lastIndexOf('/')
-      val modulePath = if (lastPart < 0) module_name else module_name.take(lastPart+1)
+        // last part of the name is not the package name
+        val lastPart = module_name.lastIndexOf('/')
+        val modulePath = if (lastPart < 0) module_name else module_name.take(lastPart + 1)
 
-      val pathToImport = pathToPackage(modulePath)
-      val gen = if (pathToImport.nonEmpty) {
-        s"import ${pathToPackage(modulePath)}$members"
-      } else ""
+        val pathToImport = pathToPackage(modulePath)
+        if (pathToImport.nonEmpty) {
+          s"import ${pathToPackage(modulePath)}$members"
+        } else ""
+      }
       comment + gen
     }
   }
@@ -780,7 +783,7 @@ object ScalaOut {
       case tn: AST_Import =>
         // try to create a package name from the import directive
         // start from the root
-        val imported_names = tn.imported_names.map(_.foreign_name.name)
+        val imported_names = tn.imported_names.nonNull.toSeq.flatMap(_.map(_.foreign_name.name))
         val module_name = tn.module_name.value
         val toOut = outConfig.formatImport(imported_names, module_name, source)
         out(toOut)
