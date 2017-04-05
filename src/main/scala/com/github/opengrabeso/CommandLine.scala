@@ -196,10 +196,19 @@ object CommandLine {
 
       //println(s"out: $out, in: $in, inFile: $inFile -> $outFileCombined")
 
+      val inFilePathIndex = inFile.lastIndexOf('/')
+      val inFilePath = if (inFilePathIndex < 0) "" else inFile.take(inFilePathIndex)
+
+      val inFileRelative = relativePath(in, inFilePath)
+
+      val inFilePackage = inFileRelative.split('/')
+
+      val packagePrefix = inFilePackage.map(item => s"package $item").mkString("", "\n", "\n")
+
       val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
       //println(s"Write $outFileCombined from $inFile (out: $out)")
       mkAllDirs(outFileCombined)
-      writeFile(outFileCombined, extendedPrefix + outCode)
+      writeFile(outFileCombined, extendedPrefix + packagePrefix + outCode)
       outFileCombined
     }
   }
