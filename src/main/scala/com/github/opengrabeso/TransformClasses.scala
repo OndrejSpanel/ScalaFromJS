@@ -310,45 +310,43 @@ object TransformClasses {
           clazz
         } else {
           // TODO: static getters / setters?
-          def addMember(member: ClassMember)(cls: ClassDef) = {
-            if (!isStatic) cls.copy(members = cls.members + (key -> member))
-            else cls.copy(membersStatic = cls.membersStatic + (key -> member))
+          def addMember(member: ClassMember) = {
+            if (!isStatic) clazz.copy(members = clazz.members + (key -> member))
+            else clazz.copy(membersStatic = clazz.membersStatic + (key -> member))
           }
-          def addGetter(member: ClassFunMember)(cls: ClassDef) = cls.copy(getters = cls.getters + (key -> member))
-          def addSetter(member: ClassFunMember)(cls: ClassDef) = cls.copy(setters = cls.setters + (key -> member))
+          def addGetter(member: ClassFunMember) = clazz.copy(getters = clazz.getters + (key -> member))
+          def addSetter(member: ClassFunMember) = clazz.copy(setters = clazz.setters + (key -> member))
 
-          val add = m match {
+          m match {
             case kv: AST_ObjectKeyVal =>
               //println(s"Add AST_ObjectKeyVal $key")
               if (isStatic) {
-                addMember(ClassVarMember(kv.value)) _
+                addMember(ClassVarMember(kv.value))
               } else {
                 kv.value match {
                   case AST_Function(args, body) =>
                     //println(s"Add fun member ${kv.key}")
-                    addMember(ClassFunMember(args, body)) _
+                    addMember(ClassFunMember(args, body))
                   case v =>
                     //println(s"Add var member ${kv.key} ${nodeClassName(v)}")
-                    addMember(ClassVarMember(v)) _
+                    addMember(ClassVarMember(v))
                 }
               }
             case m: AST_ConciseMethod =>
               //println(s"Add AST_ConciseMethod $key")
-              addMember(ClassFunMember(m.value.argnames, m.value.body)) _
+              addMember(ClassFunMember(m.value.argnames, m.value.body))
             case p: AST_ObjectGetter =>
               assert(!isStatic)
-              addGetter(ClassFunMember(p.value.argnames, p.value.body)) _
+              addGetter(ClassFunMember(p.value.argnames, p.value.body))
             case p: AST_ObjectSetter =>
               assert(!isStatic)
-              addSetter(ClassFunMember(p.value.argnames, p.value.body)) _
+              addSetter(ClassFunMember(p.value.argnames, p.value.body))
 
             case _ =>
               // prototype contains something other than a key: val pair - what to do with it?
               val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m.value, Some(m.value))
-              addMember(ClassVarMember(member)) _
+              addMember(ClassVarMember(member))
           }
-
-          add(clazz)
         }
       }
     }
