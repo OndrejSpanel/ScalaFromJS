@@ -193,6 +193,17 @@ object ScalaOut {
               createRange(vName, vValue, rel, cRight, assign, step)
             case _ => None
           }
+        // for ( var i = 0, limit = xxxx; i < limit; i ++ )
+        case (
+          Some(VarOrLet(AST_Definitions(AST_VarDef(AST_SymbolName(vName), Defined(vValue)), AST_VarDef(AST_SymbolName(limitName), Defined(limitValue))))),
+          Some(AST_Binary(cLeft, rel, AST_SymbolName(cRightName))),
+          Some(AST_Binary(expr, assign, step))
+          ) if cRightName == limitName =>
+          (cLeft, expr) match {
+            case (AST_SymbolRef(`vName`, _, _), AST_SymbolRef(`vName`, _, _)) =>
+              createRange(vName, vValue, rel, limitValue, assign, step)
+            case _ => None
+          }
         case _ => None
       }
     }
