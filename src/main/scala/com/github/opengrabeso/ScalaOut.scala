@@ -449,9 +449,11 @@ object ScalaOut {
             tn match {
               case _: AST_UnaryPrefix =>
                 out(tn.operator)
+                if (tn.operator.last.isLetterOrDigit) out(" ")
                 nodeToOut(tn.expression)
               case _: AST_UnaryPostfix =>
                 nodeToOut(tn.expression)
+                if (tn.operator.head.isLetterOrDigit) out(" ")
                 out(tn.operator)
             }
         }
