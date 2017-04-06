@@ -448,9 +448,14 @@ object ScalaOut {
           case _ =>
             tn match {
               case _: AST_UnaryPrefix =>
-                out(tn.operator)
-                if (tn.operator.last.isLetterOrDigit) out(" ")
-                nodeToOut(tn.expression)
+                (tn.operator, tn.expression) match {
+                  case ("delete", sym AST_Sub prop) =>
+                    out"$sym -= $prop"
+                  case _ =>
+                    out(tn.operator)
+                    if (tn.operator.last.isLetterOrDigit) out(" ")
+                    nodeToOut(tn.expression)
+                }
               case _: AST_UnaryPostfix =>
                 nodeToOut(tn.expression)
                 if (tn.operator.head.isLetterOrDigit) out(" ")
