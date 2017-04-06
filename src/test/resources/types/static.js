@@ -40,3 +40,9 @@ function f() {
 Cls.z = 1;
 
 Utils.funC = function(a, b) {return a*b;};
+
+function localObject() {
+    var local = {
+        a: 0
+    }
+}

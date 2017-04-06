@@ -163,6 +163,8 @@ class TypeTests extends FunSuite with TestUtils {
         "def funB(",
         "var funC = (",
         "Cls.z = 1",
+        "object local {",
+        "a = 0",
         "Utils.x = 11"
       ).forbidden(
         "Cls.defX =",

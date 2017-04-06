@@ -252,9 +252,17 @@ object ScalaOut {
     }
 
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions) = {
-      tn.definitions.foreach { v =>
-        val decl = if (isVal) "val" else "var"
-        out"$decl $v\n"
+      tn.definitions.foreach {
+
+        case AST_VarDef(AST_SymbolName(name), Defined(AST_Object(props))) =>
+          out"object $name {\n"
+          out.indent()
+          for (elem <- props) nodeToOut(elem)
+          out.unindent()
+          out("}\n")
+        case v =>
+          val decl = if (isVal) "val" else "var"
+          out"$decl $v\n"
       }
     }
 
@@ -497,6 +505,7 @@ object ScalaOut {
         outputCall(tn)
       case tn: AST_Call =>
         outputCall(tn)
+
       case tn: AST_VarDef =>
         nodeToOut(tn.name)
         tn.value.nonNull.fold {
