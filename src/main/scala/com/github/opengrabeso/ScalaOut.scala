@@ -183,27 +183,21 @@ object ScalaOut {
       }
 
       (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
+        // for ( var i = 0; i < xxxx; i += step )
         case (
           Some(VarOrLet(AST_Definitions(AST_VarDef(AST_SymbolName(vName), Defined(vValue))))),
-          Some(AST_Binary(cLeft, rel, cRight)),
-          Some(AST_Binary(expr, assign, step))
-        ) =>
-          (cLeft, expr) match {
-            case (AST_SymbolRef(`vName`, _, _), AST_SymbolRef(`vName`, _, _)) =>
-              createRange(vName, vValue, rel, cRight, assign, step)
-            case _ => None
-          }
-        // for ( var i = 0, limit = xxxx; i < limit; i ++ )
+          Some(AST_Binary(AST_SymbolRefName(cLeftName), rel, cRight)),
+          Some(AST_Binary(AST_SymbolRefName(exprName), assign, step))
+        ) if cLeftName == vName && exprName == vName =>
+          createRange(vName, vValue, rel, cRight, assign, step)
+        // for ( var i = 0, limit = xxxx; i < limit; i += step )
         case (
           Some(VarOrLet(AST_Definitions(AST_VarDef(AST_SymbolName(vName), Defined(vValue)), AST_VarDef(AST_SymbolName(limitName), Defined(limitValue))))),
-          Some(AST_Binary(cLeft, rel, AST_SymbolName(cRightName))),
-          Some(AST_Binary(expr, assign, step))
-          ) if cRightName == limitName =>
-          (cLeft, expr) match {
-            case (AST_SymbolRef(`vName`, _, _), AST_SymbolRef(`vName`, _, _)) =>
-              createRange(vName, vValue, rel, limitValue, assign, step)
-            case _ => None
-          }
+          Some(AST_Binary(AST_SymbolRefName(cLeftName), rel, AST_SymbolRefName(cRightName))),
+          Some(AST_Binary(AST_SymbolRefName(exprName), assign, step))
+        ) if cRightName == limitName && cLeftName == vName && exprName == vName =>
+          createRange(vName, vValue, rel, limitValue, assign, step)
+
         case _ => None
       }
     }
