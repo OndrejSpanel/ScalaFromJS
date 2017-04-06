@@ -373,9 +373,13 @@ object TransformClasses {
             //Object.defineProperty( this, 'id', { value: textureId ++ } );
             case AST_SimpleStatement(AST_Call(
             AST_SymbolRefName("Object") AST_Dot "defineProperty", _: AST_This, prop: AST_String,
-            AST_Object(Seq(property: AST_ObjectKeyVal)))) =>
-              //println(s"Detect defineProperty $sym.name.${prop.value}")
-              classes.defineSingleProperty(sym.name, prop.value, property)
+            AST_Object(properties)
+            )) =>
+              //println(s"Detect defineProperty ${sym.name}.${prop.value}")
+              properties.foreach {
+                case p: AST_ObjectKeyVal => classes.defineSingleProperty(sym.name, prop.value, p)
+                case _ =>
+              }
               false
             case _ =>
               true
