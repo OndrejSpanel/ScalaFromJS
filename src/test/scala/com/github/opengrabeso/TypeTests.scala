@@ -96,6 +96,19 @@ class TypeTests extends FunSuite with TestUtils {
       )
   }
 
+  test("Modified parameters should introduce a variable") {
+    execute check ConversionCheck(rsc("types/modParameters.js"))
+      .required(
+        "a_par:",
+        "b_par:",
+        "c:",
+        "var a = a_par",
+        "var b = b_par"
+      ).forbidden(
+        "var c"
+      )
+  }
+
   test("JS class in IIFE") {
     execute check ConversionCheck(rsc("types/classVariants.js"))
       .required(

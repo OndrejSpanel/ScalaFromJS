@@ -1,6 +1,7 @@
 package com.github.opengrabeso
 package transform
 
+import JsUtils._
 import Uglify._
 import UglifyExt._
 import UglifyExt.Import._
@@ -9,6 +10,10 @@ import Transform._
 
 object Parameters {
 
+  /**
+    * Scan all parameters in all functions, parameters are scaned from last to first (right to left)
+    * @param process process the function - once this returns None, scan is aborted
+    * */
   def processAllFunctions(n: AST_Node, process: (AST_Lambda, AST_SymbolFunarg) => Option[AST_Lambda]): AST_Node = {
 
     def processOneFunction(f: AST_Lambda): AST_Lambda = {
@@ -171,6 +176,75 @@ object Parameters {
 
     processAllFunctions(n, introduceDefaultValue)
 
+  }
+
+  def modifications(n: AST_Node): AST_Node = {
+    import VariableUtils._
+
+
+    def handleModification(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+      par.thedef.nonNull.map { parDef =>
+        val parName = par.name
+        //println(s"Checking $parName")
+
+        // check if the parameter is ever modified
+        val refs = buildReferenceStacks(n)
+
+        object IsPar extends Extractor[Unit] {
+          def unapply(arg: AST_Node) = arg match {
+            case AST_SymbolRefDef(`parDef`) => Some(())
+            case _ => None
+          }
+        }
+        object IsParModified extends IsModified(IsPar)
+
+        val assignedInto = refs.walkReferences(parDef, IsParModified)(_ => true)
+        if (assignedInto) {
+          //println(s"Detected assignment into $parName")
+          // we need to replace parameter x with x_par and intruduce var x = x_par
+          val newF = f.clone()
+
+          val parIndex = f.argnames.indexOf(par)
+          val parNode = par.clone()
+
+          //val oldParSym = parNode.thedef
+
+          // introduce a new symbol
+          parNode.thedef = js.undefined
+          parNode.name = parName + SymbolTypes.parSuffix
+
+          newF.argnames(parIndex) = parNode
+
+          newF.body = js.Array(
+            new AST_Let {
+              fillTokens(this, parNode)
+              definitions = js.Array(new AST_VarDef {
+                fillTokens(this, parNode)
+                name = new AST_SymbolVar {
+                  fillTokens(this, parNode)
+                  name = parName
+                }
+                value = new AST_SymbolRef {
+                  /*_*/
+                  fillTokens(this, parNode)
+                  /*_*/
+                  name = parName + SymbolTypes.parSuffix
+                }
+              })
+            }
+          ) ++ f.body
+
+          newF
+
+        } else {
+          f
+        }
+      }
+
+
+    }
+
+    processAllFunctions(n, handleModification)
   }
 
   def removeDeprecated(n: AST_Node): AST_Node = {

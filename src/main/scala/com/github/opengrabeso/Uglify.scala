@@ -136,7 +136,7 @@ object Uglify extends js.Object {
     def print_to_string(config: UglifyExt.Options.Output): String = js.native
   }
 
-  @js.native class AST_Lambda extends AST_Scope {
+  @js.native class AST_Lambda extends AST_Scope with CloneSelf[AST_Lambda] {
     var name: js.UndefOr[AST_SymbolDeclaration] = js.native
     //[AST_SymbolDeclaration?] the name of this function
     var argnames: js.Array[AST_SymbolFunarg] = js.native

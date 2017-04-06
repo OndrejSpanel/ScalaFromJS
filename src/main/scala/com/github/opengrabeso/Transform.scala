@@ -726,6 +726,7 @@ object Transform {
     ) ++ TransformClasses.transforms ++ Seq(
       onTopNode(Parameters.removeDeprecated),
       onTopNode(Parameters.defaultValues),
+      onTopNode(Parameters.modifications),
       onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
       objectAssign _,
       onTopNode(removeVarClassScope),
