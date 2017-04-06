@@ -20,6 +20,7 @@ class FlowControlTests extends FunSuite with TestUtils {
     execute check ConversionCheck(rsc("control/for.js"))
       .required(
         "for (a <- 0 until 10)",
+        "for (i <- 0 until 2 + 3)",
         "while (s < 10)",
         "while (d < 10)",
         "var c = 0",

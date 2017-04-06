@@ -167,25 +167,37 @@ object ScalaOut {
 
       }
 
+      def createRange(vName: String, vValue: AST_Node, rel: String, cRight: AST_Node, assign: String, step: AST_Node) = {
+        (rel, assign) match {
+          case ("<", "+=") =>
+            Some((vName, "until", vValue, cRight, step))
+          case ("<=", "+=") =>
+            Some((vName, "to", vValue, cRight, step))
+          case (">", "-=") =>
+            Some((vName, "until", vValue, cRight, negateStep(step)))
+          case (">=", "-=") =>
+            Some((vName, "to", vValue, cRight, negateStep(step)))
+          case _ =>
+            None
+        }
+      }
+
       (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
-        case (Some(VarOrLet(AST_Definitions(v))), Some(AST_Binary(cLeft, rel, cRight)), Some(AST_Binary(expr, assign, step))) =>
-          val n = v.name.name
-          (cLeft, expr) match {
-            case (AST_SymbolRef(`n`, _, _), AST_SymbolRef(`n`, _, _)) =>
-              (rel, assign) match {
-                case ("<", "+=") =>
-                  Some((n, "until", v.value.get, cRight, step))
-                case ("<=", "+=") =>
-                  Some((n, "to", v.value.get, cRight, step))
-                case (">", "-=") =>
-                  Some((n, "until", v.value.get, cRight, negateStep(step)))
-                case (">=", "-=") =>
-                  Some((n, "to", v.value.get, cRight, negateStep(step)))
-                case _ =>
-                  None
-              }
-            case _ => None
-          }
+        // for ( var i = 0; i < xxxx; i += step )
+        case (
+          Some(VarOrLet(AST_Definitions(AST_VarDef(AST_SymbolName(vName), Defined(vValue))))),
+          Some(AST_Binary(AST_SymbolRefName(cLeftName), rel, cRight)),
+          Some(AST_Binary(AST_SymbolRefName(exprName), assign, step))
+        ) if cLeftName == vName && exprName == vName =>
+          createRange(vName, vValue, rel, cRight, assign, step)
+        // for ( var i = 0, limit = xxxx; i < limit; i += step )
+        case (
+          Some(VarOrLet(AST_Definitions(AST_VarDef(AST_SymbolName(vName), Defined(vValue)), AST_VarDef(AST_SymbolName(limitName), Defined(limitValue))))),
+          Some(AST_Binary(AST_SymbolRefName(cLeftName), rel, AST_SymbolRefName(cRightName))),
+          Some(AST_Binary(AST_SymbolRefName(exprName), assign, step))
+        ) if cRightName == limitName && cLeftName == vName && exprName == vName =>
+          createRange(vName, vValue, rel, limitValue, assign, step)
+
         case _ => None
       }
     }

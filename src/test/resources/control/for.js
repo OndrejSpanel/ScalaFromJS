@@ -10,4 +10,7 @@ function forShow() {
     for (var c = 0; s < 10; c++) no()
 
     for (var d = 0; d < 10; d++, s++) no()
+
+    for (var i = 0, x = 2 + 3; i < x; i++) yes()
+
 }
