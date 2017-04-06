@@ -49,25 +49,28 @@ object VariableUtils {
   }
 
   def buildReferenceStacks(n: AST_Node) = {
-    var refs = Map.empty[SymbolDef, Set[AST_Scope]]
 
-    n.walkWithDescend { (node, _, walker) =>
-      node match {
-        case AST_SymbolRefDef(symDef) =>
-          val old = refs.getOrElse(symDef, Set())
+    Time("buildReferenceStacks") {
+      var refs = Map.empty[SymbolDef, Set[AST_Scope]]
 
-          val stack = walker.stack.toSeq.collect {
-            case s: AST_Scope => s
-          }
+      n.walkWithDescend { (node, _, walker) =>
+        node match {
+          case AST_SymbolRefDef(symDef) =>
+            val old = refs.getOrElse(symDef, Set())
 
-          refs += symDef -> (old ++ stack)
-        case _ =>
+            val stack = walker.stack.toSeq.collect {
+              case s: AST_Scope => s
+            }
+
+            refs += symDef -> (old ++ stack)
+          case _ =>
+        }
+
+        false // descend(node, walker)
       }
 
-      false // descend(node, walker)
+      ReferenceScopes(refs)
     }
-
-    ReferenceScopes(refs)
   }
 
 

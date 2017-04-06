@@ -181,6 +181,7 @@ object Parameters {
   def modifications(n: AST_Node): AST_Node = {
     import VariableUtils._
 
+    val refs = buildReferenceStacks(n)
 
     def handleModification(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
       par.thedef.nonNull.map { parDef =>
@@ -188,7 +189,6 @@ object Parameters {
         //println(s"Checking $parName")
 
         // check if the parameter is ever modified
-        val refs = buildReferenceStacks(n)
 
         object IsPar extends Extractor[Unit] {
           def unapply(arg: AST_Node) = arg match {
@@ -197,6 +197,8 @@ object Parameters {
           }
         }
         object IsParModified extends IsModified(IsPar)
+
+        // TODO: cloning destroys reference stacks - gather first
 
         val assignedInto = refs.walkReferences(parDef, IsParModified)(_ => true)
         if (assignedInto) {
