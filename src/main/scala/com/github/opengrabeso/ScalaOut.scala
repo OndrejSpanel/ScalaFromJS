@@ -750,11 +750,12 @@ object ScalaOut {
             case AST_Definitions(AST_VarDef(AST_SymbolName(s), init)) =>
               val clsName = tn.name.nonNull.map(_.name)
               val sType = input.types.getMember(clsName, s).map(_.declType)
-              val sTypeName = SymbolTypes.mapSimpleTypeToScala(sType.getOrElse(SymbolTypes.any))
-              out"var ${identifier(s)}: $sTypeName"
-              for (i <- init) {
-                out" = $init"
+              out"var ${identifier(s)}"
+              sType.foreach { tp =>
+                out(": ")
+                out(SymbolTypes.mapSimpleTypeToScala(tp))
               }
+              init.fold (out(" = _"))(i => out" = $i")
               out.eol()
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
             case ss =>
