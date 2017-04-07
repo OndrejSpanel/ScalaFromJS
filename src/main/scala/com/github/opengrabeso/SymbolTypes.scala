@@ -351,6 +351,8 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   }
 
   def sourceFromTarget: TypeInfo = TypeInfo(sourceTypeFromTarget, NoType)
+
+  def map(f: TypeDesc => TypeDesc): TypeInfo = TypeInfo(f(source), f(target))
 }
 
 case class SymbolTypes(types: Map[SymbolMapId, TypeInfo], members: Map[MemberId, TypeInfo]) {

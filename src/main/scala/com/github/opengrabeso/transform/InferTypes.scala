@@ -268,12 +268,11 @@ object InferTypes {
         types.getMember(p.map(pp => symbol.copy(cls = pp))).isEmpty
       }
     }
+
     case class SymbolAccessArray(symbol: SymbolDef) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
 
-        val mappedTpe = tpe.map { t =>
-          TypeInfo(ArrayType(t.source), ArrayType(t.target))
-        }
+        val mappedTpe = tpe.map(_.map(ArrayType))
         //println(s"${symbol.name}: Array type $tpe $mappedTpe")
         addInferredType(id(symbol), mappedTpe, kind)
       }
@@ -287,10 +286,8 @@ object InferTypes {
     case class SymbolAccessMap(symbol: SymbolDef) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
 
-        val mappedTpe = tpe.map { t =>
-          TypeInfo(MapType(t.source), MapType(t.target))
-        }
-        //println(s"${symbol.name}: Array type $tpe $mappedTpe")
+        val mappedTpe = tpe.map(_.map(MapType))
+        println(s"${symbol.name}: Map type $tpe $mappedTpe")
         addInferredType(id(symbol), mappedTpe, kind)
       }
 
@@ -300,24 +297,71 @@ object InferTypes {
       }
     }
 
+    case class SymbolAccessDotMap(symbol: MemberId) extends SymbolAccessInfo {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
+        val mappedTpe = tpe.map(_.map(MapType))
+        addInferredMemberType(Some(symbol), mappedTpe, kind)
+      }
+
+      def unknownType(types: SymbolTypes) =  { // TODO: verify
+        val p = findInParents(symbol.cls, symbol.name)(ctx)
+        //println(s"Check $d => $p = ${n.types.getMember(dot)}")
+        types.getMember(p.map(pp => symbol.copy(cls = pp))).isEmpty
+      }
+    }
+
+    case class SymbolAccessDotArray(symbol: MemberId) extends SymbolAccessInfo {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
+        val mappedTpe = tpe.map(_.map(ArrayType))
+        addInferredMemberType(Some(symbol), mappedTpe, kind)
+      }
+
+      def unknownType(types: SymbolTypes) =  { // TODO: verify
+        val p = findInParents(symbol.cls, symbol.name)(ctx)
+        //println(s"Check $d => $p = ${n.types.getMember(dot)}")
+        types.getMember(p.map(pp => symbol.copy(cls = pp))).isEmpty
+      }
+    }
+
     object SymbolInfo {
       def unapply(arg: AST_Node) = arg match {
         case AST_SymbolRefDef(symDef) =>
           Some(SymbolAccessSymbol(symDef))
 
-        case AST_Sub(AST_SymbolRefDef(symDef), property) =>
+        case AST_SymbolRefDef(symDef) AST_Sub property =>
+          println(s"${symDef.name} - AST_Sub")
           expressionType(property)(ctx).flatMap {
             _.declType match {
               case `number` =>
                 Some(SymbolAccessArray(symDef)) // TODO: derive property is most likely Int, not Double
               case `string` =>
+                println(s"${symDef.name} - map")
                 Some(SymbolAccessMap(symDef))
               case _ =>
                 None
             }
           }
 
-        case AST_Dot(expr, name) =>
+        case expr AST_Dot name AST_Sub property =>
+          // consider DRY with the case above
+          expressionType(property)(ctx).flatMap {
+            _.declType match {
+              case `number` =>
+                val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
+                //println(s"$clsId - dot - array")
+                clsId.map(SymbolAccessDotArray)
+              case `string` =>
+                val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
+                //println(s"$clsId - dot - map")
+                clsId.map(SymbolAccessDotMap)
+              case _ =>
+                None
+            }
+          }
+
+
+
+        case expr AST_Dot name =>
           val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
           clsId.map(SymbolAccessDot)
 
