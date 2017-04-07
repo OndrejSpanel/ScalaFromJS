@@ -287,7 +287,7 @@ object InferTypes {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
 
         val mappedTpe = tpe.map(_.map(MapType))
-        println(s"${symbol.name}: Map type $tpe $mappedTpe")
+        //println(s"${symbol.name}: Map type $tpe $mappedTpe")
         addInferredType(id(symbol), mappedTpe, kind)
       }
 
@@ -329,13 +329,13 @@ object InferTypes {
           Some(SymbolAccessSymbol(symDef))
 
         case AST_SymbolRefDef(symDef) AST_Sub property =>
-          println(s"${symDef.name} - AST_Sub")
+          //println(s"${symDef.name} - AST_Sub")
           expressionType(property)(ctx).flatMap {
             _.declType match {
               case `number` =>
                 Some(SymbolAccessArray(symDef)) // TODO: derive property is most likely Int, not Double
               case `string` =>
-                println(s"${symDef.name} - map")
+                //println(s"${symDef.name} - map")
                 Some(SymbolAccessMap(symDef))
               case _ =>
                 None

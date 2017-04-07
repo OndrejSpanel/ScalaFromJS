@@ -767,9 +767,21 @@ object ScalaOut {
             case AST_Definitions(AST_VarDef(AST_SymbolName(s), init)) =>
               val clsName = tn.name.nonNull.map(_.name)
               val sType = input.types.getMember(clsName, s).map(_.declType)
+              def outInit() = init.fold(out(" = _"))(i => out" = $i")
               out"var ${identifier(s)}"
-              sType.foreach(tp => out": $tp")
-              init.fold (out(" = _"))(i => out" = $i")
+              // some special cases: map or array initialization
+
+              sType match {
+                case Some(tp: SymbolTypes.MapType) =>
+                  out" = ${tp.scalaConstruct}"
+                case Some(tp: SymbolTypes.ArrayType) =>
+                  out" = ${tp.scalaConstruct}"
+                case Some(tp) =>
+                  out": $tp"
+                  outInit()
+                case _ =>
+                  outInit()
+              }
               out.eol()
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
             case ss =>

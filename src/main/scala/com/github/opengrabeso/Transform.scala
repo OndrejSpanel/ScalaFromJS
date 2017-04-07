@@ -423,16 +423,30 @@ object Transform {
         //println(s"Sym ${symDef.name} type $rt")
         rt
 
-      case AST_Dot(cls, name) =>
-        //println(s"Infer type of member $name, et ${expressionType(cls)(ctx)}")
+      case expr AST_Dot name =>
+        //println(s"Infer type of member $name, et ${expressionType(expr)(ctx)}")
         for {
-          TypeDecl(ClassType(callOn)) <- expressionType(cls)(ctx)
+          TypeDecl(ClassType(callOn)) <- expressionType(expr)(ctx)
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(c), name)
         } yield {
           //println(s"Infer type of member $c.$name as $r")
           r
         }
+
+      case expr AST_Sub name =>
+        //println(s"Infer type of array item $name, et ${expressionType(expr)(ctx)}")
+        expressionType(expr)(ctx) match {
+          case Some(TypeDecl(ArrayType(item))) =>
+            //println(s"Infer type of array $c.$name as $r")
+            Some(TypeInfo.target(item))
+          case Some(TypeDecl(MapType(item))) =>
+            //println(s"Infer type of map $c.$name as $r")
+            Some(TypeInfo.target(item))
+          case _ =>
+            None
+        }
+
       case _: AST_Array =>
         // TODO: check inside of the array
         Some(TypeInfo.target(ArrayType(NoType)))

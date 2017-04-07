@@ -24,6 +24,8 @@ object SymbolTypes {
   case class ArrayType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Array[${elem.toString}]"
 
+    def scalaConstruct: String = s"Array.empty[$elem]()"
+
     override def knownItems = super.knownItems + elem.knownItems
 
     def union(that: ArrayType)(implicit classOps: ClassOps) = ArrayType(typeUnion(elem, that.elem))
@@ -33,7 +35,7 @@ object SymbolTypes {
   case class MapType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Map[String, $elem]"
 
-    def scalaConstruct: String = s"Map.empty[String, $elem]"
+    def scalaConstruct: String = s"Map.empty[String, $elem]()"
 
     override def knownItems = super.knownItems + elem.knownItems
 
