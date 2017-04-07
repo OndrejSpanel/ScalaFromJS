@@ -9,6 +9,7 @@ import Classes._
 
 import scala.scalajs.js
 import js.JSConverters._
+import scala.collection.mutable
 import scala.language.implicitConversions
 
 object Variables {
@@ -255,6 +256,65 @@ object Variables {
           c
       }
     }
+  }
+
+  object ExtractVariables {
+    def unapply(n: AST_Node): Option[Seq[SymbolDef]] = {
+      val b = mutable.ArrayBuilder.make[SymbolDef]
+      n.walk {
+        case AST_Assign(AST_SymbolRefDef(sym), "=", _) =>
+          b += sym
+          false
+        case _ =>
+          false
+      }
+      val r = b.result()
+      if (r.isEmpty) None else Some(r)
+    }
+  }
+  /**
+    * when possible, introduce a var into the for loop
+    * i.e. transform for (i = 0; ..) {} into for (var i = 0; ..)
+    */
+  def detectForVars(n: AST_Node): AST_Node = {
+    val refs = buildReferenceStacks(n)
+
+    n.walk { node =>
+      node match {
+        case f: AST_For =>
+          f.init.foreach {
+            case _: AST_Definitions => // if init already is a definition, no need to process anything
+            case ExtractVariables(vars) =>
+              // we expect a sequence of variable initializations
+
+              println(s"Detect for with ${vars.map(_.name).mkString(",")}")
+              // for each variable we need to verify the first use after the for loop is assignment
+              // (or the variable is not used after the loop at all)
+              // note: the assignment will often be in the init of another for loop
+          }
+        /*
+          //println(s"AST_VarDef ${name.name}")
+          for (df <- name.thedef) {
+            assert(df.name == name.name)
+            if (df.references.nonEmpty) {
+              // find the first reference
+              val firstRef = df.references.minBy { ref =>
+                assert(ref.thedef contains df)
+                ref.start.map(_.pos).getOrElse(Int.MaxValue)
+              }
+              // if the first ref is in the current scope, we might merge it with the declaration
+              if (firstRef.scope == name.scope) {
+                pairs += df -> firstRef
+              }
+
+            }
+            */
+        case _ =>
+      }
+      false
+    }
+    n
+
   }
 
 

@@ -733,6 +733,7 @@ object Transform {
       readJSDoc,
       onTopNode(iife), // removes also trailing return within the IIFE construct
       onTopNode(removeDoubleScope), // after iife (often introduced by it)
+      onTopNode(Variables.detectForVars),
       onTopNode(Variables.detectVals), // before convertConstToFunction
       onTopNode(Variables.detectMethods),
       onTopNode(Variables.convertConstToFunction)
