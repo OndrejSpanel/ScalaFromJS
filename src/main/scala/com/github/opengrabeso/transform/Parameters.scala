@@ -63,6 +63,7 @@ object Parameters {
         // TODO: accept only some forms of new or Array (avoid reordering dependent expressions)
         case c: AST_Array => Some(c)
         case c: AST_New => Some(c)
+        case c@AST_Object(Seq()) => Some(c)
         // TODO: check for dependent expressions
         case c: AST_SymbolRef => Some(c)
         case c@((x: AST_SymbolRef) AST_Dot _) => Some(c)
@@ -108,11 +109,11 @@ object Parameters {
         var otherUse = false
         f.walk {
           case IsParDefaultHandling(_, init) =>
-            println(s"Detected def value for $parName")
+            //println(s"Detected def value for $parName")
             if (!otherUse) defValue = Some(init)
             true // use inside of the def. value pattern must not set otherUse
           case IsParDefaultHandlingAssignment(_, init) =>
-            println(s"Detected def value assignment for $parName")
+            //println(s"Detected def value assignment for $parName")
             if (!otherUse) defValue = Some(init)
             true // use inside of the def. value pattern must not set otherUse
           case AST_SymbolRefName(`parName`) =>

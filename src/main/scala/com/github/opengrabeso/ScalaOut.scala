@@ -426,15 +426,19 @@ object ScalaOut {
         out"def ${identifier(keyName)}${tn.value}\n"
 
       case tn: AST_Object =>
-        out("new {\n") // prefer anonymous class over js.Dynamic.literal
-        out.indent()
-        tn.properties.foreach{ n =>
-          nodeToOut(n)
+        if (tn.properties.isEmpty) {
+          out("new {}")
+        } else {
+          out("new {\n") // prefer anonymous class over js.Dynamic.literal
+          out.indent()
+          tn.properties.foreach { n =>
+            nodeToOut(n)
+            out.eol()
+          }
+          out.unindent()
           out.eol()
+          out("}")
         }
-        out.unindent()
-        out.eol()
-        out("}")
       case tn: AST_Array =>
         out("Array(")
         outputNodes(tn.elements)(nodeToOut)
