@@ -147,7 +147,7 @@ object ScalaOut {
     println(n.nonNull.map(n => nodeClassName(n) + ":" + nodeToString(n)).getOrElse(""))
   }
 
-  // exctactor for special cases of the for loop
+  // extractor for special cases of the for loop
   object ForRange {
     object VarOrLet {
       def unapply(arg: AST_Definitions): Option[AST_Definitions] = arg match {
