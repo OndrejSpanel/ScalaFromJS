@@ -690,6 +690,13 @@ object UglifyExt {
     object AST_Unary {
       def unapply(arg: AST_Unary) = Some(arg.operator, arg.expression)
     }
+    object AST_UnaryPrefix {
+      def unapply(arg: AST_UnaryPrefix) = AST_Unary.unapply(arg)
+    }
+
+    object AST_UnaryPostfix {
+      def unapply(arg: AST_UnaryPostfix) = AST_Unary.unapply(arg)
+    }
 
     object AST_Definitions {
       def unapplySeq(arg: AST_Definitions) = Some(arg.definitions.toSeq)

@@ -99,8 +99,17 @@ object Parameters {
 
         object IsParDefaultHandlingAssignment {
           def unapply(arg: AST_Node) = arg match {
-            case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", IsParDefaultHandling(symRef, init))) =>
-              Some(symRef, init)
+            case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", IsParDefaultHandling(_, init))) =>
+              Some(init)
+
+
+            case AST_If(
+            // TODO: handle other forms that ! - like === undefined
+            AST_UnaryPrefix("!", AST_SymbolRefName(`parName`)),
+            SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=",init)),None
+            ) =>
+              Some(init)
+
             case _ => None
           }
         }
@@ -112,7 +121,7 @@ object Parameters {
             //println(s"Detected def value for $parName")
             if (!otherUse) defValue = Some(init)
             true // use inside of the def. value pattern must not set otherUse
-          case IsParDefaultHandlingAssignment(_, init) =>
+          case IsParDefaultHandlingAssignment(init) =>
             //println(s"Detected def value assignment for $parName")
             if (!otherUse) defValue = Some(init)
             true // use inside of the def. value pattern must not set otherUse
@@ -128,9 +137,9 @@ object Parameters {
           // remove the use
           f.transformBefore { (node, descend, transform) =>
             node match {
-              case IsParDefaultHandlingAssignment(symRef, _) =>
+              case IsParDefaultHandlingAssignment(_) =>
                 new AST_EmptyStatement {
-                  fillTokens(this, symRef)
+                  fillTokens(this, node)
                 }
               case IsParDefaultHandling(symRef, _) =>
                 symRef.clone()
