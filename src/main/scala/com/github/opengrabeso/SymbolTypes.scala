@@ -59,15 +59,10 @@ object SymbolTypes {
     override def toString = "Unit"
   }
 
-  private val numberStr = "number"
-  private val booleanStr = "boolean"
-  private val stringStr = "string"
-  private val anyStr = "Any"
-
-  val any = SimpleType(anyStr)
-  val number = SimpleType(numberStr)
-  val boolean = SimpleType(booleanStr)
-  val string = SimpleType(stringStr)
+  val any = SimpleType("Any")
+  val number = SimpleType("Double")
+  val boolean = SimpleType("Boolean")
+  val string = SimpleType("String")
 
   /* it would be tempting to use something like _! to avoid possible clashes with other identifiers
   That would hover require to always add a traling space or to use `around the symbol` to prevent any following operator
@@ -75,11 +70,12 @@ object SymbolTypes {
   */
   val parSuffix = "_par"
 
-
   def parseType(str: String): TypeDesc = {
     str match {
-      case `numberStr` | `booleanStr` | `stringStr` | `anyStr` =>
-        SimpleType(str)
+      case "number" => number
+      case "boolean" => boolean
+      case "string" => string
+      case "any" => any
       case _ =>
         ClassType(str)
 
@@ -103,15 +99,6 @@ object SymbolTypes {
     token.map { t =>
       val pos = if (sym.global) 0 else t.pos
       SymbolMapId(sym.name, pos)
-    }
-  }
-
-  def mapSimpleTypeToScala(tpe: TypeDesc): String = {
-    tpe match {
-      case `string` => "String"
-      case `number` => "Double"
-      case `boolean` => "Boolean"
-      case _ => tpe.toString
     }
   }
 
@@ -356,7 +343,7 @@ case class SymbolTypes(types: Map[SymbolMapId, TypeInfo], members: Map[MemberId,
   def getMember(cls: Option[String], member: String): Option[TypeInfo] = getMember(cls.map(MemberId(_, member)))
 
   def getAsScala(id: Option[SymbolMapId]): String = {
-    get(id).fold (any.toString) (t => mapSimpleTypeToScala(t.declType))
+    get(id).fold (any.toString) (t => t.declType.toString)
   }
 
   def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(types ++ that.types, members ++ that.members)

@@ -309,7 +309,7 @@ object ScalaOut {
         } else {
           val sid = n.thedef.nonNull.flatMap(SymbolTypes.id)
           for (t <- input.types.get(sid)) {
-            out": ${SymbolTypes.mapSimpleTypeToScala(t.declType)}"
+            out": ${t.declType}"
           }
         }
       }
@@ -751,10 +751,7 @@ object ScalaOut {
               val clsName = tn.name.nonNull.map(_.name)
               val sType = input.types.getMember(clsName, s).map(_.declType)
               out"var ${identifier(s)}"
-              sType.foreach { tp =>
-                out(": ")
-                out(SymbolTypes.mapSimpleTypeToScala(tp))
-              }
+              sType.foreach(tp => out": $tp")
               init.fold (out(" = _"))(i => out" = $i")
               out.eol()
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
