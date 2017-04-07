@@ -173,6 +173,7 @@ object TransformClasses {
 
   object ClassParentDef {
     def unapply(arg: AST_Node) = arg match {
+      // name.prototype = new sym.prototype
       case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(name) AST_Dot "prototype", "=", AST_New(AST_SymbolRefDef(sym), _*))) =>
         Some(name, sym)
 
@@ -180,6 +181,14 @@ object TransformClasses {
       case AST_SimpleStatement(AST_Assign(
       AST_SymbolRefName(name) AST_Dot "prototype", "=",
       AST_Call(AST_SymbolRefName("Object") AST_Dot "create", AST_SymbolRefDef(sym) AST_Dot "prototype")
+      )) =>
+        Some(name, sym)
+
+      // Object.assign( name.prototype, sym.prototype)
+      case AST_SimpleStatement(AST_Call(
+      AST_SymbolRefName("Object") AST_Dot "assign",
+      AST_SymbolRefName(name) AST_Dot "prototype",
+      AST_SymbolRefDef(sym) AST_Dot "prototype"
       )) =>
         Some(name, sym)
 
