@@ -80,17 +80,41 @@ object Parameters {
 
       val defByOr = {
         // if there is only one reference, check if it is handling the default value
+        object CompareParWithUndefined extends CompareWithUndefined(parName)
+
+        object CheckParIsUndefined {
+          def unapply(arg: AST_Node): Boolean = arg match {
+            // par == undefined
+            case CompareParWithUndefined("==" | "===") =>
+              true
+            // !par
+            case AST_UnaryPrefix("!", AST_SymbolRefName(`parName`)) =>
+              true
+            case _ =>
+              false
+          }
+        }
+
+        object CheckParNotUndefined {
+          def unapply(arg: AST_Node): Boolean = arg match {
+            // par != undefined
+            case CompareParWithUndefined("!=" | "!==") =>
+              true
+            // par
+            case AST_SymbolRefName(`parName`) =>
+              true
+            case _ =>
+              false
+          }
+        }
+
         object IsParDefaultHandling {
-
-          object CompareParWithUndefined extends CompareWithUndefined(parName)
-
           def unapply(arg: AST_Node) = arg match {
-            // TODO: allow other initialization expressions, not only AST_Constant
             case AST_Binary(symRef@AST_SymbolRefName(`parName`), "||", InitStatement(init)) =>
               Some(symRef, init)
-            case AST_Conditional(CompareParWithUndefined("!=" | "!=="), symRef@AST_SymbolRefName(`parName`), InitStatement(init)) =>
+            case AST_Conditional(CheckParNotUndefined(), symRef@AST_SymbolRefName(`parName`), InitStatement(init)) =>
               Some(symRef, init)
-            case AST_Conditional(CompareParWithUndefined("==" | "==="), InitStatement(init), symRef@AST_SymbolRefName(`parName`)) =>
+            case AST_Conditional(CheckParIsUndefined(), InitStatement(init), symRef@AST_SymbolRefName(`parName`)) =>
               Some(symRef, init)
             case _ =>
               None
@@ -102,12 +126,7 @@ object Parameters {
             case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", IsParDefaultHandling(_, init))) =>
               Some(init)
 
-
-            case AST_If(
-            // TODO: handle other forms that ! - like === undefined
-            AST_UnaryPrefix("!", AST_SymbolRefName(`parName`)),
-            SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=",init)),None
-            ) =>
+            case AST_If(CheckParIsUndefined(), SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=",init)),None) =>
               Some(init)
 
             case _ => None
