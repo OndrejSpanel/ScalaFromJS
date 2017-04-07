@@ -31,7 +31,9 @@ object SymbolTypes {
   }
 
   case class MapType(elem: TypeDesc) extends TypeDesc {
-    override def toString = s"Map[String, ${elem.toString}]"
+    override def toString = s"Map[String, $elem]"
+
+    def scalaConstruct: String = s"Map.empty[String, $elem]"
 
     override def knownItems = super.knownItems + elem.knownItems
 

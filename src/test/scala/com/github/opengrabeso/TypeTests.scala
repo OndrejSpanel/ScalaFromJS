@@ -196,7 +196,8 @@ class TypeTests extends FunSuite with TestUtils {
         "x: Array[String]",
         "y: Map[String, Array[String]]",
         "x(index)",
-        "y(name)"
+        "y(name)",
+        "z = Map.empty[String, String]"
       ).forbidden(
         "[index]","[name]"
       )

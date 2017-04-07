@@ -252,6 +252,10 @@ object ScalaOut {
     }
 
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions) = {
+      def outValVar() = {
+        out(if (isVal) "val" else "var")
+      }
+
       tn.definitions.foreach {
 
         case AST_VarDef(AST_SymbolName(name), Defined(AST_Object(props))) if isVal && props.nonEmpty =>
@@ -260,9 +264,22 @@ object ScalaOut {
           for (elem <- props) nodeToOut(elem)
           out.unindent()
           out("}\n")
+        // empty object - might be a map instead
+        case v@AST_VarDef(AST_Symbol(name, _, Defined(symDef)), Defined(AST_Object(Seq()))) =>
+          val tpe = input.types.get(symDef).map(_.declType)
+          //println(s"Var $name type $tpe")
+          tpe match {
+            case Some(mType: SymbolTypes.MapType) =>
+              outValVar()
+              out" $name = ${mType.scalaConstruct}"
+            case _ =>
+              outValVar()
+              out" $v\n"
+          }
+
         case v =>
-          val decl = if (isVal) "val" else "var"
-          out"$decl $v\n"
+          outValVar()
+          out" $v\n"
       }
     }
 
