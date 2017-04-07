@@ -78,141 +78,91 @@ object Parameters {
       val parName = par.name
       //println(s"introduceDefaultValue $parName")
 
-      val defByOr = {
-        // if there is only one reference, check if it is handling the default value
-        object CompareParWithUndefined extends CompareWithUndefined(parName)
+      // if there is only one reference, check if it is handling the default value
+      object CompareParWithUndefined extends CompareWithUndefined(parName)
 
-        object CheckParIsUndefined {
-          def unapply(arg: AST_Node): Boolean = arg match {
-            // par == undefined
-            case CompareParWithUndefined("==" | "===") =>
-              true
-            // !par
-            case AST_UnaryPrefix("!", AST_SymbolRefName(`parName`)) =>
-              true
-            case _ =>
-              false
-          }
-        }
-
-        object CheckParNotUndefined {
-          def unapply(arg: AST_Node): Boolean = arg match {
-            // par != undefined
-            case CompareParWithUndefined("!=" | "!==") =>
-              true
-            // par
-            case AST_SymbolRefName(`parName`) =>
-              true
-            case _ =>
-              false
-          }
-        }
-
-        object IsParDefaultHandling {
-          def unapply(arg: AST_Node) = arg match {
-            case AST_Binary(symRef@AST_SymbolRefName(`parName`), "||", InitStatement(init)) =>
-              Some(symRef, init)
-            case AST_Conditional(CheckParNotUndefined(), symRef@AST_SymbolRefName(`parName`), InitStatement(init)) =>
-              Some(symRef, init)
-            case AST_Conditional(CheckParIsUndefined(), InitStatement(init), symRef@AST_SymbolRefName(`parName`)) =>
-              Some(symRef, init)
-            case _ =>
-              None
-          }
-        }
-
-        object IsParDefaultHandlingAssignment {
-          def unapply(arg: AST_Node) = arg match {
-            case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", IsParDefaultHandling(_, init))) =>
-              Some(init)
-
-            case AST_If(CheckParIsUndefined(), SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=",init)),None) =>
-              Some(init)
-
-            case _ => None
-          }
-        }
-
-        var defValue = Option.empty[AST_Node]
-        var otherUse = false
-        f.walk {
-          case IsParDefaultHandling(_, init) =>
-            //println(s"Detected def value for $parName")
-            if (!otherUse) defValue = Some(init)
-            true // use inside of the def. value pattern must not set otherUse
-          case IsParDefaultHandlingAssignment(init) =>
-            //println(s"Detected def value assignment for $parName")
-            if (!otherUse) defValue = Some(init)
-            true // use inside of the def. value pattern must not set otherUse
-          case AST_SymbolRefName(`parName`) =>
-            otherUse = true
-            defValue = None
-            otherUse
+      object CheckParIsUndefined {
+        def unapply(arg: AST_Node): Boolean = arg match {
+          // par == undefined
+          case CompareParWithUndefined("==" | "===") =>
+            true
+          // !par
+          case AST_UnaryPrefix("!", AST_SymbolRefName(`parName`)) =>
+            true
           case _ =>
-            otherUse
+            false
         }
-        defValue.map { init =>
-          par.init = js.Array(init)
-          // remove the use
-          f.transformBefore { (node, descend, transform) =>
-            node match {
-              case IsParDefaultHandlingAssignment(_) =>
-                new AST_EmptyStatement {
-                  fillTokens(this, node)
-                }
-              case IsParDefaultHandling(symRef, _) =>
-                symRef.clone()
-              case _ =>
-                descend(node.clone(), transform)
-            }
-          }
-        }
-
       }
 
-      defByOr.orElse {
-        object IsParDefaultHandlingByIf {
-          def unapply(arg: AST_Node) = arg match {
-            case AST_If(
-            AST_Binary(symRef@AST_SymbolRefName(`parName`), "==" | "===", AST_SymbolRefUndefined()),
-            SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", InitStatement(init))),
-            None
-            ) =>
-              //println(s"IsParDefaultHandling of $parName via if")
-              Some(symRef, init)
-            case _ =>
-              //println(s"no IsParDefaultHandling in ${nodeClassName(arg)}")
-              None
-          }
-        }
-
-        var defValue = Option.empty[AST_Node]
-        var alreadyUsed = false
-        f.walk {
-          case IsParDefaultHandlingByIf(_, init) =>
-            //println(s"Detected def value for $parName")
-            if (!alreadyUsed) defValue = Some(init)
-            alreadyUsed = true
-            true // use inside of the def. value pattern must not set otherUse
+      object CheckParNotUndefined {
+        def unapply(arg: AST_Node): Boolean = arg match {
+          // par != undefined
+          case CompareParWithUndefined("!=" | "!==") =>
+            true
+          // par
           case AST_SymbolRefName(`parName`) =>
-            alreadyUsed = true
-            alreadyUsed
+            true
           case _ =>
-            alreadyUsed
+            false
         }
-        defValue.map { init =>
-          par.init = js.Array(init)
-          // remove the use
-          //println("Removed default par")
-          f.transformAfter { (node, _) =>
-            node match {
-              case s@IsParDefaultHandlingByIf(_, _) =>
-                new AST_EmptyStatement {
-                  fillTokens(this, s)
-                }
-              case _ =>
-                node
-            }
+      }
+
+      object IsParDefaultHandling {
+        def unapply(arg: AST_Node) = arg match {
+          case AST_Binary(symRef@AST_SymbolRefName(`parName`), "||", InitStatement(init)) =>
+            Some(symRef, init)
+          case AST_Conditional(CheckParNotUndefined(), symRef@AST_SymbolRefName(`parName`), InitStatement(init)) =>
+            Some(symRef, init)
+          case AST_Conditional(CheckParIsUndefined(), InitStatement(init), symRef@AST_SymbolRefName(`parName`)) =>
+            Some(symRef, init)
+          case _ =>
+            None
+        }
+      }
+
+      object IsParDefaultHandlingAssignment {
+        def unapply(arg: AST_Node) = arg match {
+          case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", IsParDefaultHandling(_, init))) =>
+            Some(init)
+
+          case AST_If(CheckParIsUndefined(), SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=",init)),None) =>
+            Some(init)
+
+          case _ => None
+        }
+      }
+
+      var defValue = Option.empty[AST_Node]
+      var otherUse = false
+      f.walk {
+        case IsParDefaultHandling(_, init) =>
+          //println(s"Detected def value for $parName")
+          if (!otherUse && defValue.isEmpty) defValue = Some(init)
+          true // use inside of the def. value pattern must not set otherUse
+        case IsParDefaultHandlingAssignment(init) =>
+          //println(s"Detected def value assignment for $parName")
+          if (!otherUse && defValue.isEmpty) defValue = Some(init)
+          true // use inside of the def. value pattern must not set otherUse
+        case AST_SymbolRefName(`parName`) =>
+          otherUse = true
+          defValue = None
+          otherUse
+        case _ =>
+          otherUse
+      }
+      defValue.map { init =>
+        par.init = js.Array(init)
+        // remove the use
+        f.transformBefore { (node, descend, transform) =>
+          node match {
+            case IsParDefaultHandlingAssignment(_) =>
+              new AST_EmptyStatement {
+                fillTokens(this, node)
+              }
+            case IsParDefaultHandling(symRef, _) =>
+              symRef.clone()
+            case _ =>
+              descend(node.clone(), transform)
           }
         }
       }
