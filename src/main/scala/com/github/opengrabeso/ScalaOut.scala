@@ -254,7 +254,7 @@ object ScalaOut {
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions) = {
       tn.definitions.foreach {
 
-        case AST_VarDef(AST_SymbolName(name), Defined(AST_Object(props))) if isVal =>
+        case AST_VarDef(AST_SymbolName(name), Defined(AST_Object(props))) if isVal && props.nonEmpty =>
           out"object $name {\n"
           out.indent()
           for (elem <- props) nodeToOut(elem)
