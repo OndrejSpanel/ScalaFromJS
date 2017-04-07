@@ -71,7 +71,7 @@ object ScalaFromJS extends js.JSApp {
   private def onInput(e: Event) = {
     val code = in.asInstanceOf[js.Dynamic].value.asInstanceOf[String]
     // longer delay on a long code
-    val delayMs = 10 max code.length / 100 min 1000
+    val delayMs = 100 max code.length / 25 min 5000
     DelayedConversion.trigger(e.timeStamp, delayMs, ())
   }
 

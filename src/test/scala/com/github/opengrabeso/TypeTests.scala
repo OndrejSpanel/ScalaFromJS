@@ -189,4 +189,16 @@ class TypeTests extends FunSuite with TestUtils {
         "Cls.defY ="
       )
   }
+
+  test("Map and Array types should be inferred") {
+    execute check ConversionCheck(rsc("types/mapsAndArrays.js"))
+      .required(
+        "x: Array[String]",
+        "y: Map[String, Array[String]]",
+        "x(index)",
+        "y(name)"
+      ).forbidden(
+        "[index]","[name]"
+      )
+  }
 }

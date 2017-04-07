@@ -271,11 +271,27 @@ object InferTypes {
     case class SymbolAccessArray(symbol: SymbolDef) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
 
-        val arrayTpe = tpe.map { t =>
+        val mappedTpe = tpe.map { t =>
           TypeInfo(ArrayType(t.source), ArrayType(t.target))
         }
-        //println(s"${symbol.name}: Array type $tpe $arrayTpe")
-        addInferredType(id(symbol), arrayTpe, kind)
+        //println(s"${symbol.name}: Array type $tpe $mappedTpe")
+        addInferredType(id(symbol), mappedTpe, kind)
+      }
+
+      def unknownType(types: SymbolTypes) = {
+        // TODO: implement
+        false
+      }
+    }
+
+    case class SymbolAccessMap(symbol: SymbolDef) extends SymbolAccessInfo {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
+
+        val mappedTpe = tpe.map { t =>
+          TypeInfo(MapType(t.source), MapType(t.target))
+        }
+        //println(s"${symbol.name}: Array type $tpe $mappedTpe")
+        addInferredType(id(symbol), mappedTpe, kind)
       }
 
       def unknownType(types: SymbolTypes) = {
@@ -289,8 +305,17 @@ object InferTypes {
         case AST_SymbolRefDef(symDef) =>
           Some(SymbolAccessSymbol(symDef))
 
-        case AST_Sub(AST_SymbolRefDef(symDef), property) if expressionType(property)(ctx).forall(_.declType != string) =>
-          Some(SymbolAccessArray(symDef))
+        case AST_Sub(AST_SymbolRefDef(symDef), property) =>
+          expressionType(property)(ctx).flatMap {
+            _.declType match {
+              case `number` =>
+                Some(SymbolAccessArray(symDef)) // TODO: derive property is most likely Int, not Double
+              case `string` =>
+                Some(SymbolAccessMap(symDef))
+              case _ =>
+                None
+            }
+          }
 
         case AST_Dot(expr, name) =>
           val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
@@ -536,6 +561,9 @@ object InferTypes {
           expressionType(property)(ctx).map(_.declType) match {
             case Some(`number`) =>
               addInferredType(sym, Some(TypeInfo.target(ArrayType(NoType))))
+            case Some(`string`) =>
+              addInferredType(sym, Some(TypeInfo.target(MapType(NoType))))
+
             case _ =>
 
           }
