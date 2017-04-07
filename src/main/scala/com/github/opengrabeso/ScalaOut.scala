@@ -292,10 +292,10 @@ object ScalaOut {
       out(")")
     }
 
-    def outputArgNamesNoTypes(tn: AST_Lambda) = {
+    def outputArgNamesCallConstructor(tn: AST_Lambda) = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        out"$n"
+        out"${n.name+SymbolTypes.parSuffix}"
       }
       out(")")
     }
@@ -778,7 +778,7 @@ object ScalaOut {
           constructor.foreach { lambda =>
             if (lambda.body.nonEmpty) {
               out("constructor")
-              outputArgNamesNoTypes(inlineBody.value)
+              outputArgNamesCallConstructor(lambda)
               out.eol()
             }
           }
