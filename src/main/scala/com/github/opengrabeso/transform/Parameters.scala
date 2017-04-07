@@ -96,11 +96,23 @@ object Parameters {
           }
         }
 
+        object IsParDefaultHandlingAssignment {
+          def unapply(arg: AST_Node) = arg match {
+            case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", IsParDefaultHandling(symRef, init))) =>
+              Some(symRef, init)
+            case _ => None
+          }
+        }
+
         var defValue = Option.empty[AST_Node]
         var otherUse = false
         f.walk {
           case IsParDefaultHandling(_, init) =>
-            //println(s"Detected def value for $parName")
+            println(s"Detected def value for $parName")
+            if (!otherUse) defValue = Some(init)
+            true // use inside of the def. value pattern must not set otherUse
+          case IsParDefaultHandlingAssignment(_, init) =>
+            println(s"Detected def value assignment for $parName")
             if (!otherUse) defValue = Some(init)
             true // use inside of the def. value pattern must not set otherUse
           case AST_SymbolRefName(`parName`) =>
@@ -113,12 +125,16 @@ object Parameters {
         defValue.map { init =>
           par.init = js.Array(init)
           // remove the use
-          f.transformAfter { (node, _) =>
+          f.transformBefore { (node, descend, transform) =>
             node match {
+              case IsParDefaultHandlingAssignment(symRef, _) =>
+                new AST_EmptyStatement {
+                  fillTokens(this, symRef)
+                }
               case IsParDefaultHandling(symRef, _) =>
-                symRef
+                symRef.clone()
               case _ =>
-                node
+                descend(node.clone(), transform)
             }
           }
         }

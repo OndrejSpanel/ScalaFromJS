@@ -92,7 +92,8 @@ class TypeTests extends FunSuite with TestUtils {
         "aa: Any",
         "dd: Double = 0",
         "cc: Double = 1",
-        "bb: Double = 2"
+        "bb: Double = 2",
+        "y: String = \"\""
       )
   }
 

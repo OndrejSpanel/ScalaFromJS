@@ -4,6 +4,10 @@ function f(a,b,c,d) {
     var z = d || 0;
 }
 
+function g(x,y) {
+    y = y || ""
+}
+
 function Cls() {}
 
 Cls.prototype.f = function ff(aa, bb, cc, dd) {
