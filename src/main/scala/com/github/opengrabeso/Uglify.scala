@@ -365,7 +365,7 @@ object Uglify extends js.Object {
   @js.native class AST_ObjectSetter extends AST_ObjectSetterOrGetter
   @js.native class AST_ObjectGetter extends AST_ObjectSetterOrGetter
 
-  @js.native class AST_ConciseMethod extends AST_ObjectProperty {
+  @js.native class AST_ConciseMethod extends AST_ObjectProperty with CloneSelf[AST_ConciseMethod] {
     override def key: AST_Symbol = js.native
     override def value: AST_Accessor = js.native
 

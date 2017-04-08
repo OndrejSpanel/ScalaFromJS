@@ -44,8 +44,23 @@ object ConvertProject {
   case class DeleteMemberRule(member: MemberDesc) extends Rule {
     override def apply(c: AST_DefClass) = {
       val ret = c.clone()
+      // filter member functions and properties
       ret.properties = c.properties.filterNot(p => member.matches(c, propertyName(p)))
-      ret
+
+      val inlineBody = Classes.findInlineBody(c)
+      inlineBody.fold(ret) { ib =>
+        // filter member variables as well
+        val retIB = ib.clone()
+        retIB.value.body = retIB.value.body.filterNot {
+          case AST_Definitions(AST_VarDef(AST_SymbolName(v), _)) if member.matches(c, v) =>
+            true
+          case n =>
+            false
+        }
+        ret.properties = ret.properties.map(p => if (p == ib) retIB else p)
+        ret
+      }
+
     }
   }
 
