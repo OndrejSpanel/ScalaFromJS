@@ -125,46 +125,55 @@ object Parameters {
           case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", IsParDefaultHandling(_, init))) =>
             Some(init)
 
-          case AST_If(CheckParIsUndefined(), SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=",init)),None) =>
+          case AST_If(CheckParIsUndefined(), SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", init)), None) =>
             Some(init)
 
           case _ => None
         }
       }
 
-      var defValue = Option.empty[AST_Node]
+      var defValueCond = Option.empty[AST_Node]
+      var defValueAssign = Option.empty[AST_Node]
       var otherUse = false
+      var alreadyUsed = false
       f.walk {
         case IsParDefaultHandling(_, init) =>
           //println(s"Detected def value for $parName")
-          if (!otherUse && defValue.isEmpty) defValue = Some(init)
+          if (!otherUse) defValueCond = Some(init)
+          otherUse = true
           true // use inside of the def. value pattern must not set otherUse
         case IsParDefaultHandlingAssignment(init) =>
           //println(s"Detected def value assignment for $parName")
-          if (!otherUse && defValue.isEmpty) defValue = Some(init)
+          if (!alreadyUsed) defValueAssign = Some(init)
+          alreadyUsed = true
           true // use inside of the def. value pattern must not set otherUse
         case AST_SymbolRefName(`parName`) =>
           otherUse = true
-          defValue = None
-          otherUse
+          alreadyUsed = true
+          defValueCond = None
+          false
         case _ =>
-          otherUse
+          false
       }
-      defValue.map { init =>
-        par.init = js.Array(init)
-        // remove the use
-        f.transformBefore { (node, descend, transform) =>
-          node match {
-            case IsParDefaultHandlingAssignment(_) =>
-              new AST_EmptyStatement {
-                fillTokens(this, node)
-              }
-            case IsParDefaultHandling(symRef, _) =>
-              symRef.clone()
-            case _ =>
-              descend(node.clone(), transform)
-          }
-        }
+
+      defValueCond.toSeq ++ defValueAssign match { // use only one option - two are bad
+        case Seq(init) =>
+          par.init = js.Array(init)
+          // remove the use
+          Some(f.transformBefore { (node, descend, transform) =>
+            node match {
+              case IsParDefaultHandlingAssignment(_) if defValueAssign.isDefined =>
+                new AST_EmptyStatement {
+                  fillTokens(this, node)
+                }
+              case IsParDefaultHandling(symRef, _) if defValueCond.isDefined =>
+                symRef.clone()
+              case _ =>
+                descend(node.clone(), transform)
+            }
+          })
+        case _ =>
+          None
       }
     }
 

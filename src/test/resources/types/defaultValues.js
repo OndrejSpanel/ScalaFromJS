@@ -14,5 +14,5 @@ Cls.prototype.f = function ff(aa, bb, cc, dd) {
     var xx = bb !== undefined ? bb : 2;
     if (cc === undefined) cc = 1;
     var zz = dd || 0;
-
+    return aa + xx + cc + zz
 };
