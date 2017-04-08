@@ -15,6 +15,12 @@ import ConvertProject._ // import before the object - see http://stackoverflow.c
 
 object ConvertProject {
 
+  def loadStringValue(o: AST_Object, name: String): Option[String] = {
+    o.properties.collectFirst {
+      case AST_ObjectKeyVal(`name`, AST_String(value)) => value
+    }
+  }
+
   trait Rule {
     def apply(c: AST_DefClass): AST_DefClass
   }
@@ -29,11 +35,6 @@ object ConvertProject {
 
   object MemberDesc {
 
-    def loadStringValue(o: AST_Object, name: String): Option[String] = {
-      o.properties.collectFirst {
-        case AST_ObjectKeyVal(`name`, AST_String(value)) => value
-      }
-    }
 
     def load(o: AST_Object): MemberDesc = {
       val cls = loadStringValue(o, "cls").map(RegExp.apply(_))
@@ -74,10 +75,17 @@ object ConvertProject {
 
     def load(props: Seq[AST_ObjectProperty]) = {
       val rules: Seq[Rule] = props.flatMap {
-        case AST_ObjectKeyVal("deleteMembers", a: AST_Array) =>
+        case AST_ObjectKeyVal("members", a: AST_Array) =>
           a.elements.toSeq.flatMap {
             case o: AST_Object =>
-              Some(DeleteMemberRule(MemberDesc.load(o)))
+              MemberDesc.load(o)
+              val op = loadStringValue(o, "operation")
+              op match {
+                case Some("delete") =>
+                  Some(DeleteMemberRule(MemberDesc.load(o)))
+                case _ =>
+                  None
+              }
             case _ =>
               None
           }
