@@ -714,6 +714,10 @@ object UglifyExt {
       def unapplySeq(arg: AST_Const) = AST_Definitions.unapplySeq(arg)
     }
 
+    object AST_String {
+      def unapply(arg: AST_String) = Some(arg.value)
+    }
+
     object AST_SymbolDeclaration {
       def unapply(arg: AST_SymbolDeclaration) = Some(arg.thedef, arg.name, arg.init)
 

@@ -394,7 +394,7 @@ object Parameters {
     val processed = processAllFunctions(n.top, handleConstructorVars)
     //println(s"Before: ${n.types}")
     //println(s"After: $types")
-    AST_Extended(processed.asInstanceOf[AST_Toplevel], types)
+    n.copy(top = processed.asInstanceOf[AST_Toplevel], types = types)
 
   }
 }
