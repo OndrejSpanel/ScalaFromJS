@@ -11,6 +11,8 @@ import scala.collection.mutable
 import scala.scalajs.js
 import scala.scalajs.js.{JavaScriptException, RegExp}
 
+import ConvertProject._ // import before the object - see http://stackoverflow.com/a/43298181/16673
+
 object ConvertProject {
 
   trait Rule {
@@ -122,9 +124,8 @@ object ConvertProject {
 
 }
 
-import ConvertProject._
 
-case class ConvertProject(root: String, items: Map[String, Item], config: ConvertProject.ConvertConfig = ConvertProject.ConvertConfig()) {
+case class ConvertProject(root: String, items: Map[String, Item], config: ConvertConfig = ConvertConfig()) {
   lazy val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
   lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
