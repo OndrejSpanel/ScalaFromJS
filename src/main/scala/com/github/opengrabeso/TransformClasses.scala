@@ -942,10 +942,7 @@ object TransformClasses {
     val ret = n.top.transformAfter {(node, _) =>
       node match {
         case cls: AST_DefClass =>
-
-          n.config.rules.foldLeft(cls) {(c, rule) =>
-            rule(c)
-          }
+          n.config.rules.foldLeft(cls)((c, rule) => rule(c))
         case _ =>
           node
       }

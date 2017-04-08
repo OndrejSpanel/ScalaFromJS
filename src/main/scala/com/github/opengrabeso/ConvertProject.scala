@@ -54,7 +54,7 @@ object ConvertProject {
         retIB.value.body = retIB.value.body.filterNot {
           case AST_Definitions(AST_VarDef(AST_SymbolName(v), _)) if member.matches(c, v) =>
             true
-          case n =>
+          case _ =>
             false
         }
         ret.properties = ret.properties.map(p => if (p == ib) retIB else p)
