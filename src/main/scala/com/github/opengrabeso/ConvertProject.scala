@@ -13,9 +13,17 @@ import scala.scalajs.js.{JavaScriptException, RegExp}
 
 object ConvertProject {
 
-  trait Rule
+  trait Rule {
+    def apply(c: AST_DefClass): AST_DefClass
+  }
 
-  case class MemberDesc(cls: RegExp, name: RegExp)
+  case class MemberDesc(cls: RegExp, name: RegExp) {
+    def matches(c: AST_DefClass, n: String): Boolean = {
+      c.name.exists { cName =>
+        name.test(n) && cls.test(cName.name)
+      }
+    }
+  }
 
   object MemberDesc {
 
@@ -33,7 +41,13 @@ object ConvertProject {
   }
 
 
-  case class DeleteMemberRule(member: MemberDesc) extends Rule
+  case class DeleteMemberRule(member: MemberDesc) extends Rule {
+    override def apply(c: AST_DefClass) = {
+      val ret = c.clone()
+      ret.properties = c.properties.filterNot(p => member.matches(c, propertyName(p)))
+      ret
+    }
+  }
 
   val configName = "ScalaFromJS_settings"
 

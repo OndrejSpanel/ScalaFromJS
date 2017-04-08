@@ -450,7 +450,7 @@ object Uglify extends js.Object {
   @js.native class AST_False extends AST_Boolean
   @js.native class AST_True extends AST_Boolean
 
-  @js.native class AST_Class extends AST_Scope {
+  @js.native class AST_Class extends AST_Scope with CloneSelf[AST_Class] {
     // [AST_SymbolClass|AST_SymbolDefClass?] optional class name.
     var name: js.UndefOr[AST_Symbol] = js.native
     // [AST_Node]? optional parent class
@@ -459,7 +459,7 @@ object Uglify extends js.Object {
     var properties: js.Array[AST_ObjectProperty] = js.native
   }
 
-  @js.native class AST_DefClass extends AST_Class
+  @js.native class AST_DefClass extends AST_Class with CloneSelf[AST_DefClass]
 
   @js.native class AST_Export extends AST_Node {
     // String literal describing where this module came from
