@@ -291,24 +291,38 @@ object Variables {
               // for each variable we need to verify the first use after the for loop is assignment
               // (or the variable is not used after the loop at all)
               // note: the assignment will often be in the init of another for loop
-          }
-        /*
-          //println(s"AST_VarDef ${name.name}")
-          for (df <- name.thedef) {
-            assert(df.name == name.name)
-            if (df.references.nonEmpty) {
-              // find the first reference
-              val firstRef = df.references.minBy { ref =>
-                assert(ref.thedef contains df)
-                ref.start.map(_.pos).getOrElse(Int.MaxValue)
-              }
-              // if the first ref is in the current scope, we might merge it with the declaration
-              if (firstRef.scope == name.scope) {
-                pairs += df -> firstRef
+              for {
+                v <- vars
+                AST_Symbol(_, Defined(scope), _ ) <- v.orig.headOption
+              } {
+                // walk the scope, ignore references before the for, check first after the for
+                var seenFor = false
+                var seenAfterFor = false
+                var seenAfterForInAssignment = false
+                scope.walk {
+                  case s if s == f =>
+                    seenFor = true
+                    true // no need to dive into the for
+                  case AST_Assign(AST_SymbolRefDef(`v`), "=", _) if seenFor =>
+                    // TODO: init must not contain any reference to v
+                    println(s"Seen ${v.name} after the for - in assignment")
+                    seenAfterForInAssignment = true
+                    seenAfterFor = true
+                    true
+                  case AST_SymbolRefDef(`v`) if seenFor =>
+                    println(s"Seen ${v.name} after the for")
+                    seenAfterFor = true
+                    true
+                  case _ =>
+                    seenAfterFor
+
+                }
+                if (seenAfterForInAssignment || !seenAfterFor) {
+                  println(s"Var ${v.name} is good to go")
+                }
               }
 
-            }
-            */
+          }
         case _ =>
       }
       false
