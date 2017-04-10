@@ -303,14 +303,26 @@ object Variables {
                   case s if s == f =>
                     seenFor = true
                     true // no need to dive into the for
-                  case AST_Assign(AST_SymbolRefDef(`v`), "=", _) if seenFor =>
+                  case AST_Assign(AST_SymbolRefDef(`v`), "=", init) if seenFor && !seenAfterFor =>
                     // TODO: init must not contain any reference to v
-                    println(s"Seen ${v.name} after the for - in assignment")
-                    seenAfterForInAssignment = true
+                    var initContainsV = false
+                    init.walk {
+                      case AST_SymbolRefDef(`v`) =>
+                        initContainsV = true
+                        true
+                      case _ =>
+                        initContainsV
+                    }
+                    if (!initContainsV) {
+                      println(s"Seen ${v.name} after the for - in assignment")
+                    } else {
+                      println(s"Seen ${v.name} after the for - in dependent assignment")
+                    }
+                    seenAfterForInAssignment = !initContainsV
                     seenAfterFor = true
                     true
                   case AST_SymbolRefDef(`v`) if seenFor =>
-                    println(s"Seen ${v.name} after the for")
+                    println(s"Seen ${v.name} after the for - in use")
                     seenAfterFor = true
                     true
                   case _ =>
@@ -319,6 +331,8 @@ object Variables {
                 }
                 if (seenAfterForInAssignment || !seenAfterFor) {
                   println(s"Var ${v.name} is good to go")
+
+                  // mark f.init for replacement
                 }
               }
 
