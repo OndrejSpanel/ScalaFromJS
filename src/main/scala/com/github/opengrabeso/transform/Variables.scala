@@ -259,17 +259,19 @@ object Variables {
   }
 
   object ExtractVariables {
-    def unapply(n: AST_Node): Option[Seq[SymbolDef]] = {
-      val b = mutable.ArrayBuilder.make[SymbolDef]
+    def unapply(n: AST_Node): Option[Seq[(SymbolDef, AST_Node)]] = {
+      val b = mutable.ArrayBuilder.make[(SymbolDef, AST_Node)]
+      var assignsOnly = true
       n.walk {
-        case AST_Assign(AST_SymbolRefDef(sym), "=", _) =>
-          b += sym
-          false
+        case AST_Assign(AST_SymbolRefDef(sym), "=", init) =>
+          b += sym -> init
+          true
         case _ =>
-          false
+          assignsOnly = false
+          true
       }
       val r = b.result()
-      if (r.isEmpty) None else Some(r)
+      if (assignsOnly && r.nonEmpty) Some(r) else None
     }
   }
   /**
@@ -277,24 +279,27 @@ object Variables {
     * i.e. transform for (i = 0; ..) {} into for (var i = 0; ..)
     */
   def detectForVars(n: AST_Node): AST_Node = {
-    val refs = buildReferenceStacks(n)
-
-    n.walk { node =>
+    n.transformAfter { (node, _) =>
       node match {
         case f: AST_For =>
-          f.init.foreach {
+          val forOK: Seq[(SymbolDef, AST_Node, AST_Scope)] = f.init.nonNull.toSeq.flatMap {
             case _: AST_Definitions => // if init already is a definition, no need to process anything
+              Seq()
             case ExtractVariables(vars) =>
               // we expect a sequence of variable initializations
 
-              println(s"Detect for with ${vars.map(_.name).mkString(",")}")
+              println(s"Detect for with ${vars.map(_._1.name).mkString(",")}")
               // for each variable we need to verify the first use after the for loop is assignment
               // (or the variable is not used after the loop at all)
               // note: the assignment will often be in the init of another for loop
-              for {
-                v <- vars
+              val vScopes = for {
+                (v, init) <- vars
                 AST_Symbol(_, Defined(scope), _ ) <- v.orig.headOption
-              } {
+              } yield {
+                (v, init, scope)
+              }
+
+              val forScopesOK = vScopes.forall { case (v, _, scope) =>
                 // walk the scope, ignore references before the for, check first after the for
                 var seenFor = false
                 var seenAfterFor = false
@@ -329,17 +334,46 @@ object Variables {
                     seenAfterFor
 
                 }
-                if (seenAfterForInAssignment || !seenAfterFor) {
-                  println(s"Var ${v.name} is good to go")
-
-                  // mark f.init for replacement
-                }
+                seenAfterForInAssignment || !seenAfterFor
               }
 
+              if (forScopesOK) println("For loop OK")
+              else println("For loop not OK")
+
+              vScopes
+            case _ =>
+              // something else than assignments into variables - leave it
+              Seq()
+          }
+          if (forOK.nonEmpty) {
+            println("Transform for")
+
+            val vars = forOK.map { case (v, initV, _) =>
+                new AST_VarDef {
+                  fillTokens(this, initV)
+                  name = new AST_SymbolVar {
+                    fillTokens(this, initV)
+                    name = v.name
+                    thedef = v
+                    scope = v.scope // should be the for body instead, but it will be overwritten anyway
+                  }
+                  value = initV
+                }
+            }
+
+            f.init = new AST_Let {
+              /*_*/
+              fillTokens(this, f)
+              /*_*/
+              definitions = vars.toJSArray
+            }
+            f
+          } else {
+            f
           }
         case _ =>
+          node
       }
-      false
     }
     n
 
