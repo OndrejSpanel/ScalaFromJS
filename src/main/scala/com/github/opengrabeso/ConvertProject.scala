@@ -2,15 +2,100 @@ package com.github.opengrabeso
 
 import Uglify._
 import UglifyExt._
+import UglifyExt.Import._
 import CommandLine._
 import com.github.opengrabeso.Transform.AST_Extended
 
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import scala.scalajs.js
-import scala.scalajs.js.JavaScriptException
+import scala.scalajs.js.{JavaScriptException, RegExp}
+
+import ConvertProject._ // import before the object - see http://stackoverflow.com/a/43298181/16673
 
 object ConvertProject {
+
+  def loadStringValue(o: AST_Object, name: String): Option[String] = {
+    o.properties.collectFirst {
+      case AST_ObjectKeyVal(`name`, AST_String(value)) => value
+    }
+  }
+
+  trait Rule {
+    def apply(c: AST_DefClass): AST_DefClass
+  }
+
+  case class MemberDesc(cls: RegExp, name: RegExp) {
+    def matches(c: AST_DefClass, n: String): Boolean = {
+      c.name.exists { cName =>
+        name.test(n) && cls.test(cName.name)
+      }
+    }
+  }
+
+  object MemberDesc {
+
+
+    def load(o: AST_Object): MemberDesc = {
+      val cls = loadStringValue(o, "cls").map(RegExp.apply(_))
+      val name = loadStringValue(o, "name").map(RegExp.apply(_))
+      MemberDesc(cls.get, name.get)
+    }
+  }
+
+
+  case class DeleteMemberRule(member: MemberDesc) extends Rule {
+    override def apply(c: AST_DefClass) = {
+      val ret = c.clone()
+      // filter member functions and properties
+      ret.properties = c.properties.filterNot(p => member.matches(c, propertyName(p)))
+
+      val inlineBody = Classes.findInlineBody(c)
+      inlineBody.fold(ret) { ib =>
+        // filter member variables as well
+        val retIB = ib.clone()
+        retIB.value.body = retIB.value.body.filterNot {
+          case AST_Definitions(AST_VarDef(AST_SymbolName(v), _)) if member.matches(c, v) =>
+            true
+          case _ =>
+            false
+        }
+        ret.properties = ret.properties.map(p => if (p == ib) retIB else p)
+        ret
+      }
+
+    }
+  }
+
+  val configName = "ScalaFromJS_settings"
+
+  case class ConvertConfig(rules: Seq[Rule] = Seq.empty)
+
+  object ConvertConfig {
+
+    def load(props: Seq[AST_ObjectProperty]) = {
+      val rules: Seq[Rule] = props.flatMap {
+        case AST_ObjectKeyVal("members", a: AST_Array) =>
+          a.elements.toSeq.flatMap {
+            case o: AST_Object =>
+              MemberDesc.load(o)
+              val op = loadStringValue(o, "operation")
+              op match {
+                case Some("delete") =>
+                  Some(DeleteMemberRule(MemberDesc.load(o)))
+                case _ =>
+                  None
+              }
+            case _ =>
+              None
+          }
+        case n =>
+          throw new UnsupportedOperationException(s"Unexpected config entry of type ${nodeClassName(n)}")
+      }
+      //println(rules)
+      ConvertConfig(rules)
+    }
+  }
 
   case class Item(code: String, included: Boolean, fullName: String) {
     override def toString = s"($fullName:$included)"
@@ -24,11 +109,31 @@ object ConvertProject {
       project.resolveImportsExports
     }
   }
+
+  def loadConfig(ast: AST_Node): ConvertConfig = {
+    var readConfig = Option.empty[ConvertConfig]
+
+    ast.walk {
+      case AST_Definitions(AST_VarDef(AST_SymbolName(`configName`), AST_Object(props))) =>
+        readConfig = Some(ConvertConfig.load(props))
+        false
+      case _: AST_Toplevel =>
+        false
+      case _: AST_Scope =>
+        true // do not descend into any other scopes, we expect the config at the top level only
+      case _ =>
+        false
+
+    }
+
+    readConfig.getOrElse(ConvertConfig())
+  }
+
+
 }
 
-import ConvertProject._
 
-case class ConvertProject(root: String, items: Map[String, Item]) {
+case class ConvertProject(root: String, items: Map[String, Item], config: ConvertConfig = ConvertConfig()) {
   lazy val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
   lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
@@ -133,7 +238,8 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
 
     if (toExample.isEmpty && toInclude.isEmpty && markAsIncludes.isEmpty) {
       //println(s"Do not add to ${items.map(_.name).mkString(",")}")
-      this
+
+      copy(config = loadConfig(ast))
     } else {
 
       if (false) {
@@ -187,7 +293,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       parse(compositeFile, defaultUglifyOptions.parse)
     }
 
-    val astOptimized = if (true) Transform(ast) else AST_Extended(ast, SymbolTypes())
+    val astOptimized = if (true) Transform(AST_Extended(ast, config = config)) else AST_Extended(ast)
     val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1).withRoot(root)
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)

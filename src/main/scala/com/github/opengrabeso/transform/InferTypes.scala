@@ -99,6 +99,12 @@ object InferTypes {
         //println(s"Adding member type $id: $tpe -> $symType")
 
         /*
+        if (idAccess.contains(MemberId("_Math", "generateUUID"))) {
+          println(s"member $idAccess type $tpe")
+        }
+        if (idAccess.exists(_.name == "uuid")) {
+          println(s"member $idAccess type $tpe")
+        }
         if (idAccess.contains(MemberId("Vector3", "x")) && tpe.exists(_.declType != number)) {
           println("Suspicious member Vector3.x type $tpe")
         } else if (idAccess.exists(_.name == "x") && tpe.exists(_.declType != number)) {

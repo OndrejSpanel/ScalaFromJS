@@ -802,8 +802,7 @@ object TransformClasses {
       }
     }
 
-
-    AST_Extended(cleanupClasses, n.types)
+    n.copy(top = cleanupClasses)
   }
 
   def fillVarMembers(n: AST_Extended): AST_Extended = {
@@ -877,11 +876,11 @@ object TransformClasses {
       }
     }
 
-    AST_Extended(cleanup, n.types)
+    n.copy(top = cleanup)
   }
 
-  def inlineConstructors(n: AST_Extended): AST_Extended = {
-    val ret = n.top.transformAfter { (node, _) =>
+  def inlineConstructors(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
 
@@ -937,9 +936,20 @@ object TransformClasses {
           node
       }
     }
-
-    AST_Extended(ret, n.types)
   }
+
+  def deleteByRules(n: AST_Extended): AST_Extended = {
+    val ret = n.top.transformAfter {(node, _) =>
+      node match {
+        case cls: AST_DefClass =>
+          n.config.rules.foldLeft(cls)((c, rule) => rule(c))
+        case _ =>
+          node
+      }
+    }
+    n.copy(top = ret)
+  }
+
 
   /**
     * motivation: handle KeyframeTrack.prototype = KeyframeTrackPrototype in Three.js
@@ -1104,11 +1114,12 @@ object TransformClasses {
     }
   }
 
-  val transforms = Seq(
+  val transforms = Seq[AST_Extended => AST_Extended](
     onTopNode(inlinePrototypeVariables),
     onTopNode(inlineConstructorFunction),
-    convertProtoClasses _,
-    fillVarMembers _,
-    inlineConstructors _
+    convertProtoClasses,
+    fillVarMembers,
+    onTopNode(inlineConstructors),
+    deleteByRules
   )
 }

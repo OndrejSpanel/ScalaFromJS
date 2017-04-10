@@ -21,7 +21,7 @@ object Transform {
   object AST_Extended {
     def noTypes = SymbolTypes()
   }
-  case class AST_Extended(top: AST_Toplevel, types: SymbolTypes)
+  case class AST_Extended(top: AST_Toplevel, types: SymbolTypes = SymbolTypes(), config: ConvertProject.ConvertConfig = ConvertProject.ConvertConfig())
 
   // individual sensible transformations
 
@@ -349,7 +349,7 @@ object Transform {
       }
       false
     }
-    AST_Extended(n.top, n.types ++ SymbolTypes(declBuffer))
+    n.copy(types = n.types ++ SymbolTypes(declBuffer))
   }
 
   class ExtractorInList(ops: String*) {
@@ -715,23 +715,22 @@ object Transform {
       }
     }
 
-    AST_Extended(ret, n.types)
-
+    n.copy(top = ret, types = n.types)
   }
 
   def onTopNode(n: AST_Node => AST_Node): AST_Extended => AST_Extended = { ext =>
     val ret = n(ext.top)
-    AST_Extended(ret.asInstanceOf[AST_Toplevel], ext.types)
+    ext.copy(top = ret.asInstanceOf[AST_Toplevel])
   }
 
-  def apply(n: AST_Toplevel): AST_Extended = {
+  def apply(n: AST_Extended): AST_Extended = {
 
     import transform._
 
-    val transforms = Seq(
+    val transforms = Seq[AST_Extended => AST_Extended](
       onTopNode(handleIncrement),
       onTopNode(Variables.varInitialization),
-      readJSDoc _,
+      readJSDoc,
       onTopNode(iife), // removes also trailing return within the IIFE construct
       onTopNode(removeDoubleScope), // after iife (often introduced by it)
       onTopNode(Variables.detectVals), // before convertConstToFunction
@@ -752,7 +751,7 @@ object Transform {
       onTopNode(relations)
     )
 
-    transforms.zipWithIndex.foldLeft(AST_Extended(n, SymbolTypes())) { (t,op) =>
+    transforms.zipWithIndex.foldLeft(n) { (t,op) =>
       Time(s"step ${op._2}") {
         t.top.figure_out_scope()
         op._1(t)

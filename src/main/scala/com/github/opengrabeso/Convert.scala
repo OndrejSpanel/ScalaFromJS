@@ -8,7 +8,10 @@ object Convert {
 
   def apply(code: String, header: Boolean = true): String = {
     val ast = parse(code, defaultUglifyOptions.parse)
-    val astOptimized = Transform(ast)
+
+    val config = ConvertProject.loadConfig(ast)
+
+    val astOptimized = Transform(Transform.AST_Extended(ast, config = config))
     prefix(header) + ScalaOut.output(astOptimized, code).mkString
   }
 
