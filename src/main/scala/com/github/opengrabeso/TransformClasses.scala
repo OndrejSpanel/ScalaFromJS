@@ -286,6 +286,7 @@ object TransformClasses {
           classNames += name
           false
 
+        /* the rule did more harm than good - functions are sometimes defined externally
         // use of this in a function most likely means the function is a constructor
         case (_: AST_This) AST_Dot _ =>
           for {
@@ -297,6 +298,7 @@ object TransformClasses {
             classNames += sym.name
           }
           false
+        */
 
         /*
       // XXXX.prototype = ...;
