@@ -953,7 +953,7 @@ object TransformClasses {
     }
   }
 
-  def deleteByRules(n: AST_Extended): AST_Extended = {
+  def applyRules(n: AST_Extended): AST_Extended = {
     val ret = n.top.transformAfter {(node, _) =>
       node match {
         case cls: AST_DefClass =>
@@ -1134,7 +1134,9 @@ object TransformClasses {
     onTopNode(inlineConstructorFunction),
     convertProtoClasses,
     fillVarMembers,
-    onTopNode(inlineConstructors),
-    deleteByRules
+    // applyRules after fillVarMembers - we cannot delete members before they are created
+    // applyRules before inlineConstructors, so that constructor is a single function
+    applyRules,
+    onTopNode(inlineConstructors)
   )
 }

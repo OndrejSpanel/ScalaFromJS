@@ -60,10 +60,24 @@ object ConvertProject {
           case _ =>
             false
         }
-        ret.properties = ret.properties.map(p => if (p == ib) retIB else p)
-        ret
+        Classes.replaceProperty(ret, ib, retIB)
+      }
+    }
+  }
+
+  case class MakePropertyRule(member: MemberDesc) extends Rule {
+    override def apply(c: AST_DefClass) = {
+
+      // search constructor for a property definition
+      val applied = for (constructor <- Classes.findConstructor(c)) yield {
+        val newC = constructor.transformAfter { (node, transformer) =>
+          node
+        }
+
+        Classes.replaceProperty(c.clone(), constructor, newC)
       }
 
+      applied.getOrElse(c)
     }
   }
 
@@ -78,13 +92,17 @@ object ConvertProject {
         case AST_ObjectKeyVal("members", a: AST_Array) =>
           a.elements.toSeq.flatMap {
             case o: AST_Object =>
-              MemberDesc.load(o)
+              val m = MemberDesc.load(o)
               val op = loadStringValue(o, "operation")
               op match {
                 case Some("delete") =>
-                  Some(DeleteMemberRule(MemberDesc.load(o)))
+                  Some(DeleteMemberRule(m))
+                case Some("make-property") =>
+                  Some(MakePropertyRule(m))
+                case Some(opName) =>
+                  throw new UnsupportedOperationException(s"Unknown operation $opName for member $m")
                 case _ =>
-                  None
+                  throw new UnsupportedOperationException(s"Missing operation for member $m")
               }
             case _ =>
               None
