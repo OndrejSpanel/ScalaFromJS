@@ -291,8 +291,7 @@ object TransformClasses {
           for {
             fun <- walker.stack.reverse.collectFirst { case c: AST_Lambda => c }
             sym <- fun.name.nonNull
-            symDef <- sym.thedef.nonNull
-            Seq(orig: AST_Defun) <- symDef.orig
+            Some(sym: AST_SymbolDefun) <- sym.thedef.nonNull.map(_.orig.headOption)
           } {
             //println(s"Detected class ${sym.name}")
             classNames += sym.name
