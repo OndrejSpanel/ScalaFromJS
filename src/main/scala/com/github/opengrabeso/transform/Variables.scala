@@ -317,7 +317,7 @@ object Variables {
                 var seenAfterFor = false
                 var seenAfterForInAssignment = false
                 scope.walk {
-                  case s if s == f =>
+                  case `f` =>
                     seenFor = true
                     true // no need to dive into the for
                   case AST_Assign(AST_SymbolRefDef(`v`), "=", init) if seenFor && !seenAfterFor && !nodeContainsRef(init, v) =>
