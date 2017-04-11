@@ -379,7 +379,7 @@ object Uglify extends js.Object {
   }
 
 
-  @js.native sealed class AST_Symbol extends AST_Node {
+  @js.native sealed class AST_Symbol extends AST_Node with CloneSelf[AST_Symbol] {
     // [string] name of this symbol
     var name: String = js.native
     // [AST_Scope/S] the current scope (not necessarily the definition scope)
@@ -390,7 +390,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_SymbolAccessor extends AST_Symbol
   @js.native class AST_SymbolMethod extends AST_Symbol
-  @js.native class AST_SymbolDeclaration extends AST_Symbol {
+  @js.native class AST_SymbolDeclaration extends AST_Symbol with CloneSelf[AST_SymbolDeclaration] {
     // [AST_Node*/S] array of initializers for this declaration.
     var init: js.UndefOr[js.Array[AST_Node]] = js.native
   }
@@ -416,7 +416,7 @@ object Uglify extends js.Object {
     val references: js.Array[AST_LoopControl] = js.native
   }
 
-  @js.native class AST_SymbolRef extends AST_Symbol
+  @js.native class AST_SymbolRef extends AST_Symbol with CloneSelf[AST_SymbolRef]
   @js.native class AST_LabelRef extends AST_Symbol
   @js.native class AST_This extends AST_Symbol
   @js.native class AST_Super extends AST_Symbol

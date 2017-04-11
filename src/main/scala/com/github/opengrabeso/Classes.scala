@@ -9,6 +9,7 @@ import scalajs.js
 
 object Classes {
 
+
   def findDefScope(scope: Option[AST_Scope]): Option[AST_Scope] = {
     //println(s"  ${scope.map(nodeClassName)} ${scope.map(_.nesting)}")
     scope match {
@@ -148,6 +149,24 @@ object Classes {
     c
   }
 
+  def transformClassParameters(c: AST_DefClass, init: AST_Node): AST_Node = {
+    val transformed = for (cons <- findConstructor(c)) yield {
+      init.transformAfter { (node, transformer) =>
+        node match {
+          case sym@AST_SymbolRefName(name) =>
+            val pn = cons.value.argnames.find(_.name == name)
+            pn.fold(sym) { p =>
+              val c = sym.clone()
+              c.name = c.name + SymbolTypes.parSuffix
+              c
+            }
+          case _ =>
+            node
+        }
+      }
+    }
+    transformed.getOrElse(init)
+  }
 
 
 }

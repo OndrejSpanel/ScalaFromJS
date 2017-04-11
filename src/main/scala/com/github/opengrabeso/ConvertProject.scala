@@ -100,7 +100,9 @@ object ConvertProject {
             case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
               //println(s"Found property definition ${nodeClassName(init)}")
               val ss = new AST_SimpleStatement {
-                fillTokens(this, init)
+
+
+                fillTokens(this, Classes.transformClassParameters(c, init))
                 body = init.clone()
               }
               cc.properties += newMethod(prop, Seq(), Seq(ss), init)
