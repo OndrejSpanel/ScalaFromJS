@@ -279,18 +279,32 @@ object TransformClasses {
 
     var classNames = Set.empty[String]
 
-    n.top.walk {
-      // new XXX()
-      case AST_New(AST_SymbolRefDef(call), _*) =>
-        classNames += call.name
-        false
+    n.top.walkWithDescend { (node, _, walker) =>
+      node match {
+        // new XXX()
+        case AST_New(AST_SymbolRefDef(call), _*) =>
+          classNames += call.name
+          false
 
-      // any use of XXX.prototype probably marks a class
-      case AST_SymbolRefName(name) AST_Dot "prototype" =>
-        classNames += name
-        false
+        // any use of XXX.prototype probably marks a class
+        case AST_SymbolRefName(name) AST_Dot "prototype" =>
+          classNames += name
+          false
 
-      /*
+        // use of this in a function most likely means the function is a constructor
+        case (_: AST_This) AST_Dot _ =>
+          for {
+            fun <- walker.stack.reverse.collectFirst { case c: AST_Lambda => c }
+            sym <- fun.name.nonNull
+            symDef <- sym.thedef.nonNull
+            Seq(orig: AST_Defun) <- symDef.orig
+          } {
+            //println(s"Detected class ${sym.name}")
+            classNames += sym.name
+          }
+          false
+
+        /*
       // XXXX.prototype = ...;
       case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", _)) =>
         classNames += name
@@ -302,9 +316,10 @@ object TransformClasses {
         false
       */
 
-      case x =>
-        //println(nodeClassName(x))
-        false
+        case x =>
+          //println(nodeClassName(x))
+          false
+      }
     }
 
 
