@@ -718,6 +718,9 @@ object UglifyExt {
       def unapply(arg: AST_String) = Some(arg.value)
     }
 
+    object AST_This {
+      def unapply(arg: AST_This): Boolean = true
+    }
     object AST_SymbolDeclaration {
       def unapply(arg: AST_SymbolDeclaration) = Some(arg.thedef, arg.name, arg.init)
 
@@ -888,6 +891,11 @@ object UglifyExt {
   def fillTokens(to: AST_Node, from: AST_Node): Unit = {
     to.start = from.start
     to.end = from.end
+  }
+
+  def keyNode(orig: AST_Node, k: String) = new AST_SymbolRef {
+    fillTokens(this, orig)
+    name = k
   }
 
   def unsupported(message: String, source: AST_Node, include: Option[AST_Node] = None) = {

@@ -216,11 +216,6 @@ object TransformClasses {
     }
   }
 
-  def keyNode(orig: AST_Node, k: String) = new AST_SymbolRef {
-    fillTokens(this, orig)
-    name = k
-  }
-
 
   class ClassList {
 

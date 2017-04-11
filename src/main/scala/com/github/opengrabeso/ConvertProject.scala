@@ -34,8 +34,6 @@ object ConvertProject {
   }
 
   object MemberDesc {
-
-
     def load(o: AST_Object): MemberDesc = {
       val cls = loadStringValue(o, "cls").map(RegExp.apply(_))
       val name = loadStringValue(o, "name").map(RegExp.apply(_))
@@ -43,6 +41,20 @@ object ConvertProject {
     }
   }
 
+  private def deleteVarMember(c: AST_DefClass, member: MemberDesc) = {
+    val inlineBody = Classes.findInlineBody(c)
+    inlineBody.fold(c) { ib =>
+      // filter member variables as well
+      val retIB = ib.clone()
+      retIB.value.body = retIB.value.body.filterNot {
+        case AST_Definitions(AST_VarDef(AST_SymbolName(v), _)) if member.matches(c, v) =>
+          true
+        case _ =>
+          false
+      }
+      Classes.replaceProperty(c, ib, retIB)
+    }
+  }
 
   case class DeleteMemberRule(member: MemberDesc) extends Rule {
     override def apply(c: AST_DefClass) = {
@@ -50,31 +62,58 @@ object ConvertProject {
       // filter member functions and properties
       ret.properties = c.properties.filterNot(p => member.matches(c, propertyName(p)))
 
-      val inlineBody = Classes.findInlineBody(c)
-      inlineBody.fold(ret) { ib =>
-        // filter member variables as well
-        val retIB = ib.clone()
-        retIB.value.body = retIB.value.body.filterNot {
-          case AST_Definitions(AST_VarDef(AST_SymbolName(v), _)) if member.matches(c, v) =>
-            true
-          case _ =>
-            false
-        }
-        Classes.replaceProperty(ret, ib, retIB)
-      }
+      deleteVarMember(ret, member)
     }
   }
+
 
   case class MakePropertyRule(member: MemberDesc) extends Rule {
     override def apply(c: AST_DefClass) = {
 
       // search constructor for a property definition
       val applied = for (constructor <- Classes.findConstructor(c)) yield {
+        val cc = c.clone()
+
+        deleteVarMember(cc, member)
+
         val newC = constructor.transformAfter { (node, transformer) =>
-          node
+          node match {
+            case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot prop, "=", init)) if member.name.test(prop) =>
+              println(s"Found property definition ${nodeClassName(init)}")
+              // TODO: check for special cases of init
+              val replaced = init match {
+                case c: AST_Constant =>
+
+                  cc.properties += new AST_ConciseMethod {
+                    key = keyNode(init, prop)
+                    `static` = false
+                    value = new AST_Accessor {
+                      fillTokens(this, init)
+                      argnames = js.Array()
+                      this.body = js.Array (
+                        new AST_SimpleStatement {
+                          fillTokens(this, init)
+                          body = init.clone()
+                        }
+                      )
+                    }
+                  }
+
+                  true
+                case _ =>
+                  false
+              }
+              if (replaced) {
+                new AST_EmptyStatement {
+                  fillTokens(this, node)
+                }
+              } else node
+            case _ =>
+              node
+          }
         }
 
-        Classes.replaceProperty(c.clone(), constructor, newC)
+        Classes.replaceProperty(cc, constructor, newC)
       }
 
       applied.getOrElse(c)
