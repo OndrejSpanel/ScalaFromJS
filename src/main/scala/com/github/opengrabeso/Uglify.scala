@@ -3,8 +3,9 @@ package com.github.opengrabeso
 import scala.language.implicitConversions
 import scala.scalajs.js
 import scala.scalajs.js.RegExp
-import scala.scalajs.js.annotation.{JSGlobal, JSImport, JSName, ScalaJSDefined}
+import scala.scalajs.js.annotation._
 import JsUtils._
+import js.JSConverters._
 
 object Helpers {
   @js.native
@@ -897,6 +898,20 @@ object UglifyExt {
     fillTokens(this, orig)
     name = k
   }
+
+
+  def newMethod(k: String, args: Seq[AST_SymbolFunarg], body: Seq[AST_Statement], tokensFrom: AST_Node, isStatic: Boolean = false) = new AST_ConciseMethod {
+    fillTokens(this, tokensFrom)
+    key = keyNode(tokensFrom, k)
+    `static` = isStatic
+    value = new AST_Accessor {
+      fillTokens(this, tokensFrom)
+      argnames = args.toJSArray
+      this.body = body.toJSArray
+
+    }
+  }
+
 
   def unsupported(message: String, source: AST_Node, include: Option[AST_Node] = None) = {
     new AST_SimpleStatement {

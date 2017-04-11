@@ -613,16 +613,7 @@ object TransformClasses {
         def newMember(k: String, v: ClassMember, isStatic: Boolean = false) = {
           (v, isStatic) match {
             case AsFunction(args, body) =>
-              new AST_ConciseMethod {
-                key = keyNode(tokensFrom, k)
-                `static` = isStatic
-                value = new AST_Accessor {
-                  fillTokens(this, tokensFrom)
-                  argnames = args.toJSArray
-                  this.body = body.toJSArray
-
-                }
-              }: AST_ObjectProperty
+              newMethod(k, args, body, tokensFrom, isStatic): AST_ObjectProperty
 
             case (m: ClassVarMember, false) =>
               newGetter(k, js.Array(), js.Array(new AST_SimpleStatement {

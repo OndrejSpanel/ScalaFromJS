@@ -84,20 +84,11 @@ object ConvertProject {
               val replaced = init match {
                 case c: AST_Constant =>
 
-                  cc.properties += new AST_ConciseMethod {
-                    key = keyNode(init, prop)
-                    `static` = false
-                    value = new AST_Accessor {
-                      fillTokens(this, init)
-                      argnames = js.Array()
-                      this.body = js.Array (
-                        new AST_SimpleStatement {
-                          fillTokens(this, init)
-                          body = init.clone()
-                        }
-                      )
-                    }
+                  val ss = new AST_SimpleStatement {
+                    fillTokens(this, init)
+                    body = init.clone()
                   }
+                  cc.properties += newMethod(prop, Seq(), Seq(ss), init)
 
                   true
                 case _ =>

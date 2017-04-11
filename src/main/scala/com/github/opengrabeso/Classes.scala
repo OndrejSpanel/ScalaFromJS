@@ -122,20 +122,7 @@ object Classes {
   def classInlineBody(cls: AST_DefClass): AST_Accessor = {
     val present = findInlineBody(cls)
     val method = present.getOrElse {
-      val newInlineBody = new AST_ConciseMethod {
-        fillTokens(this, cls)
-
-        key = new AST_SymbolRef {
-          fillTokens(this, cls)
-          name = inlineBodyName
-        }
-        value = new AST_Accessor {
-          fillTokens(this, cls)
-          argnames = js.Array()
-          this.body = js.Array()
-        }
-        `static` = false
-      }
+      val newInlineBody = newMethod(inlineBodyName, Seq(), Seq(), cls)
       cls.properties = cls.properties :+ newInlineBody
       newInlineBody
     }

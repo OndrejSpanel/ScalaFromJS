@@ -108,19 +108,7 @@ object Variables {
                   if (modifiedMembers contains k) {
                     //println(s"Modified member $k")
                     kv
-                  } else new AST_ConciseMethod {
-                    fillTokens(this, kv)
-                    key = new AST_SymbolMethod {
-                      fillTokens(this, f)
-                      name = k
-                      // thedef - nowhere to get it?
-                    }
-                    value = new AST_Accessor {
-                      fillTokens(this, f)
-                      argnames = args
-                      this.body = body.toJSArray
-                    }
-                  }
+                  } else newMethod(k, args, body, f)
 
                 case p => p
               }
