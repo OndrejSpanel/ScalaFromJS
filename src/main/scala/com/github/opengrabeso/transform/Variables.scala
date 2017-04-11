@@ -258,12 +258,24 @@ object Variables {
     }
   }
 
+  def nodeContainsRef(init: AST_Node, sym: SymbolDef) = {
+    var found = false
+    init.walk {
+      case AST_SymbolRefDef(`sym`) =>
+        found = true
+        found
+      case _ =>
+        found
+    }
+    found
+  }
+
   object ExtractVariables {
     def unapply(n: AST_Node): Option[Seq[(SymbolDef, AST_Node)]] = {
       val b = mutable.ArrayBuilder.make[(SymbolDef, AST_Node)]
       var assignsOnly = true
       n.walk {
-        case AST_Assign(AST_SymbolRefDef(sym), "=", init) =>
+        case AST_Assign(AST_SymbolRefDef(sym), "=", init) if !nodeContainsRef(init, sym) =>
           b += sym -> init
           true
         case _ =>
@@ -288,7 +300,7 @@ object Variables {
             case ExtractVariables(vars) =>
               // we expect a sequence of variable initializations
 
-              println(s"Detect for with ${vars.map(_._1.name).mkString(",")}")
+              //println(s"Detect for with ${vars.map(_._1.name).mkString(",")}")
               // for each variable we need to verify the first use after the for loop is assignment
               // (or the variable is not used after the loop at all)
               // note: the assignment will often be in the init of another for loop
@@ -308,26 +320,13 @@ object Variables {
                   case s if s == f =>
                     seenFor = true
                     true // no need to dive into the for
-                  case AST_Assign(AST_SymbolRefDef(`v`), "=", init) if seenFor && !seenAfterFor =>
-                    // TODO: init must not contain any reference to v
-                    var initContainsV = false
-                    init.walk {
-                      case AST_SymbolRefDef(`v`) =>
-                        initContainsV = true
-                        true
-                      case _ =>
-                        initContainsV
-                    }
-                    if (!initContainsV) {
-                      println(s"Seen ${v.name} after the for - in assignment")
-                    } else {
-                      println(s"Seen ${v.name} after the for - in dependent assignment")
-                    }
-                    seenAfterForInAssignment = !initContainsV
+                  case AST_Assign(AST_SymbolRefDef(`v`), "=", init) if seenFor && !seenAfterFor && !nodeContainsRef(init, v) =>
+                    //println(s"Seen ${v.name} after the for - in assignment")
+                    seenAfterForInAssignment = true
                     seenAfterFor = true
                     true
                   case AST_SymbolRefDef(`v`) if seenFor =>
-                    println(s"Seen ${v.name} after the for - in use")
+                    //println(s"Seen ${v.name} after the for - in use")
                     seenAfterFor = true
                     true
                   case _ =>
@@ -337,16 +336,13 @@ object Variables {
                 seenAfterForInAssignment || !seenAfterFor
               }
 
-              if (forScopesOK) println("For loop OK")
-              else println("For loop not OK")
-
-              vScopes
+              if (forScopesOK) vScopes else Seq.empty
             case _ =>
               // something else than assignments into variables - leave it
               Seq()
           }
           if (forOK.nonEmpty) {
-            println("Transform for")
+            //println("Transform for")
 
             val vars = forOK.map { case (v, initV, _) =>
                 new AST_VarDef {
