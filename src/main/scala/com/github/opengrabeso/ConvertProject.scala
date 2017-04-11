@@ -76,29 +76,37 @@ object ConvertProject {
 
         deleteVarMember(cc, member)
 
+        object CheckPropertyInit {
+          def unapply(arg: AST_Node): Option[AST_Node] = arg match {
+            case c: AST_Constant =>
+              Some(c)
+            case o: AST_Object =>
+              // TODO: check if values are acceptable (no dependencies on anything else then parameters)
+              Some(o)
+            case _ =>
+              None
+
+          }
+        }
+        object MatchName {
+          def unapply(arg: String): Option[String] = {
+            if (member.name.test(arg)) Some(arg)
+            else None
+          }
+        }
+
         val newC = constructor.transformAfter { (node, transformer) =>
           node match {
-            case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot prop, "=", init)) if member.name.test(prop) =>
-              println(s"Found property definition ${nodeClassName(init)}")
-              // TODO: check for special cases of init
-              val replaced = init match {
-                case c: AST_Constant =>
-
-                  val ss = new AST_SimpleStatement {
-                    fillTokens(this, init)
-                    body = init.clone()
-                  }
-                  cc.properties += newMethod(prop, Seq(), Seq(ss), init)
-
-                  true
-                case _ =>
-                  false
+            case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
+              //println(s"Found property definition ${nodeClassName(init)}")
+              val ss = new AST_SimpleStatement {
+                fillTokens(this, init)
+                body = init.clone()
               }
-              if (replaced) {
-                new AST_EmptyStatement {
-                  fillTokens(this, node)
-                }
-              } else node
+              cc.properties += newMethod(prop, Seq(), Seq(ss), init)
+              new AST_EmptyStatement {
+                fillTokens(this, node)
+              }
             case _ =>
               node
           }
