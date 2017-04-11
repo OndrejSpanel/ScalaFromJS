@@ -320,75 +320,78 @@ object Parameters {
   def inlineConstructorVars(n: AST_Extended): AST_Extended = {
     var types = n.types
     def handleConstructorVars(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
-      // inline all parameters, or constructor only?
-      val parName = par.name
-      if (parName.endsWith(SymbolTypes.parSuffix) && par.thedef.isDefined){
-        val parDef = par.thedef.get
-        object IsVarPar {
+      if (!f.name.exists(_.name == "constructor")) Some(f)
+      else {
+        // inline all parameters, or constructor only?
+        val parName = par.name
+        if (parName.endsWith(SymbolTypes.parSuffix) && par.thedef.isDefined) {
+          val parDef = par.thedef.get
+          object IsVarPar {
 
-          def unapply(arg: AST_Node) = arg match {
-            case AST_Var(AST_VarDef(AST_Symbol(symName, _, Defined(symDef)), Defined(AST_SymbolRef(_, _, Defined(`parDef`))))) =>
-              //println(s"IsVarPar $symName ${parDef.name}")
-              Some(symDef)
-            case _ =>
-              //println(s"no IsParDeprecated in ${nodeClassName(arg)}")
-              None
-          }
-        }
-
-        var isVarPar = Option.empty[SymbolDef]
-        var otherUse = false
-        f.walk {
-          case IsVarPar(varSym) =>
-            //println(s"Detected deprecated par for $parName")
-            if (!otherUse) isVarPar = Some(varSym)
-            true // use inside of the current pattern must not set otherUse
-          case AST_SymbolRefName(`parName`) =>
-            isVarPar = None
-            otherUse = true
-            true
-          case _ =>
-            otherUse
-
-        }
-
-        isVarPar.map { varSym =>
-          val parIndex = f.argnames.indexOf(par)
-          val parNode = f.argnames(parIndex).clone()
-
-          val oldParSym = parNode.thedef
-
-          // change varSym declaration location, so that type information works
-          varSym.orig = js.Array(parNode)
-
-          parNode.thedef = varSym
-          parNode.name = varSym.name
-
-          f.argnames(parIndex) = parNode
-
-          // redirect also a symbol type
-          for {
-            parSym <- oldParSym
-            tpe <- types.get(parSym)
-          } {
-            //println(s"${parSym.name} -> ${varSym.name} Redirect type $tpe")
-            types += SymbolTypes.id(varSym) -> tpe
-          }
-
-
-          f.transformAfter { (node, _) =>
-            node match {
-              case IsVarPar(`varSym`) =>
-                new AST_EmptyStatement {
-                  fillTokens(this, node)
-                }
+            def unapply(arg: AST_Node) = arg match {
+              case AST_Var(AST_VarDef(AST_Symbol(symName, _, Defined(symDef)), Defined(AST_SymbolRef(_, _, Defined(`parDef`))))) =>
+                //println(s"IsVarPar $symName ${parDef.name}")
+                Some(symDef)
               case _ =>
-                node
+                //println(s"no IsParDeprecated in ${nodeClassName(arg)}")
+                None
             }
           }
-        }.orElse(Some(f))
 
-      } else Some(f)
+          var isVarPar = Option.empty[SymbolDef]
+          var otherUse = false
+          f.walk {
+            case IsVarPar(varSym) =>
+              //println(s"Detected deprecated par for $parName")
+              if (!otherUse) isVarPar = Some(varSym)
+              true // use inside of the current pattern must not set otherUse
+            case AST_SymbolRefName(`parName`) =>
+              isVarPar = None
+              otherUse = true
+              true
+            case _ =>
+              otherUse
+
+          }
+
+          isVarPar.map { varSym =>
+            val parIndex = f.argnames.indexOf(par)
+            val parNode = f.argnames(parIndex).clone()
+
+            val oldParSym = parNode.thedef
+
+            // change varSym declaration location, so that type information works
+            varSym.orig = js.Array(parNode)
+
+            parNode.thedef = varSym
+            parNode.name = varSym.name
+
+            f.argnames(parIndex) = parNode
+
+            // redirect also a symbol type
+            for {
+              parSym <- oldParSym
+              tpe <- types.get(parSym)
+            } {
+              //println(s"${parSym.name} -> ${varSym.name} Redirect type $tpe")
+              types += SymbolTypes.id(varSym) -> tpe
+            }
+
+
+            f.transformAfter { (node, _) =>
+              node match {
+                case IsVarPar(`varSym`) =>
+                  new AST_EmptyStatement {
+                    fillTokens(this, node)
+                  }
+                case _ =>
+                  node
+              }
+            }
+          }.orElse(Some(f))
+
+        } else Some(f)
+      }
     }
 
     val processed = processAllFunctions(n.top, handleConstructorVars)
