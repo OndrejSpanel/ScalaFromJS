@@ -5,7 +5,7 @@ import org.scalatest.FunSuite
 class ForLoopTests extends FunSuite with TestUtils {
   test("Detect for loop variable scope") {
     execute check ConversionCheck(
-      //languge Javascript
+      //language=JavaScript
       """
       function ForLoop() {
         var j, i;

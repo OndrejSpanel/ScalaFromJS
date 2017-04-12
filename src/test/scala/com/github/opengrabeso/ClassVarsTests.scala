@@ -5,7 +5,7 @@ import org.scalatest.FunSuite
 class ClassVarsTests extends FunSuite with TestUtils {
   test("Handle class variables") {
     execute check ConversionCheck(
-      // language Javascript
+      // language=JavaScript
       """
       function f(a_par) {
         var a = a_par;
