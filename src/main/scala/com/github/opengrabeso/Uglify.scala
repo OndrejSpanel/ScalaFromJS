@@ -905,6 +905,12 @@ object UglifyExt {
     key = keyNode(tokensFrom, k)
     `static` = isStatic
     value = new AST_Accessor {
+      name = new AST_SymbolDefun {
+        /*_*/
+        fillTokens(this, tokensFrom)
+        /*_*/
+        name = k
+      }
       fillTokens(this, tokensFrom)
       argnames = args.toJSArray
       this.body = body.toJSArray

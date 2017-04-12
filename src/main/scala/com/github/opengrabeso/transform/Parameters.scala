@@ -320,7 +320,7 @@ object Parameters {
   def inlineConstructorVars(n: AST_Extended): AST_Extended = {
     var types = n.types
     def handleConstructorVars(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
-      if (!f.name.exists(_.name == "constructor")) Some(f)
+      if (!f.name.nonNull.exists(_.name == Classes.inlineBodyName)) Some(f)
       else {
         // inline all parameters, or constructor only?
         val parName = par.name
@@ -355,6 +355,8 @@ object Parameters {
           }
 
           isVarPar.map { varSym =>
+            //println(s"Rename ${varSym.name} in ${f.name.get.name}")
+
             val parIndex = f.argnames.indexOf(par)
             val parNode = f.argnames(parIndex).clone()
 
