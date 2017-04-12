@@ -216,11 +216,6 @@ object TransformClasses {
     }
   }
 
-  def keyNode(orig: AST_Node, k: String) = new AST_SymbolRef {
-    fillTokens(this, orig)
-    name = k
-  }
-
 
   class ClassList {
 
@@ -291,18 +286,19 @@ object TransformClasses {
           classNames += name
           false
 
+        /* the rule did more harm than good - functions are sometimes defined externally
         // use of this in a function most likely means the function is a constructor
         case (_: AST_This) AST_Dot _ =>
           for {
             fun <- walker.stack.reverse.collectFirst { case c: AST_Lambda => c }
             sym <- fun.name.nonNull
-            symDef <- sym.thedef.nonNull
-            Seq(orig: AST_Defun) <- symDef.orig
+            Some(sym: AST_SymbolDefun) <- sym.thedef.nonNull.map(_.orig.headOption)
           } {
             //println(s"Detected class ${sym.name}")
             classNames += sym.name
           }
           false
+        */
 
         /*
       // XXXX.prototype = ...;
@@ -618,16 +614,7 @@ object TransformClasses {
         def newMember(k: String, v: ClassMember, isStatic: Boolean = false) = {
           (v, isStatic) match {
             case AsFunction(args, body) =>
-              new AST_ConciseMethod {
-                key = keyNode(tokensFrom, k)
-                `static` = isStatic
-                value = new AST_Accessor {
-                  fillTokens(this, tokensFrom)
-                  argnames = args.toJSArray
-                  this.body = body.toJSArray
-
-                }
-              }: AST_ObjectProperty
+              newMethod(k, args, body, tokensFrom, isStatic): AST_ObjectProperty
 
             case (m: ClassVarMember, false) =>
               newGetter(k, js.Array(), js.Array(new AST_SimpleStatement {
@@ -953,7 +940,7 @@ object TransformClasses {
     }
   }
 
-  def deleteByRules(n: AST_Extended): AST_Extended = {
+  def applyRules(n: AST_Extended): AST_Extended = {
     val ret = n.top.transformAfter {(node, _) =>
       node match {
         case cls: AST_DefClass =>
@@ -1134,7 +1121,9 @@ object TransformClasses {
     onTopNode(inlineConstructorFunction),
     convertProtoClasses,
     fillVarMembers,
-    onTopNode(inlineConstructors),
-    deleteByRules
+    // applyRules after fillVarMembers - we cannot delete members before they are created
+    // applyRules before inlineConstructors, so that constructor is a single function
+    applyRules,
+    onTopNode(inlineConstructors)
   )
 }

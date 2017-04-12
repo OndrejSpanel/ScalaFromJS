@@ -9,6 +9,7 @@ import scalajs.js
 
 object Classes {
 
+
   def findDefScope(scope: Option[AST_Scope]): Option[AST_Scope] = {
     //println(s"  ${scope.map(nodeClassName)} ${scope.map(_.nesting)}")
     scope match {
@@ -122,20 +123,7 @@ object Classes {
   def classInlineBody(cls: AST_DefClass): AST_Accessor = {
     val present = findInlineBody(cls)
     val method = present.getOrElse {
-      val newInlineBody = new AST_ConciseMethod {
-        fillTokens(this, cls)
-
-        key = new AST_SymbolRef {
-          fillTokens(this, cls)
-          name = inlineBodyName
-        }
-        value = new AST_Accessor {
-          fillTokens(this, cls)
-          argnames = js.Array()
-          this.body = js.Array()
-        }
-        `static` = false
-      }
+      val newInlineBody = newMethod(inlineBodyName, Seq(), Seq(), cls)
       cls.properties = cls.properties :+ newInlineBody
       newInlineBody
     }
@@ -156,6 +144,29 @@ object Classes {
     }
   }
 
+  def replaceProperty(c: AST_DefClass, oldP: AST_ObjectProperty, newP: AST_ObjectProperty): AST_DefClass = {
+    c.properties = c.properties.map(p => if (p == oldP) newP else p)
+    c
+  }
+
+  def transformClassParameters(c: AST_DefClass, init: AST_Node): AST_Node = {
+    val transformed = for (cons <- findConstructor(c)) yield {
+      init.transformAfter { (node, transformer) =>
+        node match {
+          case sym@AST_SymbolRefName(name) =>
+            val pn = cons.value.argnames.find(_.name == name)
+            pn.fold(sym) { p =>
+              val c = sym.clone()
+              c.name = c.name + SymbolTypes.parSuffix
+              c
+            }
+          case _ =>
+            node
+        }
+      }
+    }
+    transformed.getOrElse(init)
+  }
 
 
 }

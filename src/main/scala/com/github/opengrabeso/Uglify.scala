@@ -3,8 +3,9 @@ package com.github.opengrabeso
 import scala.language.implicitConversions
 import scala.scalajs.js
 import scala.scalajs.js.RegExp
-import scala.scalajs.js.annotation.{JSGlobal, JSImport, JSName, ScalaJSDefined}
+import scala.scalajs.js.annotation._
 import JsUtils._
+import js.JSConverters._
 
 object Helpers {
   @js.native
@@ -378,7 +379,7 @@ object Uglify extends js.Object {
   }
 
 
-  @js.native sealed class AST_Symbol extends AST_Node {
+  @js.native sealed class AST_Symbol extends AST_Node with CloneSelf[AST_Symbol] {
     // [string] name of this symbol
     var name: String = js.native
     // [AST_Scope/S] the current scope (not necessarily the definition scope)
@@ -389,7 +390,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_SymbolAccessor extends AST_Symbol
   @js.native class AST_SymbolMethod extends AST_Symbol
-  @js.native class AST_SymbolDeclaration extends AST_Symbol {
+  @js.native class AST_SymbolDeclaration extends AST_Symbol with CloneSelf[AST_SymbolDeclaration] {
     // [AST_Node*/S] array of initializers for this declaration.
     var init: js.UndefOr[js.Array[AST_Node]] = js.native
   }
@@ -415,7 +416,7 @@ object Uglify extends js.Object {
     val references: js.Array[AST_LoopControl] = js.native
   }
 
-  @js.native class AST_SymbolRef extends AST_Symbol
+  @js.native class AST_SymbolRef extends AST_Symbol with CloneSelf[AST_SymbolRef]
   @js.native class AST_LabelRef extends AST_Symbol
   @js.native class AST_This extends AST_Symbol
   @js.native class AST_Super extends AST_Symbol
@@ -718,6 +719,9 @@ object UglifyExt {
       def unapply(arg: AST_String) = Some(arg.value)
     }
 
+    object AST_This {
+      def unapply(arg: AST_This): Boolean = true
+    }
     object AST_SymbolDeclaration {
       def unapply(arg: AST_SymbolDeclaration) = Some(arg.thedef, arg.name, arg.init)
 
@@ -889,6 +893,31 @@ object UglifyExt {
     to.start = from.start
     to.end = from.end
   }
+
+  def keyNode(orig: AST_Node, k: String) = new AST_SymbolRef {
+    fillTokens(this, orig)
+    name = k
+  }
+
+
+  def newMethod(k: String, args: Seq[AST_SymbolFunarg], body: Seq[AST_Statement], tokensFrom: AST_Node, isStatic: Boolean = false) = new AST_ConciseMethod {
+    fillTokens(this, tokensFrom)
+    key = keyNode(tokensFrom, k)
+    `static` = isStatic
+    value = new AST_Accessor {
+      name = new AST_SymbolDefun {
+        /*_*/
+        fillTokens(this, tokensFrom)
+        /*_*/
+        name = k
+      }
+      fillTokens(this, tokensFrom)
+      argnames = args.toJSArray
+      this.body = body.toJSArray
+
+    }
+  }
+
 
   def unsupported(message: String, source: AST_Node, include: Option[AST_Node] = None) = {
     new AST_SimpleStatement {
