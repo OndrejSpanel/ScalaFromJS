@@ -143,7 +143,7 @@ object Variables {
               init = js.Array[AST_Node](defun)
             }
             fillTokens(this, node)
-            argnames = args
+            argnames = args.toJSArray
             this.body = body.toJSArray
           }
         case _ => node

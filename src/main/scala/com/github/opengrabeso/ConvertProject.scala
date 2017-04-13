@@ -43,7 +43,7 @@ object ConvertProject {
 
   case class IsClassMemberRule(member: MemberDesc) extends Rule {
     override def apply(n: AST_Extended) = {
-      n
+      TransformClasses.replaceIsClass(n, member)
     }
   }
 
