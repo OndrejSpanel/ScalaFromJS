@@ -9,6 +9,10 @@ object SymbolTypes {
 
 
   sealed trait TypeDesc {
+    def scalaConstruct: String = s"_"
+    // should type be written explicitly when initializing a variable of this type?
+    def typeOnInit: Boolean = true
+
     def knownItems: Int = 0
   }
   case class SimpleType(name: String) extends TypeDesc {
@@ -24,7 +28,9 @@ object SymbolTypes {
   case class ArrayType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Array[${elem.toString}]"
 
-    def scalaConstruct: String = s"Array.empty[$elem]"
+    override def scalaConstruct: String = s"Array.empty[$elem]"
+
+    override def typeOnInit = false
 
     override def knownItems = super.knownItems + elem.knownItems
 
@@ -35,7 +41,9 @@ object SymbolTypes {
   case class MapType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Map[String, $elem]"
 
-    def scalaConstruct: String = s"Map.empty[String, $elem]"
+    override def scalaConstruct: String = s"Map.empty[String, $elem]"
+
+    override def typeOnInit = false
 
     override def knownItems = super.knownItems + elem.knownItems
 
