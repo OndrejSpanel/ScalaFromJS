@@ -940,16 +940,23 @@ object TransformClasses {
     }
   }
 
-  def applyRules(n: AST_Extended): AST_Extended = {
-    val ret = n.top.transformAfter {(node, _) =>
+
+  def processAllClasses(n: AST_Extended)(p: AST_DefClass => AST_DefClass): AST_Extended = {
+    val ret = n.top.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
-          n.config.rules.foldLeft(cls)((c, rule) => rule(c))
+          p(cls)
         case _ =>
           node
       }
     }
-    n.copy(top = ret)
+    n.copy (top = ret)
+  }
+
+
+  def applyRules(n: AST_Extended): AST_Extended = {
+    n.config.rules.foldLeft(n)((n, rule) => rule(n))
+
   }
 
 

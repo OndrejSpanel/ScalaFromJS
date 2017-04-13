@@ -22,7 +22,7 @@ object ConvertProject {
   }
 
   trait Rule {
-    def apply(c: AST_DefClass): AST_DefClass
+    def apply(c: AST_Extended): AST_Extended
   }
 
   case class MemberDesc(cls: RegExp, name: RegExp) {
@@ -57,67 +57,76 @@ object ConvertProject {
   }
 
   case class DeleteMemberRule(member: MemberDesc) extends Rule {
-    override def apply(c: AST_DefClass) = {
-      val ret = c.clone()
-      // filter member functions and properties
-      ret.properties = c.properties.filterNot(p => member.matches(c, propertyName(p)))
+    override def apply(n: AST_Extended) = {
+      TransformClasses.processAllClasses(n) { c =>
+        val ret = c.clone()
+        // filter member functions and properties
+        ret.properties = c.properties.filterNot(p => member.matches(c, propertyName(p)))
 
-      deleteVarMember(ret, member)
+        deleteVarMember(ret, member)
+      }
     }
   }
 
+  case class IsClassMemberRule(member: MemberDesc) extends Rule {
+    override def apply(n: AST_Extended) = {
+      n
+    }
+  }
 
   case class MakePropertyRule(member: MemberDesc) extends Rule {
-    override def apply(c: AST_DefClass) = {
+    override def apply(n: AST_Extended) = {
+      TransformClasses.processAllClasses(n) { c =>
 
-      // search constructor for a property definition
-      val applied = for (constructor <- Classes.findConstructor(c)) yield {
-        val cc = c.clone()
+        // search constructor for a property definition
+        val applied = for (constructor <- Classes.findConstructor(c)) yield {
+          val cc = c.clone()
 
-        deleteVarMember(cc, member)
+          deleteVarMember(cc, member)
 
-        object CheckPropertyInit {
-          def unapply(arg: AST_Node): Option[AST_Node] = arg match {
-            case c: AST_Constant =>
-              Some(c)
-            case o: AST_Object =>
-              // TODO: check if values are acceptable (no dependencies on anything else then parameters)
-              Some(o)
-            case _ =>
-              None
+          object CheckPropertyInit {
+            def unapply(arg: AST_Node): Option[AST_Node] = arg match {
+              case c: AST_Constant =>
+                Some(c)
+              case o: AST_Object =>
+                // TODO: check if values are acceptable (no dependencies on anything else then parameters)
+                Some(o)
+              case _ =>
+                None
 
+            }
           }
-        }
-        object MatchName {
-          def unapply(arg: String): Option[String] = {
-            if (member.name.test(arg)) Some(arg)
-            else None
+          object MatchName {
+            def unapply(arg: String): Option[String] = {
+              if (member.name.test(arg)) Some(arg)
+              else None
+            }
           }
-        }
 
-        val newC = constructor.transformAfter { (node, transformer) =>
-          node match {
-            case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
-              //println(s"Found property definition ${nodeClassName(init)}")
-              val ss = new AST_SimpleStatement {
+          val newC = constructor.transformAfter { (node, transformer) =>
+            node match {
+              case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
+                //println(s"Found property definition ${nodeClassName(init)}")
+                val ss = new AST_SimpleStatement {
 
 
-                fillTokens(this, Classes.transformClassParameters(c, init))
-                body = init.clone()
-              }
-              cc.properties += newMethod(prop, Seq(), Seq(ss), init)
-              new AST_EmptyStatement {
-                fillTokens(this, node)
-              }
-            case _ =>
-              node
+                  fillTokens(this, Classes.transformClassParameters(c, init))
+                  body = init.clone()
+                }
+                cc.properties += newMethod(prop, Seq(), Seq(ss), init)
+                new AST_EmptyStatement {
+                  fillTokens(this, node)
+                }
+              case _ =>
+                node
+            }
           }
+
+          Classes.replaceProperty(cc, constructor, newC)
         }
 
-        Classes.replaceProperty(cc, constructor, newC)
+        applied.getOrElse(c)
       }
-
-      applied.getOrElse(c)
     }
   }
 
@@ -139,6 +148,8 @@ object ConvertProject {
                   Some(DeleteMemberRule(m))
                 case Some("make-property") =>
                   Some(MakePropertyRule(m))
+                case Some("instanceof") =>
+                  Some(IsClassMemberRule(m))
                 case Some(opName) =>
                   throw new UnsupportedOperationException(s"Unknown operation $opName for member $m")
                 case _ =>
