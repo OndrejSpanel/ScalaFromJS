@@ -168,11 +168,20 @@ object ConvertProject {
     }
   }
 
-  def loadConfig(ast: AST_Node): ConvertConfig = {
+  def loadConfig(ast: AST_Toplevel): (ConvertConfig, AST_Toplevel) = {
     var readConfig = Option.empty[ConvertConfig]
 
+    object GetConfig {
+      def unapply(arg: AST_Node) = arg match {
+        case AST_Definitions(AST_VarDef(AST_SymbolName(`configName`), AST_Object(props))) =>
+          Some(props)
+        case _ =>
+          None
+      }
+    }
+
     ast.walk {
-      case AST_Definitions(AST_VarDef(AST_SymbolName(`configName`), AST_Object(props))) =>
+      case GetConfig(props) =>
         readConfig = Some(ConvertConfig.load(props))
         false
       case _: AST_Toplevel =>
@@ -184,14 +193,28 @@ object ConvertProject {
 
     }
 
-    readConfig.getOrElse(ConvertConfig())
+    val removedConfig = readConfig.fold(ast) { rc =>
+      ast.transformAfter { (node, _) =>
+        node match {
+          case GetConfig(_) =>
+            new AST_EmptyStatement {
+              fillTokens(this, node)
+            }
+          case _ =>
+            node
+        }
+
+      }
+    }
+
+    readConfig.getOrElse(ConvertConfig()) -> removedConfig
   }
 
 
 }
 
 
-case class ConvertProject(root: String, items: Map[String, Item], config: ConvertConfig = ConvertConfig()) {
+case class ConvertProject(root: String, items: Map[String, Item]) {
   lazy val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
   lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
@@ -296,8 +319,7 @@ case class ConvertProject(root: String, items: Map[String, Item], config: Conver
 
     if (toExample.isEmpty && toInclude.isEmpty && markAsIncludes.isEmpty) {
       //println(s"Do not add to ${items.map(_.name).mkString(",")}")
-
-      copy(config = loadConfig(ast))
+      this
     } else {
 
       if (false) {
@@ -351,7 +373,10 @@ case class ConvertProject(root: String, items: Map[String, Item], config: Conver
       parse(compositeFile, defaultUglifyOptions.parse)
     }
 
-    val astOptimized = if (true) Transform(AST_Extended(ast, config = config)) else AST_Extended(ast)
+    val ext = AST_Extended(ast).loadConfig
+
+    val astOptimized = if (true) Transform(ext) else ext
+
     val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1).withRoot(root)
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)

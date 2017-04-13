@@ -21,7 +21,14 @@ object Transform {
   object AST_Extended {
     def noTypes = SymbolTypes()
   }
-  case class AST_Extended(top: AST_Toplevel, types: SymbolTypes = SymbolTypes(), config: ConvertProject.ConvertConfig = ConvertProject.ConvertConfig())
+  case class AST_Extended(top: AST_Toplevel, types: SymbolTypes = SymbolTypes(), config: ConvertProject.ConvertConfig = ConvertProject.ConvertConfig()) {
+    def loadConfig: AST_Extended = {
+      val (config,ast) = ConvertProject.loadConfig(top)
+
+      copy(top = ast, config = config)
+    }
+
+  }
 
   // individual sensible transformations
 
