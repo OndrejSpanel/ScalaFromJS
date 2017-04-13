@@ -10,11 +10,13 @@ import scala.scalajs.js
 import js.JSConverters._
 import scala.collection.immutable.ListMap
 import scala.language.implicitConversions
+import scala.scalajs.js.RegExp
 
 object TransformClasses {
 
+
   object ClassDefine {
-    def unapply(arg: AST_Node) = arg match {
+    def unapply(arg: AST_Node): Option[(AST_Symbol, Seq[AST_SymbolFunarg], Seq[AST_Statement])] = arg match {
       // function ClassName() {}
       case AST_Defun(Defined(sym), args, body) =>
         Some(sym, args, body)
@@ -37,7 +39,7 @@ object TransformClasses {
     def definedFrom(init: AST_Node): Boolean
   }
 
-  case class ClassFunMember(args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement]) extends ClassMember {
+  case class ClassFunMember(args: Seq[AST_SymbolFunarg], body: Seq[AST_Statement]) extends ClassMember {
     def definedFrom(init: AST_Node) = init match {
       case func: AST_Lambda =>
         // reference equality of the first member is enough, nodes are unique
@@ -571,13 +573,13 @@ object TransformClasses {
 
           def unapply(arg: (ClassMember, Boolean)) = arg match {
             case (ClassFunMember(args, body), _) =>
-              Some(args.toSeq, body)
+              Some(args, body)
 
             // non-static functions should always be represented as functions if possible
             case (ClassVarMember(AST_BlockStatement(ss :+ ReturnValue(AST_Function(args, body)))), false) /*if onlyVariables(ss)*/ =>
               //println(nodeClassName(f))
               val newBody = ss ++ body
-              Some(args.toSeq, newBody)
+              Some(args, newBody)
 
             // some var members should also be converted to fun members
             // expected structure:
@@ -599,13 +601,13 @@ object TransformClasses {
           }
         }
 
-        def newGetterOrSetter(node: AST_ObjectSetterOrGetter, k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement], isStatic: Boolean) = {
+        def newGetterOrSetter(node: AST_ObjectSetterOrGetter, k: String, args: Seq[AST_SymbolFunarg], body: Seq[AST_Statement], isStatic: Boolean) = {
           fillTokens(node, tokensFrom)
           node.key = keyNode(tokensFrom, k)
           node.`static` = isStatic
           node.value = new AST_Function {
             fillTokens(this, tokensFrom)
-            argnames = args
+            argnames = args.toJSArray
             this.body = body.toJSArray
           }
           node
@@ -617,7 +619,7 @@ object TransformClasses {
               newMethod(k, args, body, tokensFrom, isStatic): AST_ObjectProperty
 
             case (m: ClassVarMember, false) =>
-              newGetter(k, js.Array(), js.Array(new AST_SimpleStatement {
+              newGetter(k, Seq(), Seq(new AST_SimpleStatement {
                 fillTokens(this, tokensFrom)
                 body = m.value
               }), isStatic)
@@ -627,12 +629,12 @@ object TransformClasses {
           }
         }
 
-        def newGetter(k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement], isStatic: Boolean = false): AST_ObjectProperty = {
+        def newGetter(k: String, args: Seq[AST_SymbolFunarg], body: Seq[AST_Statement], isStatic: Boolean = false): AST_ObjectProperty = {
           newGetterOrSetter(new AST_ObjectGetter, k, args, body, isStatic)
         }
 
 
-        def newSetter(k: String, args: js.Array[AST_SymbolFunarg], body: Seq[AST_Statement], isStatic: Boolean = false): AST_ObjectProperty = {
+        def newSetter(k: String, args: Seq[AST_SymbolFunarg], body: Seq[AST_Statement], isStatic: Boolean = false): AST_ObjectProperty = {
           newGetterOrSetter(new AST_ObjectSetter, k, args, body, isStatic)
         }
 
@@ -940,16 +942,23 @@ object TransformClasses {
     }
   }
 
-  def applyRules(n: AST_Extended): AST_Extended = {
-    val ret = n.top.transformAfter {(node, _) =>
+
+  def processAllClasses(n: AST_Extended, c: Option[RegExp] = None)(p: AST_DefClass => AST_DefClass): AST_Extended = {
+    val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case cls: AST_DefClass =>
-          n.config.rules.foldLeft(cls)((c, rule) => rule(c))
+        case cls@AST_DefClass(Defined(AST_SymbolName(cName)), _, _) if c.forall(_ test cName)=>
+          p(cls)
         case _ =>
           node
       }
     }
-    n.copy(top = ret)
+    n.copy (top = ret)
+  }
+
+
+  def applyRules(n: AST_Extended): AST_Extended = {
+    n.config.rules.foldLeft(n)((n, rule) => rule(n))
+
   }
 
 
@@ -1115,6 +1124,126 @@ object TransformClasses {
       }
     }
   }
+
+  def deleteMembers(n: AST_Extended, member: ConvertProject.MemberDesc) = {
+    processAllClasses(n, Some(member.cls)) { c =>
+      val ret = c.clone()
+      // filter member functions and properties
+      ret.properties = c.properties.filterNot(p => member.name.test(propertyName(p)))
+
+      deleteVarMember(ret, member.name)
+    }
+
+  }
+
+  def makeProperties(n: AST_Extended, member: ConvertProject.MemberDesc) = {
+    TransformClasses.processAllClasses(n, Some(member.cls)) { c =>
+
+      // search constructor for a property definition
+      val applied = for (constructor <- Classes.findConstructor(c)) yield {
+        val cc = c.clone()
+
+        deleteVarMember(cc, member.name)
+
+        object CheckPropertyInit {
+          def unapply(arg: AST_Node): Option[AST_Node] = arg match {
+            case c: AST_Constant =>
+              Some(c)
+            case o: AST_Object =>
+              // TODO: check if values are acceptable (no dependencies on anything else then parameters)
+              Some(o)
+            case _ =>
+              None
+
+          }
+        }
+        object MatchName {
+          def unapply(arg: String): Option[String] = {
+            if (member.name.test(arg)) Some(arg)
+            else None
+          }
+        }
+
+        val newC = constructor.transformAfter { (node, transformer) =>
+          node match {
+            case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
+              //println(s"Found property definition ${nodeClassName(init)}")
+              val ss = new AST_SimpleStatement {
+
+
+                fillTokens(this, Classes.transformClassParameters(c, init))
+                body = init.clone()
+              }
+              cc.properties += newMethod(prop, Seq(), Seq(ss), init)
+              new AST_EmptyStatement {
+                fillTokens(this, node)
+              }
+            case _ =>
+              node
+          }
+        }
+
+        Classes.replaceProperty(cc, constructor, newC)
+      }
+
+      applied.getOrElse(c)
+    }
+
+  }
+
+  def replaceIsClass(n: AST_Extended, member: ConvertProject.MemberDesc): AST_Extended = {
+    // first scan for all symbols matching the rule
+    var isClassMembers = Map.empty[String, AST_DefClass]
+
+    n.top.walk {
+      case cls@AST_DefClass(Defined(AST_SymbolName(cName)), _, _) if member.cls test cName =>
+        val matching = cls.properties
+          .collect{
+            // we expect getter, no parameters, containing a single true statement
+            case AST_ObjectGetter(AST_SymbolName(name), AST_Function(Seq(), Seq(AST_SimpleStatement(_: AST_True)))) =>
+              name
+          }.filter { n =>
+            val matched = member.name.exec(n)
+            if (matched == null || matched.length < 2) false
+            else {
+              // only when class name matches the first match group
+              matched.lift(1).exists(_.contains(cName))
+            }
+          }.toSet
+
+        isClassMembers ++= matching.map(_ -> cls)
+        true
+      case _ =>
+        false
+    }
+
+    //println(s"Detected isClass members $isClassMembers")
+
+    object GetClass {
+      def unapply(arg: String): Option[AST_DefClass] = isClassMembers.get(arg)
+    }
+
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        case callOn AST_Dot GetClass(AST_DefClass(Defined(AST_SymbolName(prop)), _, _)) =>
+          //println(s"Detect call $prop")
+          new AST_Binary {
+            fillTokens(this, node)
+            left = callOn
+            operator = "instanceof"
+            right = new AST_SymbolRef {
+              fillTokens(this, node)
+              name = prop
+            }
+          }
+        case _ =>
+          node
+      }
+    }
+
+    n.copy(top = ret)
+  }
+
 
   val transforms = Seq[AST_Extended => AST_Extended](
     onTopNode(inlinePrototypeVariables),

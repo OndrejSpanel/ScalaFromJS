@@ -22,16 +22,10 @@ object ConvertProject {
   }
 
   trait Rule {
-    def apply(c: AST_DefClass): AST_DefClass
+    def apply(c: AST_Extended): AST_Extended
   }
 
-  case class MemberDesc(cls: RegExp, name: RegExp) {
-    def matches(c: AST_DefClass, n: String): Boolean = {
-      c.name.exists { cName =>
-        name.test(n) && cls.test(cName.name)
-      }
-    }
-  }
+  case class MemberDesc(cls: RegExp, name: RegExp)
 
   object MemberDesc {
     def load(o: AST_Object): MemberDesc = {
@@ -41,83 +35,21 @@ object ConvertProject {
     }
   }
 
-  private def deleteVarMember(c: AST_DefClass, member: MemberDesc) = {
-    val inlineBody = Classes.findInlineBody(c)
-    inlineBody.fold(c) { ib =>
-      // filter member variables as well
-      val retIB = ib.clone()
-      retIB.value.body = retIB.value.body.filterNot {
-        case AST_Definitions(AST_VarDef(AST_SymbolName(v), _)) if member.matches(c, v) =>
-          true
-        case _ =>
-          false
-      }
-      Classes.replaceProperty(c, ib, retIB)
-    }
-  }
-
   case class DeleteMemberRule(member: MemberDesc) extends Rule {
-    override def apply(c: AST_DefClass) = {
-      val ret = c.clone()
-      // filter member functions and properties
-      ret.properties = c.properties.filterNot(p => member.matches(c, propertyName(p)))
-
-      deleteVarMember(ret, member)
+    override def apply(n: AST_Extended) = {
+      TransformClasses.deleteMembers(n, member)
     }
   }
 
+  case class IsClassMemberRule(member: MemberDesc) extends Rule {
+    override def apply(n: AST_Extended) = {
+      TransformClasses.replaceIsClass(n, member)
+    }
+  }
 
   case class MakePropertyRule(member: MemberDesc) extends Rule {
-    override def apply(c: AST_DefClass) = {
-
-      // search constructor for a property definition
-      val applied = for (constructor <- Classes.findConstructor(c)) yield {
-        val cc = c.clone()
-
-        deleteVarMember(cc, member)
-
-        object CheckPropertyInit {
-          def unapply(arg: AST_Node): Option[AST_Node] = arg match {
-            case c: AST_Constant =>
-              Some(c)
-            case o: AST_Object =>
-              // TODO: check if values are acceptable (no dependencies on anything else then parameters)
-              Some(o)
-            case _ =>
-              None
-
-          }
-        }
-        object MatchName {
-          def unapply(arg: String): Option[String] = {
-            if (member.name.test(arg)) Some(arg)
-            else None
-          }
-        }
-
-        val newC = constructor.transformAfter { (node, transformer) =>
-          node match {
-            case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
-              //println(s"Found property definition ${nodeClassName(init)}")
-              val ss = new AST_SimpleStatement {
-
-
-                fillTokens(this, Classes.transformClassParameters(c, init))
-                body = init.clone()
-              }
-              cc.properties += newMethod(prop, Seq(), Seq(ss), init)
-              new AST_EmptyStatement {
-                fillTokens(this, node)
-              }
-            case _ =>
-              node
-          }
-        }
-
-        Classes.replaceProperty(cc, constructor, newC)
-      }
-
-      applied.getOrElse(c)
+    override def apply(n: AST_Extended) = {
+      TransformClasses.makeProperties(n, member)
     }
   }
 
@@ -139,6 +71,8 @@ object ConvertProject {
                   Some(DeleteMemberRule(m))
                 case Some("make-property") =>
                   Some(MakePropertyRule(m))
+                case Some("instanceof") =>
+                  Some(IsClassMemberRule(m))
                 case Some(opName) =>
                   throw new UnsupportedOperationException(s"Unknown operation $opName for member $m")
                 case _ =>
@@ -168,11 +102,20 @@ object ConvertProject {
     }
   }
 
-  def loadConfig(ast: AST_Node): ConvertConfig = {
+  def loadConfig(ast: AST_Toplevel): (ConvertConfig, AST_Toplevel) = {
     var readConfig = Option.empty[ConvertConfig]
 
+    object GetConfig {
+      def unapply(arg: AST_Node) = arg match {
+        case AST_Definitions(AST_VarDef(AST_SymbolName(`configName`), AST_Object(props))) =>
+          Some(props)
+        case _ =>
+          None
+      }
+    }
+
     ast.walk {
-      case AST_Definitions(AST_VarDef(AST_SymbolName(`configName`), AST_Object(props))) =>
+      case GetConfig(props) =>
         readConfig = Some(ConvertConfig.load(props))
         false
       case _: AST_Toplevel =>
@@ -184,14 +127,28 @@ object ConvertProject {
 
     }
 
-    readConfig.getOrElse(ConvertConfig())
+    val removedConfig = readConfig.fold(ast) { rc =>
+      ast.transformAfter { (node, _) =>
+        node match {
+          case GetConfig(_) =>
+            new AST_EmptyStatement {
+              fillTokens(this, node)
+            }
+          case _ =>
+            node
+        }
+
+      }
+    }
+
+    readConfig.getOrElse(ConvertConfig()) -> removedConfig
   }
 
 
 }
 
 
-case class ConvertProject(root: String, items: Map[String, Item], config: ConvertConfig = ConvertConfig()) {
+case class ConvertProject(root: String, items: Map[String, Item]) {
   lazy val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
   lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
@@ -296,8 +253,7 @@ case class ConvertProject(root: String, items: Map[String, Item], config: Conver
 
     if (toExample.isEmpty && toInclude.isEmpty && markAsIncludes.isEmpty) {
       //println(s"Do not add to ${items.map(_.name).mkString(",")}")
-
-      copy(config = loadConfig(ast))
+      this
     } else {
 
       if (false) {
@@ -351,7 +307,10 @@ case class ConvertProject(root: String, items: Map[String, Item], config: Conver
       parse(compositeFile, defaultUglifyOptions.parse)
     }
 
-    val astOptimized = if (true) Transform(AST_Extended(ast, config = config)) else AST_Extended(ast)
+    val ext = AST_Extended(ast).loadConfig
+
+    val astOptimized = if (true) Transform(ext) else ext
+
     val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1).withRoot(root)
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)

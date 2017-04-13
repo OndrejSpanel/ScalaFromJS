@@ -736,11 +736,11 @@ object UglifyExt {
     }
 
     object AST_Defun {
-      def unapply(arg: AST_Defun) = Some(arg.name, arg.argnames, arg.body.toSeq)
+      def unapply(arg: AST_Defun) = Some(arg.name, arg.argnames.toSeq, arg.body.toSeq)
     }
 
     object AST_Lambda {
-      def unapply(arg: AST_Lambda) = Some(arg.argnames, arg.body.toSeq)
+      def unapply(arg: AST_Lambda) = Some(arg.argnames.toSeq, arg.body.toSeq)
     }
 
     object AST_Function {

@@ -5,6 +5,8 @@ import Uglify._
 import UglifyExt._
 import UglifyExt.Import._
 import JsUtils._
+
+import scala.scalajs.js.RegExp
 import scalajs.js
 
 object Classes {
@@ -148,6 +150,22 @@ object Classes {
     c.properties = c.properties.map(p => if (p == oldP) newP else p)
     c
   }
+
+  def deleteVarMember(c: AST_DefClass, member: RegExp) = {
+    val inlineBody = Classes.findInlineBody(c)
+    inlineBody.fold(c) { ib =>
+      // filter member variables as well
+      val retIB = ib.clone()
+      retIB.value.body = retIB.value.body.filterNot {
+        case AST_Definitions(AST_VarDef(AST_SymbolName(v), _)) if member.test(v) =>
+          true
+        case _ =>
+          false
+      }
+      Classes.replaceProperty(c, ib, retIB)
+    }
+  }
+
 
   def transformClassParameters(c: AST_DefClass, init: AST_Node): AST_Node = {
     val transformed = for (cons <- findConstructor(c)) yield {

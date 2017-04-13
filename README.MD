@@ -40,9 +40,54 @@ Type inference
 
 Currently number, string and boolean types are detected and class types as well. 
 
-TODO:
+Exports / imports
+-----------------
+Multiple files may be converted, referencing each other with `export` / `import` statements.
 
-- improve `Array` and `Object` literal handling
+Usage examples
+--------------
+
+When an import is preceeded with a comment containing `@example`, it is considered as an usage example, and the
+correspoding file is read, but not output. This can be used to help type inference by providing examples of how
+functions are used.
+
+Transformation rules
+--------------------
+
+Source file may contain a variable called `ScalaFromJS_settings`. This variable may configure the conversion. Currently
+it is possible to define following transformation rules:
+
+
+      var ScalaFromJS_settings = {
+          members: [
+              {
+                  cls: ".*",
+                  name: "is(.*)",
+                  operation: "instanceof"
+              },{
+                  cls: ".*",
+                  name: "name",
+                  operation: "make-property"
+              },{
+                  cls: ".*",
+                  name: "exotic.*",
+                  operation: "delete"
+              },
+          ]
+      };
+
+Rule `instanceof`
+-----------------
+Calls matching the name pattern, where the first matching group matches the class name, are converted to "isInstanceOf[]".
+
+Rule `delete`
+-------------
+Definitions of the member functions or values matching the rule are deleted (usages of the member are left intact)
+
+Rule `make-property`
+--------------------
+Value member matching the rule are replaced with a property. Note: this transformation may change code semantics, as the property value
+is evaluated when the property is accessed. If expression defining the property depends on any mutable values, the result may be different.  
 
 Developer notes
 ===============

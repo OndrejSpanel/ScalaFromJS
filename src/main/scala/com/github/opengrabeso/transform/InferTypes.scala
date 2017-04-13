@@ -148,9 +148,9 @@ object InferTypes {
       }
     }
 
-    def inferParsOrArgs(pars: js.Array[AST_SymbolFunarg], args: Seq[AST_Node]) = {
+    def inferParsOrArgs(pars: Seq[AST_SymbolFunarg], args: Seq[AST_Node]) = {
 
-      val parIds = pars.toSeq.map(_.thedef.nonNull).flatMap(_.map(id))
+      val parIds = pars.map(_.thedef.nonNull).flatMap(_.map(id))
 
       for ((Some(par), arg) <- parIds zip args) {
         val tp = expressionType(arg)(ctx)
