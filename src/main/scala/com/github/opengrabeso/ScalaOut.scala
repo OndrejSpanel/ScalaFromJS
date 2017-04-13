@@ -774,7 +774,15 @@ object ScalaOut {
                 if (tp.typeOnInit) out": $tp"
               }
 
-              init.fold {
+              def trivialInit(i: AST_Node): Option[AST_Node] = {
+                i match {
+                  case a: AST_Array if a.elements.isEmpty => None
+                  case o: AST_Object if o.properties.isEmpty => None
+                  case _ => Some(i)
+                }
+              }
+
+              init.nonNull.flatMap(trivialInit).fold {
                 val construct = sType.map(_.scalaConstruct).getOrElse("_")
                 out" = $construct"
               }(i => out" = $i")

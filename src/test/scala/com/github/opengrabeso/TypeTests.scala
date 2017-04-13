@@ -224,7 +224,7 @@ class TypeTests extends FunSuite with TestUtils {
         "z = Map.empty[String, String]",
         "var cc = Array.empty[Unit]",
         "var ca = Array(0, 1, 2)",
-        "var cb = Array()"
+        "var cb = Array.empty"
       ).forbidden(
         "[index]","[name]"
       )
