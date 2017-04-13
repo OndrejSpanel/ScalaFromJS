@@ -10,8 +10,10 @@ import scala.scalajs.js
 import js.JSConverters._
 import scala.collection.immutable.ListMap
 import scala.language.implicitConversions
+import scala.scalajs.js.RegExp
 
 object TransformClasses {
+
 
   object ClassDefine {
     def unapply(arg: AST_Node) = arg match {
@@ -941,10 +943,10 @@ object TransformClasses {
   }
 
 
-  def processAllClasses(n: AST_Extended)(p: AST_DefClass => AST_DefClass): AST_Extended = {
+  def processAllClasses(n: AST_Extended, c: Option[RegExp] = None)(p: AST_DefClass => AST_DefClass): AST_Extended = {
     val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case cls: AST_DefClass =>
+        case cls@AST_DefClass(Defined(AST_SymbolName(cName)), _, _) if c.forall(_ test cName)=>
           p(cls)
         case _ =>
           node
@@ -1122,6 +1124,73 @@ object TransformClasses {
       }
     }
   }
+
+  def deleteMembers(n: AST_Extended, member: ConvertProject.MemberDesc) = {
+    processAllClasses(n, Some(member.cls)) { c =>
+      val ret = c.clone()
+      // filter member functions and properties
+      ret.properties = c.properties.filterNot(p => member.name.test(propertyName(p)))
+
+      deleteVarMember(ret, member.name)
+    }
+
+  }
+
+  def makeProperties(n: AST_Extended, member: ConvertProject.MemberDesc) = {
+    TransformClasses.processAllClasses(n, Some(member.cls)) { c =>
+
+      // search constructor for a property definition
+      val applied = for (constructor <- Classes.findConstructor(c)) yield {
+        val cc = c.clone()
+
+        deleteVarMember(cc, member.name)
+
+        object CheckPropertyInit {
+          def unapply(arg: AST_Node): Option[AST_Node] = arg match {
+            case c: AST_Constant =>
+              Some(c)
+            case o: AST_Object =>
+              // TODO: check if values are acceptable (no dependencies on anything else then parameters)
+              Some(o)
+            case _ =>
+              None
+
+          }
+        }
+        object MatchName {
+          def unapply(arg: String): Option[String] = {
+            if (member.name.test(arg)) Some(arg)
+            else None
+          }
+        }
+
+        val newC = constructor.transformAfter { (node, transformer) =>
+          node match {
+            case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
+              //println(s"Found property definition ${nodeClassName(init)}")
+              val ss = new AST_SimpleStatement {
+
+
+                fillTokens(this, Classes.transformClassParameters(c, init))
+                body = init.clone()
+              }
+              cc.properties += newMethod(prop, Seq(), Seq(ss), init)
+              new AST_EmptyStatement {
+                fillTokens(this, node)
+              }
+            case _ =>
+              node
+          }
+        }
+
+        Classes.replaceProperty(cc, constructor, newC)
+      }
+
+      applied.getOrElse(c)
+    }
+
+  }
+
 
   val transforms = Seq[AST_Extended => AST_Extended](
     onTopNode(inlinePrototypeVariables),
