@@ -12,6 +12,8 @@ scalacOptions in ThisBuild ++= Seq("-unchecked", "-feature", "-deprecation")
 
 jsDependencies += ProvidedJS / "uglifyjs.js"
 
+jsDependencies += ProvidedJS / "debug.js" dependsOn "uglifyjs.js"
+
 libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.1"
 
 libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.1" % "test"
