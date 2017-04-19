@@ -380,5 +380,18 @@ object Variables {
 
   }
 
+  def instanceofImpliedCast(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, _) =>
+      node match {
+        case AST_If(AST_Binary(AST_SymbolRefDef(symDef), "instanceof", AST_SymbolRefName(cls)), _ , _) =>
+          println(s"Implied cast $node")
+          node
+        case _ =>
+          //println(s"No match $node")
+          node
+
+      }
+    }
+  }
 
 }

@@ -749,6 +749,7 @@ object Transform {
       onTopNode(Parameters.defaultValues),
       onTopNode(Parameters.modifications),
       onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
+      onTopNode(Variables.instanceofImpliedCast),
       objectAssign _,
       onTopNode(removeVarClassScope),
       InferTypes.multipass _,
