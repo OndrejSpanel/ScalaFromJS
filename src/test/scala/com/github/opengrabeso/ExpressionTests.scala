@@ -11,6 +11,7 @@ class ExpressionTests extends FunSuite with TestUtils {
         "var x =",
         "var y",
         "var z",
+        "val u =",
         "val a =",
         "val l ="
       ).forbidden(
@@ -18,6 +19,7 @@ class ExpressionTests extends FunSuite with TestUtils {
       "var l",
       "val x",
       "val y",
+      "var u",
       "var y =",
       "var z ="
     )

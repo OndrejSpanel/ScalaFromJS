@@ -185,14 +185,31 @@ object Variables {
 
     //println(s"transform, vars ${pairs.keys.map(_.name).mkString(",")}")
 
+    object MatchInitWithAssign {
+      def unapply(arg: AST_Node) = arg match {
+        // sr = xxx
+        case AST_SimpleStatement(AST_Assign(sr@AST_SymbolRef(name, scope, thedef), "=", right)) if refs contains sr =>
+          Some(sr, name, scope, thedef, right)
+        // if (m1 == undefined) m1 = xxx
+        case AST_If(
+        AST_Binary(sr@AST_SymbolRef(name, scope, thedef), "==" | "===", AST_SymbolRefName("undefined")),
+        SingleStatement(AST_Assign(sr2@AST_SymbolRef(_, _, thedef2), "=", right)),
+        None
+        ) if thedef == thedef2 && (refs contains sr) =>
+          Some(sr, name, scope, thedef, right)
+        case _ => None
+      }
+    }
+
     // walk the tree, check for possible val replacements and perform them
     val changeAssignToVar = n.transformAfter {(node, transformer) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       //println(s"node ${nodeClassName(node)} ${ScalaOut.outputNode(node, "")}")
       // we need to descend into assignment definitions, as they may contain other assignments
       node match {
-        case AST_SimpleStatement(AST_Assign(sr@AST_SymbolRef(name, scope, thedef), "=", right)) if refs contains sr =>
+        case MatchInitWithAssign(sr, name, scope, thedef, right) =>
           //println(s"ss match assign ${nodeClassName(left)} ${ScalaOut.outputNode(left, "")}")
+          // checking if inside of a block statement, to prevent replacing inside of a compound statement
           val stackTail = transformer.stack.takeRight(2).dropRight(1).toSeq
           stackTail match {
             case Seq(_: AST_Block) =>
@@ -205,8 +222,7 @@ object Variables {
               vv.name.init = js.Array(right)
               vv.value = right
               vv.name.scope = scope
-              for (d <- thedef; orig <- d.orig.headOption)
-              {
+              for (d <- thedef; orig <- d.orig.headOption) {
                 fillTokens(vr, orig)
                 fillTokens(vv, orig)
                 fillTokens(vv.name, orig)
@@ -218,6 +234,7 @@ object Variables {
               node
           }
         case _ =>
+          //println(s"ss no match ${nodeClassName(node)}")
           node
       }
     }

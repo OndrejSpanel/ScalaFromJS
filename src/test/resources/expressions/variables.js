@@ -4,10 +4,12 @@ function f()
     var x;
     var y;
     var z;
+    var u;
 
     s = "S";
     x = (function() {var a;a = 0;})();
     if (true) y = 1;
+    if (u === undefined) u = "defined";
     var f = function() {
         y = "YY";
         z += 1;

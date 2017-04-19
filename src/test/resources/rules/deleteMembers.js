@@ -1,4 +1,6 @@
-function C() {}
+function C() {
+
+}
 
 C.prototype.constructor = C;
 
