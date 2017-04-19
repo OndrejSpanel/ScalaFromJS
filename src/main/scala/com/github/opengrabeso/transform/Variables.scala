@@ -383,9 +383,40 @@ object Variables {
   def instanceofImpliedCast(n: AST_Node): AST_Node = {
     n.transformAfter { (node, _) =>
       node match {
-        case AST_If(AST_Binary(AST_SymbolRefDef(symDef), "instanceof", AST_SymbolRefName(cls)), _ , _) =>
-          println(s"Implied cast $node")
-          node
+        case s@AST_If(AST_Binary(AST_SymbolRefDef(symDef), "instanceof", cs@AST_SymbolRefName(cls)), ifStatement, elseStatement) =>
+          //println(s"Implied cast $node")
+          // TODO: ifStatement already may be a block
+          s.body = new AST_BlockStatement {
+            fillTokens(this, s)
+            this.body = js.Array(
+              new AST_Let {
+                fillTokens(this, s)
+                definitions = js.Array(new AST_VarDef {
+                  fillTokens(this, s)
+                  name = new AST_SymbolVar {
+                    fillTokens(this, s)
+                    name = symDef.name + "_cast"
+                  }
+                  value = new AST_Binary {
+                    /*_*/
+                    fillTokens(this, s)
+                    /*_*/
+                    left = new AST_SymbolRef {
+                      /*_*/
+                      fillTokens(this, s)
+                      /*_*/
+                      thedef = symDef
+                      name = symDef.name
+                    }
+                    operator = "asinstanceof" // TODO: replace string with a variable
+                    right = cs.clone()
+                  }
+                })
+              },
+              ifStatement // TODO: transform inside of the ifStatement
+            )
+          }
+          s
         case _ =>
           //println(s"No match $node")
           node

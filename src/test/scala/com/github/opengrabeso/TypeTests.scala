@@ -240,10 +240,12 @@ class TypeTests extends FunSuite with TestUtils {
       C.prototype.constructor = C;
 
       function f() {
-          var c = new C();
+          var c;
 
           if (c instanceof C) {
               console.log("C1");
+              var dd;
+              if (true) dd = c;
           } else if (c instanceof C) {
               console.log("C2");
           } else {

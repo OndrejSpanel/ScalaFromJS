@@ -467,6 +467,10 @@ object Transform {
         val t1 = expressionType(tern.consequent)(ctx)
         val t2 = expressionType(tern.alternative)(ctx)
         typeUnionOption(t1, t2)
+
+      case AST_Binary(expr, "asinstanceof", AST_SymbolRefName(cls)) =>
+        Some(TypeInfo.target(ClassType(cls)))
+
       case AST_Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
         // result of any arithmetic op is a number

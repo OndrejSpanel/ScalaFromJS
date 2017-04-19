@@ -467,6 +467,8 @@ object ScalaOut {
         tn.operator match {
           case "instanceof" =>
             out"${tn.left}.isInstanceOf[${tn.right}]"
+          case "asinstanceof" =>
+            out"${tn.left}.asInstanceOf[${tn.right}]"
           case _ =>
             out"${tn.left} ${tn.operator} ${tn.right}"
         }

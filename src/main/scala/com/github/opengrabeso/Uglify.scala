@@ -183,7 +183,7 @@ object Uglify extends js.Object {
   @js.native class AST_EmptyStatement extends AST_Statement
 
   @js.native abstract sealed class AST_StatementWithBody extends AST_Statement {
-    val body: AST_Statement = js.native
+    var body: AST_Statement = js.native
   }
 
   @js.native class AST_LabeledStatement extends AST_StatementWithBody {
@@ -227,9 +227,9 @@ object Uglify extends js.Object {
 
   @js.native class AST_If extends AST_StatementWithBody {
     // [AST_Node] the `if` condition
-    val condition: AST_Node  = js.native
+    var condition: AST_Node  = js.native
     // [AST_Statement?] the `else` part, or null if not present
-    val alternative: js.UndefOr[AST_Statement]  = js.native
+    var alternative: js.UndefOr[AST_Statement]  = js.native
   }
 
   @js.native sealed abstract class AST_Jump extends AST_Statement
