@@ -361,32 +361,36 @@ object Variables {
       node match {
         case s@AST_If(AST_Binary(AST_SymbolRefDef(symDef), `instanceof`, cs@AST_SymbolRefName(cls)), ifStatement, elseStatement) =>
           //println(s"Implied cast $node")
-          // TODO: ifStatement already may be a block
-          s.body = new AST_BlockStatement {
-            fillTokens(this, s)
+          val symName = symDef.name
+          val castSuffix = "_cast"
 
-            val symName = symDef.name
-            val castSuffix = "_cast"
-
-
-            this.body = js.Array(
-              AST_Const(s) (
-                AST_VarDef.initialized(s) (
-                  symDef.name + castSuffix,
-                  AST_Binary(s) (AST_SymbolRef.symDef(s)(symDef), asinstanceof, cs.clone())
-                )
-              ),
-              ifStatement.transformAfter { (node, transformer) =>
-                node match {
-                  case sym@AST_SymbolName(`symName`) =>
-                    sym.name = symName + castSuffix
-                    sym
-                  case _ =>
-                    node
-                }
-              }
+          val defVar = AST_Const(s) (
+            AST_VarDef.initialized(s) (
+              symDef.name + castSuffix,
+              AST_Binary(s) (AST_SymbolRef.symDef(s)(symDef), asinstanceof, cs.clone())
             )
+          )
+          val ifBodyTransformed = ifStatement.transformAfter { (node, transformer) =>
+            node match {
+              case sym@AST_SymbolName(`symName`) =>
+                sym.name = symName + castSuffix
+                sym
+              case _ =>
+                node
+            }
           }
+
+          s.body = ifBodyTransformed match {
+            case block: AST_BlockStatement =>
+              block.body = defVar +: block.body
+              block
+            case _ =>
+              new AST_BlockStatement {
+                fillTokens(this, s)
+                this.body = js.Array(defVar, ifBodyTransformed)
+              }
+          }
+
           s
         case _ =>
           //println(s"No match $node")
