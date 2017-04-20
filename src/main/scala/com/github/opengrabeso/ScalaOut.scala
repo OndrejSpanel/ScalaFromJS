@@ -666,7 +666,18 @@ object ScalaOut {
         tn.bfinally.nonNull.foreach(nodeToOut)
       case tn: AST_Case =>
         out("case ")
-        nodeToOut(tn.expression)
+
+        tn.expression match {
+          // CASE_CAST
+          case AST_Const(AST_VarDef(
+            AST_SymbolName(name),
+            Defined(AST_Binary(AST_SymbolRefName(name2),Symbols.asinstanceof,AST_SymbolRefName(cls)))
+          )) if name == name2 =>
+            out"$name: $cls"
+          case _ =>
+            nodeToOut(tn.expression)
+        }
+
         out(" =>\n")
         out.indent()
         blockToOut(tn.body)

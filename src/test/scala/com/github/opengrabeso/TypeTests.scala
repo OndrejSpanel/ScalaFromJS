@@ -239,23 +239,29 @@ class TypeTests extends FunSuite with TestUtils {
 
       C.prototype.constructor = C;
 
+      function D() {
+      }
+
+      C.prototype.constructor = C;
+      D.prototype.constructor = D;
+
       function f() {
           var c;
 
           if (c instanceof C) {
-              console.log("C1");
-              var dd;
-              if (true) dd = c;
-          } else if (c instanceof C) {
-              console.log("C2");
+              console.log("C");
+              var x;
+              if (true) x = c;
+          } else if (c instanceof D) {
+              console.log("D");
           } else {
               console.log("3");
           }
       }
-
       """).required(
-        "c.isInstanceOf[C]",
-        "dd: C"
+        "case c: C",
+        "case c: D",
+        "x: C"
       ).forbidden(
       )
 
