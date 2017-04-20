@@ -407,11 +407,11 @@ object Variables {
                 )
                 this.body = makeBlock(cast._2) :+ new AST_Break().withTokens(s)
               }.withTokens(s):AST_Statement
-            }.toJSArray ++ elseStatement.map { e =>
-              new AST_Default {
-                this.body = makeBlock(e.transform_js(transformer).asInstanceOf[AST_Statement])
-              }.withTokens(node)
-            }
+            }.toJSArray :+ new AST_Default {
+              this.body = elseStatement.map { e =>
+                makeBlock(e.transform_js(transformer).asInstanceOf[AST_Statement])
+              }.getOrElse(js.Array())
+            }.withTokens(node)
           }.withTokens(node)
         // note: currently never matches, even sequence of one cast is handled by the pattern above
         case SingleCast(s, symDef, cs, ifStatement, _) =>
