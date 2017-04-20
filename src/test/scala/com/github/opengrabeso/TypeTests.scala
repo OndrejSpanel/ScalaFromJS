@@ -252,7 +252,7 @@ class TypeTests extends FunSuite with TestUtils {
               console.log("C");
               var x;
               if (true) x = c;
-          } else if (c instanceof D) {
+          } else if (c && c instanceof D) {
               console.log("D");
           } else {
               console.log("3");

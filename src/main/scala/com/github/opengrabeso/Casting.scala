@@ -8,6 +8,10 @@ import Symbols._
 object Casting {
   class InstanceOf(op: String) {
     def unapply(arg: AST_Binary) = arg match {
+      // a && (a op b)
+      case AST_Binary(AST_SymbolRefDef(sym), "&&",AST_Binary(AST_SymbolRefDef(symDef), `op`, cs: AST_SymbolRef)) if sym == symDef =>
+        Some(symDef, cs)
+      // a op b
       case AST_Binary(AST_SymbolRefDef(symDef), `op`, cs: AST_SymbolRef) =>
         Some(symDef, cs)
       case _ =>
