@@ -102,9 +102,7 @@ object Transform {
               def value = AST_SimpleStatement(node)(expr.clone())
 
               val tempName = "temp"
-              def storeValue = AST_SimpleStatement(node) (
-                AST_Let(node)(AST_VarDef.initialized(node)(tempName, expr.clone()))
-              )
+              def storeValue = AST_Let(node)(AST_VarDef.initialized(node)(tempName, expr.clone()))
 
               def loadValue = AST_SimpleStatement(node)(AST_SymbolRef(node)(tempName))
 
