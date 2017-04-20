@@ -667,13 +667,23 @@ object ScalaOut {
       case tn: AST_Case =>
         out("case ")
 
+        import Casting._
+        object AsInstanceOfCondition extends InstanceOfCondition(`asinstanceof`)
+
+
         tn.expression match {
           // CASE_CAST
           case AST_Const(AST_VarDef(
-            AST_SymbolName(name),
-            Defined(AST_Binary(AST_SymbolRefName(name2),Symbols.asinstanceof,AST_SymbolRefName(cls)))
+            AST_SymbolDef(name),
+            Defined(AsInstanceOfCondition(name2, classes))
           )) if name == name2 =>
-            out"$name: $cls"
+            classes match {
+              case Seq(cls) =>
+                out"${name.name}: $cls"
+              case _ =>
+                val matchClasses = classes.map(c => s"_: ${c.name}").mkString(" | ")
+                out(matchClasses)
+            }
           case _ =>
             nodeToOut(tn.expression)
         }

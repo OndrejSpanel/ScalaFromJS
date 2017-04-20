@@ -358,25 +358,43 @@ object Variables {
 
   def instanceofImpliedCast(n: AST_Node): AST_Node = {
 
+    import Casting._
+
     object SingleCast {
-      def unapply(arg: AST_If) = arg match {
-        case s@AST_If(AST_Binary(AST_SymbolRefDef(symDef), `instanceof`, cs: AST_SymbolRef), ifStatement, elseStatement) =>
-          Some(s, symDef, cs, ifStatement, elseStatement)
+      def unapply(arg: AST_If): Option[(SymbolDef, Seq[AST_SymbolRef], AST_Statement, Option[AST_Statement])] = arg match {
+        // if (symDef instanceof cs)
+        // if (symDef instanceof cs || symDef instanceof ds)
+        case AST_If(InstanceOfCondition(symDef, cs), ifStatement, elseStatement) =>
+          Some(symDef, cs, ifStatement, elseStatement)
+
         case _ =>
           None
       }
     }
 
     object SequenceOfCasts {
-      def unapply(arg: AST_If): Option[(AST_If, SymbolDef, Seq[(AST_SymbolRef, AST_Statement)], Option[AST_Statement])] = arg match {
-        case SingleCast(s, symDef, cs, ifStatement, Some(SequenceOfCasts(s2, symDef2, casts, elseStatement))) if symDef == symDef2 =>
+      def unapply(arg: AST_If): Option[(SymbolDef, Seq[(Seq[AST_SymbolRef], AST_Statement)], Option[AST_Statement])] = arg match {
+        case SingleCast(symDef, cs, ifStatement, Some(SequenceOfCasts(symDef2, casts, elseStatement))) if symDef == symDef2 =>
           //println(s"Match ex ${symDef.name}")
-          Some(s, symDef, (cs, ifStatement) +: casts, elseStatement)
-        case SingleCast(s, symDef, cs, ifStatement, elseStatement) =>
+          Some(symDef, (cs, ifStatement) +: casts, elseStatement)
+        case SingleCast(symDef, cs, ifStatement, elseStatement) =>
           //println(s"Match ${symDef.name} elseStatement $elseStatement")
-          Some(s, symDef, Seq((cs, ifStatement)), elseStatement)
+          Some(symDef, Seq((cs, ifStatement)), elseStatement)
         case _ =>
           None
+      }
+    }
+
+    def condition(sym: SymbolDef, cs: Seq[AST_SymbolRef])(from: AST_Node): AST_Binary = {
+      cs match {
+        case Seq(head) =>
+          AST_Binary(from) (AST_SymbolRef.symDef(from)(sym), asinstanceof, head.clone())
+        case head +: tail =>
+          AST_Binary(from) (
+            AST_Binary(from) (AST_SymbolRef.symDef(from)(sym), asinstanceof, head.clone()),
+            "||",
+            condition(sym, tail)(from)
+          )
       }
     }
 
@@ -392,19 +410,14 @@ object Variables {
     val castSuffix = "_cast"
     n.transformBefore { (node, descend, transformer) =>
       node match {
-        case SequenceOfCasts(s, symDef, casts, elseStatement) /*if casts.lengthCompare(1) > 0*/ =>
+        case s@SequenceOfCasts(symDef, casts, elseStatement) /*if casts.lengthCompare(1) > 0*/ =>
           val castVar = AST_SymbolRef.symDef(s)(symDef)
           new AST_Switch {
             expression = castVar
             this.body = casts.map { cast =>
               new AST_Case {
                 // note: this is not a valid JS, we handle it in the ScalaOut as a special case, see CASE_CAST
-                expression = AST_Const(s) (
-                  AST_VarDef.initialized(s) (
-                    symDef.name,
-                    AST_Binary(s) (AST_SymbolRef.symDef(s)(symDef), asinstanceof, cast._1.clone())
-                  )
-                )
+                expression = AST_Const(s)(AST_VarDef.initialized(s) (symDef.name, condition(symDef, cast._1)(s)))
                 this.body = makeBlock(cast._2) :+ new AST_Break().withTokens(s)
               }.withTokens(s):AST_Statement
             }.toJSArray :+ new AST_Default {
@@ -414,16 +427,11 @@ object Variables {
             }.withTokens(node)
           }.withTokens(node)
         // note: currently never matches, even sequence of one cast is handled by the pattern above
-        case SingleCast(s, symDef, cs, ifStatement, _) =>
+        case s@SingleCast(symDef, cs, ifStatement, _) =>
           //println(s"Implied cast $node")
           val symName = symDef.name
 
-          val defVar = AST_Const(s) (
-            AST_VarDef.initialized(s) (
-              symDef.name + castSuffix,
-              AST_Binary(s) (AST_SymbolRef.symDef(s)(symDef), asinstanceof, cs.clone())
-            )
-          )
+          val defVar = AST_Const(s) (AST_VarDef.initialized(s) (symDef.name + castSuffix, condition(symDef, cs)(s)))
           val ifBodyTransformed = ifStatement.transformAfter { (node, transformer) =>
             node match {
               case sym@AST_SymbolName(`symName`) =>
