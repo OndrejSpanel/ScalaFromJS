@@ -8,6 +8,7 @@ import JsUtils._
 import scala.scalajs.js
 
 object ScalaOut {
+  import Symbols._
 
   object Config {
     val default = new Config
@@ -302,7 +303,7 @@ object ScalaOut {
     def outputClassArgNames(tn: AST_Lambda) = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        if (!n.name.endsWith(SymbolTypes.parSuffix)) out("var ")
+        if (!n.name.endsWith(parSuffix)) out("var ")
         out"$n"
         outputArgType(n)
       }
@@ -312,7 +313,7 @@ object ScalaOut {
     def outputArgNamesCallConstructor(tn: AST_Lambda) = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        out"${n.name+SymbolTypes.parSuffix}"
+        out"${n.name+parSuffix}"
       }
       out(")")
     }
@@ -465,9 +466,9 @@ object ScalaOut {
       //case tn: AST_Assign => outputUnknownNode(tn)
       case tn: AST_Binary =>
         tn.operator match {
-          case "instanceof" =>
+          case `instanceof` =>
             out"${tn.left}.isInstanceOf[${tn.right}]"
-          case "asinstanceof" =>
+          case `asinstanceof` =>
             out"${tn.left}.asInstanceOf[${tn.right}]"
           case _ =>
             out"${tn.left} ${tn.operator} ${tn.right}"

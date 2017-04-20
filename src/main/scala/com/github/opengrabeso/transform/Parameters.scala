@@ -217,7 +217,7 @@ object Parameters {
 
           // introduce a new symbol
           parNode.thedef = js.undefined
-          parNode.name = parName + SymbolTypes.parSuffix
+          parNode.name = parName + Symbols.parSuffix
 
           newF.argnames(parIndex) = parNode
 
@@ -234,7 +234,7 @@ object Parameters {
                   /*_*/
                   fillTokens(this, parNode)
                   /*_*/
-                  name = parName + SymbolTypes.parSuffix
+                  name = parName + Symbols.parSuffix
                 }
               })
             }
@@ -324,7 +324,7 @@ object Parameters {
       else {
         // inline all parameters, or constructor only?
         val parName = par.name
-        if (parName.endsWith(SymbolTypes.parSuffix) && par.thedef.isDefined) {
+        if (parName.endsWith(Symbols.parSuffix) && par.thedef.isDefined) {
           val parDef = par.thedef.get
           object IsVarPar {
 

@@ -14,6 +14,7 @@ import scala.language.implicitConversions
 
 object Variables {
   import VariableUtils._
+  import Symbols._
 
   // detect variables which can be declared as val instead of var
   def detectVals(n: AST_Node): AST_Node = {
@@ -383,7 +384,7 @@ object Variables {
   def instanceofImpliedCast(n: AST_Node): AST_Node = {
     n.transformAfter { (node, _) =>
       node match {
-        case s@AST_If(AST_Binary(AST_SymbolRefDef(symDef), "instanceof", cs@AST_SymbolRefName(cls)), ifStatement, elseStatement) =>
+        case s@AST_If(AST_Binary(AST_SymbolRefDef(symDef), `instanceof`, cs@AST_SymbolRefName(cls)), ifStatement, elseStatement) =>
           //println(s"Implied cast $node")
           // TODO: ifStatement already may be a block
           s.body = new AST_BlockStatement {
@@ -408,7 +409,7 @@ object Variables {
                       thedef = symDef
                       name = symDef.name
                     }
-                    operator = "asinstanceof" // TODO: replace string with a variable
+                    operator = asinstanceof
                     right = cs.clone()
                   }
                 })

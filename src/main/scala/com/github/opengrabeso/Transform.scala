@@ -17,6 +17,7 @@ import scala.language.implicitConversions
 object Transform {
 
   import SymbolTypes._
+  import Symbols._
 
   object AST_Extended {
     def noTypes = SymbolTypes()
@@ -468,7 +469,7 @@ object Transform {
         val t2 = expressionType(tern.alternative)(ctx)
         typeUnionOption(t1, t2)
 
-      case AST_Binary(expr, "asinstanceof", AST_SymbolRefName(cls)) =>
+      case AST_Binary(expr, `asinstanceof`, AST_SymbolRefName(cls)) =>
         Some(TypeInfo.target(ClassType(cls)))
 
       case AST_Binary(left, op, right) =>

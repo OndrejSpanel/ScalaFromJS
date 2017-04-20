@@ -13,7 +13,7 @@ import scala.language.implicitConversions
 import scala.scalajs.js.RegExp
 
 object TransformClasses {
-
+  import Symbols._
 
   object ClassDefine {
     def unapply(arg: AST_Node): Option[(AST_Symbol, Seq[AST_SymbolFunarg], Seq[AST_Statement])] = arg match {
@@ -906,7 +906,7 @@ object TransformClasses {
               s.transformAfter { (node, transformer) =>
                 node match {
                   case sym@AST_SymbolName(IsParameter()) =>
-                    sym.name = sym.name + SymbolTypes.parSuffix
+                    sym.name = sym.name + parSuffix
                     sym
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
@@ -924,7 +924,7 @@ object TransformClasses {
             val accessor = classInlineBody(cls)
             accessor.argnames = constructor.argnames.map { p =>
               val a = p.clone()
-              a.name = p.name + SymbolTypes.parSuffix
+              a.name = p.name + parSuffix
               a
             }
             accessor.body = accessor.body ++ parNamesAdjusted
@@ -1230,7 +1230,7 @@ object TransformClasses {
           new AST_Binary {
             fillTokens(this, node)
             left = callOn
-            operator = "instanceof"
+            operator = instanceof
             right = new AST_SymbolRef {
               fillTokens(this, node)
               name = prop
