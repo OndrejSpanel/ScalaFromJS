@@ -95,24 +95,20 @@ object Transform {
           if (nodeResultDiscarded(node, 0)) {
             substitute(node, expr, op)
           } else {
-            new AST_BlockStatement {
-              fillTokens(this, node)
+            init(new AST_BlockStatement) { i =>
 
-              def operation = AST_SimpleStatement(node)(substitute(node, expr, op))
-              def value = AST_SimpleStatement(node)(expr.clone())
-
-              val tempName = "temp"
-              def storeValue = AST_Let(node)(AST_VarDef.initialized(node)(tempName, expr.clone()))
-
-              def loadValue = AST_SimpleStatement(node)(AST_SymbolRef(node)(tempName))
-
+              val operation = AST_SimpleStatement(node)(substitute(node, expr, op))
               node match {
                 case _: AST_UnaryPrefix =>
-                  this.body = js.Array(operation, value)
+                  val value = AST_SimpleStatement(node)(expr.clone())
+                  i.body = js.Array(operation, value)
                 case _ /*: AST_UnaryPostfix*/ =>
-                  this.body = js.Array(storeValue, operation, loadValue)
+                  val tempName = "temp"
+                  val storeValue = AST_Let(node)(AST_VarDef.initialized(node)(tempName, expr.clone()))
+                  val loadValue = AST_SimpleStatement(node)(AST_SymbolRef(node)(tempName))
+                  i.body = js.Array(storeValue, operation, loadValue)
               }
-            }
+            }.withTokens(node)
           }
         case _ =>
           node
