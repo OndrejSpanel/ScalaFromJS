@@ -340,16 +340,7 @@ object Variables {
             //println("Transform for")
 
             val vars = forOK.map { case (v, initV, _) =>
-                new AST_VarDef {
-                  fillTokens(this, initV)
-                  name = new AST_SymbolVar {
-                    fillTokens(this, initV)
-                    name = v.name
-                    thedef = v
-                    scope = v.scope // should be the for body instead, but it will be overwritten anyway
-                  }
-                  value = initV
-                }
+              AST_VarDef.initialized(initV)(v.name, initV)
             }
 
             f.init = AST_Let(f)(vars:_*)
