@@ -105,13 +105,7 @@ object Transform {
               def storeValue = AST_SimpleStatement(node) (
                 new AST_Let {
                   fillTokens(this, node)
-                  definitions = js.Array(AST_VarDef(node)(
-                    new AST_SymbolVar {
-                      fillTokens(this, node)
-                      name = tempName
-                    },
-                    expr.clone()
-                  ))
+                  definitions = js.Array(AST_VarDef.initialized(node)(tempName, expr.clone()))
                 }
               )
 

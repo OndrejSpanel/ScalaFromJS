@@ -218,18 +218,7 @@ object Variables {
               replaced += td
               new AST_Var {
                 fillTokens(this, node)
-                definitions = js.Array(
-                  AST_VarDef(node)(
-                    new AST_SymbolVar {
-                      fillTokens(this, node)
-                      thedef = td
-                      name = vName
-                      scope = vScope
-                      init = js.Array(right)
-                    },
-                    right
-                  )
-                )
+                definitions = js.Array(AST_VarDef.initialized(node)(vName, right))
               }
             case _ =>
               node
@@ -392,11 +381,8 @@ object Variables {
             this.body = js.Array(
               new AST_Let {
                 fillTokens(this, s)
-                definitions = js.Array(AST_VarDef(s) (
-                  new AST_SymbolVar {
-                    fillTokens(this, s)
-                    name = symDef.name + "_cast"
-                  },
+                definitions = js.Array(AST_VarDef.initialized(s) (
+                  symDef.name + "_cast",
                   new AST_Binary {
                     /*_*/
                     fillTokens(this, s)

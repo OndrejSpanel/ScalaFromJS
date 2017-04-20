@@ -711,6 +711,31 @@ object UglifyExt {
           node.value = value
         }
       }
+
+      def uninitialized(node: AST_Node)(vName: String): AST_VarDef = {
+        AST_VarDef(node)(
+          new AST_SymbolVar {
+            fillTokens(this, node)
+            name = vName
+            // thedef and scope will be filled by uglify
+            init = js.Array[AST_Node]()
+          },
+          js.undefined
+        )
+      }
+
+      def initialized(node: AST_Node)(vName: String, right: AST_Node): AST_VarDef = {
+        AST_VarDef(node)(
+          new AST_SymbolVar {
+            fillTokens(this, node)
+            name = vName
+            // thedef and scope will be filled by uglify
+            init = js.Array(right)
+          },
+          right
+        )
+
+      }
     }
 
     object AST_Unary {
