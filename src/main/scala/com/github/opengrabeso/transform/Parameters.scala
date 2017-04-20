@@ -224,12 +224,7 @@ object Parameters {
               fillTokens(this, parNode)
               definitions = js.Array(AST_VarDef.initialized(parNode) (
                 parName,
-                new AST_SymbolRef {
-                  /*_*/
-                  fillTokens(this, parNode)
-                  /*_*/
-                  name = parName + Symbols.parSuffix
-                }
+                AST_SymbolRef(parNode)(parName + Symbols.parSuffix)
               ))
             }
           ) ++ f.body

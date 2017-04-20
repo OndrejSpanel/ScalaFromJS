@@ -673,6 +673,25 @@ object UglifyExt {
 
     object AST_SymbolRef {
       def unapply(arg: AST_SymbolRef) = AST_Symbol.unapply(arg)
+
+      def apply(from: AST_Node)(n: String): AST_SymbolRef = {
+        init(new AST_SymbolRef){ s =>
+          s.name = n
+        }.withTokens(from)
+      }
+      def symDef(from: AST_Node)(sd: SymbolDef): AST_SymbolRef = {
+        init(new AST_SymbolRef){ s =>
+          s.name = sd.name
+          s.thedef = sd
+        }.withTokens(from)
+      }
+      def sym(from: AST_Node)(sym: AST_Symbol): AST_SymbolRef = {
+        init(new AST_SymbolRef){ s =>
+          s.name = sym.name
+          s.thedef = sym.thedef
+          s.scope = sym.scope
+        }.withTokens(from)
+      }
     }
     object AST_SymbolRefName {
       def unapply(arg: AST_SymbolRef) = AST_SymbolName.unapply(arg)
@@ -909,6 +928,7 @@ object UglifyExt {
   }
 
   object Import extends AST_Extractors
+  import Import._
 
   def nodeClassName(n: AST_Node): String = {
     if (js.isUndefined(n)) "undefined"
@@ -944,10 +964,7 @@ object UglifyExt {
     to.end = from.end
   }
 
-  def keyNode(orig: AST_Node, k: String) = new AST_SymbolRef {
-    fillTokens(this, orig)
-    name = k
-  }
+  def keyNode(orig: AST_Node, k: String) = AST_SymbolRef(orig)(k)
 
 
   def newMethod(k: String, args: Seq[AST_SymbolFunarg], body: Seq[AST_Statement], tokensFrom: AST_Node, isStatic: Boolean = false) = new AST_ConciseMethod {
@@ -968,16 +985,12 @@ object UglifyExt {
     }
   }
 
-  import Import._
 
   def unsupported(message: String, source: AST_Node, include: Option[AST_Node] = None) = {
     AST_SimpleStatement(source) {
       new AST_Call {
         fillTokens(this, source)
-        expression = new AST_SymbolRef {
-          fillTokens(this, source)
-          name = "????" // force compile error
-        }
+        expression = AST_SymbolRef(source)("????") // force compile error
         args = js.Array(
           new AST_String {
             fillTokens(this, source)

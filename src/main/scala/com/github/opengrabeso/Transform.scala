@@ -109,12 +109,7 @@ object Transform {
                 }
               )
 
-              def loadValue = AST_SimpleStatement(node) {
-                new AST_SymbolRef {
-                  fillTokens(this, node)
-                  name = tempName
-                }
-              }
+              def loadValue = AST_SimpleStatement(node)(AST_SymbolRef(node)(tempName))
 
               node match {
                 case _: AST_UnaryPrefix =>
@@ -686,10 +681,7 @@ object Transform {
                         expression = ts
                         property = p.key
                         fillTokens(this, p)
-                        new AST_SymbolRef {
-                          fillTokens(this, p)
-                          name = p.key
-                        }
+                        AST_SymbolRef(p)(p.key)
                       }
                       operator = "="
                       right = p.value

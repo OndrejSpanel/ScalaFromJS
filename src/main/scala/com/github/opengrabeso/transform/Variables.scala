@@ -387,13 +387,7 @@ object Variables {
                     /*_*/
                     fillTokens(this, s)
                     /*_*/
-                    left = new AST_SymbolRef {
-                      /*_*/
-                      fillTokens(this, s)
-                      /*_*/
-                      thedef = symDef
-                      name = symDef.name
-                    }
+                    left = AST_SymbolRef.symDef(s)(symDef)
                     operator = asinstanceof
                     right = cs.clone()
                   }
