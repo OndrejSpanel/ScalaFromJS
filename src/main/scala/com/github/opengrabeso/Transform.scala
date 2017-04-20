@@ -103,10 +103,7 @@ object Transform {
 
               val tempName = "temp"
               def storeValue = AST_SimpleStatement(node) (
-                new AST_Let {
-                  fillTokens(this, node)
-                  definitions = js.Array(AST_VarDef.initialized(node)(tempName, expr.clone()))
-                }
+                AST_Let(node)(AST_VarDef.initialized(node)(tempName, expr.clone()))
               )
 
               def loadValue = AST_SimpleStatement(node)(AST_SymbolRef(node)(tempName))

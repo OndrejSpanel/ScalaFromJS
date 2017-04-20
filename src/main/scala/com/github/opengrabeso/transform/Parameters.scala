@@ -220,13 +220,7 @@ object Parameters {
           newF.argnames(parIndex) = parNode
 
           newF.body = js.Array(
-            new AST_Let {
-              fillTokens(this, parNode)
-              definitions = js.Array(AST_VarDef.initialized(parNode) (
-                parName,
-                AST_SymbolRef(parNode)(parName + Symbols.parSuffix)
-              ))
-            }
+            AST_Let(parNode)(AST_VarDef.initialized(parNode)(parName, AST_SymbolRef(parNode)(parName + Symbols.parSuffix)))
           ) ++ f.body
 
           newF

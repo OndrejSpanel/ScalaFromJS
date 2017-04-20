@@ -781,6 +781,12 @@ object UglifyExt {
     }
 
     object AST_Let {
+      def apply(from: AST_Node)(defs: AST_VarDef*): AST_Let = {
+        init(new AST_Let){ i =>
+          i.definitions = defs.toJSArray
+        }.withTokens(from)
+      }
+
       def unapplySeq(arg: AST_Let) = AST_Definitions.unapplySeq(arg)
     }
 

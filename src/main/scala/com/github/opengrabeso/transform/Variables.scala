@@ -352,12 +352,7 @@ object Variables {
                 }
             }
 
-            f.init = new AST_Let {
-              /*_*/
-              fillTokens(this, f)
-              /*_*/
-              definitions = vars.toJSArray
-            }
+            f.init = AST_Let(f)(vars:_*)
             f
           } else {
             f
@@ -379,13 +374,12 @@ object Variables {
           s.body = new AST_BlockStatement {
             fillTokens(this, s)
             this.body = js.Array(
-              new AST_Let {
-                fillTokens(this, s)
-                definitions = js.Array(AST_VarDef.initialized(s) (
+              AST_Let(s) (
+                AST_VarDef.initialized(s) (
                   symDef.name + "_cast",
                   AST_Binary(s) (AST_SymbolRef.symDef(s)(symDef), asinstanceof, cs.clone())
-                ))
-              },
+                )
+              ),
               ifStatement // TODO: transform inside of the ifStatement
             )
           }
