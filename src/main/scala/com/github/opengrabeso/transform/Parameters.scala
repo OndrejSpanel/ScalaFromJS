@@ -222,19 +222,18 @@ object Parameters {
           newF.body = js.Array(
             new AST_Let {
               fillTokens(this, parNode)
-              definitions = js.Array(new AST_VarDef {
-                fillTokens(this, parNode)
-                name = new AST_SymbolVar {
+              definitions = js.Array(AST_VarDef(parNode) (
+                new AST_SymbolVar {
                   fillTokens(this, parNode)
                   name = parName
-                }
-                value = new AST_SymbolRef {
+                },
+                new AST_SymbolRef {
                   /*_*/
                   fillTokens(this, parNode)
                   /*_*/
                   name = parName + Symbols.parSuffix
                 }
-              })
+              ))
             }
           ) ++ f.body
 

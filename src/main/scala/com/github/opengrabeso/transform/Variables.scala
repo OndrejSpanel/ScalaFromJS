@@ -208,29 +208,29 @@ object Variables {
       //println(s"node ${nodeClassName(node)} ${ScalaOut.outputNode(node, "")}")
       // we need to descend into assignment definitions, as they may contain other assignments
       node match {
-        case MatchInitWithAssign(sr, name, scope, thedef, right) =>
+        case MatchInitWithAssign(sr, vName, vScope, Defined(td), right) =>
           //println(s"ss match assign ${nodeClassName(left)} ${ScalaOut.outputNode(left, "")}")
           // checking if inside of a block statement, to prevent replacing inside of a compound statement
           val stackTail = transformer.stack.takeRight(2).dropRight(1).toSeq
           stackTail match {
             case Seq(_: AST_Block) =>
-              val vr = new AST_Var
-              val vv = new AST_VarDef
-              vr.definitions = js.Array(vv)
-              vv.name = new AST_SymbolVar
-              vv.name.thedef = thedef
-              vv.name.name = name
-              vv.name.init = js.Array(right)
-              vv.value = right
-              vv.name.scope = scope
-              for (d <- thedef; orig <- d.orig.headOption) {
-                fillTokens(vr, orig)
-                fillTokens(vv, orig)
-                fillTokens(vv.name, orig)
-              }
               //println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef, value ${nodeTreeToString(right)}")
-              replaced ++= thedef.nonNull
-              vr
+              replaced += td
+              new AST_Var {
+                fillTokens(this, node)
+                definitions = js.Array(
+                  AST_VarDef(node)(
+                    new AST_SymbolVar {
+                      fillTokens(this, node)
+                      thedef = td
+                      name = vName
+                      scope = vScope
+                      init = js.Array(right)
+                    },
+                    right
+                  )
+                )
+              }
             case _ =>
               node
           }
@@ -392,13 +392,12 @@ object Variables {
             this.body = js.Array(
               new AST_Let {
                 fillTokens(this, s)
-                definitions = js.Array(new AST_VarDef {
-                  fillTokens(this, s)
-                  name = new AST_SymbolVar {
+                definitions = js.Array(AST_VarDef(s) (
+                  new AST_SymbolVar {
                     fillTokens(this, s)
                     name = symDef.name + "_cast"
-                  }
-                  value = new AST_Binary {
+                  },
+                  new AST_Binary {
                     /*_*/
                     fillTokens(this, s)
                     /*_*/
@@ -412,7 +411,7 @@ object Variables {
                     operator = asinstanceof
                     right = cs.clone()
                   }
-                })
+                ))
               },
               ifStatement // TODO: transform inside of the ifStatement
             )

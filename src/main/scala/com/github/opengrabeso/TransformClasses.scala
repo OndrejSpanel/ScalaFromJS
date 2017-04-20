@@ -836,12 +836,13 @@ object TransformClasses {
           val vars = newMembers.map { m =>
             new AST_Var {
               fillTokens(this, node)
-              definitions = js.Array(new AST_VarDef {
-                name = new AST_SymbolVar {
+              definitions = js.Array(AST_VarDef(node) (
+                new AST_SymbolVar {
                   fillTokens(this, node)
                   name = m
-                }
-              })
+                },
+                js.undefined
+              ))
             }
           }
 

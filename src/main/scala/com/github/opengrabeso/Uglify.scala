@@ -704,6 +704,13 @@ object UglifyExt {
 
     object AST_VarDef {
       def unapply(arg: AST_VarDef) = Some(arg.name, arg.value)
+
+      def apply(from: AST_Node)(name: AST_SymbolVarOrConst, value: js.UndefOr[AST_Node]): AST_VarDef = {
+        init(new AST_VarDef()) { node =>
+          node.name = name
+          node.value = value
+        }
+      }
     }
 
     object AST_Unary {
