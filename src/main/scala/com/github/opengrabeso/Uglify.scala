@@ -659,6 +659,14 @@ object UglifyExt {
 
     object AST_Binary {
       def unapply(arg: AST_Binary) = Some((arg.left, arg.operator, arg.right))
+
+      def apply(from: AST_Node)(l: AST_Node, op: String, r: AST_Node): AST_Binary = {
+        init(new AST_Binary) { i =>
+          i.left = l
+          i.operator = op
+          i.right = r
+        }.withTokens(from)
+      }
     }
     object AST_Assign {
       def unapply(arg: AST_Assign) = AST_Binary.unapply(arg)

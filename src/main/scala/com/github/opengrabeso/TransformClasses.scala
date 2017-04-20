@@ -1183,13 +1183,8 @@ object TransformClasses {
       node match {
         case callOn AST_Dot GetClass(AST_DefClass(Defined(AST_SymbolName(prop)), _, _)) =>
           //println(s"Detect call $prop")
-          new AST_Binary {
-            fillTokens(this, node)
-            left = callOn
-            operator = instanceof
-            right = AST_SymbolRef(node)(prop)
-          }
-        case _ =>
+          AST_Binary(node) (callOn, instanceof, AST_SymbolRef(node)(prop))
+      case _ =>
           node
       }
     }

@@ -383,14 +383,7 @@ object Variables {
                 fillTokens(this, s)
                 definitions = js.Array(AST_VarDef.initialized(s) (
                   symDef.name + "_cast",
-                  new AST_Binary {
-                    /*_*/
-                    fillTokens(this, s)
-                    /*_*/
-                    left = AST_SymbolRef.symDef(s)(symDef)
-                    operator = asinstanceof
-                    right = cs.clone()
-                  }
+                  AST_Binary(s) (AST_SymbolRef.symDef(s)(symDef), asinstanceof, cs.clone())
                 ))
               },
               ifStatement // TODO: transform inside of the ifStatement

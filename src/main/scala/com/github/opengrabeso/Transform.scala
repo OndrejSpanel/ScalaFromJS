@@ -233,12 +233,7 @@ object Transform {
                 assert(c1.body.isEmpty)
                 (c1, c2) match {
                   case (case1: AST_Case, case2: AST_Case) =>
-                    case2.expression = new AST_Binary {
-                      fillTokens(this, case1.expression)
-                      left = case1.expression
-                      operator = "|"
-                      right = case2.expression
-                    }
+                    case2.expression = AST_Binary(case1.expression) (case1.expression, "|", case2.expression)
                     case2
                   case (case1: AST_Default, case2: AST_Case) =>
                     case1.body = case2.body
