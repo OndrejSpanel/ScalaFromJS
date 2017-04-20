@@ -357,9 +357,52 @@ object Variables {
   }
 
   def instanceofImpliedCast(n: AST_Node): AST_Node = {
+
+    object SingleCast {
+      def unapply(arg: AST_If) = arg match {
+        case s@AST_If(AST_Binary(AST_SymbolRefDef(symDef), `instanceof`, cs: AST_SymbolRef), ifStatement, elseStatement) =>
+          Some(s, symDef, cs, ifStatement, elseStatement)
+        case _ =>
+          None
+      }
+    }
+
+    object SequenceOfCasts {
+      def unapply(arg: AST_If) = arg match {
+        case SingleCast(s, symDef, cs, ifStatement, elseStatement) =>
+          Some(s, symDef, Seq((cs, ifStatement)), elseStatement)
+        case _ =>
+          None
+      }
+    }
+
+    def makeBlock(s: AST_Statement): js.Array[AST_Statement] = {
+      s match {
+        case b: AST_BlockStatement =>
+          b.body
+        case _ =>
+          js.Array(s)
+      }
+    }
+
     n.transformAfter { (node, _) =>
       node match {
-        case s@AST_If(AST_Binary(AST_SymbolRefDef(symDef), `instanceof`, cs@AST_SymbolRefName(cls)), ifStatement, elseStatement) =>
+        case SequenceOfCasts(s, symDef, casts, elseStatement) =>
+          val castVar = AST_SymbolRef.symDef(s)(symDef)
+          new AST_Switch {
+            expression = castVar
+            this.body = casts.map { cast =>
+              new AST_Case {
+                expression = AST_Binary(s)(castVar, instanceof, cast._1)
+                this.body = makeBlock(cast._2) :+ new AST_Break().withTokens(s)
+              }.withTokens(s):AST_Statement
+            }.toJSArray ++ elseStatement.map { e =>
+              new AST_Default {
+                this.body = makeBlock(e)
+              }.withTokens(node)
+            }
+          }.withTokens(node)
+        case SingleCast(s, symDef, cs, ifStatement, _) =>
           //println(s"Implied cast $node")
           val symName = symDef.name
           val castSuffix = "_cast"

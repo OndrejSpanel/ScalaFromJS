@@ -154,7 +154,7 @@ object Uglify extends js.Object {
   @js.native class AST_Defun extends AST_Lambda
 
   @js.native class AST_Switch extends AST_Scope {
-    val expression: AST_Node = js.native // [AST_Node] the `switch` “discriminant
+    var expression: AST_Node = js.native // [AST_Node] the `switch` “discriminant
   }
 
   @js.native sealed abstract class AST_SwitchBranch extends AST_Scope
