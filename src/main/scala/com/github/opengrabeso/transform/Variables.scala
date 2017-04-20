@@ -364,14 +364,27 @@ object Variables {
           // TODO: ifStatement already may be a block
           s.body = new AST_BlockStatement {
             fillTokens(this, s)
+
+            val symName = symDef.name
+            val castSuffix = "_cast"
+
+
             this.body = js.Array(
-              AST_Let(s) (
+              AST_Const(s) (
                 AST_VarDef.initialized(s) (
-                  symDef.name + "_cast",
+                  symDef.name + castSuffix,
                   AST_Binary(s) (AST_SymbolRef.symDef(s)(symDef), asinstanceof, cs.clone())
                 )
               ),
-              ifStatement // TODO: transform inside of the ifStatement
+              ifStatement.transformAfter { (node, transformer) =>
+                node match {
+                  case sym@AST_SymbolName(`symName`) =>
+                    sym.name = symName + castSuffix
+                    sym
+                  case _ =>
+                    node
+                }
+              }
             )
           }
           s

@@ -683,9 +683,7 @@ object UglifyExt {
       def unapply(arg: AST_SymbolRef) = AST_Symbol.unapply(arg)
 
       def apply(from: AST_Node)(n: String): AST_SymbolRef = {
-        init(new AST_SymbolRef){ s =>
-          s.name = n
-        }.withTokens(from)
+        init(new AST_SymbolRef)(_.name = n).withTokens(from)
       }
       def symDef(from: AST_Node)(sd: SymbolDef): AST_SymbolRef = {
         init(new AST_SymbolRef){ s =>
@@ -720,9 +718,9 @@ object UglifyExt {
     object AST_SimpleStatement {
       def unapply(arg: AST_SimpleStatement) = Some(arg.body)
 
-      def apply(from: AST_Node)(body: AST_Node): AST_SimpleStatement = init(new AST_SimpleStatement()) { node =>
-        node.body = body
-      }.withTokens(from)
+      def apply(from: AST_Node)(body: AST_Node): AST_SimpleStatement = {
+        init(new AST_SimpleStatement())(_.body = body).withTokens(from)
+      }
     }
 
     object AST_BlockStatement {
@@ -782,9 +780,7 @@ object UglifyExt {
 
     object AST_Let {
       def apply(from: AST_Node)(defs: AST_VarDef*): AST_Let = {
-        init(new AST_Let){ i =>
-          i.definitions = defs.toJSArray
-        }.withTokens(from)
+        init(new AST_Let)(_.definitions = defs.toJSArray).withTokens(from)
       }
 
       def unapplySeq(arg: AST_Let) = AST_Definitions.unapplySeq(arg)
@@ -795,6 +791,10 @@ object UglifyExt {
     }
 
     object AST_Const {
+      def apply(from: AST_Node)(defs: AST_VarDef*): AST_Const = {
+        init(new AST_Const)(_.definitions = defs.toJSArray).withTokens(from)
+      }
+
       def unapplySeq(arg: AST_Const) = AST_Definitions.unapplySeq(arg)
     }
 

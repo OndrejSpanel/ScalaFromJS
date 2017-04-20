@@ -254,7 +254,8 @@ class TypeTests extends FunSuite with TestUtils {
       }
 
       """).required(
-        "c.isInstanceOf[C]"
+        "c.isInstanceOf[C]",
+        "dd: C"
       ).forbidden(
       )
 
