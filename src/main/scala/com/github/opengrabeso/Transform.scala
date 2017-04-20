@@ -146,9 +146,7 @@ object Transform {
 
   def replaceReturnWithStatement(ret: AST_Return) = {
     ret.value.nonNull.fold[AST_Statement] {
-      new AST_EmptyStatement {
-        fillTokens(this, ret)
-      }
+      AST_EmptyStatement(ret)
     } { v =>
       new AST_SimpleStatement {
         fillTokens(this, ret)

@@ -551,9 +551,7 @@ object TransformClasses {
     }
 
     val createClasses = deleteProtos.transformAfter { (node, walker) =>
-      def emptyNode = new AST_EmptyStatement {
-        fillTokens(this, node)
-      }
+      def emptyNode = AST_EmptyStatement(node)
 
       class Helper(tokensFrom: AST_Node) {
 
@@ -1018,9 +1016,7 @@ object TransformClasses {
           prototypeVariableDefs.get(protoFunSym).foreach (pv => assign.right = pv)
           node
         case PrototypeVariableDef(_, _) =>
-          new AST_EmptyStatement {
-            fillTokens(this, node)
-          }
+          AST_EmptyStatement(node)
         case _ =>
           node
       }
@@ -1117,9 +1113,7 @@ object TransformClasses {
           }
         // remove the original implementation
         case defun@AST_Defun(Defined(AST_SymbolDef(sym)), _, _) if implToConstructor contains sym =>
-          new AST_EmptyStatement {
-            fillTokens(this, defun)
-          }
+          AST_EmptyStatement(defun)
         case _ => node
       }
     }
@@ -1175,9 +1169,7 @@ object TransformClasses {
                 body = init.clone()
               }
               cc.properties += newMethod(prop, Seq(), Seq(ss), init)
-              new AST_EmptyStatement {
-                fillTokens(this, node)
-              }
+              AST_EmptyStatement(node)
             case _ =>
               node
           }

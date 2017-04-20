@@ -624,8 +624,6 @@ object UglifyExt {
 
   implicit class AST_NodeOps[T <: AST_Node](val node: T) {
 
-
-
     def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
     def walkWithDescend(walker: (AST_Node, (AST_Node, TreeWalker) => Unit, TreeWalker) => Boolean): Unit = {
 
@@ -645,6 +643,12 @@ object UglifyExt {
       tr = new TreeTransformer(null, node => after(node, tr))
       node.transform_js(tr).asInstanceOf[T]
     }
+
+    def withTokens(from: AST_Node): T = {
+      fillTokens(node, from)
+      node
+    }
+
   }
 
   trait AST_Extractors {
@@ -858,7 +862,14 @@ object UglifyExt {
 
   }
 
-  object Import extends AST_Extractors
+  trait AST_Constructors {
+    object AST_EmptyStatement {
+      def apply(): AST_EmptyStatement = new AST_EmptyStatement()
+      def apply(from: AST_Node): AST_EmptyStatement = new AST_EmptyStatement().withTokens(from)
+    }
+  }
+
+  object Import extends AST_Extractors with AST_Constructors
 
   def nodeClassName(n: AST_Node): String = {
     if (js.isUndefined(n)) "undefined"

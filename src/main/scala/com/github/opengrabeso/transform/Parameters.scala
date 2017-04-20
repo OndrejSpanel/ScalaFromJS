@@ -163,9 +163,7 @@ object Parameters {
           Some(f.transformBefore { (node, descend, transform) =>
             node match {
               case IsParDefaultHandlingAssignment(_) if defValueAssign.isDefined =>
-                new AST_EmptyStatement {
-                  fillTokens(this, node)
-                }
+                AST_EmptyStatement(node)
               case IsParDefaultHandling(symRef, _) if defValueCond.isDefined =>
                 symRef.clone()
               case _ =>
@@ -303,9 +301,7 @@ object Parameters {
         f.transformAfter { (node, _) =>
           node match {
             case s@IsParDeprecated() =>
-              new AST_EmptyStatement {
-                fillTokens(this, s)
-              }
+              AST_EmptyStatement(s)
             case _ =>
               node
           }
@@ -383,9 +379,7 @@ object Parameters {
             f.transformAfter { (node, _) =>
               node match {
                 case IsVarPar(`varSym`) =>
-                  new AST_EmptyStatement {
-                    fillTokens(this, node)
-                  }
+                  AST_EmptyStatement(node)
                 case _ =>
                   node
               }

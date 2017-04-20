@@ -131,9 +131,7 @@ object ConvertProject {
       ast.transformAfter { (node, _) =>
         node match {
           case GetConfig(_) =>
-            new AST_EmptyStatement {
-              fillTokens(this, node)
-            }
+            AST_EmptyStatement(node)
           case _ =>
             node
         }
