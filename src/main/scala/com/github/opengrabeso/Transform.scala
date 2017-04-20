@@ -98,18 +98,12 @@ object Transform {
             new AST_BlockStatement {
               fillTokens(this, node)
 
-              def operation = new AST_SimpleStatement {
-                fillTokens(this, node)
-                body = substitute(node, expr, op)
-              }
-              def value = new AST_SimpleStatement {
-                fillTokens(this, node)
-                body = expr.clone()
-              }
+              def operation = AST_SimpleStatement(node)(substitute(node, expr, op))
+              def value = AST_SimpleStatement(node)(expr.clone())
+
               val tempName = "temp"
-              def storeValue = new AST_SimpleStatement {
-                fillTokens(this, node)
-                body = new AST_Let {
+              def storeValue = AST_SimpleStatement(node) (
+                new AST_Let {
                   fillTokens(this, node)
                   definitions = js.Array(new AST_VarDef {
                     fillTokens(this, node)
@@ -120,11 +114,10 @@ object Transform {
                     value = expr.clone()
                   })
                 }
-              }
+              )
 
-              def loadValue = new AST_SimpleStatement {
-                fillTokens(this, node)
-                body = new AST_SymbolRef {
+              def loadValue = AST_SimpleStatement(node) {
+                new AST_SymbolRef {
                   fillTokens(this, node)
                   name = tempName
                 }
@@ -147,12 +140,8 @@ object Transform {
   def replaceReturnWithStatement(ret: AST_Return) = {
     ret.value.nonNull.fold[AST_Statement] {
       AST_EmptyStatement(ret)
-    } { v =>
-      new AST_SimpleStatement {
-        fillTokens(this, ret)
-        body = v
-
-      }
+    } {
+      AST_SimpleStatement(ret)
     }
   }
 
@@ -697,9 +686,8 @@ object Transform {
               x.properties.collect {
                 case p: AST_ObjectKeyVal =>
                   //println(s"${p.key}")
-                  new AST_SimpleStatement {
-                    fillTokens(this, p)
-                    body = new AST_Assign {
+                  AST_SimpleStatement(p) {
+                    new AST_Assign {
                       fillTokens(this, p)
                       left = new AST_Dot {
                         expression = ts

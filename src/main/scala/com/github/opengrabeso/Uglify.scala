@@ -652,6 +652,11 @@ object UglifyExt {
   }
 
   trait AST_Extractors {
+    def init[T](t: T)(i: T => Unit): T = {
+      i(t)
+      t
+    }
+
     object AST_Binary {
       def unapply(arg: AST_Binary) = Some((arg.left, arg.operator, arg.right))
     }
@@ -680,8 +685,17 @@ object UglifyExt {
       }
     }
 
+
+    object AST_EmptyStatement {
+      def apply(from: AST_Node): AST_EmptyStatement = new AST_EmptyStatement().withTokens(from)
+    }
+
     object AST_SimpleStatement {
       def unapply(arg: AST_SimpleStatement) = Some(arg.body)
+
+      def apply(from: AST_Node)(body: AST_Node): AST_SimpleStatement = init(new AST_SimpleStatement()) { node =>
+        node.body = body
+      }.withTokens(from)
     }
 
     object AST_BlockStatement {
@@ -862,14 +876,7 @@ object UglifyExt {
 
   }
 
-  trait AST_Constructors {
-    object AST_EmptyStatement {
-      def apply(): AST_EmptyStatement = new AST_EmptyStatement()
-      def apply(from: AST_Node): AST_EmptyStatement = new AST_EmptyStatement().withTokens(from)
-    }
-  }
-
-  object Import extends AST_Extractors with AST_Constructors
+  object Import extends AST_Extractors
 
   def nodeClassName(n: AST_Node): String = {
     if (js.isUndefined(n)) "undefined"
@@ -929,11 +936,11 @@ object UglifyExt {
     }
   }
 
+  import Import._
 
   def unsupported(message: String, source: AST_Node, include: Option[AST_Node] = None) = {
-    new AST_SimpleStatement {
-      fillTokens(this, source)
-      body = new AST_Call {
+    AST_SimpleStatement(source) {
+      new AST_Call {
         fillTokens(this, source)
         expression = new AST_SymbolRef {
           fillTokens(this, source)
@@ -945,12 +952,7 @@ object UglifyExt {
             value = message
             quote = "'"
           }
-        ) ++ include.map(inc =>
-          new AST_SimpleStatement {
-            fillTokens(this, source)
-            body = inc
-          }
-        )
+        ) ++ include.map(AST_SimpleStatement(source))
       }
     }
   }

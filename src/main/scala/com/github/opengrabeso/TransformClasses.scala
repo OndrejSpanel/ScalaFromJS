@@ -617,10 +617,7 @@ object TransformClasses {
               newMethod(k, args, body, tokensFrom, isStatic): AST_ObjectProperty
 
             case (m: ClassVarMember, false) =>
-              newGetter(k, Seq(), Seq(new AST_SimpleStatement {
-                fillTokens(this, tokensFrom)
-                body = m.value
-              }), isStatic)
+              newGetter(k, Seq(), Seq(AST_SimpleStatement(tokensFrom)(m.value)), isStatic)
             case (m: ClassVarMember, true) =>
               newValue(k, m.value, isStatic)
 
@@ -1162,11 +1159,8 @@ object TransformClasses {
           node match {
             case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
               //println(s"Found property definition ${nodeClassName(init)}")
-              val ss = new AST_SimpleStatement {
-
-
-                fillTokens(this, Classes.transformClassParameters(c, init))
-                body = init.clone()
+              val ss = AST_SimpleStatement(init) {
+                Classes.transformClassParameters(c, init.clone())
               }
               cc.properties += newMethod(prop, Seq(), Seq(ss), init)
               AST_EmptyStatement(node)
