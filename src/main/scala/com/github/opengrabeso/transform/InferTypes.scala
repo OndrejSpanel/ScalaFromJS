@@ -252,6 +252,8 @@ object InferTypes {
     }
 
     case class SymbolAccessSymbol(symbol: SymbolDef) extends SymbolAccessInfo {
+      override def toString = s"Symbol(${symbol.name})"
+
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
         addInferredType(id(symbol), tpe, kind)
       }
@@ -264,6 +266,8 @@ object InferTypes {
     }
 
     case class SymbolAccessDot(symbol: MemberId) extends SymbolAccessInfo {
+      override def toString = s"Member(${symbol.cls}.${symbol.name}})"
+
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
         addInferredMemberType(Some(symbol), tpe, kind)
       }
@@ -431,16 +435,17 @@ object InferTypes {
           }
 
         case AST_Assign(left, _, right) =>
+          val log = false
           val leftT = expressionType(left)(ctx)
           val rightT = expressionType(right)(ctx)
-          //println(s"Infer assign $leftT - $rightT")
+          if (log) println(s"Infer assign $leftT - $rightT ${ScalaOut.outputNode(node)}")
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
             for (SymbolInfo(symInfo) <- Some(left)) {
-              //println(s"Infer assign: $symInfo = $rightT")
+              if (log) println(s"  Infer assign: $symInfo = $rightT")
               symInfo.addSymbolInferredType(rightT)
             }
             for (SymbolInfo(symInfo) <- Some(right)) {
-              //println(s"Infer reverse assign: $leftT = $symInfo")
+              if (log) println(s"  Infer reverse assign: $leftT = $symInfo")
               symInfo.addSymbolInferredType(leftT, source)
             }
           }
@@ -638,8 +643,8 @@ object InferTypes {
       val newMetrics = r.types.knownItems
 
       //if (log) println(s"Type inference done: ${cr.types}")
-      // if metrics was not improved, use previous result
-      if (newMetrics > metrics && depth < maxDepth) {
+      // if metrics was not improved, use previous result, after byMembers always try another normal inference
+      if ((newMetrics > metrics || byMembers == 0) && depth < maxDepth) {
         inferTypesStep(r, depth + 1, newMetrics, byMembers - 1) // never repeat byMembers
       }
       else if (byMembers > 0) {
