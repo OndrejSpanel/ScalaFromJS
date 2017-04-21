@@ -252,9 +252,44 @@ object ScalaOut {
       out.submitLocation(s.pos)
     }
 
-    def outputDefinitions(isVal: Boolean, tn: AST_Definitions) = {
+    def outputVarDef(name: String, init: js.UndefOr[AST_Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
+      out(identifier(name))
+
+      println(s"AST_VarDef $name $sType ${init.nonNull.map(_.toString)}")
+      if (types || init.nonNull.isEmpty) {
+        for (tp <- sType) {
+          if (tp.typeOnInit) out": $tp"
+        }
+      }
+
+      def trivialInit(i: AST_Node): Option[AST_Node] = {
+        i match {
+          case a: AST_Array if a.elements.isEmpty => None
+          case o: AST_Object if o.properties.isEmpty => None
+          case _ => Some(i)
+        }
+      }
+
+      init.nonNull.flatMap(trivialInit).fold {
+        println(s"trivialInit of $sType")
+        val construct = sType.map(_.scalaConstruct).getOrElse("_")
+        out" = $construct"
+      }(i => out" = $i")
+      out.eol()
+    }
+
+    def getSymbolType(symDef: SymbolDef): Option[SymbolTypes.TypeDesc] = {
+      println(s"getSymbolType ${input.types.types}")
+      input.types.get(symDef).map(_.declType)
+    }
+
+    def outputDefinitions(
+      isVal: Boolean, tn: AST_Definitions,
+      getType: SymbolDef => Option[SymbolTypes.TypeDesc] = getSymbolType, types: Boolean = false
+    ) = {
+      println("outputDefinitions -")
       def outValVar() = {
-        out(if (isVal) "val" else "var")
+        out(if (isVal) "val " else "var ")
       }
 
       tn.definitions.foreach {
@@ -272,15 +307,19 @@ object ScalaOut {
           tpe match {
             case Some(mType: SymbolTypes.MapType) =>
               outValVar()
-              out" $name = ${mType.scalaConstruct}"
+              out"$name = ${mType.scalaConstruct}"
             case _ =>
               outValVar()
-              out" $v\n"
+              out"$v\n"
           }
 
-        case v =>
+        case AST_VarDef(AST_Symbol(name, _, Defined(sym)), init) =>
           outValVar()
-          out" $v\n"
+          //out("/*outputDefinitions*/")
+          val sType = getType(sym)
+          println(s"AST_VarDef sym ${SymbolTypes.id(sym)} $sType")
+          println(getType(sym))
+          outputVarDef(name, init, sType, types)
       }
     }
 
@@ -530,19 +569,11 @@ object ScalaOut {
       case tn: AST_Call =>
         outputCall(tn)
 
-      case tn: AST_VarDef =>
-        nodeToOut(tn.name)
-        tn.value.nonNull.fold {
-          val tpe = tn.name.thedef.nonNull.map { s =>
-            //println(s"${SymbolTypes.id(s)} ${input.types.get(s)}")
-            input.types.getAsScala(s)
-          }
-          val typeName = tpe.getOrElse(SymbolTypes.any)
-          out": $typeName"
-        } { v =>
-          out(" = ")
-          nodeToOut(v)
-        }
+      case AST_VarDef(AST_Symbol(name, _, Defined(sym)), init) =>
+        out("/*AST_VarDef*/")
+        val sType = getSymbolType(sym)
+        outputVarDef(name, init, sType, false)
+
       case tn: AST_Const =>
         outputDefinitions(true, tn)
       case tn: AST_Var =>
@@ -788,29 +819,16 @@ object ScalaOut {
           // class body should be a list of variable declarations, constructor statements may follow
 
           inlineBody.value.body.foreach {
-            case AST_Definitions(AST_VarDef(AST_SymbolName(s), init)) =>
-              //println(s"var $s $init")
-              val clsName = tn.name.nonNull.map(_.name)
-              val sType = input.types.getMember(clsName, s).map(_.declType)
-              out"var ${identifier(s)}"
+            case df: AST_Definitions =>
 
-              for (tp <- sType) {
-                if (tp.typeOnInit) out": $tp"
+              def getMemberType(s: SymbolDef) = {
+                val clsName = tn.name.nonNull.map(_.name)
+                println(s"member $clsName ${s.name}")
+                input.types.getMember(clsName, s.name).map(_.declType)
               }
 
-              def trivialInit(i: AST_Node): Option[AST_Node] = {
-                i match {
-                  case a: AST_Array if a.elements.isEmpty => None
-                  case o: AST_Object if o.properties.isEmpty => None
-                  case _ => Some(i)
-                }
-              }
-
-              init.nonNull.flatMap(trivialInit).fold {
-                val construct = sType.map(_.scalaConstruct).getOrElse("_")
-                out" = $construct"
-              }(i => out" = $i")
-              out.eol()
+              println("outputDefinitions - getMemberType")
+              outputDefinitions(false, df, getMemberType, true)
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
             case ss =>
               //out(nodeTreeToString(ss))
