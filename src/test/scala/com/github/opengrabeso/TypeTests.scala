@@ -229,4 +229,42 @@ class TypeTests extends FunSuite with TestUtils {
         "[index]","[name]"
       )
   }
+
+  test("Handle instanceof implied cast") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      function C() {
+      }
+
+      C.prototype.constructor = C;
+
+      function D() {
+      }
+
+      C.prototype.constructor = C;
+      D.prototype.constructor = D;
+
+      function f() {
+          var c;
+
+          if (c instanceof C) {
+              console.log("C");
+              var x;
+              if (true) x = c;
+          } else if (c && c instanceof D) {
+              console.log("D");
+          } else {
+              console.log("3");
+          }
+      }
+      """).required(
+        "case c: C",
+        "case c: D",
+        "x: C"
+      ).forbidden(
+      )
+
+  }
+
 }

@@ -8,6 +8,7 @@ import JsUtils._
 import scala.scalajs.js
 
 object ScalaOut {
+  import Symbols._
 
   object Config {
     val default = new Config
@@ -302,7 +303,7 @@ object ScalaOut {
     def outputClassArgNames(tn: AST_Lambda) = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        if (!n.name.endsWith(SymbolTypes.parSuffix)) out("var ")
+        if (!n.name.endsWith(parSuffix)) out("var ")
         out"$n"
         outputArgType(n)
       }
@@ -312,7 +313,7 @@ object ScalaOut {
     def outputArgNamesCallConstructor(tn: AST_Lambda) = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        out"${n.name+SymbolTypes.parSuffix}"
+        out"${n.name+parSuffix}"
       }
       out(")")
     }
@@ -465,8 +466,10 @@ object ScalaOut {
       //case tn: AST_Assign => outputUnknownNode(tn)
       case tn: AST_Binary =>
         tn.operator match {
-          case "instanceof" =>
+          case `instanceof` =>
             out"${tn.left}.isInstanceOf[${tn.right}]"
+          case `asinstanceof` =>
+            out"${tn.left}.asInstanceOf[${tn.right}]"
           case _ =>
             out"${tn.left} ${tn.operator} ${tn.right}"
         }
@@ -663,7 +666,28 @@ object ScalaOut {
         tn.bfinally.nonNull.foreach(nodeToOut)
       case tn: AST_Case =>
         out("case ")
-        nodeToOut(tn.expression)
+
+        import Casting._
+        object AsInstanceOfCondition extends InstanceOfCondition(`asinstanceof`)
+
+
+        tn.expression match {
+          // CASE_CAST
+          case AST_Const(AST_VarDef(
+            AST_SymbolDef(name),
+            Defined(AsInstanceOfCondition(name2, classes))
+          )) if name == name2 =>
+            classes match {
+              case Seq(cls) =>
+                out"${name.name}: $cls"
+              case _ =>
+                val matchClasses = classes.map(c => s"_: ${c.name}").mkString(" | ")
+                out(matchClasses)
+            }
+          case _ =>
+            nodeToOut(tn.expression)
+        }
+
         out(" =>\n")
         out.indent()
         blockToOut(tn.body)

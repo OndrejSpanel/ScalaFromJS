@@ -45,7 +45,7 @@ class ExpressionTests extends FunSuite with TestUtils {
 
   test("Handle typeof / instanceof") {
     execute check ConversionCheck(rsc("expressions/types.js"))
-      .required("s.isInstanceOf[String]", "s.getClass")
+      .required("s.isInstanceOf[String]", ".getClass")
       .forbidden("instanceof", "typeof")
   }
 

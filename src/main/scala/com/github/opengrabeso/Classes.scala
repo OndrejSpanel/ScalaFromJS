@@ -175,7 +175,7 @@ object Classes {
             val pn = cons.value.argnames.find(_.name == name)
             pn.fold(sym) { p =>
               val c = sym.clone()
-              c.name = c.name + SymbolTypes.parSuffix
+              c.name = c.name + Symbols.parSuffix
               c
             }
           case _ =>

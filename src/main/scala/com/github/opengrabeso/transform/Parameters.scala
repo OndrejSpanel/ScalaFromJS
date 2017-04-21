@@ -163,9 +163,7 @@ object Parameters {
           Some(f.transformBefore { (node, descend, transform) =>
             node match {
               case IsParDefaultHandlingAssignment(_) if defValueAssign.isDefined =>
-                new AST_EmptyStatement {
-                  fillTokens(this, node)
-                }
+                AST_EmptyStatement(node)
               case IsParDefaultHandling(symRef, _) if defValueCond.isDefined =>
                 symRef.clone()
               case _ =>
@@ -217,27 +215,12 @@ object Parameters {
 
           // introduce a new symbol
           parNode.thedef = js.undefined
-          parNode.name = parName + SymbolTypes.parSuffix
+          parNode.name = parName + Symbols.parSuffix
 
           newF.argnames(parIndex) = parNode
 
           newF.body = js.Array(
-            new AST_Let {
-              fillTokens(this, parNode)
-              definitions = js.Array(new AST_VarDef {
-                fillTokens(this, parNode)
-                name = new AST_SymbolVar {
-                  fillTokens(this, parNode)
-                  name = parName
-                }
-                value = new AST_SymbolRef {
-                  /*_*/
-                  fillTokens(this, parNode)
-                  /*_*/
-                  name = parName + SymbolTypes.parSuffix
-                }
-              })
-            }
+            AST_Let(parNode)(AST_VarDef.initialized(parNode)(parName, AST_SymbolRef(parNode)(parName + Symbols.parSuffix)))
           ) ++ f.body
 
           newF
@@ -303,9 +286,7 @@ object Parameters {
         f.transformAfter { (node, _) =>
           node match {
             case s@IsParDeprecated() =>
-              new AST_EmptyStatement {
-                fillTokens(this, s)
-              }
+              AST_EmptyStatement(s)
             case _ =>
               node
           }
@@ -324,7 +305,7 @@ object Parameters {
       else {
         // inline all parameters, or constructor only?
         val parName = par.name
-        if (parName.endsWith(SymbolTypes.parSuffix) && par.thedef.isDefined) {
+        if (parName.endsWith(Symbols.parSuffix) && par.thedef.isDefined) {
           val parDef = par.thedef.get
           object IsVarPar {
 
@@ -383,9 +364,7 @@ object Parameters {
             f.transformAfter { (node, _) =>
               node match {
                 case IsVarPar(`varSym`) =>
-                  new AST_EmptyStatement {
-                    fillTokens(this, node)
-                  }
+                  AST_EmptyStatement(node)
                 case _ =>
                   node
               }

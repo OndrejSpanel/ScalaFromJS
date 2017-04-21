@@ -17,6 +17,7 @@ import scala.language.implicitConversions
 object Transform {
 
   import SymbolTypes._
+  import Symbols._
 
   object AST_Extended {
     def noTypes = SymbolTypes()
@@ -94,48 +95,20 @@ object Transform {
           if (nodeResultDiscarded(node, 0)) {
             substitute(node, expr, op)
           } else {
-            new AST_BlockStatement {
-              fillTokens(this, node)
+            init(new AST_BlockStatement) { i =>
 
-              def operation = new AST_SimpleStatement {
-                fillTokens(this, node)
-                body = substitute(node, expr, op)
-              }
-              def value = new AST_SimpleStatement {
-                fillTokens(this, node)
-                body = expr.clone()
-              }
-              val tempName = "temp"
-              def storeValue = new AST_SimpleStatement {
-                fillTokens(this, node)
-                body = new AST_Let {
-                  fillTokens(this, node)
-                  definitions = js.Array(new AST_VarDef {
-                    fillTokens(this, node)
-                    name = new AST_SymbolVar {
-                      fillTokens(this, node)
-                      name = tempName
-                    }
-                    value = expr.clone()
-                  })
-                }
-              }
-
-              def loadValue = new AST_SimpleStatement {
-                fillTokens(this, node)
-                body = new AST_SymbolRef {
-                  fillTokens(this, node)
-                  name = tempName
-                }
-              }
-
+              val operation = AST_SimpleStatement(node)(substitute(node, expr, op))
               node match {
                 case _: AST_UnaryPrefix =>
-                  this.body = js.Array(operation, value)
+                  val value = AST_SimpleStatement(node)(expr.clone())
+                  i.body = js.Array(operation, value)
                 case _ /*: AST_UnaryPostfix*/ =>
-                  this.body = js.Array(storeValue, operation, loadValue)
+                  val tempName = "temp"
+                  val storeValue = AST_Let(node)(AST_VarDef.initialized(node)(tempName, expr.clone()))
+                  val loadValue = AST_SimpleStatement(node)(AST_SymbolRef(node)(tempName))
+                  i.body = js.Array(storeValue, operation, loadValue)
               }
-            }
+            }.withTokens(node)
           }
         case _ =>
           node
@@ -145,15 +118,9 @@ object Transform {
 
   def replaceReturnWithStatement(ret: AST_Return) = {
     ret.value.nonNull.fold[AST_Statement] {
-      new AST_EmptyStatement {
-        fillTokens(this, ret)
-      }
-    } { v =>
-      new AST_SimpleStatement {
-        fillTokens(this, ret)
-        body = v
-
-      }
+      AST_EmptyStatement(ret)
+    } {
+      AST_SimpleStatement(ret)
     }
   }
 
@@ -257,12 +224,7 @@ object Transform {
                 assert(c1.body.isEmpty)
                 (c1, c2) match {
                   case (case1: AST_Case, case2: AST_Case) =>
-                    case2.expression = new AST_Binary {
-                      fillTokens(this, case1.expression)
-                      left = case1.expression
-                      operator = "|"
-                      right = case2.expression
-                    }
+                    case2.expression = AST_Binary(case1.expression) (case1.expression, "|", case2.expression)
                     case2
                   case (case1: AST_Default, case2: AST_Case) =>
                     case1.body = case2.body
@@ -467,6 +429,10 @@ object Transform {
         val t1 = expressionType(tern.consequent)(ctx)
         val t2 = expressionType(tern.alternative)(ctx)
         typeUnionOption(t1, t2)
+
+      case AST_Binary(expr, `asinstanceof`, AST_SymbolRefName(cls)) =>
+        Some(TypeInfo.target(ClassType(cls)))
+
       case AST_Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
         // result of any arithmetic op is a number
@@ -694,18 +660,14 @@ object Transform {
               x.properties.collect {
                 case p: AST_ObjectKeyVal =>
                   //println(s"${p.key}")
-                  new AST_SimpleStatement {
-                    fillTokens(this, p)
-                    body = new AST_Assign {
+                  AST_SimpleStatement(p) {
+                    new AST_Assign {
                       fillTokens(this, p)
                       left = new AST_Dot {
                         expression = ts
                         property = p.key
                         fillTokens(this, p)
-                        new AST_SymbolRef {
-                          fillTokens(this, p)
-                          name = p.key
-                        }
+                        AST_SymbolRef(p)(p.key)
                       }
                       operator = "="
                       right = p.value
@@ -749,6 +711,7 @@ object Transform {
       onTopNode(Parameters.defaultValues),
       onTopNode(Parameters.modifications),
       onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
+      onTopNode(Variables.instanceofImpliedCast),
       objectAssign _,
       onTopNode(removeVarClassScope),
       InferTypes.multipass _,

@@ -154,7 +154,7 @@ object Uglify extends js.Object {
   @js.native class AST_Defun extends AST_Lambda
 
   @js.native class AST_Switch extends AST_Scope {
-    val expression: AST_Node = js.native // [AST_Node] the `switch` “discriminant
+    var expression: AST_Node = js.native // [AST_Node] the `switch` “discriminant
   }
 
   @js.native sealed abstract class AST_SwitchBranch extends AST_Scope
@@ -183,7 +183,7 @@ object Uglify extends js.Object {
   @js.native class AST_EmptyStatement extends AST_Statement
 
   @js.native abstract sealed class AST_StatementWithBody extends AST_Statement {
-    val body: AST_Statement = js.native
+    var body: AST_Statement = js.native
   }
 
   @js.native class AST_LabeledStatement extends AST_StatementWithBody {
@@ -227,9 +227,9 @@ object Uglify extends js.Object {
 
   @js.native class AST_If extends AST_StatementWithBody {
     // [AST_Node] the `if` condition
-    val condition: AST_Node  = js.native
+    var condition: AST_Node  = js.native
     // [AST_Statement?] the `else` part, or null if not present
-    val alternative: js.UndefOr[AST_Statement]  = js.native
+    var alternative: js.UndefOr[AST_Statement]  = js.native
   }
 
   @js.native sealed abstract class AST_Jump extends AST_Statement
@@ -624,8 +624,6 @@ object UglifyExt {
 
   implicit class AST_NodeOps[T <: AST_Node](val node: T) {
 
-
-
     def walk(walker: AST_Node => Boolean): Unit = node.walk_js(new TreeWalker((node, _) => walker(node)))
     def walkWithDescend(walker: (AST_Node, (AST_Node, TreeWalker) => Unit, TreeWalker) => Boolean): Unit = {
 
@@ -645,11 +643,30 @@ object UglifyExt {
       tr = new TreeTransformer(null, node => after(node, tr))
       node.transform_js(tr).asInstanceOf[T]
     }
+
+    def withTokens(from: AST_Node): T = {
+      fillTokens(node, from)
+      node
+    }
+
   }
 
   trait AST_Extractors {
+    def init[T](t: T)(i: T => Unit): T = {
+      i(t)
+      t
+    }
+
     object AST_Binary {
       def unapply(arg: AST_Binary) = Some((arg.left, arg.operator, arg.right))
+
+      def apply(from: AST_Node)(l: AST_Node, op: String, r: AST_Node): AST_Binary = {
+        init(new AST_Binary) { i =>
+          i.left = l
+          i.operator = op
+          i.right = r
+        }.withTokens(from)
+      }
     }
     object AST_Assign {
       def unapply(arg: AST_Assign) = AST_Binary.unapply(arg)
@@ -664,6 +681,23 @@ object UglifyExt {
 
     object AST_SymbolRef {
       def unapply(arg: AST_SymbolRef) = AST_Symbol.unapply(arg)
+
+      def apply(from: AST_Node)(n: String): AST_SymbolRef = {
+        init(new AST_SymbolRef)(_.name = n).withTokens(from)
+      }
+      def symDef(from: AST_Node)(sd: SymbolDef): AST_SymbolRef = {
+        init(new AST_SymbolRef){ s =>
+          s.name = sd.name
+          s.thedef = sd
+        }.withTokens(from)
+      }
+      def sym(from: AST_Node)(sym: AST_Symbol): AST_SymbolRef = {
+        init(new AST_SymbolRef){ s =>
+          s.name = sym.name
+          s.thedef = sym.thedef
+          s.scope = sym.scope
+        }.withTokens(from)
+      }
     }
     object AST_SymbolRefName {
       def unapply(arg: AST_SymbolRef) = AST_SymbolName.unapply(arg)
@@ -676,8 +710,17 @@ object UglifyExt {
       }
     }
 
+
+    object AST_EmptyStatement {
+      def apply(from: AST_Node): AST_EmptyStatement = new AST_EmptyStatement().withTokens(from)
+    }
+
     object AST_SimpleStatement {
       def unapply(arg: AST_SimpleStatement) = Some(arg.body)
+
+      def apply(from: AST_Node)(body: AST_Node): AST_SimpleStatement = {
+        init(new AST_SimpleStatement())(_.body = body).withTokens(from)
+      }
     }
 
     object AST_BlockStatement {
@@ -686,6 +729,38 @@ object UglifyExt {
 
     object AST_VarDef {
       def unapply(arg: AST_VarDef) = Some(arg.name, arg.value)
+
+      def apply(from: AST_Node)(name: AST_SymbolVarOrConst, value: js.UndefOr[AST_Node]): AST_VarDef = {
+        init(new AST_VarDef()) { node =>
+          node.name = name
+          node.value = value
+        }
+      }
+
+      def uninitialized(node: AST_Node)(vName: String): AST_VarDef = {
+        AST_VarDef(node)(
+          new AST_SymbolVar {
+            fillTokens(this, node)
+            name = vName
+            // thedef and scope will be filled by uglify
+            init = js.Array[AST_Node]()
+          },
+          js.undefined
+        )
+      }
+
+      def initialized(node: AST_Node)(vName: String, right: AST_Node): AST_VarDef = {
+        AST_VarDef(node)(
+          new AST_SymbolVar {
+            fillTokens(this, node)
+            name = vName
+            // thedef and scope will be filled by uglify
+            init = js.Array(right)
+          },
+          right
+        )
+
+      }
     }
 
     object AST_Unary {
@@ -704,6 +779,10 @@ object UglifyExt {
     }
 
     object AST_Let {
+      def apply(from: AST_Node)(defs: AST_VarDef*): AST_Let = {
+        init(new AST_Let)(_.definitions = defs.toJSArray).withTokens(from)
+      }
+
       def unapplySeq(arg: AST_Let) = AST_Definitions.unapplySeq(arg)
     }
 
@@ -712,6 +791,10 @@ object UglifyExt {
     }
 
     object AST_Const {
+      def apply(from: AST_Node)(defs: AST_VarDef*): AST_Const = {
+        init(new AST_Const)(_.definitions = defs.toJSArray).withTokens(from)
+      }
+
       def unapplySeq(arg: AST_Const) = AST_Definitions.unapplySeq(arg)
     }
 
@@ -859,6 +942,7 @@ object UglifyExt {
   }
 
   object Import extends AST_Extractors
+  import Import._
 
   def nodeClassName(n: AST_Node): String = {
     if (js.isUndefined(n)) "undefined"
@@ -894,10 +978,7 @@ object UglifyExt {
     to.end = from.end
   }
 
-  def keyNode(orig: AST_Node, k: String) = new AST_SymbolRef {
-    fillTokens(this, orig)
-    name = k
-  }
+  def keyNode(orig: AST_Node, k: String) = AST_SymbolRef(orig)(k)
 
 
   def newMethod(k: String, args: Seq[AST_SymbolFunarg], body: Seq[AST_Statement], tokensFrom: AST_Node, isStatic: Boolean = false) = new AST_ConciseMethod {
@@ -920,26 +1001,17 @@ object UglifyExt {
 
 
   def unsupported(message: String, source: AST_Node, include: Option[AST_Node] = None) = {
-    new AST_SimpleStatement {
-      fillTokens(this, source)
-      body = new AST_Call {
+    AST_SimpleStatement(source) {
+      new AST_Call {
         fillTokens(this, source)
-        expression = new AST_SymbolRef {
-          fillTokens(this, source)
-          name = "????" // force compile error
-        }
+        expression = AST_SymbolRef(source)("????") // force compile error
         args = js.Array(
           new AST_String {
             fillTokens(this, source)
             value = message
             quote = "'"
           }
-        ) ++ include.map(inc =>
-          new AST_SimpleStatement {
-            fillTokens(this, source)
-            body = inc
-          }
-        )
+        ) ++ include.map(AST_SimpleStatement(source))
       }
     }
   }

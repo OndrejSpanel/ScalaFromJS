@@ -13,7 +13,7 @@ import scala.language.implicitConversions
 import scala.scalajs.js.RegExp
 
 object TransformClasses {
-
+  import Symbols._
 
   object ClassDefine {
     def unapply(arg: AST_Node): Option[(AST_Symbol, Seq[AST_SymbolFunarg], Seq[AST_Statement])] = arg match {
@@ -551,9 +551,7 @@ object TransformClasses {
     }
 
     val createClasses = deleteProtos.transformAfter { (node, walker) =>
-      def emptyNode = new AST_EmptyStatement {
-        fillTokens(this, node)
-      }
+      def emptyNode = AST_EmptyStatement(node)
 
       class Helper(tokensFrom: AST_Node) {
 
@@ -619,10 +617,7 @@ object TransformClasses {
               newMethod(k, args, body, tokensFrom, isStatic): AST_ObjectProperty
 
             case (m: ClassVarMember, false) =>
-              newGetter(k, Seq(), Seq(new AST_SimpleStatement {
-                fillTokens(this, tokensFrom)
-                body = m.value
-              }), isStatic)
+              newGetter(k, Seq(), Seq(AST_SimpleStatement(tokensFrom)(m.value)), isStatic)
             case (m: ClassVarMember, true) =>
               newValue(k, m.value, isStatic)
 
@@ -670,14 +665,7 @@ object TransformClasses {
           object helper extends Helper(node)
           import helper._
 
-          val base = clazz.base.fold(js.undefined: js.UndefOr[AST_Node]) { b =>
-            new AST_SymbolRef {
-              /*_*/
-              fillTokens(this, node)
-              /*_*/
-              name = b
-            }
-          }
+          val base = clazz.base.fold(js.undefined: js.UndefOr[AST_Node])(b => AST_SymbolRef(node)(b))
 
           val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }
           val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
@@ -696,12 +684,7 @@ object TransformClasses {
 
           val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
 
-          val markerBase = new AST_SymbolRef {
-            /*_*/
-            fillTokens(this, node)
-            /*_*/
-            name = "static_^"
-          }
+          val markerBase = AST_SymbolRef(node)("static_^")
 
           newClass(sym, markerBase, mappedStatic)
 
@@ -741,14 +724,7 @@ object TransformClasses {
         val args = findThisClassInWalker(walker).toSeq.flatMap { defClass =>
           findInlineBody(defClass).orElse(findConstructor(defClass)).toSeq.flatMap(_.value.argnames)
         }
-        args.map { a =>
-          new AST_SymbolRef {
-            fillTokens(this, a)
-            name = a.name
-            scope = a.scope
-            thedef = a.thedef
-          }
-        }
+        args.map(a => AST_SymbolRef.sym(a)(a))
       }
 
       node match {
@@ -795,10 +771,7 @@ object TransformClasses {
         // this.constructor, typically as new this.constructor( ... )
         case (_: AST_This) AST_Dot "constructor" =>
           //println("this.constructor")
-          thisClass.flatMap(_.name.nonNull.map(_.name)).fold(node)(cls => new AST_SymbolRef {
-            fillTokens(this, node)
-            name = cls
-          })
+          thisClass.flatMap(_.name.nonNull.map(_.name)).fold(node)(cls => AST_SymbolRef(node)(cls))
 
         case _ =>
           //println(nodeClassName(node))
@@ -841,12 +814,7 @@ object TransformClasses {
           val vars = newMembers.map { m =>
             new AST_Var {
               fillTokens(this, node)
-              definitions = js.Array(new AST_VarDef {
-                name = new AST_SymbolVar {
-                  fillTokens(this, node)
-                  name = m
-                }
-              })
+              definitions = js.Array(AST_VarDef.uninitialized(node) (m))
             }
           }
 
@@ -906,15 +874,12 @@ object TransformClasses {
               s.transformAfter { (node, transformer) =>
                 node match {
                   case sym@AST_SymbolName(IsParameter()) =>
-                    sym.name = sym.name + SymbolTypes.parSuffix
+                    sym.name = sym.name + parSuffix
                     sym
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
                   case (_: AST_This) AST_Dot member if !transformer.parent().isInstanceOf[AST_Call] =>
-                    new AST_SymbolRef {
-                      fillTokens(this, node)
-                      name = member
-                    }
+                    AST_SymbolRef(node)(member)
                   case _ =>
                     node
                 }
@@ -924,7 +889,7 @@ object TransformClasses {
             val accessor = classInlineBody(cls)
             accessor.argnames = constructor.argnames.map { p =>
               val a = p.clone()
-              a.name = p.name + SymbolTypes.parSuffix
+              a.name = p.name + parSuffix
               a
             }
             accessor.body = accessor.body ++ parNamesAdjusted
@@ -1018,9 +983,7 @@ object TransformClasses {
           prototypeVariableDefs.get(protoFunSym).foreach (pv => assign.right = pv)
           node
         case PrototypeVariableDef(_, _) =>
-          new AST_EmptyStatement {
-            fillTokens(this, node)
-          }
+          AST_EmptyStatement(node)
         case _ =>
           node
       }
@@ -1117,9 +1080,7 @@ object TransformClasses {
           }
         // remove the original implementation
         case defun@AST_Defun(Defined(AST_SymbolDef(sym)), _, _) if implToConstructor contains sym =>
-          new AST_EmptyStatement {
-            fillTokens(this, defun)
-          }
+          AST_EmptyStatement(defun)
         case _ => node
       }
     }
@@ -1168,16 +1129,11 @@ object TransformClasses {
           node match {
             case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
               //println(s"Found property definition ${nodeClassName(init)}")
-              val ss = new AST_SimpleStatement {
-
-
-                fillTokens(this, Classes.transformClassParameters(c, init))
-                body = init.clone()
+              val ss = AST_SimpleStatement(init) {
+                Classes.transformClassParameters(c, init.clone())
               }
               cc.properties += newMethod(prop, Seq(), Seq(ss), init)
-              new AST_EmptyStatement {
-                fillTokens(this, node)
-              }
+              AST_EmptyStatement(node)
             case _ =>
               node
           }
@@ -1227,16 +1183,8 @@ object TransformClasses {
       node match {
         case callOn AST_Dot GetClass(AST_DefClass(Defined(AST_SymbolName(prop)), _, _)) =>
           //println(s"Detect call $prop")
-          new AST_Binary {
-            fillTokens(this, node)
-            left = callOn
-            operator = "instanceof"
-            right = new AST_SymbolRef {
-              fillTokens(this, node)
-              name = prop
-            }
-          }
-        case _ =>
+          AST_Binary(node) (callOn, instanceof, AST_SymbolRef(node)(prop))
+      case _ =>
           node
       }
     }
