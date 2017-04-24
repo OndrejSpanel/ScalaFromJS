@@ -209,7 +209,7 @@ object SymbolTypes {
   def apply(): SymbolTypes = SymbolTypes.std
   def apply(syms: Seq[(SymbolDef, TypeDesc)]) = {
     val idMap = syms.map { case (k,v) => id(k) -> v }.toMap - None
-    new SymbolTypes(idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)}, Map.empty)
+    new SymbolTypes(StdLibraries(), idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)})
   }
 
   case class ClassInfo(members: Map[String, Seq[String]] = Map.empty, parents: Map[String, String] = Map.empty) {
@@ -292,10 +292,11 @@ object SymbolTypes {
       "sqrt", "ceil", "floor", "round"
     )
   )
+  val libNames = libs.keys.toSeq
 
   private val numberFunction = FunctionType(number, IndexedSeq(number))
 
-  val stdLibraries = libs.keys.map { k =>
+  val stdLibraries: Map[SymbolMapId, TypeInfo] = libs.keys.map { k =>
     SymbolMapId(k, 0) -> TypeInfo.target(ClassType(k))// 0 is a special handling for global symbols
   }.toMap
 
@@ -306,7 +307,25 @@ object SymbolTypes {
     MemberId(cls, member) -> TypeInfo.target(numberFunction) // TODO: type data driven
   })(collection.breakOut)
 
-  lazy val std: SymbolTypes = SymbolTypes(stdLibraries, stdLibraryMembers)
+
+  // unique ID for std lib classes
+  // once ClassType contains offset uniquely identifying a class, this class can be deleted
+  case class StdLibraries(libs: Seq[String] = Seq.empty) {
+    val index = libs.zipWithIndex.map {case (v, i) => v -> (-1 - i)}.toMap
+
+    def symbolFromMember(cls: String, name: String): Option[SymbolMapId] = {
+      val id = index.get(cls)
+      id.map(SymbolMapId(name, _))
+    }
+  }
+
+  val stdLibs = StdLibraries(libNames)
+
+  val stdLibraryMemberSymbols: Map[SymbolMapId, TypeInfo] = stdLibraryMembers.toSeq.zipWithIndex.flatMap {case ((k,v), index) =>
+    stdLibs.symbolFromMember(k.cls, k.name).map(_ -> v)
+  }.toMap
+
+  lazy val std: SymbolTypes = SymbolTypes(stdLibs, stdLibraries ++ stdLibraryMemberSymbols)
 
   lazy val stdClassInfo: ClassInfo = ClassInfo(libs, Map.empty)
 
@@ -359,18 +378,22 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   def map(f: TypeDesc => TypeDesc): TypeInfo = TypeInfo(f(source), f(target))
 }
 
-case class SymbolTypes(types: Map[SymbolMapId, TypeInfo], members: Map[MemberId, TypeInfo]) {
+case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo]) {
 
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
 
-  def getMember(clsId: Option[MemberId]): Option[TypeInfo] = clsId.flatMap(members.get)
+  def symbolFromMember(memberId: MemberId): SymbolMapId = {
+    ???
+  }
+
+  def getMember(clsId: Option[MemberId]): Option[TypeInfo] = get(clsId.map(symbolFromMember))
   def getMember(cls: Option[String], member: String): Option[TypeInfo] = getMember(cls.map(MemberId(_, member)))
 
   def getAsScala(id: Option[SymbolMapId]): String = {
     get(id).fold (any.toString) (t => t.declType.toString)
   }
 
-  def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(types ++ that.types, members ++ that.members)
+  def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types)
 
   def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
     kv._1.fold(this) { id =>
@@ -379,19 +402,16 @@ case class SymbolTypes(types: Map[SymbolMapId, TypeInfo], members: Map[MemberId,
   }
 
   def addMember (kv: (Option[MemberId], TypeInfo)): SymbolTypes = {
-    kv._1.fold(this) { id =>
-      copy(members = members + (id -> kv._2))
-    }
+    this + (kv._1.map(symbolFromMember) -> kv._2)
   }
 
   def knownItems: Int = {
     def sumTypeInfo(types: Iterable[TypeInfo]) = types.foldLeft(0)((s, i) => s + i.knownItems)
-    sumTypeInfo(types.values) + sumTypeInfo(members.values)
+    sumTypeInfo(types.values)
   }
 
   override def toString = {
-    types.mkString("types {{","\n", "}}") +
-    members.mkString("members {{","\n", "}}")
+    types.mkString("{","\n", "}")
   }
 
 }
