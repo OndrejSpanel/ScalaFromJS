@@ -58,10 +58,10 @@ object InferTypes {
 
         if (tid.exists(t => !(noType contains t.name))) {
           val symType = kind(allTypes.get(tid), tpe)
-          //println(s"  Combined $symType = ${allTypes.get(tid)} * $tpe")
+          println(s"  Combined $symType = ${allTypes.get(tid)} * $tpe")
           for (tp <- symType) {
             if (tp.nonEmpty) {
-              //println(s"  Add type $tid: $tp")
+              println(s"  Add type $tid: $tp")
 
               /*
               if (tid.exists(_.name == "x") && tpe.exists(_.declType != number)) {
@@ -435,7 +435,7 @@ object InferTypes {
           }
 
         case AST_Assign(left, _, right) =>
-          val log = false
+          val log = true
           val leftT = expressionType(left)(ctx)
           val rightT = expressionType(right)(ctx)
           if (log) println(s"Infer assign $leftT - $rightT ${ScalaOut.outputNode(node)}")

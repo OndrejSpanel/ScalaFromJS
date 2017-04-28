@@ -117,7 +117,7 @@ object ScalaOut {
           //println("symbol")
           identifierToOut(output, s.name)
 
-          //out"/*${SymbolTypes.id(s.thedef.get).get.sourcePos}*/"
+          out"/*${SymbolTypes.id(s.thedef.get).get.sourcePos}*/"
           //out"/*${input.types.get(SymbolTypes.id(s.thedef.get))}*/"
         case n: AST_Node =>
           nodeToOut(n)
