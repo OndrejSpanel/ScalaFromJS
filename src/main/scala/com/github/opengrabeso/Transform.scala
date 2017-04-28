@@ -397,7 +397,7 @@ object Transform {
         for {
           TypeDecl(ClassType(callOn)) <- expressionType(expr)(ctx)
           c <- findInParents(callOn, name)(ctx)
-          r <- types.getMember(Some(c), name)
+          r <- types.getMember(Some(MemberId(c, name))
         } yield {
           //println(s"Infer type of member $c.$name as $r")
           r
@@ -467,7 +467,7 @@ object Transform {
         for {
           TypeDecl(ClassType(callOn)) <- expressionType(cls)(ctx)
           c <- findInParents(callOn, name)(ctx)
-          r <- types.getMember(Some(c), name)
+          r <- types.getMember(Some(MemberId(c, name))
         } yield {
           //println(s"  Infer type of member call $c.$name as $r")
           callReturn(r)

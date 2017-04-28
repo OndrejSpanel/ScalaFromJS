@@ -387,7 +387,6 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo])
   }
 
   def getMember(clsId: Option[MemberId]): Option[TypeInfo] = get(clsId.map(symbolFromMember))
-  def getMember(cls: Option[String], member: String): Option[TypeInfo] = getMember(cls.map(MemberId(_, member)))
 
   def getAsScala(id: Option[SymbolMapId]): String = {
     get(id).fold (any.toString) (t => t.declType.toString)

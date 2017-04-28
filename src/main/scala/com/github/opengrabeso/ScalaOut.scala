@@ -824,7 +824,7 @@ object ScalaOut {
               def getMemberType(s: SymbolDef) = {
                 val clsName = tn.name.nonNull.map(_.name)
                 println(s"member $clsName ${s.name}")
-                input.types.getMember(clsName, s.name).map(_.declType)
+                input.types.getMember(clsName.map(SymbolTypes.MemberId(_, s.name))).map(_.declType)
               }
 
               println("outputDefinitions - getMemberType")
