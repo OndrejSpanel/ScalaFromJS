@@ -156,7 +156,7 @@ object Variables {
   def varInitialization(n: AST_Node): AST_Node = {
 
     // walk the tree, check for first reference of each var
-    var pairs = Map.empty[SymbolDef, AST_SymbolRef]
+    var pairs = Map.empty[SymbolDef, AST_SymbolRef] // symbol definition -> first reference
     n.walk { node =>
       node match {
         case AST_VarDef(name, value) if value.nonNull.isEmpty =>
@@ -217,8 +217,10 @@ object Variables {
               //println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef, value ${nodeTreeToString(right)}")
               replaced += td
               new AST_Var {
-                fillTokens(this, node)
-                definitions = js.Array(AST_VarDef.initialized(node)(vName, right))
+                // use td.orig if possible to keep original initialization tokens
+                val origNode = td.orig.headOption.getOrElse(node)
+                fillTokens(this, origNode)
+                definitions = js.Array(AST_VarDef.initialized(origNode)(vName, right))
               }
             case _ =>
               node

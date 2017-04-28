@@ -17,8 +17,10 @@ object InferTypes {
     var inferred = SymbolTypes()
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 
-    val classes = classListHarmony(n)
+    val classes = new ClassListHarmony(n)
     //println("Classes:\n" + classes.keys)
+
+    implicit val classId: (String) => Int = classes.classId
 
     val classInfo = listClassMembers(n.top)
     //println("ClassInfo:\n" + classInfo)
@@ -56,10 +58,10 @@ object InferTypes {
 
         if (tid.exists(t => !(noType contains t.name))) {
           val symType = kind(allTypes.get(tid), tpe)
-          println(s"  Combined $symType = ${allTypes.get(tid)} * $tpe")
+          //println(s"  Combined $symType = ${allTypes.get(tid)} * $tpe")
           for (tp <- symType) {
             if (tp.nonEmpty) {
-              println(s"  Add type $tid: $tp")
+              //println(s"  Add type $tid: $tp")
 
               /*
               if (tid.exists(_.name == "x") && tpe.exists(_.declType != number)) {
@@ -410,7 +412,7 @@ object InferTypes {
 
       node match {
         case AST_VarDef(AST_SymbolDef(symDef), Defined(right)) =>
-          val log = true
+          val log = false
           val leftT = n.types.get(symDef)
           val rightT = expressionType(right)(ctx)
           if (log) println(s"Infer var $leftT - $rightT ${ScalaOut.outputNode(node)}")
@@ -625,8 +627,8 @@ object InferTypes {
       true
     }
     // TODO: protect JSDoc explicit types
-    println(s"inferred ${inferred.types}")
-    println(s"n.types ${n.types.types}")
+    //println(s"inferred ${inferred.types}")
+    //println(s"n.types ${n.types.types}")
     n.copy(types = n.types ++ inferred)
   }
 

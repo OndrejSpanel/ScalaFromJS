@@ -289,7 +289,8 @@ object SymbolTypes {
     "Math" -> Seq(
       "min", "max", "abs",
       "sin", "cos", "tan", "asin", "acos", "atan",
-      "sqrt", "ceil", "floor", "round"
+      "sqrt", "ceil", "floor",
+      "round"
     )
   )
   val libNames = libs.keys.toSeq
@@ -382,11 +383,17 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo])
 
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
 
-  def symbolFromMember(memberId: MemberId): SymbolMapId = {
-    ???
+  def symbolFromMember(memberId: MemberId)(implicit classId: String => Int): SymbolMapId = {
+    // first check stdLibraries, if not found, try normal lookup
+    stdLibs.symbolFromMember(memberId.cls, memberId.name).getOrElse {
+      val clsId = classId(memberId.cls)
+      SymbolMapId(memberId.name, clsId)
+
+    }
+
   }
 
-  def getMember(clsId: Option[MemberId]): Option[TypeInfo] = get(clsId.map(symbolFromMember))
+  def getMember(clsId: Option[MemberId])(implicit classId: String => Int): Option[TypeInfo] = get(clsId.map(symbolFromMember))
 
   def getAsScala(id: Option[SymbolMapId]): String = {
     get(id).fold (any.toString) (t => t.declType.toString)
@@ -400,7 +407,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo])
     }
   }
 
-  def addMember (kv: (Option[MemberId], TypeInfo)): SymbolTypes = {
+  def addMember (kv: (Option[MemberId], TypeInfo))(implicit classId: String => Int): SymbolTypes = {
     this + (kv._1.map(symbolFromMember) -> kv._2)
   }
 

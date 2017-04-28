@@ -4,6 +4,7 @@ import Uglify._
 import UglifyExt._
 import UglifyExt.Import._
 import JsUtils._
+import Classes._
 
 import scala.scalajs.js
 
@@ -101,7 +102,7 @@ object ScalaOut {
 
   }
 
-  case class InputContext(input: String, types: SymbolTypes) {
+  case class InputContext(input: String, types: SymbolTypes, classes: ClassListHarmony) {
     var commentsDumped = Set.empty[Int]
   }
 
@@ -115,6 +116,9 @@ object ScalaOut {
         case s: AST_Symbol =>
           //println("symbol")
           identifierToOut(output, s.name)
+
+          //out"/*${SymbolTypes.id(s.thedef.get).get.sourcePos}*/"
+          //out"/*${input.types.get(SymbolTypes.id(s.thedef.get))}*/"
         case n: AST_Node =>
           nodeToOut(n)
         case x if js.isUndefined(x) =>
@@ -246,16 +250,17 @@ object ScalaOut {
 
 
   def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
+
     def source = nodeSource(n, input.input)
     // http://lisperator.net/uglifyjs/ast
     for (s <- n.start) {
       out.submitLocation(s.pos)
     }
 
-    def outputVarDef(name: String, init: js.UndefOr[AST_Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
-      out(identifier(name))
+    def outputVarDef(name: AST_Symbol, init: js.UndefOr[AST_Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
+      out"$name"
 
-      println(s"AST_VarDef $name $sType ${init.nonNull.map(_.toString)}")
+      //println(s"AST_VarDef ${name.name} type: $sType init: ${init.nonNull.map(_.toString)}")
       if (types || init.nonNull.isEmpty) {
         for (tp <- sType) {
           if (tp.typeOnInit) out": $tp"
@@ -271,7 +276,7 @@ object ScalaOut {
       }
 
       init.nonNull.flatMap(trivialInit).fold {
-        println(s"trivialInit of $sType")
+        //println(s"trivialInit of $sType")
         val construct = sType.map(_.scalaConstruct).getOrElse("_")
         out" = $construct"
       }(i => out" = $i")
@@ -279,7 +284,7 @@ object ScalaOut {
     }
 
     def getSymbolType(symDef: SymbolDef): Option[SymbolTypes.TypeDesc] = {
-      println(s"getSymbolType ${input.types.types}")
+      //println(s"getSymbolType ${input.types.types}")
       input.types.get(symDef).map(_.declType)
     }
 
@@ -287,7 +292,7 @@ object ScalaOut {
       isVal: Boolean, tn: AST_Definitions,
       getType: SymbolDef => Option[SymbolTypes.TypeDesc] = getSymbolType, types: Boolean = false
     ) = {
-      println("outputDefinitions -")
+      //println("outputDefinitions -")
       def outValVar() = {
         out(if (isVal) "val " else "var ")
       }
@@ -301,25 +306,25 @@ object ScalaOut {
           out.unindent()
           out("}\n")
         // empty object - might be a map instead
-        case v@AST_VarDef(AST_Symbol(name, _, Defined(symDef)), Defined(AST_Object(Seq()))) =>
+        case v@AST_VarDef(s@AST_Symbol(name, _, Defined(symDef)), Defined(AST_Object(Seq()))) =>
           val tpe = input.types.get(symDef).map(_.declType)
           //println(s"Var $name type $tpe")
           tpe match {
             case Some(mType: SymbolTypes.MapType) =>
               outValVar()
-              out"$name = ${mType.scalaConstruct}"
+              out"$s = ${mType.scalaConstruct}"
             case _ =>
               outValVar()
               out"$v\n"
           }
 
-        case AST_VarDef(AST_Symbol(name, _, Defined(sym)), init) =>
+        case AST_VarDef(s@AST_Symbol(name, _, Defined(sym)), init) =>
           outValVar()
           //out("/*outputDefinitions*/")
           val sType = getType(sym)
-          println(s"AST_VarDef sym ${SymbolTypes.id(sym)} $sType")
-          println(getType(sym))
-          outputVarDef(name, init, sType, types)
+          //println(s"AST_VarDef sym ${SymbolTypes.id(sym)} $sType")
+          //println(getType(sym))
+          outputVarDef(s, init, sType, types)
       }
     }
 
@@ -569,10 +574,10 @@ object ScalaOut {
       case tn: AST_Call =>
         outputCall(tn)
 
-      case AST_VarDef(AST_Symbol(name, _, Defined(sym)), init) =>
+      case AST_VarDef(s@AST_Symbol(name, _, Defined(sym)), init) =>
         out("/*AST_VarDef*/")
         val sType = getSymbolType(sym)
-        outputVarDef(name, init, sType, false)
+        outputVarDef(s, init, sType, false)
 
       case tn: AST_Const =>
         outputDefinitions(true, tn)
@@ -823,11 +828,15 @@ object ScalaOut {
 
               def getMemberType(s: SymbolDef) = {
                 val clsName = tn.name.nonNull.map(_.name)
-                println(s"member $clsName ${s.name}")
-                input.types.getMember(clsName.map(SymbolTypes.MemberId(_, s.name))).map(_.declType)
+                //println(s"member $clsName ${s.name}")
+
+                val clsId = Classes.getClassId(tn)
+                val symId = clsId.map(SymbolTypes.SymbolMapId(s.name, _))
+
+                input.types.get(symId).map(_.declType)
               }
 
-              println("outputDefinitions - getMemberType")
+              //println("outputDefinitions - getMemberType")
               outputDefinitions(false, df, getMemberType, true)
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
             case ss =>
@@ -951,7 +960,9 @@ object ScalaOut {
         }
       }
     }
-    val inputContext = InputContext(input, ast.types)
+
+    val classListHarmony = new ClassListHarmony(ast)
+    val inputContext = InputContext(input, ast.types, classListHarmony)
     blockToOut(ast.top.body)(outConfig, inputContext, ret)
     sb.map(_.result)
   }
@@ -968,7 +979,8 @@ object ScalaOut {
     val ret = new NiceOutput {
       def out(x: String) = sb append x
     }
-    val inputContext = InputContext(input, SymbolTypes())
+    val classListEmpty = ClassListHarmony(Map.empty)
+    val inputContext = InputContext(input, SymbolTypes(), classListEmpty)
     nodeToOut(ast)(outConfig, inputContext, ret)
     sb.result
   }

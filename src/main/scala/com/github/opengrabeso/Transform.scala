@@ -336,7 +336,7 @@ object Transform {
   implicit def refToT[T](r: Ref[T]): T = r.t
 
   // TODO: no need to pass both classInfo and classes, one of them should do
-  case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: Map[String, AST_DefClass]) {
+  case class ExpressionTypeContext(types: Ref[SymbolTypes], classInfo: ClassInfo, classes: ClassListHarmony) {
     implicit object classOps extends ClassOps {
       def mostDerived(c1: ClassType, c2: ClassType) = {
         //println("mostDerived")
@@ -348,6 +348,8 @@ object Transform {
         classInfo.commonBase(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
       }
     }
+
+    implicit val classId: (String) => Int = classes.classId
 
   }
 
@@ -397,7 +399,7 @@ object Transform {
         for {
           TypeDecl(ClassType(callOn)) <- expressionType(expr)(ctx)
           c <- findInParents(callOn, name)(ctx)
-          r <- types.getMember(Some(MemberId(c, name))
+          r <- types.getMember(Some(MemberId(c, name)))
         } yield {
           //println(s"Infer type of member $c.$name as $r")
           r
@@ -467,7 +469,7 @@ object Transform {
         for {
           TypeDecl(ClassType(callOn)) <- expressionType(cls)(ctx)
           c <- findInParents(callOn, name)(ctx)
-          r <- types.getMember(Some(MemberId(c, name))
+          r <- types.getMember(Some(MemberId(c, name)))
         } yield {
           //println(s"  Infer type of member call $c.$name as $r")
           callReturn(r)
@@ -478,22 +480,6 @@ object Transform {
         None
 
     }
-  }
-
-  def classListHarmony(n: AST_Extended) = {
-    var classes = Map.empty[String, AST_DefClass]
-    n.top.walk {
-      case d: AST_DefClass =>
-        for (name <- d.name) {
-          classes += name.name -> d
-        }
-        true
-      case _ : AST_Toplevel =>
-        false
-      case _ =>
-        false
-    }
-    classes
   }
 
   def listPrototypeMemberNames(cls: AST_DefClass): Seq[String] = {
