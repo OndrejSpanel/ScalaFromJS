@@ -383,14 +383,13 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo])
 
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
 
+  // TODO: move stdLibs and symbolFromMember out of SymbolTypes
   def symbolFromMember(memberId: MemberId)(implicit classId: String => Int): SymbolMapId = {
     // first check stdLibraries, if not found, try normal lookup
     stdLibs.symbolFromMember(memberId.cls, memberId.name).getOrElse {
       val clsId = classId(memberId.cls)
       SymbolMapId(memberId.name, clsId)
-
     }
-
   }
 
   def getMember(clsId: Option[MemberId])(implicit classId: String => Int): Option[TypeInfo] = get(clsId.map(symbolFromMember))
