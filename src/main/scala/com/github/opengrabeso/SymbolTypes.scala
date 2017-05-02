@@ -138,8 +138,7 @@ object SymbolTypes {
 
   // intersect: assignment source
   def typeIntersect(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
-    //println(s"typeIntersect $tpe1, $tpe2")
-    (tpe1, tpe2) match {
+    val r = (tpe1, tpe2) match {
       case _ if tpe1 == tpe2 =>
         tpe1
       case (t, AnyType) => t
@@ -163,6 +162,8 @@ object SymbolTypes {
       case _ =>
         NoType // should be Nothing, but we rather keep any of the types
     }
+    println(s"  typeIntersect $tpe1, $tpe2 = $r")
+    r
   }
 
   // union: assignment target
@@ -194,16 +195,23 @@ object SymbolTypes {
     val t1 = typeFromOption(tpe1)
     val t2 = typeFromOption(tpe2)
     val union = typeUnion(t1.target, t2.target)
-    //println(s"  union $t1 $t2 -> $union")
+    println(s"  union $t1 $t2 -> $union")
     Some(t1.copy(target = union))
   }
 
   def typeIntersectOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
-    val t1 = typeFromOption(tpe1)
-    val t2 = typeFromOption(tpe2)
-    val srcType = typeIntersect(t2.source, typeIntersect(t1.source, t2.sourceTypeFromTarget))
-    //println(s"  intersect $t1 $t2 -> $srcType")
-    Some(t1.copy(source = srcType))
+    /*
+    if (tpe1.isEmpty) tpe2
+    else if (tpe2.isEmpty) tpe1
+    else
+    */
+    {
+      val t1 = typeFromOption(tpe1)
+      val t2 = typeFromOption(tpe2)
+      val srcType = typeIntersect(t2.source, typeIntersect(t1.source, t2.sourceTypeFromTarget))
+      println(s"  intersect $t1 $t2 -> ${t2.source} x ${t1.source} x ${t2.sourceTypeFromTarget} = $srcType")
+      Some(t1.copy(source = srcType))
+    }
   }
 
   def apply(): SymbolTypes = SymbolTypes.std
