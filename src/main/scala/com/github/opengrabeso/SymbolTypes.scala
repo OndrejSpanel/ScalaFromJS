@@ -162,7 +162,7 @@ object SymbolTypes {
       case _ =>
         NoType // should be Nothing, but we rather keep any of the types
     }
-    println(s"  typeIntersect $tpe1, $tpe2 = $r")
+    //println(s"  typeIntersect $tpe1, $tpe2 = $r")
     r
   }
 
@@ -195,7 +195,7 @@ object SymbolTypes {
     val t1 = typeFromOption(tpe1)
     val t2 = typeFromOption(tpe2)
     val union = typeUnion(t1.target, t2.target)
-    println(s"  union $t1 $t2 -> $union")
+    //println(s"  union $t1 $t2 -> $union")
     Some(t1.copy(target = union))
   }
 
@@ -203,7 +203,7 @@ object SymbolTypes {
     val t1 = typeFromOption(tpe1)
     val t2 = typeFromOption(tpe2)
     val srcType = typeIntersect(t1.declType, t2.declType)
-    println(s"  intersect $t1 $t2 -> ${t1.declType} x ${t2.declType} = $srcType")
+    //println(s"  intersect $t1 $t2 -> ${t1.declType} x ${t2.declType} = $srcType")
     Some(t1.copy(source = srcType))
   }
 
