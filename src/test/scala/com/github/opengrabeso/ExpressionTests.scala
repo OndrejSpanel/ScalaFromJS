@@ -19,9 +19,7 @@ class ExpressionTests extends FunSuite with TestUtils {
       "var l",
       "val x",
       "val y",
-      "var u",
-      "var y =",
-      "var z ="
+      "var u"
     )
   }
 

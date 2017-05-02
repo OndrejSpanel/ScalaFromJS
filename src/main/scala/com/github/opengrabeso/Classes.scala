@@ -77,6 +77,10 @@ object Classes {
     }
   }
 
+  def getClassId(cls: AST_DefClass): Option[Int] = {
+    cls.start.nonNull.map(_.pos)
+  }
+
 
   def includeParents(clazz: AST_DefClass, ret: Seq[AST_DefClass])(ctx: ExpressionTypeContext): Seq[AST_DefClass] = {
     clazz.`extends`.nonNull match {
@@ -186,5 +190,33 @@ object Classes {
     transformed.getOrElse(init)
   }
 
+
+  def classListHarmony(n: AST_Extended) = {
+    var classes = Map.empty[String, AST_DefClass]
+    n.top.walk {
+      case d: AST_DefClass =>
+        for (name <- d.name) {
+          classes += name.name -> d
+        }
+        true
+      case _ : AST_Toplevel =>
+        false
+      case _ =>
+        false
+    }
+    classes
+  }
+
+  case class ClassListHarmony(classes: Map[String, AST_DefClass]) {
+
+    def this(n: AST_Extended) = this(classListHarmony(n))
+
+    def get(name: String): Option[AST_DefClass] = classes.get(name)
+
+    def classId(name: String): Int = {
+      classes(name).start.map(_.pos).get // token must exists, otherwise we throw
+    }
+
+  }
 
 }

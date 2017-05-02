@@ -126,12 +126,12 @@ object ClassesByMembers {
 
     // try to identify any symbol not inferred completely
     val classInfo = listDefinedClassMembers(n.top)
-    val classes = classListHarmony(n)
+    val classes = new ClassListHarmony(n)
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 
     implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes)
 
-    val byMembers = MemberList(classes)
+    val byMembers = MemberList(classes.classes)
 
     n.top.walkWithDescend { (node, descend, walker) =>
       //println(s"${nodeClassName(node)}")

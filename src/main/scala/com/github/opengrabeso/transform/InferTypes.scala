@@ -17,8 +17,10 @@ object InferTypes {
     var inferred = SymbolTypes()
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 
-    val classes = classListHarmony(n)
+    val classes = new ClassListHarmony(n)
     //println("Classes:\n" + classes.keys)
+
+    implicit val classId: (String) => Int = classes.classId
 
     val classInfo = listClassMembers(n.top)
     //println("ClassInfo:\n" + classInfo)
@@ -252,7 +254,7 @@ object InferTypes {
     }
 
     case class SymbolAccessSymbol(symbol: SymbolDef) extends SymbolAccessInfo {
-      override def toString = s"Symbol(${symbol.name})"
+      override def toString = s"Symbol(${id(symbol)})"
 
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
         addInferredType(id(symbol), tpe, kind)
@@ -409,22 +411,20 @@ object InferTypes {
       descend(node, walker)
 
       node match {
-        case AST_VarDef(AST_Symbol(_, _, Defined(symDef)), Defined(src)) =>
-          if (n.types.get(symDef).isEmpty) {
-            val tpe = expressionType(src)(ctx)
-            //println(s"vardef ${symDef.name} ${id(symDef)} ${nodeClassName(src)} tpe $tpe")
-            addInferredType(symDef, tpe)
-            // if this is an inline constructor member, infer also the member type from it
-            for {
-              cls <- findThisClass(Some(symDef.scope))
-              AST_SymbolName(clsName) <- cls.name
-              fun <- findThisFunction(Some(symDef.scope))
-              body <- findInlineBody(cls)
-              if body.value == fun
-            } {
-              //println(s"vardef ${symDef.name} ${nodeClassName(src)} tpe $tpe")
-              //println(s"  inline body cls $clsName")
-              addInferredMemberType(Some(MemberId(clsName, symDef.name)), tpe)
+        case AST_VarDef(AST_SymbolDef(symDef), Defined(right)) =>
+          val log = false
+          val leftT = n.types.get(symDef)
+          val rightT = expressionType(right)(ctx)
+          if (log) println(s"Infer var $leftT - $rightT ${ScalaOut.outputNode(node)}")
+          if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
+            for (symInfo <- Some(SymbolAccessSymbol(symDef))) {
+              if (log) println(s"  Infer var: $symInfo = $rightT")
+              symInfo.addSymbolInferredType(rightT)
+              if (log) println(s"  as: ${allTypes.get(symDef)}")
+            }
+            for (SymbolInfo(symInfo) <- Some(right)) {
+              if (log) println(s"  Infer reverse var: $leftT = $symInfo")
+              symInfo.addSymbolInferredType(leftT, source)
             }
           }
 
@@ -627,6 +627,8 @@ object InferTypes {
       true
     }
     // TODO: protect JSDoc explicit types
+    //println(s"inferred ${inferred.types}")
+    //println(s"n.types ${n.types.types}")
     n.copy(types = n.types ++ inferred)
   }
 

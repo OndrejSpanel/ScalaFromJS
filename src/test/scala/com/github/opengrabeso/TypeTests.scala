@@ -150,11 +150,13 @@ class TypeTests extends FunSuite with TestUtils {
   test("Classes should be inferred based on used members") {
     execute check ConversionCheck(rsc("types/classesByMembers.js"))
       .required(
+        //"t: Any",
         "cx: X",
         "cy: XY",
         "cxy: XY",
-        "cxyz: XYZ",
-        "t: Any"
+        "cxyz: XYZ"
+      ).forbidden(
+        "t: X"
       )
   }
 
