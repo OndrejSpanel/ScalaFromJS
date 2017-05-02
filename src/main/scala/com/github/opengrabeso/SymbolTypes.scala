@@ -200,18 +200,11 @@ object SymbolTypes {
   }
 
   def typeIntersectOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
-    /*
-    if (tpe1.isEmpty) tpe2
-    else if (tpe2.isEmpty) tpe1
-    else
-    */
-    {
-      val t1 = typeFromOption(tpe1)
-      val t2 = typeFromOption(tpe2)
-      val srcType = typeIntersect(t2.source, typeIntersect(t1.source, t2.sourceTypeFromTarget))
-      println(s"  intersect $t1 $t2 -> ${t2.source} x ${t1.source} x ${t2.sourceTypeFromTarget} = $srcType")
-      Some(t1.copy(source = srcType))
-    }
+    val t1 = typeFromOption(tpe1)
+    val t2 = typeFromOption(tpe2)
+    val srcType = typeIntersect(t1.declType, t2.declType)
+    println(s"  intersect $t1 $t2 -> ${t1.declType} x ${t2.declType} = $srcType")
+    Some(t1.copy(source = srcType))
   }
 
   def apply(): SymbolTypes = SymbolTypes.std
