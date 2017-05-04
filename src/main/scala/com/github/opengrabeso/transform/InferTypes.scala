@@ -8,8 +8,6 @@ import UglifyExt.Import._
 import Classes._
 import Transform._
 import SymbolTypes._
-
-import scala.scalajs.js
 import scala.language.implicitConversions
 
 object InferTypes {
@@ -612,7 +610,7 @@ object InferTypes {
             inferParsOrArgs(m.value.argnames, args)
           }
 
-        case AST_Sub(AST_SymbolRef(name, _, Defined(sym)), property) =>
+        case AST_SymbolRef(_, _, Defined(sym)) AST_Sub property =>
           expressionType(property)(ctx).map(_.declType) match {
             case Some(`number`) =>
               addInferredType(sym, Some(TypeInfo.target(ArrayType(NoType))))
@@ -622,6 +620,22 @@ object InferTypes {
             case _ =>
 
           }
+
+        case expr AST_Dot memberName AST_Sub property =>
+          for (clsName <- SymbolTypes.classFromType(expressionType(expr)(ctx))) {
+            val memberId = MemberId(clsName, memberName)
+
+            implicit val classId: (String) => Int = classes.classId
+            val symId = Some(ctx.types.symbolFromMember(memberId))
+            expressionType(property)(ctx).map(_.declType) match {
+              case Some(`number`) =>
+                addInferredType(symId, Some(TypeInfo.target(ArrayType(NoType))))
+              case Some(`string`) =>
+                addInferredType(symId, Some(TypeInfo.target(MapType(NoType))))
+              case _ =>
+            }
+          }
+
         case _ =>
       }
       true
