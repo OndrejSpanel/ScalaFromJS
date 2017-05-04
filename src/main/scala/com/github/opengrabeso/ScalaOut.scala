@@ -292,6 +292,7 @@ object ScalaOut {
       isVal: Boolean, tn: AST_Definitions,
       getType: SymbolDef => Option[SymbolTypes.TypeDesc] = getSymbolType, types: Boolean = false
     ) = {
+      //out("/*outputDefinitions*/")
       //println("outputDefinitions -")
       def outValVar() = {
         out(if (isVal) "val " else "var ")
@@ -313,9 +314,10 @@ object ScalaOut {
             case Some(mType: SymbolTypes.MapType) =>
               outValVar()
               out"$s = ${mType.scalaConstruct}"
+              out.eol()
             case _ =>
               outValVar()
-              out"$v\n"
+              outputVarDef(s, js.undefined, tpe, false)
           }
 
         case AST_VarDef(s@AST_Symbol(name, _, Defined(sym)), init) =>
@@ -837,6 +839,7 @@ object ScalaOut {
               }
 
               //println("outputDefinitions - getMemberType")
+              //out"/*inlineBody ${nodeClassName(df)} ${df.definitions.length}*/"
               outputDefinitions(false, df, getMemberType, true)
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
             case ss =>
