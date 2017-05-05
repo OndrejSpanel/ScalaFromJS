@@ -110,8 +110,22 @@ object ClassesByMembers {
           //println(s"  Score $ms -> members: ${useInfo.members}, funs: ${useInfo.funMembers}: $r")
           r
         }.max //By(b => (b._1, b._2, b._3, b._4))
+
+
         // if there are no common members, do not infer any type
-        if (best._1 > 0) {
+        // if too many members are unmatched, do not infer any type
+        if (best._1 > 0 && best._1 > (useInfo.members.size + useInfo.funMembers.size)/2) {
+          val dumpUncertain = false
+          if (dumpUncertain) {
+            // matching only a few members from a large class
+            if (best._1 < useInfo.members.size + useInfo.funMembers.size) {
+              println(s"Suspicious $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
+            }
+            else if (best._1 <= 2 && -best._2 > best._1) {
+              println(s"Uncertain $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
+            }
+          }
+
           //println(s"$useInfo: Best $best")
           Some(best._5)
         }
