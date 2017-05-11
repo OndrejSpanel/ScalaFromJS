@@ -53,6 +53,24 @@ object ConvertProject {
     }
   }
 
+  case class AliasPackageRule(folder: String, name: String) extends Rule {
+    override def apply(n: AST_Extended) = n
+  }
+
+  object AliasPackageRule {
+    def load(o: AST_Object): AliasPackageRule = {
+      def pathFromString(s: String): String = {
+        val pathEnd = "/"
+        if (s.endsWith(pathEnd)) s else s + pathEnd
+      }
+
+      val folder = loadStringValue(o, "folder")
+      val name = loadStringValue(o, "name")
+      AliasPackageRule(pathFromString(folder.get), pathFromString(name.get))
+    }
+  }
+
+
   val configName = "ScalaFromJS_settings"
 
   case class ConvertConfig(rules: Seq[Rule] = Seq.empty)
@@ -81,6 +99,15 @@ object ConvertProject {
             case _ =>
               None
           }
+        case AST_ObjectKeyVal("packages", a: AST_Array) =>
+          a.elements.toSeq.flatMap {
+            case o: AST_Object =>
+              Some(AliasPackageRule.load(o))
+            case _ =>
+              None
+          }
+        case AST_ObjectKeyVal(name, _) =>
+          throw new UnsupportedOperationException(s"Unexpected config entry $name")
         case n =>
           throw new UnsupportedOperationException(s"Unexpected config entry of type ${nodeClassName(n)}")
       }
@@ -278,7 +305,9 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     }
   }
 
-  def convert: Seq[(String, String)] = {
+  case class Converted(files: Seq[(String, String)], aliases: Map[String, String])
+
+  def convert: Converted = {
     val exportsImports = values.sortBy(!_.included)
     //println(s"exportsImports ${exportsImports.map(_.copy(code = ""))}")
 
@@ -313,8 +342,14 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
 
-    for ( (outCode, ConvertProject.Item(_, _, inFile)) <- output zip exports) yield {
+    val outFiles = for ( (outCode, ConvertProject.Item(_, _, inFile)) <- output zip exports) yield {
       inFile -> outCode
     }
+
+    val aliases = ext.config.rules.collect { case AliasPackageRule(folder, name) =>
+        folder -> name
+    }
+
+    Converted(outFiles, aliases.toMap)
   }
 }

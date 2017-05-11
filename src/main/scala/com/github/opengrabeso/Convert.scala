@@ -18,7 +18,7 @@ object Convert {
 
   def project(in: String, header: Boolean = true): String = {
     val project = ConvertProject.loadControlFile(in)
-    val converted = project.convert.map(_._2).mkString
+    val converted = project.convert.files.map(_._2).mkString
     prefix(header) + converted
   }
 

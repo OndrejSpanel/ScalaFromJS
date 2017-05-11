@@ -186,7 +186,7 @@ object CommandLine {
 
     val converted = project.convert
 
-    for ( (inFile, outCode) <- converted) yield {
+    for ( (inFile, outCode) <- converted.files) yield {
 
       val inRelative = relativePath(in, inFile)
 
@@ -199,7 +199,18 @@ object CommandLine {
       val inFilePathIndex = inFile.lastIndexOf('/')
       val inFilePath = if (inFilePathIndex < 0) "" else inFile.take(inFilePathIndex)
 
-      val inFileRelative = relativePath(in, inFilePath)
+      def handleAlias(relPath: String): String = {
+        // check if we match any alias key
+        for (aliasFolder <- converted.aliases.keys) {
+          if (relPath startsWith aliasFolder) {
+            val aliasName = converted.aliases(aliasFolder)
+            return aliasName ++ relPath.drop(aliasFolder.length)
+          }
+        }
+        relPath
+      }
+
+      val inFileRelative = handleAlias(relativePath(in, inFilePath))
 
       val inFilePackage = inFileRelative.split('/')
 
