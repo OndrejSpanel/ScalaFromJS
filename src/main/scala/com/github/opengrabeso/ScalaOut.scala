@@ -717,9 +717,9 @@ object ScalaOut {
           )) if name == name2 =>
             classes match {
               case Seq(cls) =>
-                out"${name.name}: $cls"
+                out"${identifier(name.name)}: $cls"
               case _ =>
-                val matchClasses = classes.map(c => s"_: ${c.name}").mkString(" | ")
+                val matchClasses = classes.map(c => s"_: ${identifier(c.name)}").mkString(" | ")
                 out(matchClasses)
             }
           case _ =>
