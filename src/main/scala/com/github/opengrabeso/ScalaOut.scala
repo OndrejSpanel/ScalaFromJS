@@ -249,6 +249,7 @@ object ScalaOut {
   }
 
 
+
   def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
 
     def source = nodeSource(n, input.input)
@@ -387,6 +388,36 @@ object ScalaOut {
       out(")")
     }
 
+    def outputBinaryArgument(arg: AST_Node, outer: String, right: Boolean = false) = {
+      val priorityOrderings = Seq(
+        Seq(Set("+", "-"),Set("*", "/", "%")),
+        Seq(Set("|","^"), Set("&"))
+      )
+
+      def needsParens(outer: String, inner: String): Boolean = {
+        val ret = priorityOrderings.exists { ordering =>
+          val lower = ordering.dropWhile(!_.contains(inner)).drop(1)
+          lower.exists(_.contains(outer))
+        }
+        //println(s"outer $outer inner $inner => $ret")
+        ret
+      }
+
+
+      // non-associative need to be parenthesed when used on the right side
+      val nonAssociative = Set("/", "-")
+
+      arg match {
+        case a@AST_Binary(_, op, _) if {if (op != outer) needsParens(outer, op) else right && nonAssociative.contains(op)}=>
+          // TODO: compare priorities
+          out"($arg)"
+        case _ =>
+          out"$arg"
+      }
+
+    }
+
+
     def quote (s: String): String = "\"" + escape(s) + "\""
     def escape(s: String): String = s.flatMap(escapedChar)
 
@@ -510,14 +541,18 @@ object ScalaOut {
       case tn: AST_Conditional =>
         out"if (${tn.condition}) ${tn.consequent} else ${tn.alternative}"
       //case tn: AST_Assign => outputUnknownNode(tn)
-      case tn: AST_Binary =>
-        tn.operator match {
+      case AST_Binary(left, op, right) =>
+        op match {
           case `instanceof` =>
-            out"${tn.left}.isInstanceOf[${tn.right}]"
+            outputBinaryArgument(left, op)
+            out".isInstanceOf[$right]"
           case `asinstanceof` =>
-            out"${tn.left}.asInstanceOf[${tn.right}]"
+            outputBinaryArgument(left, op)
+            out".asInstanceOf[$right]"
           case _ =>
-            out"${tn.left} ${tn.operator} ${tn.right}"
+            outputBinaryArgument(left, op)
+            out" $op "
+            outputBinaryArgument(right, op, true)
         }
       case tn: AST_Unary =>
         tn.operator match {

@@ -94,4 +94,30 @@ class ExpressionTests extends FunSuite with TestUtils {
         "return"
       )
   }
+
+  test("Handle binary operator priorities") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      function f() {
+         var a = 0 + 1 * 2;
+         var b = (3 + 4) * 5;
+         var c = (10 + 11) * (12 + 13);
+         var d = 21 + 22 + 23;
+         var e = 31 / (32 / 33);
+         var f = 41 + 42 - 43 - (44 - 45);
+      }
+      """).required(
+        "(3 + 4)",
+        "(10 + 11)",
+        "(12 + 13)",
+        "21 + 22 + 23",
+        "31 / (32 / 33)",
+        "41 + 42 - 43",
+        "(44 - 45)"
+      ).forbidden(
+        "(1 * 2)"
+      )
+
+  }
 }
