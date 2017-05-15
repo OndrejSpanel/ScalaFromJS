@@ -35,30 +35,30 @@ class ClassTests extends FunSuite with TestUtils {
       execute check ConversionCheck(
         // language=JavaScript
         """
-        function f() {
-          function C() {
-              this.a = 0;
-          }
-          C.prototype.constructor = C;
-          var c = new C();
-          return c.a;
-        }
-
-        function g() {
-          function C() {
-              this.x = "X";
-          }
-          C.prototype.constructor = C;
-          var c = new C();
-          return c.x;
-        }
         var v1, v2;
-        if (true) v1 = f();
-        if (true) v2 = g();
+        if (true) v1 = (function () {
+                function C() {
+                    this.a = 0;
+                }
+                C.prototype.constructor = C;
+                var c = new C();
+                return c.x;
+        })();
+
+        if (true) v2 = (function () {
+                function C() {
+                    this.x = "X";
+                }
+                C.prototype.constructor = C;
+                var c = new C();
+                return c.a;
+        })();
         """).required(
           "class C",
-          "var v1: Double",
-          "var v2: String"
+          "var a: Double = 0",
+          "var x: String = \"X\"",
+          "var v1: Any",
+          "var v2: Any"
         )
     }
   }
