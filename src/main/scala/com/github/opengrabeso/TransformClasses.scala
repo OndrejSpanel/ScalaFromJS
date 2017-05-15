@@ -17,10 +17,15 @@ object TransformClasses {
 
 
   // TODO: extend with scope symbol id
-  case class ClassId(name: String)
+  case class ClassId(name: String, pos: Int) {
+    println(s"ClassId $name $pos")
+  }
 
   object ClassId {
-    def apply(sym: SymbolDef): ClassId = ClassId(sym.name)
+    // TODO: avoid get, use something safe instead
+    def apply(sym: SymbolDef): ClassId = {
+      ClassId(sym.name, SymbolTypes.id(sym).get.sourcePos)
+    }
     def apply(sym: AST_Symbol): ClassId = ClassId(sym.thedef.get)
   }
 
