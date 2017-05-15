@@ -56,31 +56,6 @@ class TypeTests extends FunSuite with TestUtils {
       )
 
   }
-  test("Simple JS 1.8 (ES 5) class") {
-    execute check ConversionCheck(rsc("types/simpleClass.js"))
-      .required(
-        "class Person",
-        """person = new Person("Bob", "M")"""
-      )
-      .forbidden(".prototype.")
-  }
-
-  test("Harmony (ES 6) class with inheritance") {
-    execute check ConversionCheck(rsc("types/harmonyClass.js"))
-      .required(
-        "class Employe",
-        "class Janitor",
-        "extends Person",
-        "extends Employee",
-        "def nameGetter =",
-        "def nameFunc() =",
-        "val localVar = age",
-        "def constructor(name: String, age: Double, salary: Double)",
-        "class Person(var name: String, var age: Double)",
-        "def printEmployeeDetails() ="
-    )
-
-  }
 
   test("Default values should be inferred for parameters") {
     execute check ConversionCheck(rsc("types/defaultValues.js"))
