@@ -7,13 +7,34 @@ object Convert {
   def prefix(header: Boolean) = if (header) s"/* ${ScalaFromJS.fingerprint()}*/\n\n" else ""
 
   def apply(code: String, header: Boolean = true): String = {
-    val ast = parse(code, defaultUglifyOptions.parse)
+    // split input file based on //file: comments
 
+    val files = code.split("\\/\\/file\\:")
+    if (files.lengthCompare(1) <= 0) {
 
-    val ext = Transform.AST_Extended(ast).loadConfig
+      val ast = parse(code, defaultUglifyOptions.parse)
 
-    val astOptimized = Transform(ext)
-    prefix(header) + ScalaOut.output(astOptimized, code).mkString
+      val ext = Transform.AST_Extended(ast).loadConfig
+
+      val astOptimized = Transform(ext)
+      prefix(header) + ScalaOut.output(astOptimized, code).mkString
+    } else {
+      val fileParts = files.toSeq.filterNot(_.isEmpty).map { file =>
+        val (fileName, fileContent) = file.span(!_.isWhitespace)
+
+        val terminatedCode = if (fileContent.lastOption.contains('\n')) fileContent else fileContent + "\n"
+
+        // no control file, just a composite file
+        fileName -> ConvertProject.Item(terminatedCode, true, fileName)
+
+      }
+      val convertResult = ConvertProject("", fileParts.toMap).convert
+
+      val converted = convertResult.files.map { case (name, content) =>
+        s"\n//file:$name\n\n" + content
+      }.mkString
+      prefix(header) + converted
+    }
   }
 
   def project(in: String, header: Boolean = true): String = {

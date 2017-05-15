@@ -118,7 +118,7 @@ object ConvertProject {
 
   def readSourceFile(in: String): String = {
     val code = readFile(in)
-    val terminatedCode = if (code.last == '\n') code else code +s"\n/*$in*/" + "/*A few lines*/\n"*10
+    val terminatedCode = if (code.last == '\n') code else code + "\n"
     terminatedCode
   }
   case class Item(code: String, included: Boolean, fullName: String) {
