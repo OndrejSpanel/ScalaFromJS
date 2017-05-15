@@ -290,7 +290,8 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
 
       def mapFile(cp: (String, String), exported: Boolean): (String, Item) = {
         val (code, path) = cp
-        path -> Item(code, exported, path)
+        val terminatedCode = if (code.last == '\n') code else code +"\n"
+        path -> Item(terminatedCode, exported, path)
       }
 
       val old = items.mapValues(i => i.copy(included = i.included || markAsIncludes.exists(_._2 == i.fullName)))
