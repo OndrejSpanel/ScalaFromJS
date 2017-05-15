@@ -116,13 +116,18 @@ object ConvertProject {
     }
   }
 
+  def readSourceFile(in: String): String = {
+    val code = readFile(in)
+    val terminatedCode = if (code.last == '\n') code else code +s"\n/*$in*/" + "/*A few lines*/\n"*10
+    terminatedCode
+  }
   case class Item(code: String, included: Boolean, fullName: String) {
     override def toString = s"($fullName:$included)"
   }
 
   def loadControlFile(in: String): ConvertProject = {
     Time("loadControlFile") {
-      val code = readFile(in)
+      val code = readSourceFile(in)
       val project = ConvertProject(in, ListMap(in -> Item(code, true, in)))
 
       project.resolveImportsExports
@@ -178,6 +183,14 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
   lazy val code = values.map(_.code).mkString
   lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
 
+  def checkIntegrity = {
+    val missingEol = values.filterNot(_.code.endsWith("\n"))
+    missingEol.map(_.fullName).foreach(println)
+    missingEol.isEmpty
+  }
+
+  assert(checkIntegrity)
+
   def indexOfItem(offset: Int): Int = offsets.prefixLength(_ <= offset) - 1
 
   def pathForOffset(offset: Int): String = {
@@ -188,7 +201,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
 
   final def resolveImportsExports: ConvertProject = {
     def readFileAsJs(path: String): (String, String) = {
-      val code = readFile(path)
+      val code = readSourceFile(path)
       // try parsing, if unable, return a comment file instead
       try {
         parse(code, defaultUglifyOptions.parse)
@@ -290,8 +303,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
 
       def mapFile(cp: (String, String), exported: Boolean): (String, Item) = {
         val (code, path) = cp
-        val terminatedCode = if (code.last == '\n') code else code +"\n"
-        path -> Item(terminatedCode, exported, path)
+        path -> Item(code, exported, path)
       }
 
       val old = items.mapValues(i => i.copy(included = i.included || markAsIncludes.exists(_._2 == i.fullName)))

@@ -184,6 +184,8 @@ object CommandLine {
 
     val project = ConvertProject.loadControlFile(in)
 
+    //println(s"Convert ${(project.values.map(_.fullName) zip project.offsets).mkString("\n")}")
+
     val converted = project.convert
 
     for ( (inFile, outCode) <- converted.files) yield {

@@ -65,7 +65,7 @@ object ScalaOut {
     def indent(): Unit = changeIndent(+1)
     def unindent(): Unit = changeIndent(-1)
 
-    def submitLocation(loc: Int): Unit = {}
+    def submitLocation(loc: Int, debug: =>String): Unit = {}
   }
 
   abstract class NiceOutput extends Output {
@@ -255,7 +255,7 @@ object ScalaOut {
     def source = nodeSource(n, input.input)
     // http://lisperator.net/uglifyjs/ast
     for (s <- n.start) {
-      out.submitLocation(s.pos)
+      out.submitLocation(s.pos, source.lines.next)
     }
 
     def outputVarDef(name: AST_Symbol, init: js.UndefOr[AST_Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
@@ -986,14 +986,14 @@ object ScalaOut {
         }
       }
 
-      override def submitLocation(loc: Int) = {
+      override def submitLocation(loc: Int, debug: =>String) = {
         // start new files only when there is no indenting (top-level)
         if (currentIndentLevel == 0) {
           // check if we have crossed a file boundary, start a new output file if needed
           //println(s"loc $loc of ${outConfig.parts}")
-          if (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb)) {
+          while (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb)) {
             currentSb += 1
-            //println(s"Advance to $currentSb at $loc")
+            //println(s"Advance to $currentSb at $loc - debug $debug")
           }
         }
       }
