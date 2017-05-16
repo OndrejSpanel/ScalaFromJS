@@ -15,13 +15,11 @@ import scala.scalajs.js.RegExp
 object TransformClasses {
   import Symbols._
 
-  case class ClassId(name: String, pos: Int)
+  type ClassId = SymbolTypes.SymbolMapId
 
   object ClassId {
     // TODO: avoid get, use something safe instead
-    def apply(sym: SymbolDef): ClassId = {
-      ClassId(sym.name, SymbolTypes.id(sym).get.sourcePos)
-    }
+    def apply(sym: SymbolDef): ClassId = SymbolTypes.id(sym).get
     def apply(sym: AST_Symbol): ClassId = ClassId(sym.thedef.get)
   }
 
