@@ -117,8 +117,10 @@ object ScalaOut {
           //println("symbol")
           identifierToOut(output, s.name)
 
-          //out"/*${SymbolTypes.id(s.thedef.get).get.sourcePos}*/"
-          //out"/*${input.types.get(SymbolTypes.id(s.thedef.get))}*/"
+          if (true) { // output symbol ids and types
+            out"/*${SymbolTypes.id(s.thedef.get).get.sourcePos}*/"
+            out"/*${input.types.get(SymbolTypes.id(s.thedef.get))}*/"
+          }
         case n: AST_Node =>
           nodeToOut(n)
         case x if js.isUndefined(x) =>
