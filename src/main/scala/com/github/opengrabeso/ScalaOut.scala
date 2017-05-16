@@ -503,7 +503,8 @@ object ScalaOut {
       //case tn: AST_SymbolAccessor => out("AST_SymbolAccessor")
       //case tn: AST_SymbolRef => identifierToOut(out, tn.name)
       case tn: AST_Symbol =>
-        identifierToOut(out, tn.name)
+        out"$tn"
+        //identifierToOut(out, tn.name)
       case tn: AST_ObjectSetter =>
         accessorToOut(tn, "_=")
       case tn: AST_ObjectGetter =>
@@ -585,25 +586,14 @@ object ScalaOut {
         out(".")
         identifierToOut(out, tn.property)
       //case tn: AST_PropAccess => outputUnknownNode(tn)
-      case tn: AST_Seq =>
+      case tn: AST_Sequence =>
         out("{\n")
         out.indent()
-        nodeToOut(tn.car)
-        out.eol()
-        // handle a special case - cdr also seq
-        def processCdr(cdr: AST_Node): Unit = {
-          cdr match {
-            case ss: AST_Seq =>
-              nodeToOut(ss.car)
-              out.eol()
-              processCdr(ss.cdr)
-            case _ =>
-              nodeToOut(cdr)
-          }
+        for (item <- tn.expressions) {
+          nodeToOut(item)
+          out.eol()
         }
-        processCdr(tn.cdr)
         out.unindent()
-        out.eol()
         out("}")
       case tn: AST_New =>
         out("new ")

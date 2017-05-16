@@ -15,11 +15,7 @@ import scala.scalajs.js.RegExp
 object TransformClasses {
   import Symbols._
 
-
-  // TODO: extend with scope symbol id
-  case class ClassId(name: String, pos: Int) {
-    println(s"ClassId $name $pos")
-  }
+  case class ClassId(name: String, pos: Int)
 
   object ClassId {
     // TODO: avoid get, use something safe instead

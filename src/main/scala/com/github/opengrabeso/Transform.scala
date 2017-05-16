@@ -77,8 +77,8 @@ object Transform {
           case Some(f: AST_For) =>
             // can be substituted inside of for unless used as a condition
             f.init.contains(n) || f.step.contains(n)
-          case Some(s: AST_Seq ) =>
-            if (s.cdr !=n) true
+          case Some(s: AST_Sequence) =>
+            if (s.expressions.last !=n) true
             else if (parentLevel < transformer.stack.length - 2) {
               // even last item of seq can be substituted when the seq result is discarded
               nodeResultDiscarded(s, parentLevel+1)
@@ -474,8 +474,8 @@ object Transform {
           //println(s"  Infer type of member call $c.$name as $r")
           callReturn(r)
         }
-      case seq: AST_Seq =>
-        expressionType(seq.cdr)(ctx)
+      case seq: AST_Sequence =>
+        expressionType(seq.expressions.last)(ctx)
       case _ =>
         None
 

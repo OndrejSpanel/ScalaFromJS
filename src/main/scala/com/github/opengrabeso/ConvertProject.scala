@@ -204,10 +204,10 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       val code = readSourceFile(path)
       // try parsing, if unable, return a comment file instead
       try {
-        parse(code, defaultUglifyOptions.parse)
+        minify(code, defaultUglifyOptions).top
         code -> path
       } catch {
-        case JavaScriptException(ex) if ex.isInstanceOf[JS_Parse_Error] =>
+        case JavaScriptException(ex) if ex.asInstanceOf[js.Dynamic].name.asInstanceOf[String]=="SyntaxError" =>
           //println(s"Parse ex: ${ex.toString} in $path")
           //val wrap = "// " + shortName(path) + "\n/*\n" + code + "\n*/\n"
           val short = shortName(path)
@@ -242,9 +242,10 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
 
     val ast = try {
       //println("** Parse\n" + items.mkString("\n"))
-      parse(code, defaultUglifyOptions.parse)
+      minify(code, defaultUglifyOptions).top
     } catch {
-      case ex@JavaScriptException(err: JS_Parse_Error) =>
+      case ex@JavaScriptException(exJS) if exJS.asInstanceOf[js.Dynamic].name.asInstanceOf[String]=="SyntaxError" =>
+        val err = exJS.asInstanceOf[JS_Parse_Error]
         println(s"Parse error $err")
         println(s"file ${err.filename} at ${err.line}:${err.col}")
 
@@ -328,7 +329,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       for (ConvertProject.Item(code, _, name) <- exportsImports) {
         try {
           println(s"Parse $name")
-          parse(code, defaultUglifyOptions.parse)
+          minify(code, defaultUglifyOptions).top
         } catch {
           case util.control.NonFatal(ex) =>
             ex.printStackTrace()
@@ -344,7 +345,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     val compositeFile = exportsImports.map(_.code).mkString
 
     val ast = Time(s"Parse ${compositeFile.lines.length} lines") {
-      parse(compositeFile, defaultUglifyOptions.parse)
+      minify(compositeFile, defaultUglifyOptions).top
     }
 
     val ext = AST_Extended(ast).loadConfig
