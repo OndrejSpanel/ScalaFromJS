@@ -117,9 +117,10 @@ object ScalaOut {
           //println("symbol")
           identifierToOut(output, s.name)
 
-          if (true) { // output symbol ids and types
-            out"/*${SymbolTypes.id(s.thedef.get).get.sourcePos}*/"
-            out"/*${input.types.get(SymbolTypes.id(s.thedef.get))}*/"
+          if (false) { // output symbol ids and types
+            val symId = SymbolTypes.id(s.thedef.get)
+            out"/*${symId.fold(-1)(_.sourcePos)}*/"
+            out"/*${input.types.get(symId)}*/"
           }
         case n: AST_Node =>
           nodeToOut(n)
@@ -303,7 +304,7 @@ object ScalaOut {
 
       tn.definitions.foreach {
 
-        case AST_VarDef(AST_SymbolName(name), Defined(AST_Object(props))) if isVal && props.nonEmpty =>
+        case AST_VarDef(name, Defined(AST_Object(props))) if isVal && props.nonEmpty =>
           out"object $name {\n"
           out.indent()
           for (elem <- props) nodeToOut(elem)

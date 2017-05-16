@@ -5,9 +5,9 @@ import Uglify._
 import UglifyExt._
 import UglifyExt.Import._
 import JsUtils._
+import SymbolTypes._
 
 import scala.scalajs.js.RegExp
-import scalajs.js
 
 object Classes {
 
@@ -58,15 +58,14 @@ object Classes {
     }
   }
 
-  def superClass(cls: AST_DefClass): Option[String] = {
-    val sup = cls.`extends`.nonNull.collect {
-      case AST_SymbolRefName(c) =>
-        c
-    }
-    sup
+  def superClass(cls: AST_DefClass): Option[SymbolMapId] = {
+    cls.`extends`.nonNull.collect {
+      case AST_SymbolRefDef(c) =>
+        id(c)
+    }.flatten
   }
 
-  def findSuperClass(scope: Option[AST_Scope])(ctx: ExpressionTypeContext): Option[String] = {
+  def findSuperClass(scope: Option[AST_Scope])(ctx: ExpressionTypeContext): Option[SymbolMapId] = {
     val thisScope = findThisClass(scope)
     thisScope.flatMap(superClass)
   }
@@ -85,18 +84,18 @@ object Classes {
   def includeParents(clazz: AST_DefClass, ret: Seq[AST_DefClass])(ctx: ExpressionTypeContext): Seq[AST_DefClass] = {
     clazz.`extends`.nonNull match {
       case Some(cls: AST_SymbolRef) =>
-        val c = ctx.classes.get(cls.name)
+        val c = cls.thedef.nonNull.flatMap(id).flatMap(ctx.classes.get)
         c.fold(ret)(parent => includeParents(parent, parent +: ret)(ctx))
       case _ => ret
     }
   }
 
-  def getParents(tpe: String)(ctx: ExpressionTypeContext): Seq[String] = {
+  def getParents(tpe: SymbolMapId)(ctx: ExpressionTypeContext): Seq[SymbolMapId] = {
     ctx.classInfo.listParents(tpe)
   }
 
 
-  def findInParents(tpe: String, member: String)(ctx: ExpressionTypeContext): Option[String] = {
+  def findInParents(tpe: SymbolMapId, member: String)(ctx: ExpressionTypeContext): Option[SymbolMapId] = {
     ctx.classInfo.classContains(tpe, member)
     /*
     for {
@@ -192,11 +191,14 @@ object Classes {
 
 
   def classListHarmony(n: AST_Extended) = {
-    var classes = Map.empty[String, AST_DefClass]
+    var classes = Map.empty[SymbolMapId, AST_DefClass]
     n.top.walk {
       case d: AST_DefClass =>
-        for (name <- d.name) {
-          classes += name.name -> d
+        for {
+          name <- d.name
+          id <- name.thedef.nonNull.flatMap(id)
+        } {
+          classes += id -> d
         }
         true
       case _ : AST_Toplevel =>
@@ -207,15 +209,13 @@ object Classes {
     classes
   }
 
-  case class ClassListHarmony(classes: Map[String, AST_DefClass]) {
+  case class ClassListHarmony(classes: Map[SymbolMapId, AST_DefClass]) {
 
     def this(n: AST_Extended) = this(classListHarmony(n))
 
-    def get(name: String): Option[AST_DefClass] = classes.get(name)
+    def get(name: SymbolMapId): Option[AST_DefClass] = classes.get(name)
 
-    def classId(name: String): Int = {
-      classes(name).start.map(_.pos).get // token must exists, otherwise we throw
-    }
+    def classPos(name: SymbolMapId): Int = name.sourcePos
 
   }
 

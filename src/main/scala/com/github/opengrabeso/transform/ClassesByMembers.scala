@@ -9,7 +9,6 @@ import Classes._
 import Transform._
 import SymbolTypes._
 
-import scala.scalajs.js
 import scala.language.implicitConversions
 
 object ClassesByMembers {
@@ -23,7 +22,7 @@ object ClassesByMembers {
     )
   }
 
-  case class MemberList(classes: Map[String, AST_DefClass]) {
+  case class MemberList(classes: Map[SymbolMapId, AST_DefClass]) {
 
     case class ClassUseInfo(members: Set[String] = Set.empty, funMembers: Map[String, Int] = Map.empty) {
       def addMember(member: String): ClassUseInfo = copy(members = members + member)
@@ -33,7 +32,7 @@ object ClassesByMembers {
     var list = Map.empty[SymbolMapId, ClassUseInfo]
 
     val defList = {
-      var members = Map.empty[String, ClassDefInfo]
+      var members = Map.empty[SymbolMapId, ClassDefInfo]
 
       //println(s"classes ${classes.keys}")
       for {
@@ -41,8 +40,9 @@ object ClassesByMembers {
       } {
         val parentName = for {
           parent <- getParent(cls)
-          AST_SymbolName(name) <- parent.name.nonNull
-        } yield name
+          AST_SymbolDef(name) <- parent.name.nonNull
+          parentId <- id(name)
+        } yield parentId
 
         //println(s"Class $clsName parent $parentName")
 
@@ -61,7 +61,7 @@ object ClassesByMembers {
           AST_Var(AST_VarDef(AST_SymbolName(varName), _)) <- body.value.body
         } yield varName
 
-        //println(s"Cls $cls: Fun $funMembers mem $varMembers")
+        //println(s"Cls ${id(cls.name.get.thedef.get)}: Fun $funMembers mem $varMembers")
         //println(s"Add def $cls $v")
         val parentMembers = parentName.fold(Option.empty[ClassDefInfo])(members.get(_))
 
@@ -93,7 +93,7 @@ object ClassesByMembers {
       else 0
     }
 
-    def bestMatch(useName: String, useInfo: ClassUseInfo): Option[String] = {
+    def bestMatch(useName: String, useInfo: ClassUseInfo): Option[SymbolMapId] = {
       defList.headOption.flatMap { _ =>
         val best = defList.map { case (cls, ms) =>
           val msVars = ms.members ++ ms.propMembers
@@ -103,7 +103,7 @@ object ClassesByMembers {
             (msVars intersect useInfo.members).size + (msFuns.toSet intersect useInfo.funMembers.toSet).size, // prefer the class having most common members
             -ms.members.size, // prefer a smaller class
             -ms.parentCount, // prefer a less derived class
-            matchNames(useName, cls), // prefer a class with a matching name
+            matchNames(useName, cls.name), // prefer a class with a matching name
             cls // keep ordering stable, otherwise each iteration may select a random class
             //, ms.members intersect useInfo.members, ms.funMembers intersect useInfo.funMembers // debugging
           )

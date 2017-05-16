@@ -5,6 +5,7 @@ import Uglify._
 import UglifyExt._
 import JsUtils._
 import UglifyExt.Import._
+import SymbolTypes.SymbolMapId
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -15,11 +16,13 @@ import scala.scalajs.js.RegExp
 object TransformClasses {
   import Symbols._
 
-  type ClassId = SymbolTypes.SymbolMapId
+  type ClassId = SymbolMapId
 
   object ClassId {
     // TODO: avoid get, use something safe instead
-    def apply(sym: SymbolDef): ClassId = SymbolTypes.id(sym).get
+    def apply(sym: SymbolDef): ClassId = {
+      SymbolTypes.id(sym).getOrElse(SymbolMapId(sym.name, 0))
+    }
     def apply(sym: AST_Symbol): ClassId = ClassId(sym.thedef.get)
   }
 
@@ -392,35 +395,36 @@ object TransformClasses {
 
       case _: AST_Toplevel =>
         false
-      case ClassDefine(sym, args, body) =>
-        val clsId = ClassId(sym)
-        // check if there exists a type with this name
-        if (classNames contains clsId) {
-          // looks like a constructor
-          //println("Constructor " + sym.name)
+      case ClassDefine(AST_SymbolDef(symDef), args, body) =>
+        for (clsId <- SymbolTypes.id(symDef)) {
+          // check if there exists a type with this name
+          if (classNames contains clsId) {
+            // looks like a constructor
+            //println("Constructor " + sym.name)
 
-          // constructor may contain property definitions
-          // note: we do not currently handle property definitions in any inner scopes
-          val bodyFiltered = body.filter {
-            //Object.defineProperty( this, 'id', { value: textureId ++ } );
-            case AST_SimpleStatement(AST_Call(
-            AST_SymbolRefName("Object") AST_Dot "defineProperty", _: AST_This, prop: AST_String,
-            AST_Object(properties)
-            )) =>
-              //println(s"Detect defineProperty ${sym.name}.${prop.value}")
-              properties.foreach {
-                case p: AST_ObjectKeyVal => classes.defineSingleProperty(ClassId(sym), prop.value, p)
-                case _ =>
-              }
-              false
-            case _ =>
-              true
+            // constructor may contain property definitions
+            // note: we do not currently handle property definitions in any inner scopes
+            val bodyFiltered = body.filter {
+              //Object.defineProperty( this, 'id', { value: textureId ++ } );
+              case AST_SimpleStatement(AST_Call(
+              AST_SymbolRefName("Object") AST_Dot "defineProperty", _: AST_This, prop: AST_String,
+              AST_Object(properties)
+              )) =>
+                //println(s"Detect defineProperty ${sym.name}.${prop.value}")
+                properties.foreach {
+                  case p: AST_ObjectKeyVal => classes.defineSingleProperty(clsId, prop.value, p)
+                  case _ =>
+                }
+                false
+              case _ =>
+                true
+            }
+
+            val constructor = ClassFunMember(args, bodyFiltered)
+
+            val c = classes.defClass(clsId)
+            classes += clsId -> c.copy(members = c.members + ("constructor" -> constructor))
           }
-
-          val constructor = ClassFunMember(args, bodyFiltered)
-
-          val c = classes.defClass(ClassId(sym))
-          classes += ClassId(sym) -> c.copy(members = c.members + ("constructor" -> constructor))
         }
 
         true
@@ -715,9 +719,9 @@ object TransformClasses {
       def thisClass = findThisClassInWalker(walker)
 
       object IsSuperClass {
-        def unapply(name: String): Boolean = {
+        def unapply(name: SymbolDef): Boolean = {
           //println(s"${thisClass.flatMap(superClass)} $name")
-          thisClass.flatMap(superClass).contains(name)
+          SymbolTypes.id(name).exists(thisClass.flatMap(superClass).contains)
         }
       }
 
@@ -741,7 +745,7 @@ object TransformClasses {
       node match {
         // Animal.apply(this, Array.prototype.slice.call(arguments))
         case call@AST_Call(
-        AST_SymbolRefName(IsSuperClass()) AST_Dot "apply",
+        AST_SymbolRefDef(IsSuperClass()) AST_Dot "apply",
         _: AST_This,
         AST_Call(AST_SymbolRefName("Array") AST_Dot "prototype" AST_Dot "slice" AST_Dot "call", AST_SymbolRefName("arguments"))
         ) =>
@@ -750,14 +754,14 @@ object TransformClasses {
           call.args = getClassArguments.toJSArray
           call
         // Super.apply(this, arguments)
-        case call@AST_Call(AST_SymbolRefName(IsSuperClass()) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")) =>
+        case call@AST_Call(AST_SymbolRefDef(IsSuperClass()) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")) =>
           // TODO: check class constructor arguments as pass them
           call.expression = newAST_Super
           call.args = getClassArguments.toJSArray
           call
 
         // Light.call( this, skyColor, intensity )
-        case call@AST_Call(AST_SymbolRefName(IsSuperClass()) AST_Dot "call", args@_*) =>
+        case call@AST_Call(AST_SymbolRefDef(IsSuperClass()) AST_Dot "call", args@_*) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
           call.expression = newAST_Super
           call.args = removeHeadThis(args).toJSArray
@@ -766,7 +770,7 @@ object TransformClasses {
 
         // Light.prototype.call( this, source );
         case call@AST_Call(
-        AST_SymbolRefName(IsSuperClass()) AST_Dot "prototype" AST_Dot func AST_Dot "call",
+        AST_SymbolRefDef(IsSuperClass()) AST_Dot "prototype" AST_Dot func AST_Dot "call",
         _: AST_This, args@_*
         ) =>
           //println(s"Super call of $func in ${thisClass.map(_.name.get.name)}")
@@ -844,12 +848,15 @@ object TransformClasses {
     // remove members already present in a parent from a derived class
     val cleanup = ret.transformAfter { (node, _) =>
       node match {
-        case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), _,_) =>
-          for (AST_SymbolName(base) <- cls.`extends`) {
+        case cls: AST_DefClass =>
+          for {
+            AST_SymbolDef(base) <- cls.`extends`
+            baseId <- SymbolTypes.id(base)
+          } {
             //println(s"Detected base $base")
             val accessor = classInlineBody(cls)
             accessor.body = accessor.body.filter {
-              case VarName(member) => classInfo.classContains(base, member).isEmpty
+              case VarName(member) => classInfo.classContains(baseId, member).isEmpty
               case _ => true
             }
           }
