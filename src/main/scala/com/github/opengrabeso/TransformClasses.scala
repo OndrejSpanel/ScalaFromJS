@@ -679,6 +679,8 @@ object TransformClasses {
           object helper extends Helper(node)
           import helper._
 
+          val baseDef = clazz.base.flatMap(classes.get)
+
           val base = clazz.base.fold(js.undefined: js.UndefOr[AST_Node])(b => AST_SymbolRef(node)(b.name))
 
           val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }
@@ -720,8 +722,16 @@ object TransformClasses {
 
       object IsSuperClass {
         def unapply(name: SymbolDef): Boolean = {
-          //println(s"${thisClass.flatMap(superClass)} $name")
-          SymbolTypes.id(name).exists(thisClass.flatMap(superClass).contains)
+          //println(s"thisClass $thisClass ${name.name}")
+          //println(s"superClass ${thisClass.flatMap(superClass)} ${name.name}")
+
+          // name does not contain thedef, we did not provide it
+          // find a corresponding symbol
+          val baseSym = thisClass.flatMap(superClassSymbolDef)
+          val baseId = baseSym.flatMap(SymbolTypes.id)
+
+          //println(s"baseSym ${baseSym.map(_.name)} baseId $baseId")
+          baseId.exists(thisClass.flatMap(superClass).contains)
         }
       }
 

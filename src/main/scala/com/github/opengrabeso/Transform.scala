@@ -379,7 +379,7 @@ object Transform {
 
     n match {
       case s: AST_Super =>
-        val sup = findSuperClass(s.scope.nonNull)(ctx)
+        val sup = findSuperClass(s.scope.nonNull)
         //println(s"super scope $sup")
         sup.map(t => TypeInfo.target(ClassType(t)))
 

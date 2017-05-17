@@ -575,7 +575,7 @@ object InferTypes {
             case _ =>
           }
         case AST_Call(s: AST_Super, args@_*) =>
-          for (sup <- findSuperClass(s.scope.nonNull)(ctx)) {
+          for (sup <- findSuperClass(s.scope.nonNull)) {
             //println(s"Super call of $sup")
             inferConstructorCall(args, sup)
           }

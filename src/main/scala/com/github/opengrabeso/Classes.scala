@@ -58,22 +58,44 @@ object Classes {
     }
   }
 
-  def superClass(cls: AST_DefClass): Option[SymbolMapId] = {
+  def superClassSymbolDef(cls: AST_DefClass): Option[SymbolDef] = {
     cls.`extends`.nonNull.collect {
       case AST_SymbolRefDef(c) =>
-        id(c)
+        // symbol defined, use it directly
+        //println(s"  AST_SymbolRefDef ${c.name}")
+        Some(c)
+      case AST_SymbolRef(name, _, _) =>
+        // symbol not defined, search for it
+        //println(s"  AST_SymbolRef $name $scope $thedef")
+
+        val thisCls = cls
+        val superSym = for {
+          thisClsSymbol <- thisCls.name.nonNull
+          scope <- thisClsSymbol.scope.nonNull
+          scopeSymbols <- scope.enclosed.nonNull
+          baseSym <- scopeSymbols.find(_.name == name)
+        } yield {
+          baseSym
+        }
+        superSym
     }.flatten
   }
 
-  def findSuperClass(scope: Option[AST_Scope])(ctx: ExpressionTypeContext): Option[SymbolMapId] = {
-    val thisScope = findThisClass(scope)
-    thisScope.flatMap(superClass)
+  def superClass(cls: AST_DefClass): Option[SymbolMapId] = {
+    //println(s"superClass ${cls.name.get.name}")
+
+    val baseSym = superClassSymbolDef(cls)
+
+    val baseId = baseSym.flatMap(SymbolTypes.id)
+
+    //println(s"  baseSym ${baseSym.map(_.name)} baseId $baseId")
+
+    baseId
   }
 
-  def getParent(clazz: AST_DefClass): Option[AST_DefClass] = {
-    clazz.`extends`.nonNull.collect {
-      case c: AST_DefClass => c
-    }
+  def findSuperClass(scope: Option[AST_Scope]): Option[SymbolMapId] = {
+    val thisScope = findThisClass(scope)
+    thisScope.flatMap(superClass)
   }
 
   def getClassId(cls: AST_DefClass): Option[Int] = {

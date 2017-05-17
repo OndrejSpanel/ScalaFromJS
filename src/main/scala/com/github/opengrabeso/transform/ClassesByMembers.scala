@@ -38,11 +38,7 @@ object ClassesByMembers {
       for {
         (clsName, cls) <- classes
       } {
-        val parentName = for {
-          parent <- getParent(cls)
-          AST_SymbolDef(name) <- parent.name.nonNull
-          parentId <- id(name)
-        } yield parentId
+        val parentName = superClass(cls)
 
         //println(s"Class $clsName parent $parentName")
 
