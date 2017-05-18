@@ -856,21 +856,9 @@ object ScalaOut {
           inlineBody.value.body.foreach {
             case df: AST_Definitions =>
 
-              def getMemberType(s: SymbolDef) = {
-                val clsName = tn.name.nonNull.map(_.name)
-                //println(s"member $clsName ${s.name}")
-
-                val clsId = Classes.getClassId(tn)
-                val symId = clsId.map(SymbolTypes.SymbolMapId(s.name, _))
-
-                val memberType = input.types.get(symId).map(_.declType)
-
-                memberType.orElse(getSymbolType(s))
-              }
-
               //println("outputDefinitions - getMemberType")
               //out"/*inlineBody ${nodeClassName(df)} ${df.definitions.length}*/"
-              outputDefinitions(false, df, getMemberType, true)
+              outputDefinitions(false, df, getSymbolType, true)
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
             case ss =>
               //out(nodeTreeToString(ss))

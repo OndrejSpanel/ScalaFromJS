@@ -652,7 +652,7 @@ object TransformClasses {
             fillTokens(this, tokensFrom)
             name = new AST_SymbolDefClass {
               /*_*/
-              fillTokens(this, sym)
+              fillTokens(this, tokensFrom)
               /*_*/
               name = sym.name
               scope = sym.scope
@@ -820,6 +820,7 @@ object TransformClasses {
     val ret = n.top.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
+          //println(s"AST_DefClass ${cls.name.get.name} ${cls.start.get.pos}")
           var newMembers = Seq.empty[String]
           // scan known prototype members (both function and var) first
           var existingMembers = listPrototypeMemberNames(cls)
@@ -839,7 +840,7 @@ object TransformClasses {
           val vars = newMembers.map { m =>
             new AST_Var {
               fillTokens(this, cls)
-              definitions = js.Array(AST_VarDef.uninitialized(node) (m))
+              definitions = js.Array(AST_VarDef.uninitialized(cls) (m))
             }
           }
 

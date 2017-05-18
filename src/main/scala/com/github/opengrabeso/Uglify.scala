@@ -731,15 +731,16 @@ object UglifyExt {
 
       def apply(from: AST_Node)(name: AST_SymbolVarOrConst, value: js.UndefOr[AST_Node]): AST_VarDef = {
         init(new AST_VarDef()) { node =>
+          fillTokens(node, from)
           node.name = name
           node.value = value
         }
       }
 
-      def uninitialized(node: AST_Node)(vName: String): AST_VarDef = {
-        AST_VarDef(node)(
+      def uninitialized(from: AST_Node)(vName: String): AST_VarDef = {
+        AST_VarDef(from)(
           new AST_SymbolVar {
-            fillTokens(this, node)
+            fillTokens(this, from)
             name = vName
             // thedef and scope will be filled by uglify
             init = js.Array[AST_Node]()
@@ -973,6 +974,7 @@ object UglifyExt {
   }
 
   def fillTokens(to: AST_Node, from: AST_Node): Unit = {
+    //println(s"fillTokens ${nodeClassName(to)} ${from.start.map(_.pos)}")
     to.start = from.start
     to.end = from.end
   }

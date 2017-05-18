@@ -129,7 +129,8 @@ object SymbolTypes {
 
     //println(s"id ${sym.name} ${sym.orig.map(UglifyExt.nodeClassName)} ${token.map(_.pos)}")
     token.map { t =>
-      val pos = if (sym.global) 0 else t.pos
+      // global undeclared symbols are often static libraries
+      val pos = if (sym.global && sym.undeclared) 0 else t.pos
       SymbolMapId(sym.name, pos)
     }
   }

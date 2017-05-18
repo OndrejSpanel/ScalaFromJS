@@ -30,37 +30,56 @@ class ClassTests extends FunSuite with TestUtils {
 
   }
 
-  test("Support local classes") {
-    pendingUntilFixed {
-      execute check ConversionCheck(
-        // language=JavaScript
-        """
-        var v1, v2;
-        if (true) v1 = (function () {
-                function C() {
-                    this.a = 0;
-                }
-                C.prototype.constructor = C;
-                var c = new C();
-                return c.x;
-        })();
+  test("Infer member types defined in constructor or functions") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function C() {
+          this.a = 0;
+      }
+      C.prototype.constructor = C;
+      C.prototype.f = function () {
+          this.b = "b"
+      }
+      """).required(
+        "class C",
+        "var a: Double = 0",
+        "var b: String"
+      )
 
-        if (true) v2 = (function () {
-                function C() {
-                    this.x = "X";
-                }
-                C.prototype.constructor = C;
-                var c = new C();
-                return c.a;
-        })();
-        """).required(
-          "class C",
-          "var a: Double = 0",
-          "var x: String = \"X\"",
-          "var v1: Any",
-          "var v2: Any"
-        )
-    }
+  }
+
+  test("Support local classes") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      var v1, v2;
+      if (true) v1 = (function () {
+              function C() {
+                  this.a = 0;
+                  this.x = 0;
+              }
+              C.prototype.constructor = C;
+              var c = new C();
+              return c.a;
+      })();
+
+      if (true) v2 = (function () {
+              function C() {
+                  this.x = "X";
+                  this.x = ""
+              }
+              C.prototype.constructor = C;
+              var c = new C();
+              return c.x;
+      })();
+      """).required(
+        "class C",
+        "var a: Double = 0",
+        "var x: String = \"X\"",
+        "var v1: Double",
+        "var v2: String"
+      )
   }
 
   test("Support local objects") {
