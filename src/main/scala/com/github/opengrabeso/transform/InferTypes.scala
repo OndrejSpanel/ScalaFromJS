@@ -199,6 +199,7 @@ object InferTypes {
 
     def inferFunction(args: Seq[AST_Node]) = {
       val pars = args.map(expressionType(_)(ctx))
+      println(s"  $args $pars")
       FunctionType(NoType, pars.map(_.fold[TypeDesc](NoType)(_.declType)).toIndexedSeq)
     }
 
@@ -591,11 +592,11 @@ object InferTypes {
             c <- getParents(callOn)(ctx) // infer for all overrides
           } {
             val memberId = MemberId(c, call)
-            //println(s"memberId $memberId, args ${args.length}")
+            println(s"memberId $memberId, args ${args.length} (${args.mkString(",")})")
             if (ctx.classInfo.containsMember(c, call)) {
               val tpe = inferFunction(args)
 
-              //println(s"Infer par types for a var member call $c.$call as $tpe")
+              println(s"Infer par types for a var member call $c.$call as $tpe")
               //println(allTypes)
               addInferredMemberType(Some(memberId), Some(TypeInfo.target(tpe))) // target or source?
 
