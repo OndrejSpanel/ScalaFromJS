@@ -267,7 +267,7 @@ object ScalaOut {
       //println(s"AST_VarDef ${name.name} type: $sType init: ${init.nonNull.map(_.toString)}")
       if (types || init.nonNull.isEmpty) {
         for (tp <- sType) {
-          if (tp.typeOnInit) out": $tp"
+          if (tp.typeOnInit) out": ${tp.toOut}"
         }
       }
 
@@ -342,7 +342,7 @@ object ScalaOut {
     }
 
     def outputArgType(n: AST_SymbolFunarg) = {
-      val typeString = n.thedef.nonNull.fold(SymbolTypes.any.toString)(input.types.getAsScala(_))
+      val typeString = n.thedef.nonNull.fold(SymbolTypes.any.toOut)(input.types.getAsScala(_))
       //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeString")
       out": $typeString"
       for (init <- n.init.nonNull.flatMap(_.headOption)) {
@@ -377,7 +377,7 @@ object ScalaOut {
         } else {
           val sid = n.thedef.nonNull.flatMap(SymbolTypes.id)
           for (t <- input.types.get(sid)) {
-            out": ${t.declType}"
+            out": ${t.declType.toOut}"
           }
         }
       }

@@ -61,8 +61,7 @@ scalaJSUseMainModuleInitializer := true
 
 scalaJSModuleKind := ModuleKind.CommonJSModule
 
-//scalaJSOptimizerOptions in fastOptJS ~= { _.withDisableOptimizer(true) }
-
+scalaJSOptimizerOptions in fastOptJS ~= { _.withDisableOptimizer(true) }
 
 lazy val deployTask = TaskKey[Unit]("deploy")
 

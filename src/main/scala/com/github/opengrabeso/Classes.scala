@@ -99,7 +99,8 @@ object Classes {
   }
 
   def getClassId(cls: AST_DefClass): Option[Int] = {
-    cls.start.nonNull.map(_.pos)
+    val sid = cls.name.nonNull.flatMap(_.thedef.nonNull.flatMap(id))
+    sid.map(_.sourcePos)
   }
 
 

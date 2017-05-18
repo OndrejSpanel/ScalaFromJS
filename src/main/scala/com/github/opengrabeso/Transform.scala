@@ -361,16 +361,23 @@ object Transform {
     case FunctionType(ret, _) =>
       //println(s"callReturn $ret")
       TypeInfo.target(ret)
-    case _ => funType
+    case _ =>
+      //println(s"callReturn funType $funType")
+      funType
   }
 
   def expressionType(n: AST_Node)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
 
-    def typeInfoFromClassSym(classSym: SymbolDef) = {
-      val cls = id(classSym)
-      cls.map(t => TypeInfo.target(ClassType(t)))
+    def typeInfoFromClassSym(classSym: SymbolDef): Option[TypeInfo] = {
+      // is the symbol a class?
+      for {
+        cls <- id(classSym)
+        clsCls <- ctx.classes.get(cls)
+      } yield {
+        TypeInfo.target(ClassType(cls))
+      }
     }
 
     def typeInfoFromClassDef(classDef: Option[AST_DefClass]) = {

@@ -14,19 +14,24 @@ object SymbolTypes {
     def typeOnInit: Boolean = true
 
     def knownItems: Int = 0
+
+    def toOut: String
   }
   case class SimpleType(name: String) extends TypeDesc {
     override def toString = name
+    override def toOut = name
 
     override def knownItems = 1
   }
   case class ClassType(name: SymbolMapId) extends TypeDesc {
     override def toString = if (name.sourcePos !=0) s"${name.name}:${name.sourcePos}" else name.name
+    override def toOut = name.name
 
     override def knownItems = 1
   }
   case class ArrayType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Array[${elem.toString}]"
+    override def toOut = s"Array[${elem.toOut}]"
 
     override def scalaConstruct: String = s"Array.empty[$elem]"
 
@@ -39,9 +44,10 @@ object SymbolTypes {
   }
 
   case class MapType(elem: TypeDesc) extends TypeDesc {
-    override def toString = s"Map[String, $elem]"
+    override def toString = s"Map[String, ${elem.toString}]"
+    override def toOut = s"Map[String, ${elem.toOut}]"
 
-    override def scalaConstruct: String = s"Map.empty[String, $elem]"
+    override def scalaConstruct: String = s"Map.empty[String, ${elem.toOut}]"
 
     override def typeOnInit = false
 
@@ -62,6 +68,11 @@ object SymbolTypes {
       args.map(outputType).mkString("(", ", ",")") + " => " + outputType(ret)
     }
 
+    override def toOut = {
+      def outputType(o: TypeDesc) = o.toOut
+      args.map(outputType).mkString("(", ", ",")") + " => " + outputType(ret)
+    }
+
     def op(that: FunctionType, combine: (TypeDesc, TypeDesc) => TypeDesc)(implicit classOps: ClassOps) = {
       val ret = combine(this.ret, that.ret)
       val args = for ((a1, a2) <- this.args.zipAll(that.args, NoType, NoType)) yield {
@@ -76,10 +87,12 @@ object SymbolTypes {
   }
   case object AnyType extends TypeDesc { // supertype of all
     override def toString = "Any"
+    override def toOut = "Any"
 
   }
   case object NoType extends TypeDesc { // subtype of all
     override def toString = "Unit"
+    override def toOut = "Unit"
   }
 
   val any = SimpleType("Any")
@@ -399,7 +412,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo])
   def getMember(clsId: Option[MemberId])(implicit classId: SymbolMapId => Int): Option[TypeInfo] = get(clsId.map(symbolFromMember))
 
   def getAsScala(id: Option[SymbolMapId]): String = {
-    get(id).fold (any.toString) (t => t.declType.toString)
+    get(id).fold (any.toOut) (t => t.declType.toOut)
   }
 
   def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types)
