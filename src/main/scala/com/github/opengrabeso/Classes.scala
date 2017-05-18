@@ -172,6 +172,14 @@ object Classes {
     }
   }
 
+  def propertyIsStatic(prop: AST_ObjectProperty): Boolean = prop match {
+    case m: AST_ConciseMethod => m.`static`
+    case m: AST_ObjectSetter => m.`static`
+    case m: AST_ObjectGetter => m.`static`
+    case m: AST_ObjectKeyVal => m.quote == "'"
+    case _ => false
+  }
+
   def replaceProperty(c: AST_DefClass, oldP: AST_ObjectProperty, newP: AST_ObjectProperty): AST_DefClass = {
     c.properties = c.properties.map(p => if (p == oldP) newP else p)
     c

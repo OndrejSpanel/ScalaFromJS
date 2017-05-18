@@ -793,13 +793,7 @@ object ScalaOut {
       //case tn: AST_Scope => outputUnknownNode(tn)
       case tn: AST_DefClass =>
 
-        val (staticProperties, nonStaticProperties) = tn.properties.partition {
-          case m: AST_ConciseMethod => m.`static`
-          case m: AST_ObjectSetter => m.`static`
-          case m: AST_ObjectGetter => m.`static`
-          case m: AST_ObjectKeyVal => m.quote == "'"
-          case _ => false
-        }
+        val (staticProperties, nonStaticProperties) = tn.properties.partition(propertyIsStatic)
 
         if (staticProperties.nonEmpty) {
           out.eol(2)
