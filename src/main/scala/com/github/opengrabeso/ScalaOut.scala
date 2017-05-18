@@ -863,7 +863,9 @@ object ScalaOut {
                 val clsId = Classes.getClassId(tn)
                 val symId = clsId.map(SymbolTypes.SymbolMapId(s.name, _))
 
-                input.types.get(symId).map(_.declType)
+                val memberType = input.types.get(symId).map(_.declType)
+
+                memberType.orElse(getSymbolType(s))
               }
 
               //println("outputDefinitions - getMemberType")
