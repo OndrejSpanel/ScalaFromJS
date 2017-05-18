@@ -51,7 +51,7 @@ object ScalaFromJS extends js.JSApp {
 
     Persist.store("source", code)
 
-    val conversionResult = if (true) {
+    val conversionResult = if (false) {
       Success (Convert(code))
     } else {
       Try(Convert(code))

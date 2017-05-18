@@ -7,7 +7,7 @@ import org.scalatest.FunSuite
 class ParsingTests extends FunSuite with TestUtils {
   test("Basic test") {
     val code = "answer = 42"
-    val mCode = parse(code, defaultUglifyOptions.parse)
+    val mCode = minify(code, defaultUglifyOptions).top
     assert(mCode.body.nonEmpty)
   }
 
@@ -15,10 +15,7 @@ class ParsingTests extends FunSuite with TestUtils {
   test("Parsing test") {
     val code = "answer = 42"
 
-    val u = uglify(code)
-    assert(u == "answer=42;")
-
-    val m = parse(code, defaultUglifyOptions.parse)
+    val m = minify(code, defaultUglifyOptions).top
     assert(m.start.exists(_.pos == 0))
     assert(m.end.exists(_.endpos == code.length))
     (m.body.head: @unchecked) match {
@@ -35,11 +32,42 @@ class ParsingTests extends FunSuite with TestUtils {
     }
   }
 
-  test("Parse a file") {
+  test("Parse a resource file") {
     val code = rsc("answer42.js")
-    val mCode = parse(code, defaultUglifyOptions.parse)
+    val mCode = minify(code, defaultUglifyOptions).top
     assert(mCode.body.nonEmpty)
   }
 
+  test("Walk AST") {
+    val code = "answer = 42"
+
+    val m = minify(code, defaultUglifyOptions).top
+    var countStatements = 0
+    m.walk {
+      case s: AST_SimpleStatement =>
+        countStatements += 1
+        false
+      case _ =>
+        false
+    }
+    assert(countStatements == 1)
+  }
+
+  test("Transform AST") {
+    val code = "answer = 42"
+
+    val m = minify(code, defaultUglifyOptions).top
+    var countStatements = 0
+    m.transformAfter { (node, transformer) =>
+      node match {
+        case s: AST_SimpleStatement =>
+          countStatements += 1
+          node
+        case _ =>
+          node
+      }
+    }
+    assert(countStatements == 1)
+  }
 
 }

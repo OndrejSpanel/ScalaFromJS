@@ -14,19 +14,24 @@ object SymbolTypes {
     def typeOnInit: Boolean = true
 
     def knownItems: Int = 0
+
+    def toOut: String
   }
   case class SimpleType(name: String) extends TypeDesc {
     override def toString = name
+    override def toOut = name
 
     override def knownItems = 1
   }
-  case class ClassType(name: String) extends TypeDesc {
-    override def toString = name
+  case class ClassType(name: SymbolMapId) extends TypeDesc {
+    override def toString = if (name.sourcePos !=0) s"${name.name}:${name.sourcePos}" else name.name
+    override def toOut = name.name
 
     override def knownItems = 1
   }
   case class ArrayType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Array[${elem.toString}]"
+    override def toOut = s"Array[${elem.toOut}]"
 
     override def scalaConstruct: String = s"Array.empty[$elem]"
 
@@ -39,9 +44,10 @@ object SymbolTypes {
   }
 
   case class MapType(elem: TypeDesc) extends TypeDesc {
-    override def toString = s"Map[String, $elem]"
+    override def toString = s"Map[String, ${elem.toString}]"
+    override def toOut = s"Map[String, ${elem.toOut}]"
 
-    override def scalaConstruct: String = s"Map.empty[String, $elem]"
+    override def scalaConstruct: String = s"Map.empty[String, ${elem.toOut}]"
 
     override def typeOnInit = false
 
@@ -62,6 +68,11 @@ object SymbolTypes {
       args.map(outputType).mkString("(", ", ",")") + " => " + outputType(ret)
     }
 
+    override def toOut = {
+      def outputType(o: TypeDesc) = o.toOut
+      args.map(outputType).mkString("(", ", ",")") + " => " + outputType(ret)
+    }
+
     def op(that: FunctionType, combine: (TypeDesc, TypeDesc) => TypeDesc)(implicit classOps: ClassOps) = {
       val ret = combine(this.ret, that.ret)
       val args = for ((a1, a2) <- this.args.zipAll(that.args, NoType, NoType)) yield {
@@ -76,10 +87,12 @@ object SymbolTypes {
   }
   case object AnyType extends TypeDesc { // supertype of all
     override def toString = "Any"
+    override def toOut = "Any"
 
   }
   case object NoType extends TypeDesc { // subtype of all
     override def toString = "Unit"
+    override def toOut = "Unit"
   }
 
   val any = SimpleType("Any")
@@ -94,18 +107,20 @@ object SymbolTypes {
       case "string" => string
       case "any" => any
       case _ =>
-        ClassType(str)
+        ClassType(???) // find corresponding class
 
     }
   }
 
   // SymbolDef instances (including ids) are recreated on each figure_out_scope
   // we need a stable id. Original source location + name should be unique and stable
-  case class SymbolMapId(name: String, sourcePos: Int)
+  case class SymbolMapId(name: String, sourcePos: Int) extends Ordered[SymbolMapId] {
+    def compare(that: SymbolMapId) = name compare that.name
+  }
 
-  case class MemberId(cls: String, name: String)
+  case class MemberId(cls: SymbolMapId, name: String)
 
-  def memberId(maybeDesc: Option[String], name: String): Option[MemberId] = {
+  def memberId(maybeDesc: Option[SymbolMapId], name: String): Option[MemberId] = {
     maybeDesc.map(MemberId(_, name))
   }
 
@@ -114,12 +129,13 @@ object SymbolTypes {
 
     //println(s"id ${sym.name} ${sym.orig.map(UglifyExt.nodeClassName)} ${token.map(_.pos)}")
     token.map { t =>
-      val pos = if (sym.global) 0 else t.pos
+      // global undeclared symbols are often static libraries
+      val pos = if (sym.global && sym.undeclared) 0 else t.pos
       SymbolMapId(sym.name, pos)
     }
   }
 
-  def classFromType(tpe: Option[TypeInfo]): Option[String] = {
+  def classFromType(tpe: Option[TypeInfo]): Option[SymbolMapId] = {
     tpe.map(_.declType) match {
       case Some(ClassType(name)) => Some(name)
       case _ => None
@@ -189,7 +205,7 @@ object SymbolTypes {
   }
 
   private def typeFromOption(tpe: Option[TypeInfo]) = {
-    tpe.getOrElse(TypeInfo(AnyType, NoType))
+    tpe.getOrElse(TypeInfo.unknown)
   }
   def typeUnionOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
     val t1 = typeFromOption(tpe1)
@@ -213,7 +229,7 @@ object SymbolTypes {
     new SymbolTypes(StdLibraries(), idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)})
   }
 
-  case class ClassInfo(members: Map[String, Seq[String]] = Map.empty, parents: Map[String, String] = Map.empty) {
+  case class ClassInfo(members: Map[SymbolMapId, Seq[String]] = Map.empty, parents: Map[SymbolMapId, SymbolMapId] = Map.empty) {
 
     lazy val children = parents.groupBy(_._2).mapValues(_.keys.toSet)
 
@@ -221,11 +237,11 @@ object SymbolTypes {
     //println(s"children $children")
     //println(s"listChildren ${listChildren("X")}")
 
-    def containsMember(cls: String, member: String): Boolean = {
+    def containsMember(cls: SymbolMapId, member: String): Boolean = {
       members.get(cls).exists(_.contains(member))
     }
 
-    def classContains(cls: String, member: String): Option[String] = {
+    def classContains(cls: SymbolMapId, member: String): Option[SymbolMapId] = {
       val r = if (containsMember(cls, member)) Some(cls)
       else parents.get(cls).flatMap { c =>
         //println(s"  parent $c")
@@ -236,8 +252,8 @@ object SymbolTypes {
     }
 
     // list parents, the first in the list is the hierarchy root (no more parents), the last is the class itself
-    def listParents(cls: String): Seq[String] = {
-      def listParentsRecurse(cls: String, ret: Seq[String]): Seq[String] = {
+    def listParents(cls: SymbolMapId): Seq[SymbolMapId] = {
+      def listParentsRecurse(cls: SymbolMapId, ret: Seq[SymbolMapId]): Seq[SymbolMapId] = {
         val p = parents.get(cls)
         p match {
           case Some(pp) => listParentsRecurse(pp, pp +: ret)
@@ -249,8 +265,8 @@ object SymbolTypes {
     }
 
     // list all children in no particular order
-    def listChildren(cls: String): Set[String] = {
-      def listChildrenRecurse(cls: String): Set[String] = {
+    def listChildren(cls: SymbolMapId): Set[SymbolMapId] = {
+      def listChildrenRecurse(cls: SymbolMapId): Set[SymbolMapId] = {
         val p = children.get(cls)
         p match {
           case Some(pp) =>
@@ -267,7 +283,7 @@ object SymbolTypes {
 
 
 
-    def mostDerived(c1: String, c2: String): Option[String] = {
+    def mostDerived(c1: SymbolMapId, c2: SymbolMapId): Option[SymbolMapId] = {
       //println(s"  Parents of $c1: ${listParents(c1)}")
       //println(s"  Parents of $c2: ${listParents(c2)}")
       // check if one is parent of the other
@@ -276,7 +292,7 @@ object SymbolTypes {
       else None
     }
 
-    def commonBase(c1: String, c2: String): Option[String] = {
+    def commonBase(c1: SymbolMapId, c2: SymbolMapId): Option[SymbolMapId] = {
       val p1 = listParents(c1)
       val p2 = listParents(c2)
       (p1 zip p2).takeWhile(p => p._1 == p._2).lastOption.map(_._1)
@@ -287,7 +303,8 @@ object SymbolTypes {
   }
 
   val libs = Map(
-    "Math" -> Seq(
+    // 0 is a special handling for global symbols
+    SymbolMapId("Math", 0) -> Seq(
       "min", "max", "abs",
       "sin", "cos", "tan", "asin", "acos", "atan",
       "sqrt", "ceil", "floor",
@@ -299,7 +316,7 @@ object SymbolTypes {
   private val numberFunction = FunctionType(number, IndexedSeq(number))
 
   val stdLibraries: Map[SymbolMapId, TypeInfo] = libs.keys.map { k =>
-    SymbolMapId(k, 0) -> TypeInfo.target(ClassType(k))// 0 is a special handling for global symbols
+    k -> TypeInfo.target(ClassType(k))
   }.toMap
 
   val stdLibraryMembers: Map[MemberId, TypeInfo] = (for {
@@ -312,10 +329,10 @@ object SymbolTypes {
 
   // unique ID for std lib classes
   // once ClassType contains offset uniquely identifying a class, this class can be deleted
-  case class StdLibraries(libs: Seq[String] = Seq.empty) {
+  case class StdLibraries(libs: Seq[SymbolMapId] = Seq.empty) {
     val index = libs.zipWithIndex.map {case (v, i) => v -> (-1 - i)}.toMap
 
-    def symbolFromMember(cls: String, name: String): Option[SymbolMapId] = {
+    def symbolFromMember(cls: SymbolMapId, name: String): Option[SymbolMapId] = {
       val id = index.get(cls)
       id.map(SymbolMapId(name, _))
     }
@@ -348,6 +365,7 @@ object TypeInfo {
     //println(s"both $tpe")
     TypeInfo(tpe, tpe)
   }
+  def unknown: TypeInfo = TypeInfo(AnyType, NoType)
 
 }
 case class TypeInfo(source: TypeDesc, target: TypeDesc) {
@@ -385,18 +403,18 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo])
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
 
   // TODO: move stdLibs and symbolFromMember out of SymbolTypes
-  def symbolFromMember(memberId: MemberId)(implicit classId: String => Int): SymbolMapId = {
+  def symbolFromMember(memberId: MemberId)(implicit classPos: SymbolMapId => Int): SymbolMapId = {
     // first check stdLibraries, if not found, try normal lookup
     stdLibs.symbolFromMember(memberId.cls, memberId.name).getOrElse {
-      val clsId = classId(memberId.cls)
-      SymbolMapId(memberId.name, clsId)
+      val clsPos = classPos(memberId.cls)
+      SymbolMapId(memberId.name, clsPos)
     }
   }
 
-  def getMember(clsId: Option[MemberId])(implicit classId: String => Int): Option[TypeInfo] = get(clsId.map(symbolFromMember))
+  def getMember(clsId: Option[MemberId])(implicit classId: SymbolMapId => Int): Option[TypeInfo] = get(clsId.map(symbolFromMember))
 
   def getAsScala(id: Option[SymbolMapId]): String = {
-    get(id).fold (any.toString) (t => t.declType.toString)
+    get(id).fold (any.toOut) (t => t.declType.toOut)
   }
 
   def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types)
@@ -407,7 +425,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo])
     }
   }
 
-  def addMember (kv: (Option[MemberId], TypeInfo))(implicit classId: String => Int): SymbolTypes = {
+  def addMember (kv: (Option[MemberId], TypeInfo))(implicit classId: SymbolMapId => Int): SymbolTypes = {
     this + (kv._1.map(symbolFromMember) -> kv._2)
   }
 

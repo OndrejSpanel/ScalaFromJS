@@ -20,6 +20,12 @@ object Helpers {
 object Uglify extends js.Object {
   import Helpers._
 
+  @js.native class MinifyOutput extends js.Object {
+    val code: js.UndefOr[String] = js.native
+    val ast: js.UndefOr[AST_Toplevel] = js.native
+    val error: js.UndefOr[JS_Parse_Error] = js.native
+  }
+
   // http://lisperator.net/uglifyjs/ast
   @js.native class AST_Token extends js.Object {
     val col: Int = js.native
@@ -128,7 +134,7 @@ object Uglify extends js.Object {
   @js.native class AST_Toplevel extends AST_Scope with CloneSelf[AST_Toplevel] {
     def figure_out_scope(): Unit = js.native
 
-    def transform(c: Compressor): AST_Toplevel = js.native
+    def transform(c: TreeTransformer): AST_Toplevel = js.native
 
     def compute_char_frequency(): Unit = js.native
 
@@ -275,11 +281,9 @@ object Uglify extends js.Object {
 
   @js.native class AST_New extends AST_Call
 
-  @js.native class AST_Seq extends AST_Node {
-    // [AST_Node] first element in sequence
-    val car: AST_Node = js.native
-    // [AST_Node] second element in sequence
-    val cdr: AST_Node = js.native
+  @js.native class AST_Sequence extends AST_Node {
+    // array of expressions (at least two)
+    val expressions: js.Array[AST_Node] = js.native
   }
 
   @js.native sealed abstract class AST_PropAccess extends AST_Node {
@@ -483,7 +487,7 @@ object Uglify extends js.Object {
   @js.native
   class Compressor(options: UglifyExt.Options.Compress) extends js.Object
 
-  def parse(code: String, options: UglifyExt.Options.Parse): AST_Toplevel = js.native
+  def minify(code: String, options: UglifyExt.Options): MinifyOutput = js.native
 
   @js.native
   class JS_Parse_Error extends js.Object {
@@ -533,7 +537,7 @@ object UglifyExt {
       var cascade: Boolean = true
       var side_effects: Boolean = true
       var negate_iife: Boolean = true
-      var screw_ie8: Boolean = false
+      var ie8: Boolean = false
       var warnings: Boolean = true
       var global_defs: Map[String, Any] = Map.empty
     }
@@ -549,12 +553,14 @@ object UglifyExt {
       var width: Int = 80
       var max_line_len: Int = 32000
       var beautify: Boolean = false
-      var source_map: js.Dynamic = null
+      val source_map: js.UndefOr[js.Dynamic] = js.undefined
       var bracketize: Boolean = false
       var semicolons: Boolean = true
       var comments: RegExp = RegExp("@license|@preserve|^!")
       var preserve_line: Boolean = false
-      var screw_ie8: Boolean = false
+      var ie8: Boolean = false
+      var ast: Boolean = true
+      var code: Boolean = false
     }
 
   }
@@ -565,36 +571,29 @@ object UglifyExt {
     import Options._
 
     val parse: Parse = new Parse
-    val compress: Compress = new Compress
+    val compress: js.UndefOr[Compress] = js.undefined
     val output: Output = new Output
+    val mangle: js.UndefOr[js.Dynamic] = js.undefined
   }
 
   val defaultUglifyOptions = new Options
 
-  // options for reasonable optimization
-  val defaultOptimizeOptions = new Options.Compress {
-    sequences = false
-    join_vars = false
-    hoist_vars = false
-    hoist_funs = false
-    booleans = false
-    unsafe_comps = false
-  }
   val defaultOutputOptions = new Options.Output {
     beautify = true
   }
 
-  implicit class AST_ToplevelOps(val ast: AST_Toplevel) {
-    def optimize(options: Options.Compress = defaultOptimizeOptions): AST_Toplevel = {
-      ast.figure_out_scope()
 
-      val compressor = new Compressor(options)
-      val compressed_ast = ast.transform(compressor)
-
-      compressed_ast.figure_out_scope()
-      compressed_ast
+  implicit class MinifyOutputOps(val output: MinifyOutput) {
+    def top: AST_Toplevel = {
+      (output.ast.nonNull, output.error.nonNull) match {
+        case (Some(ast), _) => ast
+        case (_, Some(error)) => throw js.JavaScriptException(error)
+        case _ => throw new UnsupportedOperationException()
+      }
     }
+  }
 
+  implicit class AST_ToplevelOps(val ast: AST_Toplevel) {
     def source(options: Options.Output = defaultOutputOptions): String = {
       ast.print_to_string(options)
     }
@@ -732,15 +731,16 @@ object UglifyExt {
 
       def apply(from: AST_Node)(name: AST_SymbolVarOrConst, value: js.UndefOr[AST_Node]): AST_VarDef = {
         init(new AST_VarDef()) { node =>
+          fillTokens(node, from)
           node.name = name
           node.value = value
         }
       }
 
-      def uninitialized(node: AST_Node)(vName: String): AST_VarDef = {
-        AST_VarDef(node)(
+      def uninitialized(from: AST_Node)(vName: String): AST_VarDef = {
+        AST_VarDef(from)(
           new AST_SymbolVar {
-            fillTokens(this, node)
+            fillTokens(this, from)
             name = vName
             // thedef and scope will be filled by uglify
             init = js.Array[AST_Node]()
@@ -974,6 +974,7 @@ object UglifyExt {
   }
 
   def fillTokens(to: AST_Node, from: AST_Node): Unit = {
+    //println(s"fillTokens ${nodeClassName(to)} ${from.start.map(_.pos)}")
     to.start = from.start
     to.end = from.end
   }
@@ -1022,21 +1023,5 @@ object UglifyExt {
     case p: AST_ObjectGetter => p.key.name
     case p: AST_ConciseMethod => p.key.name
   }
-
-  def uglify(code: String, options: Options = defaultUglifyOptions): String = {
-
-    val toplevel_ast = parse(code, options.parse)
-
-    val compressed_ast = toplevel_ast.optimize(options.compress)
-
-    // 3. Mangle
-    compressed_ast.mangleNames()
-
-    // 4. Generate output
-    val outCode = compressed_ast.source(options.output)
-
-    outCode
-  }
-
 
 }

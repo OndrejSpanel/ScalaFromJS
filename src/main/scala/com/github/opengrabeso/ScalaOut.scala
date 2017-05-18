@@ -117,8 +117,11 @@ object ScalaOut {
           //println("symbol")
           identifierToOut(output, s.name)
 
-          //out"/*${SymbolTypes.id(s.thedef.get).get.sourcePos}*/"
-          //out"/*${input.types.get(SymbolTypes.id(s.thedef.get))}*/"
+          if (false) { // output symbol ids and types
+            val symId = SymbolTypes.id(s.thedef.get)
+            out"/*${symId.fold(-1)(_.sourcePos)}*/"
+            out"/*${input.types.get(symId)}*/"
+          }
         case n: AST_Node =>
           nodeToOut(n)
         case x if js.isUndefined(x) =>
@@ -264,7 +267,7 @@ object ScalaOut {
       //println(s"AST_VarDef ${name.name} type: $sType init: ${init.nonNull.map(_.toString)}")
       if (types || init.nonNull.isEmpty) {
         for (tp <- sType) {
-          if (tp.typeOnInit) out": $tp"
+          if (tp.typeOnInit) out": ${tp.toOut}"
         }
       }
 
@@ -289,10 +292,7 @@ object ScalaOut {
       input.types.get(symDef).map(_.declType)
     }
 
-    def outputDefinitions(
-      isVal: Boolean, tn: AST_Definitions,
-      getType: SymbolDef => Option[SymbolTypes.TypeDesc] = getSymbolType, types: Boolean = false
-    ) = {
+    def outputDefinitions(isVal: Boolean, tn: AST_Definitions, types: Boolean = false) = {
       //out("/*outputDefinitions*/")
       //println("outputDefinitions -")
       def outValVar() = {
@@ -301,7 +301,7 @@ object ScalaOut {
 
       tn.definitions.foreach {
 
-        case AST_VarDef(AST_SymbolName(name), Defined(AST_Object(props))) if isVal && props.nonEmpty =>
+        case AST_VarDef(name, Defined(AST_Object(props))) if isVal && props.nonEmpty =>
           out"object $name {\n"
           out.indent()
           for (elem <- props) nodeToOut(elem)
@@ -324,7 +324,7 @@ object ScalaOut {
         case AST_VarDef(s@AST_Symbol(name, _, Defined(sym)), init) =>
           outValVar()
           //out("/*outputDefinitions*/")
-          val sType = getType(sym)
+          val sType = getSymbolType(sym)
           //println(s"AST_VarDef sym ${SymbolTypes.id(sym)} $sType")
           //println(getType(sym))
           outputVarDef(s, init, sType, types)
@@ -339,7 +339,7 @@ object ScalaOut {
     }
 
     def outputArgType(n: AST_SymbolFunarg) = {
-      val typeString = n.thedef.nonNull.fold(SymbolTypes.any.toString)(input.types.getAsScala(_))
+      val typeString = n.thedef.nonNull.fold(SymbolTypes.any.toOut)(input.types.getAsScala(_))
       //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeString")
       out": $typeString"
       for (init <- n.init.nonNull.flatMap(_.headOption)) {
@@ -374,7 +374,7 @@ object ScalaOut {
         } else {
           val sid = n.thedef.nonNull.flatMap(SymbolTypes.id)
           for (t <- input.types.get(sid)) {
-            out": ${t.declType}"
+            out": ${t.declType.toOut}"
           }
         }
       }
@@ -503,7 +503,8 @@ object ScalaOut {
       //case tn: AST_SymbolAccessor => out("AST_SymbolAccessor")
       //case tn: AST_SymbolRef => identifierToOut(out, tn.name)
       case tn: AST_Symbol =>
-        identifierToOut(out, tn.name)
+        out"$tn"
+        //identifierToOut(out, tn.name)
       case tn: AST_ObjectSetter =>
         accessorToOut(tn, "_=")
       case tn: AST_ObjectGetter =>
@@ -585,25 +586,14 @@ object ScalaOut {
         out(".")
         identifierToOut(out, tn.property)
       //case tn: AST_PropAccess => outputUnknownNode(tn)
-      case tn: AST_Seq =>
+      case tn: AST_Sequence =>
         out("{\n")
         out.indent()
-        nodeToOut(tn.car)
-        out.eol()
-        // handle a special case - cdr also seq
-        def processCdr(cdr: AST_Node): Unit = {
-          cdr match {
-            case ss: AST_Seq =>
-              nodeToOut(ss.car)
-              out.eol()
-              processCdr(ss.cdr)
-            case _ =>
-              nodeToOut(cdr)
-          }
+        for (item <- tn.expressions) {
+          nodeToOut(item)
+          out.eol()
         }
-        processCdr(tn.cdr)
         out.unindent()
-        out.eol()
         out("}")
       case tn: AST_New =>
         out("new ")
@@ -863,19 +853,9 @@ object ScalaOut {
           inlineBody.value.body.foreach {
             case df: AST_Definitions =>
 
-              def getMemberType(s: SymbolDef) = {
-                val clsName = tn.name.nonNull.map(_.name)
-                //println(s"member $clsName ${s.name}")
-
-                val clsId = Classes.getClassId(tn)
-                val symId = clsId.map(SymbolTypes.SymbolMapId(s.name, _))
-
-                input.types.get(symId).map(_.declType)
-              }
-
               //println("outputDefinitions - getMemberType")
               //out"/*inlineBody ${nodeClassName(df)} ${df.definitions.length}*/"
-              outputDefinitions(false, df, getMemberType, true)
+              outputDefinitions(false, df, true)
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
             case ss =>
               //out(nodeTreeToString(ss))

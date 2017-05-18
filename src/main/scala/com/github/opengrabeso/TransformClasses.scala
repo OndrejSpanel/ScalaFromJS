@@ -5,6 +5,7 @@ import Uglify._
 import UglifyExt._
 import JsUtils._
 import UglifyExt.Import._
+import SymbolTypes.SymbolMapId
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -14,6 +15,16 @@ import scala.scalajs.js.RegExp
 
 object TransformClasses {
   import Symbols._
+
+  type ClassId = SymbolMapId
+
+  object ClassId {
+    // TODO: avoid get, use something safe instead
+    def apply(sym: SymbolDef): ClassId = {
+      SymbolTypes.id(sym).getOrElse(SymbolMapId(sym.name, 0))
+    }
+    def apply(sym: AST_Symbol): ClassId = ClassId(sym.thedef.get)
+  }
 
   object ClassDefine {
     def unapply(arg: AST_Node): Option[(AST_Symbol, Seq[AST_SymbolFunarg], Seq[AST_Statement])] = arg match {
@@ -57,7 +68,7 @@ object TransformClasses {
   }
 
   case class ClassDef(
-    base: Option[String] = None,
+    base: Option[ClassId] = None,
     // members (both data and function)
     members: ListMap[String, ClassMember] = ListMap.empty,
     // value properties
@@ -72,8 +83,8 @@ object TransformClasses {
 
   object ClassPropertyDef {
     def unapply(arg: AST_Node) = arg match {
-      case AST_SimpleStatement(AST_Assign(AST_SymbolRef(name, _, _) AST_Dot "prototype" AST_Dot funName, "=", value)) =>
-        Some(name, funName, value)
+      case AST_SimpleStatement(AST_Assign(AST_SymbolRef(_, _, Defined(symDef)) AST_Dot "prototype" AST_Dot funName, "=", value)) =>
+        Some(ClassId(symDef), funName, value)
       case _ => None
     }
   }
@@ -91,12 +102,12 @@ object TransformClasses {
     object DefinePropertiesObject {
       def unapply(arg: AST_Node) = arg match {
         case AST_SimpleStatement(AST_Call(AST_SymbolRefName("Object") AST_Dot "defineProperties",
-        AST_SymbolRef(name, _, _) AST_Dot "prototype", properties@_*)) =>
-          Some(name, properties)
+        AST_SymbolRef(_, _, Defined(symDef)) AST_Dot "prototype", properties@_*)) =>
+          Some(ClassId(symDef), properties)
 
         case AST_SimpleStatement(AST_Call(AST_SymbolRefName("Object") AST_Dot "defineProperties",
-        AST_SymbolRef(name, _, _), properties@_*)) =>
-          Some(name, properties)
+        AST_SymbolRef(_, _, Defined(symDef)), properties@_*)) =>
+          Some(ClassId(symDef), properties)
 
         case _ => None
       }
@@ -117,7 +128,7 @@ object TransformClasses {
       AST_SymbolRefDef(sym) AST_Dot "prototype",
       prop: AST_String,
       AST_Object(properties))) =>
-        Some(sym.name, prop.value, properties)
+        Some(ClassId(sym), prop.value, properties)
       case _ => None
 
     }
@@ -127,8 +138,8 @@ object TransformClasses {
     def unapply(arg: AST_Node) = arg match {
       // Cls.defX = 0;
       // Cls.defY = function() {return 0;};
-      case AST_SimpleStatement(AST_Assign(AST_SymbolRef(clsName, Defined(scope), Defined(clsSym)) AST_Dot member, "=", value)) =>
-        Some(clsName, clsSym, scope, member, value)
+      case AST_SimpleStatement(AST_Assign(AST_SymbolRef(_, Defined(scope), Defined(clsSym)) AST_Dot member, "=", value)) =>
+        Some(ClassId(clsSym), clsSym, scope, member, value)
       case _ => None
     }
   }
@@ -150,23 +161,24 @@ object TransformClasses {
     def unapply(arg: AST_Node) = arg match {
       // name.prototype = Object.assign( Object.create( sym.prototype ), {... prototype object ... } )
       case AST_SimpleStatement(
-      AST_Assign(AST_SymbolRef(name, _, _) AST_Dot "prototype", "=",
+      AST_Assign(AST_SymbolRefDef(name) AST_Dot "prototype", "=",
       AST_Call(
       AST_SymbolRefName("Object") AST_Dot "assign",
       AST_Call(AST_SymbolRefName("Object") AST_Dot "create", AST_SymbolRefDef(sym) AST_Dot "prototype"), prototypeDef: AST_Object)
       )) =>
+        // TODO: name extracted, but unused - verify it
         //println(s"ClassParentAndPrototypeDef $name extends ${sym.name}")
-        Some(name, sym.name, prototypeDef)
+        Some(ClassId(name), ClassId(sym), prototypeDef)
 
       // Object.assign( name.prototype, sym.prototype, {prototype object} )
       case AST_SimpleStatement(AST_Call(
       AST_SymbolRefName("Object") AST_Dot "assign",
-      AST_SymbolRefName(name) AST_Dot "prototype",
-      AST_SymbolRef(sym, _, _) AST_Dot "prototype",
+      AST_SymbolRefDef(name) AST_Dot "prototype",
+      AST_SymbolRefDef(sym) AST_Dot "prototype",
       prototypeDef: AST_Object
       )) =>
         //println(s"ClassParentAndPrototypeDef2 $name extends $sym")
-        Some(name, sym, prototypeDef)
+        Some(ClassId(sym), ClassId(sym), prototypeDef)
       case _ =>
         None
     }
@@ -176,23 +188,23 @@ object TransformClasses {
   object ClassParentDef {
     def unapply(arg: AST_Node) = arg match {
       // name.prototype = new sym.prototype
-      case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(name) AST_Dot "prototype", "=", AST_New(AST_SymbolRefDef(sym), _*))) =>
-        Some(name, sym)
+      case AST_SimpleStatement(AST_Assign(AST_SymbolRefDef(name) AST_Dot "prototype", "=", AST_New(AST_SymbolRefDef(sym), _*))) =>
+        Some(ClassId(name), sym)
 
       // name.prototype = Object.create( sym.prototype );
       case AST_SimpleStatement(AST_Assign(
-      AST_SymbolRefName(name) AST_Dot "prototype", "=",
+      AST_SymbolRefDef(name) AST_Dot "prototype", "=",
       AST_Call(AST_SymbolRefName("Object") AST_Dot "create", AST_SymbolRefDef(sym) AST_Dot "prototype")
       )) =>
-        Some(name, sym)
+        Some(ClassId(name), sym)
 
       // Object.assign( name.prototype, sym.prototype)
       case AST_SimpleStatement(AST_Call(
       AST_SymbolRefName("Object") AST_Dot "assign",
-      AST_SymbolRefName(name) AST_Dot "prototype",
+      AST_SymbolRefDef(name) AST_Dot "prototype",
       AST_SymbolRefDef(sym) AST_Dot "prototype"
       )) =>
-        Some(name, sym)
+        Some(ClassId(name), sym)
 
       case _ => None
     }
@@ -204,15 +216,15 @@ object TransformClasses {
       //Object.assign( XXX.prototype, { ... })
       case AST_SimpleStatement(AST_Call(
       AST_SymbolRefName("Object") AST_Dot "assign",
-      AST_SymbolRefName(name) AST_Dot "prototype", prototypeDef: AST_Object
+      AST_SymbolRefDef(name) AST_Dot "prototype", prototypeDef: AST_Object
       )) =>
         //println(s"Match prototype def $name")
-        Some(name,prototypeDef)
+        Some(ClassId(name),prototypeDef)
 
       /// XXX.prototype = new { ... }
-      case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(name) AST_Dot "prototype", "=", prototypeDef: AST_Object)) =>
+      case AST_SimpleStatement(AST_Assign(AST_SymbolRefDef(name) AST_Dot "prototype", "=", prototypeDef: AST_Object)) =>
         //println(s"Match prototype def $name")
-        Some(name,prototypeDef)
+        Some(ClassId(name),prototypeDef)
 
       case _ => None
     }
@@ -221,13 +233,13 @@ object TransformClasses {
 
   class ClassList {
 
-    var classes = Map.empty[String, ClassDef]
+    var classes = Map.empty[ClassId, ClassDef]
 
-    def += (kv: (String, ClassDef)): Unit = classes += kv
+    def += (kv: (ClassId, ClassDef)): Unit = classes += kv
 
-    def defClass(name: String): ClassDef = classes.getOrElse(name, new ClassDef)
+    def defClass(name: ClassId): ClassDef = classes.getOrElse(name, new ClassDef)
 
-    def defineSingleProperty(name: String, key: String, p: AST_ObjectKeyVal) = {
+    def defineSingleProperty(name: ClassId, key: String, p: AST_ObjectKeyVal) = {
       (p.value, p.key) match {
         case (fun: AST_Function, "get") =>
           //println(s"Add getter ${pp.key}")
@@ -250,7 +262,7 @@ object TransformClasses {
       }
     }
 
-    def defineStaticMember(name: String, key: String, value: AST_Node) = {
+    def defineStaticMember(name: ClassId, key: String, value: AST_Node) = {
       //println(s"defineStaticMember $name.$key ${ScalaOut.outputNode(value)}")
       val c = defClass(name)
       if (!(c.membersStatic contains key)) {
@@ -269,23 +281,23 @@ object TransformClasses {
 
   }
 
-  implicit def classesFromClassList(cl: ClassList):  Map[String, ClassDef] = cl.classes
+  implicit def classesFromClassList(cl: ClassList):  Map[ClassId, ClassDef] = cl.classes
 
   private def classList(n: AST_Extended) = {
     var classes = new ClassList
 
-    var classNames = Set.empty[String]
+    var classNames = Set.empty[ClassId]
 
     n.top.walkWithDescend { (node, _, walker) =>
       node match {
         // new XXX()
         case AST_New(AST_SymbolRefDef(call), _*) =>
-          classNames += call.name
+          classNames += ClassId(call)
           false
 
         // any use of XXX.prototype probably marks a class
-        case AST_SymbolRefName(name) AST_Dot "prototype" =>
-          classNames += name
+        case AST_SymbolRefDef(name) AST_Dot "prototype" =>
+          classNames += ClassId(name)
           false
 
         /* the rule did more harm than good - functions are sometimes defined externally
@@ -321,7 +333,7 @@ object TransformClasses {
     }
 
 
-    def processPrototype(name: String, prototypeDef: AST_Object, isStatic: Boolean = false) = {
+    def processPrototype(name: ClassId, prototypeDef: AST_Object, isStatic: Boolean = false) = {
       val clazz = classes.getOrElse(name, ClassDef(staticOnly = isStatic))
 
       classes += name -> prototypeDef.properties.foldLeft(clazz) { (clazz, m) =>
@@ -373,7 +385,7 @@ object TransformClasses {
       }
     }
 
-    def removeStaticMember(name: String, member: String) = {
+    def removeStaticMember(name: ClassId, member: String) = {
       for (cls <- classes.get(name)) {
         classes += name -> cls.copy(membersStatic = cls.membersStatic - member)
       }
@@ -383,34 +395,36 @@ object TransformClasses {
 
       case _: AST_Toplevel =>
         false
-      case ClassDefine(sym, args, body) =>
-        // check if there exists a type with this name
-        if (classNames contains sym.name) {
-          // looks like a constructor
-          //println("Constructor " + sym.name)
+      case ClassDefine(AST_SymbolDef(symDef), args, body) =>
+        for (clsId <- SymbolTypes.id(symDef)) {
+          // check if there exists a type with this name
+          if (classNames contains clsId) {
+            // looks like a constructor
+            //println("Constructor " + sym.name)
 
-          // constructor may contain property definitions
-          // note: we do not currently handle property definitions in any inner scopes
-          val bodyFiltered = body.filter {
-            //Object.defineProperty( this, 'id', { value: textureId ++ } );
-            case AST_SimpleStatement(AST_Call(
-            AST_SymbolRefName("Object") AST_Dot "defineProperty", _: AST_This, prop: AST_String,
-            AST_Object(properties)
-            )) =>
-              //println(s"Detect defineProperty ${sym.name}.${prop.value}")
-              properties.foreach {
-                case p: AST_ObjectKeyVal => classes.defineSingleProperty(sym.name, prop.value, p)
-                case _ =>
-              }
-              false
-            case _ =>
-              true
+            // constructor may contain property definitions
+            // note: we do not currently handle property definitions in any inner scopes
+            val bodyFiltered = body.filter {
+              //Object.defineProperty( this, 'id', { value: textureId ++ } );
+              case AST_SimpleStatement(AST_Call(
+              AST_SymbolRefName("Object") AST_Dot "defineProperty", _: AST_This, prop: AST_String,
+              AST_Object(properties)
+              )) =>
+                //println(s"Detect defineProperty ${sym.name}.${prop.value}")
+                properties.foreach {
+                  case p: AST_ObjectKeyVal => classes.defineSingleProperty(clsId, prop.value, p)
+                  case _ =>
+                }
+                false
+              case _ =>
+                true
+            }
+
+            val constructor = ClassFunMember(args, bodyFiltered)
+
+            val c = classes.defClass(clsId)
+            classes += clsId -> c.copy(members = c.members + ("constructor" -> constructor))
           }
-
-          val constructor = ClassFunMember(args, bodyFiltered)
-
-          val c = classes.defClass(sym.name)
-          classes += sym.name -> c.copy(members = c.members + ("constructor" -> constructor))
         }
 
         true
@@ -460,11 +474,11 @@ object TransformClasses {
         processPrototype(name, prototypeDef)
         true
       case DefineStaticMembers(clsName, objDef) =>
-        processPrototype(clsName.name, objDef, true)
+        processPrototype(ClassId(clsName), objDef, true)
         true
       case ClassParentDef(name, sym) =>
         for (clazz <- classes.get(name)) {
-          classes += name -> clazz.copy(base = Some(sym.name))
+          classes += name -> clazz.copy(base = Some(ClassId(sym)))
         }
         true
       case ClassPrototypeDef(name, prototypeDef) =>
@@ -500,15 +514,15 @@ object TransformClasses {
     //println(classes.classes)
 
     // we delete only initialization for static members, nothing else
-    var staticMemberDeleted = Set.empty[(String, String)]
+    var staticMemberDeleted = Set.empty[(ClassId, String)]
 
-    def verifyStaticMember(clsName: String, member: String) = {
+    def verifyStaticMember(clsName: ClassId, member: String) = {
       val verify = classes.get(clsName).exists(_.membersStatic.contains(member))
       println(s"Verifying $clsName.$member: $verify")
       verify
     }
 
-    def verifyStaticMemberOnce(clsName: String, member: String) = {
+    def verifyStaticMemberOnce(clsName: ClassId, member: String) = {
       if (verifyStaticMember(clsName, member)) {
         if (staticMemberDeleted(clsName -> member)) {
           false
@@ -638,7 +652,7 @@ object TransformClasses {
             fillTokens(this, tokensFrom)
             name = new AST_SymbolDefClass {
               /*_*/
-              fillTokens(this, sym)
+              fillTokens(this, tokensFrom)
               /*_*/
               name = sym.name
               scope = sym.scope
@@ -656,16 +670,18 @@ object TransformClasses {
       }
 
       node match {
-        case ClassDefine(sym, _, _) if classes contains sym.name =>
-
+        case ClassDefine(sym, _, _) if classes contains ClassId(sym) =>
+          val clsId = ClassId(sym)
           //println(s"  ${walker.stack.map(nodeClassName).mkString("|")}")
           // check if there exists a type with this name
-          val clazz = classes(sym.name)
+          val clazz = classes(clsId)
 
           object helper extends Helper(node)
           import helper._
 
-          val base = clazz.base.fold(js.undefined: js.UndefOr[AST_Node])(b => AST_SymbolRef(node)(b))
+          val baseDef = clazz.base.flatMap(classes.get)
+
+          val base = clazz.base.fold(js.undefined: js.UndefOr[AST_Node])(b => AST_SymbolRef(node)(b.name))
 
           val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }
           val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
@@ -676,8 +692,9 @@ object TransformClasses {
           val properties = mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues ++ mappedStatic
           newClass(sym, base, properties)
 
-        case DefineStaticMembers(sym, _) if classes.contains(sym.name) =>
-          val clazz = classes(sym.name)
+        case DefineStaticMembers(sym, _) if classes.contains(ClassId(sym)) =>
+          val clsId = ClassId(sym)
+          val clazz = classes(clsId)
 
           object helper extends Helper(node)
           import helper._
@@ -704,9 +721,17 @@ object TransformClasses {
       def thisClass = findThisClassInWalker(walker)
 
       object IsSuperClass {
-        def unapply(name: String): Boolean = {
-          //println(s"${thisClass.flatMap(superClass)} $name")
-          thisClass.flatMap(superClass).contains(name)
+        def unapply(name: SymbolDef): Boolean = {
+          //println(s"thisClass $thisClass ${name.name}")
+          //println(s"superClass ${thisClass.flatMap(superClass)} ${name.name}")
+
+          // name does not contain thedef, we did not provide it
+          // find a corresponding symbol
+          val baseSym = thisClass.flatMap(superClassSymbolDef)
+          val baseId = baseSym.flatMap(SymbolTypes.id)
+
+          //println(s"baseSym ${baseSym.map(_.name)} baseId $baseId")
+          baseId.exists(thisClass.flatMap(superClass).contains)
         }
       }
 
@@ -730,7 +755,7 @@ object TransformClasses {
       node match {
         // Animal.apply(this, Array.prototype.slice.call(arguments))
         case call@AST_Call(
-        AST_SymbolRefName(IsSuperClass()) AST_Dot "apply",
+        AST_SymbolRefDef(IsSuperClass()) AST_Dot "apply",
         _: AST_This,
         AST_Call(AST_SymbolRefName("Array") AST_Dot "prototype" AST_Dot "slice" AST_Dot "call", AST_SymbolRefName("arguments"))
         ) =>
@@ -739,14 +764,14 @@ object TransformClasses {
           call.args = getClassArguments.toJSArray
           call
         // Super.apply(this, arguments)
-        case call@AST_Call(AST_SymbolRefName(IsSuperClass()) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")) =>
+        case call@AST_Call(AST_SymbolRefDef(IsSuperClass()) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")) =>
           // TODO: check class constructor arguments as pass them
           call.expression = newAST_Super
           call.args = getClassArguments.toJSArray
           call
 
         // Light.call( this, skyColor, intensity )
-        case call@AST_Call(AST_SymbolRefName(IsSuperClass()) AST_Dot "call", args@_*) =>
+        case call@AST_Call(AST_SymbolRefDef(IsSuperClass()) AST_Dot "call", args@_*) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
           call.expression = newAST_Super
           call.args = removeHeadThis(args).toJSArray
@@ -755,7 +780,7 @@ object TransformClasses {
 
         // Light.prototype.call( this, source );
         case call@AST_Call(
-        AST_SymbolRefName(IsSuperClass()) AST_Dot "prototype" AST_Dot func AST_Dot "call",
+        AST_SymbolRefDef(IsSuperClass()) AST_Dot "prototype" AST_Dot func AST_Dot "call",
         _: AST_This, args@_*
         ) =>
           //println(s"Super call of $func in ${thisClass.map(_.name.get.name)}")
@@ -795,6 +820,7 @@ object TransformClasses {
     val ret = n.top.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
+          //println(s"AST_DefClass ${cls.name.get.name} ${cls.start.get.pos}")
           var newMembers = Seq.empty[String]
           // scan known prototype members (both function and var) first
           var existingMembers = listPrototypeMemberNames(cls)
@@ -814,7 +840,7 @@ object TransformClasses {
           val vars = newMembers.map { m =>
             new AST_Var {
               fillTokens(this, cls)
-              definitions = js.Array(AST_VarDef.uninitialized(node) (m))
+              definitions = js.Array(AST_VarDef.uninitialized(cls) (m))
             }
           }
 
@@ -833,12 +859,15 @@ object TransformClasses {
     // remove members already present in a parent from a derived class
     val cleanup = ret.transformAfter { (node, _) =>
       node match {
-        case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), _,_) =>
-          for (AST_SymbolName(base) <- cls.`extends`) {
+        case cls: AST_DefClass =>
+          for {
+            AST_SymbolDef(base) <- cls.`extends`
+            baseId <- SymbolTypes.id(base)
+          } {
             //println(s"Detected base $base")
             val accessor = classInlineBody(cls)
             accessor.body = accessor.body.filter {
-              case VarName(member) => classInfo.classContains(base, member).isEmpty
+              case VarName(member) => classInfo.classContains(baseId, member).isEmpty
               case _ => true
             }
           }

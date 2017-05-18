@@ -77,8 +77,8 @@ object Transform {
           case Some(f: AST_For) =>
             // can be substituted inside of for unless used as a condition
             f.init.contains(n) || f.step.contains(n)
-          case Some(s: AST_Seq ) =>
-            if (s.cdr !=n) true
+          case Some(s: AST_Sequence) =>
+            if (s.expressions.last !=n) true
             else if (parentLevel < transformer.stack.length - 2) {
               // even last item of seq can be substituted when the seq result is discarded
               nodeResultDiscarded(s, parentLevel+1)
@@ -349,7 +349,7 @@ object Transform {
       }
     }
 
-    implicit val classId: (String) => Int = classes.classId
+    implicit val classPos: (SymbolMapId) => Int = classes.classPos
 
   }
 
@@ -361,25 +361,40 @@ object Transform {
     case FunctionType(ret, _) =>
       //println(s"callReturn $ret")
       TypeInfo.target(ret)
-    case _ => funType
+    case _ =>
+      //println(s"callReturn funType $funType")
+      funType
   }
 
   def expressionType(n: AST_Node)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
 
+    def typeInfoFromClassSym(classSym: SymbolDef): Option[TypeInfo] = {
+      // is the symbol a class?
+      for {
+        cls <- id(classSym)
+        clsCls <- ctx.classes.get(cls)
+      } yield {
+        TypeInfo.target(ClassType(cls))
+      }
+    }
+
+    def typeInfoFromClassDef(classDef: Option[AST_DefClass]) = {
+      classDef.flatMap(_.name.nonNull).flatMap(_.thedef.nonNull).flatMap(typeInfoFromClassSym)
+    }
+
     n match {
       case s: AST_Super =>
-        val sup = findSuperClass(s.scope.nonNull)(ctx)
+        val sup = findSuperClass(s.scope.nonNull)
         //println(s"super scope $sup")
         sup.map(t => TypeInfo.target(ClassType(t)))
 
       case t: AST_This =>
         val thisScope = findThisClass(t.scope.nonNull) // TODO: consider this in a function
         //println(s"this scope ${t.scope.map(_.nesting)}")
-        val cls = thisScope.flatMap(_.name.nonNull).map(_.name)
+        typeInfoFromClassDef(thisScope)
         //println(s"this def scope $cls")
-        cls.map(t => TypeInfo.target(ClassType(t)))
 
       case AST_SymbolRef("undefined", _, thedef)  =>
         // not allowing undefined overrides
@@ -387,10 +402,7 @@ object Transform {
 
       case AST_SymbolRefDef(symDef) =>
         // if the symbol is a class name, use it as a class type directly
-        val rt = types.get(symDef).orElse {
-          val r = classes.get(symDef.name).flatMap(_.name.nonNull.map(_.name)).map(c => TypeInfo.target(ClassType(c)))
-          r
-        }
+        val rt = types.get(symDef).orElse(typeInfoFromClassSym(symDef))
         //println(s"Sym ${symDef.name} type $rt")
         rt
 
@@ -432,8 +444,8 @@ object Transform {
         val t2 = expressionType(tern.alternative)(ctx)
         typeUnionOption(t1, t2)
 
-      case AST_Binary(expr, `asinstanceof`, AST_SymbolRefName(cls)) =>
-        Some(TypeInfo.target(ClassType(cls)))
+      case AST_Binary(expr, `asinstanceof`, AST_SymbolRefDef(cls)) =>
+        typeInfoFromClassSym(cls)
 
       case AST_Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
@@ -458,7 +470,7 @@ object Transform {
             None
         }
       case AST_New(AST_SymbolRefDef(call), _*) =>
-        Some(TypeInfo.target(ClassType(call.name)))
+        typeInfoFromClassSym(call)
       case AST_Call(AST_SymbolRefDef(call), _*) =>
         val tid = id(call)
         //println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
@@ -474,8 +486,23 @@ object Transform {
           //println(s"  Infer type of member call $c.$name as $r")
           callReturn(r)
         }
-      case seq: AST_Seq =>
-        expressionType(seq.cdr)(ctx)
+      case seq: AST_Sequence =>
+        expressionType(seq.expressions.last)(ctx)
+      case s: AST_SimpleStatement =>
+        expressionType(s.body)(ctx)
+
+      case s: AST_BlockStatement =>
+        val lastExprType = s.body.lastOption.flatMap(expressionType(_)(ctx))
+        //println(s"Block type $lastExprType, ${s.body}")
+        lastExprType
+      case fun@AST_Lambda(args, body) =>
+        val returnType = transform.InferTypes.scanFunctionReturns(fun)(ctx)
+        // TODO: use inferred argument types as well
+        val argTypes = args.map(_ => any).toIndexedSeq
+        returnType.map { rt =>
+          TypeInfo.target(FunctionType(rt.declType, argTypes))
+        }
+        //println(s"${symDef.name} returns $allReturns")
       case _ =>
         None
 
@@ -510,30 +537,35 @@ object Transform {
   def listDefinedClassMembers(node: AST_Node) = {
     var listMembers = ClassInfo()
     node.walk {
-      case cls@AST_DefClass(Defined(AST_SymbolName(clsName)), base, _) =>
-        for (AST_SymbolName(parent) <- base) {
-          //println(s"Add parent $parent for $clsName")
-          listMembers = listMembers.copy(parents = listMembers.parents + (clsName -> parent))
+      case cls@AST_DefClass(Defined(AST_Symbol(_, _, Defined(clsSym))), base, _) =>
+        for (clsId <- clsSym) {
+          for {
+            AST_SymbolRefDef(parent) <- base
+            parentId <- id(parent)
+          } {
+            //println(s"Add parent $parent for $clsSym")
+            listMembers = listMembers.copy(parents = listMembers.parents + (clsId -> parentId))
+          }
+          val members = listPrototypeMemberNames(cls)
+
+          // list data members
+          val varMembers = for (VarName(member) <- classInlineBody(cls).body) yield member
+
+          val parMembers = for {
+            constructor <- findConstructor(cls).toSeq
+            args <- constructor.value.argnames
+            argName = args.name
+            if !argName.endsWith(parSuffix)
+          } yield {
+            argName
+          }
+
+          //println(s"$clsSym: parMembers $parMembers")
+          val clsMembers = clsId -> (members ++ varMembers ++ parMembers).distinct
+
+          listMembers = listMembers.copy(members = listMembers.members + clsMembers)
+          //println(s"listMembers $listMembers (++ $clsMembers)")
         }
-        val members = listPrototypeMemberNames(cls)
-
-        // list data members
-        val varMembers = for (VarName(member) <- classInlineBody(cls).body) yield member
-
-        val parMembers = for {
-          constructor <- findConstructor(cls).toSeq
-          args <- constructor.value.argnames
-          argName = args.name
-          if !argName.endsWith(parSuffix)
-        } yield {
-          argName
-        }
-
-        //println(s"$clsName: parMembers $parMembers")
-        val clsMembers = clsName -> (members ++ varMembers ++ parMembers).distinct
-
-        listMembers = listMembers.copy(members = listMembers.members + clsMembers)
-        //println(s"listMembers $listMembers (++ $clsMembers)")
         false
       case _ =>
         false

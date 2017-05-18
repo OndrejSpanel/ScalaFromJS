@@ -11,6 +11,35 @@ import SymbolTypes._
 import scala.language.implicitConversions
 
 object InferTypes {
+
+  def scanFunctionReturns(node: AST_Lambda)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
+    import ctx.classOps
+
+    var allReturns = Option.empty[TypeInfo]
+    node.walk {
+      // include any sub-scopes, but not local functions
+      case innerFunc: AST_Lambda if innerFunc != node =>
+        true
+      case AST_Return(Defined(value)) =>
+        //println(s"  return expression ${nodeClassName(value)}")
+        val tpe = expressionType(value)(ctx)
+        //println(s"  Return type $tpe: expr ${ScalaOut.outputNode(value)}")
+        if (tpe.isDefined) { // unknown types introduce Any return value, which we never get rid of
+          allReturns = typeUnionOption(allReturns, tpe)
+        }
+        false
+      case _ =>
+        false
+    }
+    allReturns.orElse {
+      //println("Infer no return function")
+      node.body.toSeq match {
+        case Seq(AST_SimpleStatement(ex)) => expressionType(ex)(ctx)
+        case _ => None
+      }
+    }
+  }
+
   def inferTypes(n: AST_Extended): AST_Extended = {
     var inferred = SymbolTypes()
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
@@ -18,13 +47,12 @@ object InferTypes {
     val classes = new ClassListHarmony(n)
     //println("Classes:\n" + classes.keys)
 
-    implicit val classId: (String) => Int = classes.classId
 
     val classInfo = listClassMembers(n.top)
     //println("ClassInfo:\n" + classInfo)
 
     implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes) // note: ctx.allTypes is mutable
-
+    import ctx.classPos
     import ctx.classOps
 
     def typeFromOperation(op: String, n: AST_Node) = {
@@ -206,32 +234,6 @@ object InferTypes {
 
 
 
-    def scanFunctionReturns(node: AST_Lambda) = {
-      var allReturns = Option.empty[TypeInfo]
-      node.walk {
-        // include any sub-scopes, but not local functions
-        case innerFunc: AST_Lambda if innerFunc != node =>
-          true
-        case AST_Return(Defined(value)) =>
-          //println(s"  return expression ${nodeClassName(value)}")
-          val tpe = expressionType(value)(ctx)
-          //println(s"  Return type $tpe: expr ${ScalaOut.outputNode(value)}")
-          if (tpe.isDefined) { // unknown types introduce Any return value, which we never get rid of
-            allReturns = typeUnionOption(allReturns, tpe)
-          }
-          false
-        case _ =>
-          false
-      }
-      allReturns.orElse {
-        //println("Infer no return function")
-        node.body.toSeq match {
-          case Seq(AST_SimpleStatement(ex)) => expressionType(ex)(ctx)
-          case _ => None
-        }
-      }
-    }
-
     /*
       def unknownType(types: SymbolTypes): Boolean = {
         symbol.fold{
@@ -380,7 +382,7 @@ object InferTypes {
       }
     }
 
-    def inferConstructorCall(args: Seq[AST_Node], className: String) = {
+    def inferConstructorCall(args: Seq[AST_Node], className: SymbolMapId) = {
       //println(s"Infer arg types for class $className")
       for (c <- classes.get(className)) {
         {
@@ -476,7 +478,7 @@ object InferTypes {
           symInfo.addSymbolInferredType(allCases)
 
         case fun@AST_Defun(Defined(symDef), _, _) =>
-          val allReturns = scanFunctionReturns(fun)
+          val allReturns = scanFunctionReturns(fun)(ctx)
           //println(s"${symDef.name} returns $allReturns")
           for {
             retType <- allReturns
@@ -489,29 +491,31 @@ object InferTypes {
 
         // TODO: derive getters and setters as well
         case AST_ConciseMethod(AST_SymbolName(sym), fun: AST_Lambda) =>
-          val allReturns = scanFunctionReturns(fun)
+          val allReturns = scanFunctionReturns(fun)(ctx)
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope.nonNull)
           for {
             retType <- allReturns
-            AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope
+            AST_DefClass(Defined(AST_SymbolDef(cls)), _, _) <- scope
+            clsId <- id(cls)
           } {
             //println(s"Infer return type for method $cls.$sym as $retType")
-            val classId = MemberId(cls, sym)
+            val classId = MemberId(clsId, sym)
             val funType = FunctionType(retType.declType, IndexedSeq())
             addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))
           }
         case AST_ObjectGetter(AST_SymbolName(sym), fun: AST_Lambda) =>
-          val allReturns = scanFunctionReturns(fun)
+          val allReturns = scanFunctionReturns(fun)(ctx)
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope.nonNull)
           //println(s"Infer getter $sym as $allReturns")
           for {
             retType <- allReturns
-            AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope
+            AST_DefClass(Defined(AST_SymbolDef(cls)), _, _) <- scope
+            clsId <- id(cls)
           } {
             //println(s"Infer return type for getter $cls.$sym as $retType")
-            val classId = MemberId(cls, sym)
+            val classId = MemberId(clsId, sym)
             addInferredMemberType(Some(classId), Some(retType))
           }
         case AST_ObjectSetter(AST_SymbolName(sym), fun: AST_Lambda) =>
@@ -522,19 +526,21 @@ object InferTypes {
           for {
             arg <- fun.argnames.headOption
             retType <- allTypes.get(arg.thedef.nonNull.flatMap(id))
-            AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope
+            AST_DefClass(Defined(AST_SymbolDef(cls)), _, _) <- scope
+            clsId <- id(cls)
           } {
             //println(s"Infer return type for setter $cls.$sym as $retType")
-            val classId = MemberId(cls, sym)
+            val classId = MemberId(clsId, sym)
             // target, because setter parameter is typically used as a source for the property variable, which sets source only
             addInferredMemberType(Some(classId), Some(TypeInfo.target(retType.declType)))
           }
         case AST_ObjectKeyVal(name, value) =>
           val scope = findThisClassInWalker(walker)
           for {
-            AST_DefClass(Defined(AST_SymbolName(cls)), _, _) <- scope
+            AST_DefClass(Defined(AST_SymbolDef(cls)), _, _) <- scope
+            clsId <- id(cls)
           } {
-            val classId = MemberId(cls, name)
+            val classId = MemberId(clsId, name)
             // target, because setter parameter is typically used as a source for the property variable, which sets source only
             val tpe = expressionType(value)(ctx)
             //println(s"Infer type for value $cls.$name as $tpe")
@@ -546,7 +552,12 @@ object InferTypes {
           //println(s"Call ${call.name}")
           call.orig.headOption match {
             case Some(clazz: AST_SymbolDefClass) => // constructor call in the new Class(x)
-              inferConstructorCall(args, clazz.name)
+              for {
+                clsSym <- clazz.thedef.nonNull
+                clsId <- id(clsSym)
+              } {
+                inferConstructorCall(args, clsId)
+              }
 
             case Some(defunSym: AST_SymbolDefun) => // normal function call
               //println(s"Infer arg types for ${defunSym.name}")
@@ -566,7 +577,7 @@ object InferTypes {
             case _ =>
           }
         case AST_Call(s: AST_Super, args@_*) =>
-          for (sup <- findSuperClass(s.scope.nonNull)(ctx)) {
+          for (sup <- findSuperClass(s.scope.nonNull)) {
             //println(s"Super call of $sup")
             inferConstructorCall(args, sup)
           }
@@ -625,7 +636,7 @@ object InferTypes {
           for (clsName <- SymbolTypes.classFromType(expressionType(expr)(ctx))) {
             val memberId = MemberId(clsName, memberName)
 
-            implicit val classId: (String) => Int = classes.classId
+            implicit val classPos: (SymbolMapId) => Int = classes.classPos
             val symId = Some(ctx.types.symbolFromMember(memberId))
             expressionType(property)(ctx).map(_.declType) match {
               case Some(`number`) =>
