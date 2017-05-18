@@ -169,7 +169,7 @@ object InferTypes {
       for ((Some(par), arg) <- pars zip args) {
         arg match {
           case SymbolInfo(a) =>
-            //println(s"Infer arg $a as $par")
+            println(s"Infer arg $a as $par")
             a.addSymbolInferredType(Some(par), source)
           case _ =>
         }
@@ -183,7 +183,7 @@ object InferTypes {
       for ((Some(par), arg) <- parIds zip args) {
         val tp = expressionType(arg)(ctx)
         if (tp.exists(_.nonEmpty)) {
-          //println(s"Infer par $par as $tp")
+          println(s"Infer par $par as $tp")
           addInferredType(Some(par), tp)
         }
       }

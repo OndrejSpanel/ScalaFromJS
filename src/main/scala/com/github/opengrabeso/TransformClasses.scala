@@ -930,7 +930,13 @@ object TransformClasses {
             val constructorCall = if (rest.nonEmpty) Some(AST_SimpleStatement(constructorProperty) {
               new AST_Call {
                 fillTokens(this, constructorProperty)
-                expression = AST_SymbolRef.sym(constructorProperty)(constructorName)
+                expression = new AST_Dot {
+                  fillTokens(this, constructorProperty)
+                  expression = new AST_This(){
+                    fillTokens(this, constructorProperty)
+                  }
+                  property = "constructor"
+                }
 
                 args = constructor.argnames.map { p =>
                   val a = p.clone()
