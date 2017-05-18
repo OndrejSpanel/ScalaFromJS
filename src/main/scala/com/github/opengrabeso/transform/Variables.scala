@@ -142,6 +142,9 @@ object Variables {
               thedef = sym.thedef
               scope = sym.scope
               init = js.Array[AST_Node](defun)
+              /*_*/
+              fillTokens(this, node)
+              /*_*/
             }
             fillTokens(this, node)
             argnames = args.toJSArray
