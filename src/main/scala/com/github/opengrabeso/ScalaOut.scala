@@ -292,10 +292,7 @@ object ScalaOut {
       input.types.get(symDef).map(_.declType)
     }
 
-    def outputDefinitions(
-      isVal: Boolean, tn: AST_Definitions,
-      getType: SymbolDef => Option[SymbolTypes.TypeDesc] = getSymbolType, types: Boolean = false
-    ) = {
+    def outputDefinitions(isVal: Boolean, tn: AST_Definitions, types: Boolean = false) = {
       //out("/*outputDefinitions*/")
       //println("outputDefinitions -")
       def outValVar() = {
@@ -327,7 +324,7 @@ object ScalaOut {
         case AST_VarDef(s@AST_Symbol(name, _, Defined(sym)), init) =>
           outValVar()
           //out("/*outputDefinitions*/")
-          val sType = getType(sym)
+          val sType = getSymbolType(sym)
           //println(s"AST_VarDef sym ${SymbolTypes.id(sym)} $sType")
           //println(getType(sym))
           outputVarDef(s, init, sType, types)
@@ -858,7 +855,7 @@ object ScalaOut {
 
               //println("outputDefinitions - getMemberType")
               //out"/*inlineBody ${nodeClassName(df)} ${df.definitions.length}*/"
-              outputDefinitions(false, df, getSymbolType, true)
+              outputDefinitions(false, df, true)
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
             case ss =>
               //out(nodeTreeToString(ss))
