@@ -244,4 +244,28 @@ class TypeTests extends FunSuite with TestUtils {
 
   }
 
+  test("Function variable types should be inferred") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      var a,b,c,d,e;
+
+      if (true) a = () => {return 2};
+
+      if (true) b = (() => {return 2})();
+
+      if (true) c = (function(){return 0}());
+
+      d = function(){return ""};
+
+      if (true) e = d();
+      """).required(
+        "var a: () => Double",
+        "var b: Double",
+        "var c: Double",
+        "def d() =",
+        "var e: String"
+      )
+  }
+
 }
