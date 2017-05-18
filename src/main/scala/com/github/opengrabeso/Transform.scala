@@ -488,6 +488,21 @@ object Transform {
         }
       case seq: AST_Sequence =>
         expressionType(seq.expressions.last)(ctx)
+      case s: AST_SimpleStatement =>
+        expressionType(s.body)(ctx)
+
+      case s: AST_BlockStatement =>
+        val lastExprType = s.body.lastOption.flatMap(expressionType(_)(ctx))
+        //println(s"Block type $lastExprType, ${s.body}")
+        lastExprType
+      case fun@AST_Lambda(args, body) =>
+        val returnType = transform.InferTypes.scanFunctionReturns(fun)(ctx)
+        // TODO: use inferred argument types as well
+        val argTypes = args.map(_ => any).toIndexedSeq
+        returnType.map { rt =>
+          TypeInfo.target(FunctionType(rt.declType, argTypes))
+        }
+        //println(s"${symDef.name} returns $allReturns")
       case _ =>
         None
 

@@ -204,7 +204,7 @@ object SymbolTypes {
   }
 
   private def typeFromOption(tpe: Option[TypeInfo]) = {
-    tpe.getOrElse(TypeInfo(AnyType, NoType))
+    tpe.getOrElse(TypeInfo.unknown)
   }
   def typeUnionOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
     val t1 = typeFromOption(tpe1)
@@ -364,6 +364,7 @@ object TypeInfo {
     //println(s"both $tpe")
     TypeInfo(tpe, tpe)
   }
+  def unknown: TypeInfo = TypeInfo(AnyType, NoType)
 
 }
 case class TypeInfo(source: TypeDesc, target: TypeDesc) {

@@ -11,6 +11,35 @@ import SymbolTypes._
 import scala.language.implicitConversions
 
 object InferTypes {
+
+  def scanFunctionReturns(node: AST_Lambda)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
+    import ctx.classOps
+
+    var allReturns = Option.empty[TypeInfo]
+    node.walk {
+      // include any sub-scopes, but not local functions
+      case innerFunc: AST_Lambda if innerFunc != node =>
+        true
+      case AST_Return(Defined(value)) =>
+        //println(s"  return expression ${nodeClassName(value)}")
+        val tpe = expressionType(value)(ctx)
+        //println(s"  Return type $tpe: expr ${ScalaOut.outputNode(value)}")
+        if (tpe.isDefined) { // unknown types introduce Any return value, which we never get rid of
+          allReturns = typeUnionOption(allReturns, tpe)
+        }
+        false
+      case _ =>
+        false
+    }
+    allReturns.orElse {
+      //println("Infer no return function")
+      node.body.toSeq match {
+        case Seq(AST_SimpleStatement(ex)) => expressionType(ex)(ctx)
+        case _ => None
+      }
+    }
+  }
+
   def inferTypes(n: AST_Extended): AST_Extended = {
     var inferred = SymbolTypes()
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
@@ -18,13 +47,12 @@ object InferTypes {
     val classes = new ClassListHarmony(n)
     //println("Classes:\n" + classes.keys)
 
-    implicit val classPos: (SymbolMapId) => Int = classes.classPos
 
     val classInfo = listClassMembers(n.top)
     //println("ClassInfo:\n" + classInfo)
 
     implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes) // note: ctx.allTypes is mutable
-
+    import ctx.classPos
     import ctx.classOps
 
     def typeFromOperation(op: String, n: AST_Node) = {
@@ -205,32 +233,6 @@ object InferTypes {
     }
 
 
-
-    def scanFunctionReturns(node: AST_Lambda) = {
-      var allReturns = Option.empty[TypeInfo]
-      node.walk {
-        // include any sub-scopes, but not local functions
-        case innerFunc: AST_Lambda if innerFunc != node =>
-          true
-        case AST_Return(Defined(value)) =>
-          //println(s"  return expression ${nodeClassName(value)}")
-          val tpe = expressionType(value)(ctx)
-          //println(s"  Return type $tpe: expr ${ScalaOut.outputNode(value)}")
-          if (tpe.isDefined) { // unknown types introduce Any return value, which we never get rid of
-            allReturns = typeUnionOption(allReturns, tpe)
-          }
-          false
-        case _ =>
-          false
-      }
-      allReturns.orElse {
-        //println("Infer no return function")
-        node.body.toSeq match {
-          case Seq(AST_SimpleStatement(ex)) => expressionType(ex)(ctx)
-          case _ => None
-        }
-      }
-    }
 
     /*
       def unknownType(types: SymbolTypes): Boolean = {
@@ -476,7 +478,7 @@ object InferTypes {
           symInfo.addSymbolInferredType(allCases)
 
         case fun@AST_Defun(Defined(symDef), _, _) =>
-          val allReturns = scanFunctionReturns(fun)
+          val allReturns = scanFunctionReturns(fun)(ctx)
           //println(s"${symDef.name} returns $allReturns")
           for {
             retType <- allReturns
@@ -489,7 +491,7 @@ object InferTypes {
 
         // TODO: derive getters and setters as well
         case AST_ConciseMethod(AST_SymbolName(sym), fun: AST_Lambda) =>
-          val allReturns = scanFunctionReturns(fun)
+          val allReturns = scanFunctionReturns(fun)(ctx)
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope.nonNull)
           for {
@@ -503,7 +505,7 @@ object InferTypes {
             addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))
           }
         case AST_ObjectGetter(AST_SymbolName(sym), fun: AST_Lambda) =>
-          val allReturns = scanFunctionReturns(fun)
+          val allReturns = scanFunctionReturns(fun)(ctx)
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope.nonNull)
           //println(s"Infer getter $sym as $allReturns")
