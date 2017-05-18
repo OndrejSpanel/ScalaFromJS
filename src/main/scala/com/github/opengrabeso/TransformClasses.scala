@@ -885,7 +885,10 @@ object TransformClasses {
       node match {
         case cls: AST_DefClass =>
 
-          for (constructorProperty@AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)) {
+          for {
+            constructorProperty@AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)
+            constructorName <- constructor.name
+          } {
             // anything before a first variable declaration can be inlined, variables need to stay private
             val (inlined, rest) = constructor.body.span {
               case _: AST_Definitions => false
@@ -921,7 +924,24 @@ object TransformClasses {
               a.name = p.name + parSuffix
               a
             }
-            accessor.body = accessor.body ++ parNamesAdjusted
+
+
+            // add the constructor call itself, so that type inference binds its parameters and arguments
+            val constructorCall = if (rest.nonEmpty) Some(AST_SimpleStatement(constructorProperty) {
+              new AST_Call {
+                fillTokens(this, constructorProperty)
+                expression = AST_SymbolRef.sym(constructorProperty)(constructorName)
+
+                args = constructor.argnames.map { p =>
+                  val a = p.clone()
+                  a.name = p.name + parSuffix
+                  a
+                }
+              }
+            }) else None
+
+            accessor.body = accessor.body ++ parNamesAdjusted ++ constructorCall
+
             if (rest.nonEmpty) {
               constructor.body = rest
             } else {
