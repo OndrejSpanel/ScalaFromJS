@@ -939,9 +939,7 @@ object TransformClasses {
                 }
 
                 args = constructor.argnames.map { p =>
-                  val a = p.clone()
-                  a.name = p.name + parSuffix
-                  a
+                  AST_SymbolRef(p)(p.name + parSuffix)
                 }
               }
             }) else None

@@ -169,7 +169,7 @@ object InferTypes {
       for ((Some(par), arg) <- pars zip args) {
         arg match {
           case SymbolInfo(a) =>
-            println(s"Infer arg $a as $par")
+            //println(s"Infer arg $a as $par")
             a.addSymbolInferredType(Some(par), source)
           case _ =>
         }
@@ -183,7 +183,7 @@ object InferTypes {
       for ((Some(par), arg) <- parIds zip args) {
         val tp = expressionType(arg)(ctx)
         if (tp.exists(_.nonEmpty)) {
-          println(s"Infer par $par as $tp")
+          //println(s"Infer par $par as $tp")
           addInferredType(Some(par), tp)
         }
       }
@@ -192,15 +192,16 @@ object InferTypes {
     }
 
     def inferArgs(funType: FunctionType, args: Seq[AST_Node]) = {
-      val pars = funType.args.map(par => Some(TypeInfo.target(par)))
-      inferArgsFromPars(pars, args)
+      val argTypes = funType.args.map(par => Some(TypeInfo.target(par)))
+      //println(s"Infer args for $funType, $args, $argTypes")
+      inferArgsFromPars(argTypes, args)
     }
 
 
-    def inferFunction(args: Seq[AST_Node]) = {
-      val pars = args.map(expressionType(_)(ctx))
-      println(s"  $args $pars")
-      FunctionType(NoType, pars.map(_.fold[TypeDesc](NoType)(_.declType)).toIndexedSeq)
+    def inferFunction(pars: Seq[AST_Node]) = {
+      val parTypes = pars.map(expressionType(_)(ctx))
+      //println(s"  $pars $parTypes")
+      FunctionType(NoType, parTypes.map(_.fold[TypeDesc](NoType)(_.declType)).toIndexedSeq)
     }
 
     def inferFunctionReturn(value: AST_Node, r: TypeInfo) = {
@@ -592,11 +593,11 @@ object InferTypes {
             c <- getParents(callOn)(ctx) // infer for all overrides
           } {
             val memberId = MemberId(c, call)
-            println(s"memberId $memberId, args ${args.length} (${args.mkString(",")})")
+            //println(s"memberId $memberId, args ${args.mkString(",")}")
             if (ctx.classInfo.containsMember(c, call)) {
               val tpe = inferFunction(args)
 
-              println(s"Infer par types for a var member call $c.$call as $tpe")
+              //println(s"Infer par types for a member call $c.$call as $tpe")
               //println(allTypes)
               addInferredMemberType(Some(memberId), Some(TypeInfo.target(tpe))) // target or source?
 

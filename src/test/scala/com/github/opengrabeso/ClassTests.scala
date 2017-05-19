@@ -49,6 +49,29 @@ class ClassTests extends FunSuite with TestUtils {
 
   }
 
+  test("Infer constructor parameter types") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function C(a) {
+        var b;
+        this.value = a
+      }
+
+      C.prototype.constructor = C;
+      var c = new C;
+      var d = "";
+      d = c.value;
+      """).required(
+      "class C",
+      "(a_par: String)",
+      "def constructor(a: String)"
+    )
+
+  }
+
+
+
   test("Support local classes") {
     execute check ConversionCheck(
       // language=JavaScript
