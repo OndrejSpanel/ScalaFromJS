@@ -403,7 +403,7 @@ object Transform {
       case AST_SymbolRefDef(symDef) =>
         // if the symbol is a class name, use it as a class type directly
         val rt = types.get(symDef).orElse(typeInfoFromClassSym(symDef))
-        //println(s"Sym ${symDef.name} type $rt")
+        //println(s"    Sym ${symDef.name} type $rt")
         rt
 
       case expr AST_Dot name =>

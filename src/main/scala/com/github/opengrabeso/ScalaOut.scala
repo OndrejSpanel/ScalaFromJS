@@ -357,14 +357,6 @@ object ScalaOut {
       out(")")
     }
 
-    def outputArgNamesCallConstructor(tn: AST_Lambda) = {
-      out("(")
-      outputNodes(tn.argnames) { n =>
-        out"${n.name+parSuffix}"
-      }
-      out(")")
-    }
-
     def outputArgNames(tn: AST_Lambda, types: Boolean = false) = {
       out("(")
       outputNodes(tn.argnames) { n =>
@@ -793,13 +785,7 @@ object ScalaOut {
       //case tn: AST_Scope => outputUnknownNode(tn)
       case tn: AST_DefClass =>
 
-        val (staticProperties, nonStaticProperties) = tn.properties.partition {
-          case m: AST_ConciseMethod => m.`static`
-          case m: AST_ObjectSetter => m.`static`
-          case m: AST_ObjectGetter => m.`static`
-          case m: AST_ObjectKeyVal => m.quote == "'"
-          case _ => false
-        }
+        val (staticProperties, nonStaticProperties) = tn.properties.partition(propertyIsStatic)
 
         if (staticProperties.nonEmpty) {
           out.eol(2)
@@ -873,15 +859,6 @@ object ScalaOut {
           varMembers.foreach(nodeToOut)
 
           if ((varMembers.nonEmpty || tn.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
-
-          // call the constructor after all variable declarations
-          constructor.foreach { lambda =>
-            if (lambda.body.nonEmpty) {
-              out("constructor")
-              outputArgNamesCallConstructor(lambda)
-              out.eol()
-            }
-          }
 
           if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 

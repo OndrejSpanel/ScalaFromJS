@@ -16,3 +16,7 @@ UglifyJS.AST_DefClass.prototype.toDebug = function() {
     return this.name.name;
 };
 
+UglifyJS.AST_Symbol.prototype.toDebug = function() {
+    return this.name;
+};
+

@@ -42,13 +42,13 @@ object ClassesByMembers {
 
         //println(s"Class $clsName parent $parentName")
 
-        // TODO: inherit parent members
         val propertiesSeq = cls.properties.toSeq
+        val propertiesNonStatic = propertiesSeq.filterNot(propertyIsStatic)
 
         val funMembers = propertiesSeq.collect { case c: AST_ConciseMethod => c.key.name -> c.value.argnames.length }
-        val getters = propertiesSeq.collect {case AST_ObjectGetter(AST_SymbolRefName(name), _) => name}
-        val setters = propertiesSeq.collect {case AST_ObjectSetter(AST_SymbolRefName(name), _) => name}
-        val values = propertiesSeq.collect {case c: AST_ObjectKeyVal => c.key}
+        val getters = propertiesNonStatic.collect {case AST_ObjectGetter(AST_SymbolRefName(name), _) => name}
+        val setters = propertiesNonStatic.collect {case AST_ObjectSetter(AST_SymbolRefName(name), _) => name}
+        val values = propertiesNonStatic.collect {case c: AST_ObjectKeyVal => c.key}
 
         val propMembers = getters.toSet ++ setters.toSet ++ values.toSet
 
@@ -59,6 +59,7 @@ object ClassesByMembers {
 
         //println(s"Cls ${id(cls.name.get.thedef.get)}: Fun $funMembers mem $varMembers")
         //println(s"Add def $cls $v")
+        // inherit parent members
         val parentMembers = parentName.fold(Option.empty[ClassDefInfo])(members.get(_))
 
         val clsDef = ClassDefInfo(varMembers.toSet, propMembers, funMembers.toMap, 0)
@@ -157,7 +158,7 @@ object ClassesByMembers {
               case Some(c: AST_Call) if c.expression == node =>
                 byMembers.addFunMember(sym, member, c.args.length)
               case _ =>
-                //println(s"  $tpe.$member -- ${sym.name}")
+                //println(s"  ${sym.name}.$member")
                 byMembers.addMember(sym, member)
             }
           }
