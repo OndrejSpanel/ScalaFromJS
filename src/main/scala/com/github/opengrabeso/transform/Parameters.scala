@@ -298,6 +298,9 @@ object Parameters {
 
   }
 
+  /*
+  find constructor parameters which are assigned to a var member and replace them with a var parameter
+  * */
   def inlineConstructorVars(n: AST_Extended): AST_Extended = {
     var types = n.types
     def handleConstructorVars(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
@@ -305,7 +308,9 @@ object Parameters {
       else {
         // inline all parameters, or constructor only?
         val parName = par.name
+        //println(s"Checking par $parName in ${f.name.map(_.name)}")
         if (parName.endsWith(Symbols.parSuffix) && par.thedef.isDefined) {
+          //println(s"  is _par")
           val parDef = par.thedef.get
           object IsVarPar {
 
@@ -319,6 +324,16 @@ object Parameters {
             }
           }
 
+          def isParRef(n: AST_Node) = {
+            n match {
+              case AST_SymbolRefName(`parName`) =>
+                true
+              case _ =>
+                false
+            }
+
+          }
+
           var isVarPar = Option.empty[SymbolDef]
           var otherUse = false
           f.walk {
@@ -326,7 +341,13 @@ object Parameters {
               //println(s"Detected deprecated par for $parName")
               if (!otherUse) isVarPar = Some(varSym)
               true // use inside of the current pattern must not set otherUse
+            case AST_Call(AST_This() AST_Dot "constructor", args@_*) if args.exists(isParRef) =>
+              // passed to the constructor - this is always allowed
+              // should we check what the constructor does with the value?
+              //println(s"Detected constructor call for $parName")
+              true
             case AST_SymbolRefName(`parName`) =>
+              //println(s"Detected other use for $parName")
               isVarPar = None
               otherUse = true
               true

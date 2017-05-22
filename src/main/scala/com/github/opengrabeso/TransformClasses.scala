@@ -887,7 +887,6 @@ object TransformClasses {
 
           for {
             constructorProperty@AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)
-            constructorName <- constructor.name
           } {
             // anything before a first variable declaration can be inlined, variables need to stay private
             val (inlined, rest) = constructor.body.span {
