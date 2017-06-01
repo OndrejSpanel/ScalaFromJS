@@ -1,42 +1,33 @@
-Type inference for setters
+Color r g b
 
 ```
-function Animal(name) {
-    this.name = name;
+function Color( r, g, b ) {
+
+
+	return this.setRGB( r, g, b );
+
+}
+
+Color.prototype = {
+
+	constructor: Color,
+
+	isColor: true,
+
+	r: 1, g: 1, b: 1,
+
+	setRGB: function ( r, g, b ) {
+
+		this.r = r;
+		this.g = g;
+		this.b = b;
+
+		return this;
+
+	},
+
+
 };
-function Snake() {
-    Animal.apply(this, Array.prototype.slice.call(arguments));
-};
-Snake.prototype = new Animal();
-Snake.prototype.isSnake = true;
-
-var sam = new Snake("Sammy the Python");
-sam.move();
-
-Object.defineProperties( Animal.prototype, {
-
-    fullName: {
-
-        get: function () {
-
-            return this.name;
-
-        },
-
-        set: function ( value ) {
-
-            this.name = value;
-            this.onChangeCallback();
-
-        }
-
-    },
-});
-
-var x, y;
-if (true) x = sam.fullName
-if (true) y = sam.isSnake
-
 
 
 ```
