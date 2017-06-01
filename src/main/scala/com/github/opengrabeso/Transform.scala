@@ -509,6 +509,29 @@ object Transform {
     }
   }
 
+  def isReadOnlyProperty(cls: AST_DefClass, name: String): Option[AST_Node] = {
+    var getter = Option.empty[AST_Node]
+    var setter = false
+    cls.properties.filter(p => propertyName(p) == name).foreach {
+      case AST_ConciseMethod(AST_SymbolName(p), _) =>
+        //println(s"  function $p")
+        //getter = true
+      case AST_ObjectKeyVal(p, value) =>
+        //println(s"  keyval $p")
+        getter = Some(value)
+      case s: AST_ObjectSetter =>
+        //println(s"  setter ${s.key.name}")
+        setter = true
+      case AST_ObjectGetter(p, AST_Function(Seq(), Seq(AST_SimpleStatement(init)))) =>
+        // check
+        //println(s"  getter init $p}")
+        getter = Some(init)
+      case _ =>
+    }
+    if (!setter) getter
+    else None
+  }
+
   def listPrototypeMemberNames(cls: AST_DefClass): Seq[String] = {
     var existingMembers = Seq.empty[String]
 

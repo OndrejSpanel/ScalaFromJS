@@ -821,31 +821,48 @@ object TransformClasses {
       node match {
         case cls: AST_DefClass =>
           //println(s"AST_DefClass ${cls.name.get.name} ${cls.start.get.pos}")
-          var newMembers = Seq.empty[String]
+          var newMembers = collection.immutable.ListMap.empty[String, Option[AST_Node]]
           // scan known prototype members (both function and var) first
           var existingMembers = listPrototypeMemberNames(cls)
+          //println(s"existingMembers $existingMembers")
 
           cls.walk {
+            case AST_Assign(IsThis() AST_Dot mem, _, _) =>
+              //println(s"Detect this.$mem = ...")
+              if (!existingMembers.contains(mem)) {
+                newMembers += mem -> None
+                existingMembers = existingMembers :+ mem
+              } else for (prop <- isReadOnlyProperty(cls, mem)) {
+                //println(s"Convert property to value $mem")
+                newMembers += mem -> Some(prop)
+              }
+              false
             case IsThis() AST_Dot mem =>
               //println(s"Detect this.$mem")
               if (!existingMembers.contains(mem)) {
-                newMembers = newMembers :+ mem
+                newMembers += mem -> None
                 existingMembers = existingMembers :+ mem
               }
               false
+
             case _ =>
               false
           }
 
-          val vars = newMembers.map { m =>
+          //println(s"newMembers $newMembers")
+          val vars = newMembers.map { case (m, init) =>
             new AST_Var {
               fillTokens(this, cls)
-              definitions = js.Array(AST_VarDef.uninitialized(cls) (m))
+              val varDef = init.fold(AST_VarDef.uninitialized(cls)(m))(AST_VarDef.initialized(cls) (m, _))
+              definitions = js.Array(varDef)
             }
           }
 
           val accessor = classInlineBody(cls)
-          accessor.body = (vars: Seq[AST_Statement]).toJSArray
+          accessor.body ++= (vars: Iterable[AST_Statement]).toJSArray
+
+          // remove overwritten members
+          cls.properties = cls.properties.filterNot(p => newMembers.contains(propertyName(p)))
 
           cls
         case _ =>
