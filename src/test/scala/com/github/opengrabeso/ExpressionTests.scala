@@ -106,6 +106,8 @@ class ExpressionTests extends FunSuite with TestUtils {
          var d = 21 + 22 + 23;
          var e = 31 / (32 / 33);
          var f = 41 + 42 - 43 - (44 - 45);
+         var g = 51 - (52 + 53);
+         var h = 61 - 62 * 63;
       }
       """).required(
         "(3 + 4)",
@@ -114,7 +116,9 @@ class ExpressionTests extends FunSuite with TestUtils {
         "21 + 22 + 23",
         "31 / (32 / 33)",
         "41 + 42 - 43",
-        "(44 - 45)"
+        "(44 - 45)",
+        "(52 + 53)",
+        "61 - 62 * 63"
       ).forbidden(
         "(1 * 2)"
       )
