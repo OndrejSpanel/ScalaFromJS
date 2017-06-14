@@ -33,7 +33,7 @@ object SymbolTypes {
     override def toString = s"Array[${elem.toString}]"
     override def toOut = s"Array[${elem.toOut}]"
 
-    override def scalaConstruct: String = s"Array.empty[$elem]"
+    override def scalaConstruct: String = s"Array.empty[${elem.toOut}]"
 
     override def typeOnInit = false
 
