@@ -381,34 +381,12 @@ object ScalaOut {
     }
 
     def outputBinaryArgument(arg: AST_Node, outer: String, right: Boolean = false) = {
-      val priorityOrderings = Seq(
-        Seq(Set("+", "-"),Set("*", "/", "%")),
-        Seq(Set("|","^"), Set("&"))
-      )
-
-      val nonAssociative = Set("/", "-")
-
-      def needsParens(outer: String, inner: String, right: Boolean): Boolean = {
-        //println(s"outer $outer inner $inner")
-        val innerIsLowerPrio = priorityOrderings.exists { ordering =>
-          val lower = ordering.dropWhile(!_.contains(inner)).drop(1)
-          lower.exists(_.contains(outer))
-        }
-        def innerIsSamePrio = priorityOrderings.exists { ordering =>
-          ordering.exists(o => o.contains(inner) && o.contains(outer))
-        }
-        //println(s"outer $outer inner $inner => $innerIsLowerPrio")
-        innerIsLowerPrio || right && (nonAssociative contains outer) && innerIsSamePrio
-      }
 
 
       // non-associative need to be parenthesed when used on the right side
 
       arg match {
-        case a@AST_Binary(_, op, _) if {
-            if (op != outer) needsParens(outer, op, right)
-            else right && nonAssociative.contains(op)
-          }=>
+        case a@AST_Binary(_, op, _) if OperatorPriorities.useParens(op, outer, right) =>
           // TODO: compare priorities
           out"($arg)"
         case _ =>
