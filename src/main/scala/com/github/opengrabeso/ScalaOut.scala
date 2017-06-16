@@ -252,6 +252,16 @@ object ScalaOut {
   }
 
 
+  def termToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
+    n match {
+      case _: AST_Binary =>
+        out("(")
+        nodeToOut(n)(outConfig, input, out)
+        out(")")
+      case _ =>
+        nodeToOut(n)(outConfig, input, out)
+    }
+  }
 
   def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
 
@@ -558,7 +568,8 @@ object ScalaOut {
       case tn: AST_Unary =>
         tn.operator match {
           case "typeof" =>
-            out"${tn.expression}.getClass"
+            termToOut(tn.expression)
+            out(".getClass")
           case _ =>
             tn match {
               case _: AST_UnaryPrefix =>
@@ -568,21 +579,21 @@ object ScalaOut {
                   case _ =>
                     out(tn.operator)
                     if (tn.operator.last.isLetterOrDigit) out(" ")
-                    nodeToOut(tn.expression)
+                    termToOut(tn.expression)
                 }
               case _: AST_UnaryPostfix =>
-                nodeToOut(tn.expression)
+                termToOut(tn.expression)
                 if (tn.operator.head.isLetterOrDigit) out(" ")
                 out(tn.operator)
             }
         }
       case tn: AST_Sub =>
-        nodeToOut(tn.expression)
+        termToOut(tn.expression)
         out("(")
         nodeToOut(tn.property)
         out(")")
       case tn: AST_Dot =>
-        nodeToOut(tn.expression)
+        termToOut(tn.expression)
         out(".")
         identifierToOut(out, tn.property)
       //case tn: AST_PropAccess => outputUnknownNode(tn)
