@@ -137,4 +137,21 @@ class ExpressionTests extends FunSuite with TestUtils {
       )
 
   }
+
+  test("Handle binary operators used as arguments to unary ops or method calls") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+        function f() {
+           var a = -(1 + 2);
+           var b = (3 + 4).toString;
+        }
+        """).required(
+        "(1 + 2)",
+        "(3 + 4)"
+      ).forbidden(
+        "(1 * 2)"
+      )
+  }
+
 }
