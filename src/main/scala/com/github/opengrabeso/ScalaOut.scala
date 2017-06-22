@@ -254,10 +254,15 @@ object ScalaOut {
 
   def termToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
     n match {
-      case _: AST_Binary =>
-        out("(")
-        nodeToOut(n)(outConfig, input, out)
-        out(")")
+      case AST_Binary(_, op, _) =>
+        op match {
+          case `instanceof` | `asinstanceof` =>
+            nodeToOut(n)(outConfig, input, out)
+          case _ =>
+            out("(")
+            nodeToOut(n)(outConfig, input, out)
+            out(")")
+        }
       case _ =>
         nodeToOut(n)(outConfig, input, out)
     }
@@ -533,10 +538,10 @@ object ScalaOut {
       case AST_Binary(left, op, right) =>
         op match {
           case `instanceof` =>
-            outputBinaryArgument(left, op)
+            termToOut(left)
             out".isInstanceOf[$right]"
           case `asinstanceof` =>
-            outputBinaryArgument(left, op)
+            termToOut(left)
             out".asInstanceOf[$right]"
           case _ =>
             outputBinaryArgument(left, op)
