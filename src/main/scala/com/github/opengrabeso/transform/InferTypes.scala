@@ -448,6 +448,9 @@ object InferTypes {
             addInferredType(symDef, tpe)
           }
 
+        // a few special forms of assignment should infer no type - cyclic dependencies
+        case AST_Assign(SymbolInfo(symLeft), _, SymbolInfo(symRight)) if symLeft == symRight =>
+
         case AST_Assign(left, _, right) =>
           val log = false
           val leftT = expressionType(left)(ctx)
