@@ -421,8 +421,9 @@ object Transform {
         //println(s"Infer type of array item $name, et ${expressionType(expr)(ctx)}")
         expressionType(expr)(ctx) match {
           case Some(TypeDecl(ArrayType(item))) =>
-            //println(s"Infer type of array $c.$name as $r")
-            Some(TypeInfo.target(item))
+            val r = TypeInfo.target(item)
+            //println(s"Infer type of array $expr.$name as $r")
+            Some(r)
           case Some(TypeDecl(MapType(item))) =>
             //println(s"Infer type of map $c.$name as $r")
             Some(TypeInfo.target(item))
@@ -430,9 +431,10 @@ object Transform {
             None
         }
 
-      case _: AST_Array =>
-        // TODO: check inside of the array
-        Some(TypeInfo.target(ArrayType(NoType)))
+      case a: AST_Array =>
+        val elementTypes = a.elements.map(expressionType(_)(ctx))
+        val elType = elementTypes.reduceOption(typeUnionOption).flatten
+        Some(TypeInfo.target(ArrayType(elType.map(_.declType).getOrElse(NoType))))
       case _: AST_Number =>
         Some(TypeInfo.target(number))
       case _: AST_String =>
