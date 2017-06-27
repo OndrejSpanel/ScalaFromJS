@@ -50,7 +50,8 @@ class ArrayTests extends FunSuite with TestUtils {
       function C() {
           this.ca = [0, 1, 2];
           this.cb = [];
-          this.cd = []
+          this.cd = [];
+          this.ce = [];
       }
 
       C.prototype.constructor = C;
@@ -58,13 +59,15 @@ class ArrayTests extends FunSuite with TestUtils {
       C.prototype.fc = function() {
           this.cb.push("A");
           this.cd = ["X", "Y", "Z"];
+          this.ce[0] = 123;
           this.x0 = this.ca[0];
       }
       """)
       .required(
         "var x0: Double",
         "var cb = Array.empty[String]",
-        "var cd = Array.empty[String]"
+        "var cd = Array.empty[String]",
+        "var ce = Array.empty[Double]"
       )
   }
 
