@@ -870,6 +870,10 @@ object UglifyExt {
       def unapply(arg: AST_Sub) = Some(arg.expression, arg.property)
     }
 
+    object AST_Array {
+      def unapplySeq(arg: AST_Array) = Some(arg.elements.toSeq)
+
+    }
     object AST_Object {
       def unapply(arg: AST_Object) = Some(arg.properties.toSeq)
     }

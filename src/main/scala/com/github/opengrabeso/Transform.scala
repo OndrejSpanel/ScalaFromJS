@@ -366,7 +366,13 @@ object Transform {
       funType
   }
 
-  def expressionType(n: AST_Node)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
+  object ExpressionType {
+    def unapply(arg: AST_Node)(implicit ctx: ExpressionTypeContext): Option[Option[TypeInfo]] = {
+      Some(expressionType(arg))
+    }
+  }
+
+  def expressionType(n: AST_Node)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
 
@@ -421,8 +427,9 @@ object Transform {
         //println(s"Infer type of array item $name, et ${expressionType(expr)(ctx)}")
         expressionType(expr)(ctx) match {
           case Some(TypeDecl(ArrayType(item))) =>
-            //println(s"Infer type of array $c.$name as $r")
-            Some(TypeInfo.target(item))
+            val r = TypeInfo.target(item)
+            //println(s"Infer type of array $expr.$name as $r")
+            Some(r)
           case Some(TypeDecl(MapType(item))) =>
             //println(s"Infer type of map $c.$name as $r")
             Some(TypeInfo.target(item))
@@ -430,19 +437,28 @@ object Transform {
             None
         }
 
-      case _: AST_Array =>
-        // TODO: check inside of the array
-        Some(TypeInfo.target(ArrayType(NoType)))
+      case a: AST_Array =>
+        val elementTypes = a.elements.map(expressionType(_)(ctx))
+        val elType = elementTypes.reduceOption(typeUnionOption).flatten
+        Some(TypeInfo.target(ArrayType(elType.map(_.declType).getOrElse(NoType))))
       case _: AST_Number =>
         Some(TypeInfo.target(number))
       case _: AST_String =>
         Some(TypeInfo.target(string))
       case _: AST_Boolean =>
         Some(TypeInfo.target(boolean))
-      case tern: AST_Conditional =>
-        val t1 = expressionType(tern.consequent)(ctx)
-        val t2 = expressionType(tern.alternative)(ctx)
-        typeUnionOption(t1, t2)
+
+      // Array.isArray( name ) ? name : [name]
+      case AST_Conditional(AST_Call(AST_SymbolRefName("Array") AST_Dot "isArray", isArrayArg), exprTrue, exprFalse) =>
+        val exprType = expressionType(isArrayArg)
+        //println(s"ExprType $exprType of Array.isArray( name ) ? name : [name] for $n1")
+        if(exprType.exists(_.declType.isInstanceOf[ArrayType])) {
+          expressionType(exprTrue)
+        } else {
+          expressionType(exprFalse)
+        }
+      case AST_Conditional(_, ExpressionType(t), ExpressionType(f)) =>
+        typeUnionOption(t, f)
 
       case AST_Binary(expr, `asinstanceof`, AST_SymbolRefDef(cls)) =>
         typeInfoFromClassSym(cls)
@@ -488,13 +504,11 @@ object Transform {
         }
       case seq: AST_Sequence =>
         expressionType(seq.expressions.last)(ctx)
-      case s: AST_SimpleStatement =>
-        expressionType(s.body)(ctx)
+      case AST_SimpleStatement(ExpressionType(t)) =>
+        t
 
-      case s: AST_BlockStatement =>
-        val lastExprType = s.body.lastOption.flatMap(expressionType(_)(ctx))
-        //println(s"Block type $lastExprType, ${s.body}")
-        lastExprType
+      case AST_BlockStatement( _ :+ ExpressionType(last)) =>
+        last
       case fun@AST_Lambda(args, body) =>
         val returnType = transform.InferTypes.scanFunctionReturns(fun)(ctx)
         // TODO: use inferred argument types as well
