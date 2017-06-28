@@ -35,4 +35,15 @@ class ForLoopTests extends FunSuite with TestUtils {
         "for (i <- 1 to 60)"
       )
   }
+
+  test("Detect for loops with limit variable") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      var i,il;
+      for ( i = 0, il = c.length; i < il; i ++ ) {}
+      """).required(
+        "for (i <- 0 until c.length)"
+      )
+  }
 }
