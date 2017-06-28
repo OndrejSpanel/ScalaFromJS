@@ -413,6 +413,11 @@ object ScalaOut {
 
     def quote (s: String): String = "\"" + escape(s) + "\""
     def escape(s: String): String = s.flatMap(escapedChar)
+    def tripleQuote(str: String): String = {
+      // TODO: handle existing triple quotes
+      val triple = "\"\"\""
+      triple + str + triple
+    }
 
     def escapedChar(ch: Char): String = ch match {
       case '\b' => "\\b"
@@ -480,6 +485,13 @@ object ScalaOut {
       case tn: AST_RegExp => out""""${tn.value}".r"""
       case tn: AST_Number => out"${tn.value}"
       case tn: AST_String => out(quote(tn.value))
+      case tn: AST_TemplateString =>
+        // TODO: handle expression interpolation
+        val value = tn.segments.collect {
+          case s: AST_TemplateSegment => s.value
+        }.mkString
+        out(tripleQuote(value))
+
       //case tn: AST_Constant => "AST_Constant"
       case tn: AST_This => out("this") // TODO: handle differences between Scala and JS this
       case tn: AST_Super => out("super")

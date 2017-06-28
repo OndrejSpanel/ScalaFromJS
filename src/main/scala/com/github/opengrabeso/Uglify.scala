@@ -433,6 +433,18 @@ object Uglify extends js.Object {
     // [string] the original quote character
     var quote: String  = js.native
   }
+  @js.native class AST_TemplateString extends AST_Node {
+    // One or more segments, starting with AST_TemplateSegment. AST_Expression may follow AST_TemplateSegment, but each AST_Expression must be followed by AST_TemplateSegment
+    var segments: js.Array[AST_Node] = js.native
+  }
+
+  @js.native class AST_TemplateSegment extends AST_Node {
+    // Content of the segment
+    var value: String = js.native
+    // Raw content of the segment
+    var raw: String = js.native
+  }
+
   @js.native class AST_Number extends AST_Constant {
     // [number] the numeric value
     var value: Double = js.native

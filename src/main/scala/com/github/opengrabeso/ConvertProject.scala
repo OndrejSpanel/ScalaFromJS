@@ -209,12 +209,11 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       } catch {
         case JavaScriptException(ex) if ex.asInstanceOf[js.Dynamic].name.asInstanceOf[String]=="SyntaxError" =>
           //println(s"Parse ex: ${ex.toString} in $path")
-          //val wrap = "// " + shortName(path) + "\n/*\n" + code + "\n*/\n"
           val short = shortName(path)
           val dot = short.indexOf('.')
           val simpleName = if (dot <0) short else short.take(dot)
-          // TODO: embed wrapped code as a variable (note: JS syntax is needed)
-          val wrap = s"var $simpleName = " + "\"\"\n"
+          // embed wrapped code as a variable using ES6 template string
+          val wrap = s"var $simpleName = `" + code + "`\n"
           wrap -> path
       }
 
