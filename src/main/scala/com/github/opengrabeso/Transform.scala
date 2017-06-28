@@ -449,14 +449,13 @@ object Transform {
         Some(TypeInfo.target(boolean))
 
       // Array.isArray( name ) ? name : [name]
-      case AST_Conditional(AST_Call(AST_SymbolRefName("Array") AST_Dot "isArray", AST_SymbolRefName(n1)), n@AST_SymbolRefName(n2), AST_Array(AST_SymbolRefName(n3)))
-        if n1 == n2 && n1 == n3 =>
-        val exprType = expressionType(n)
+      case AST_Conditional(AST_Call(AST_SymbolRefName("Array") AST_Dot "isArray", isArrayArg), exprTrue, exprFalse) =>
+        val exprType = expressionType(isArrayArg)
         //println(s"ExprType $exprType of Array.isArray( name ) ? name : [name] for $n1")
         if(exprType.exists(_.declType.isInstanceOf[ArrayType])) {
-          exprType
+          expressionType(exprTrue)
         } else {
-          Some(TypeInfo.target(ArrayType(exprType.map(_.declType).getOrElse(NoType))))
+          expressionType(exprFalse)
         }
       case AST_Conditional(_, ExpressionType(t), ExpressionType(f)) =>
         typeUnionOption(t, f)
