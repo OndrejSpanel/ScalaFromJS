@@ -366,7 +366,13 @@ object Transform {
       funType
   }
 
-  def expressionType(n: AST_Node)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
+  object ExpressionType {
+    def unapply(arg: AST_Node)(implicit ctx: ExpressionTypeContext): Option[Option[TypeInfo]] = {
+      Some(expressionType(arg))
+    }
+  }
+
+  def expressionType(n: AST_Node)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
 
@@ -441,10 +447,19 @@ object Transform {
         Some(TypeInfo.target(string))
       case _: AST_Boolean =>
         Some(TypeInfo.target(boolean))
-      case tern: AST_Conditional =>
-        val t1 = expressionType(tern.consequent)(ctx)
-        val t2 = expressionType(tern.alternative)(ctx)
-        typeUnionOption(t1, t2)
+
+      // Array.isArray( name ) ? name : [name]
+      case AST_Conditional(AST_Call(AST_SymbolRefName("Array") AST_Dot "isArray", AST_SymbolRefName(n1)), n@AST_SymbolRefName(n2), AST_Array(AST_SymbolRefName(n3)))
+        if n1 == n2 && n1 == n3 =>
+        val exprType = expressionType(n)
+        //println(s"ExprType $exprType of Array.isArray( name ) ? name : [name] for $n1")
+        if(exprType.exists(_.declType.isInstanceOf[ArrayType])) {
+          exprType
+        } else {
+          Some(TypeInfo.target(ArrayType(exprType.map(_.declType).getOrElse(NoType))))
+        }
+      case AST_Conditional(_, ExpressionType(t), ExpressionType(f)) =>
+        typeUnionOption(t, f)
 
       case AST_Binary(expr, `asinstanceof`, AST_SymbolRefDef(cls)) =>
         typeInfoFromClassSym(cls)
@@ -490,13 +505,11 @@ object Transform {
         }
       case seq: AST_Sequence =>
         expressionType(seq.expressions.last)(ctx)
-      case s: AST_SimpleStatement =>
-        expressionType(s.body)(ctx)
+      case AST_SimpleStatement(ExpressionType(t)) =>
+        t
 
-      case s: AST_BlockStatement =>
-        val lastExprType = s.body.lastOption.flatMap(expressionType(_)(ctx))
-        //println(s"Block type $lastExprType, ${s.body}")
-        lastExprType
+      case AST_BlockStatement( _ :+ ExpressionType(last)) =>
+        last
       case fun@AST_Lambda(args, body) =>
         val returnType = transform.InferTypes.scanFunctionReturns(fun)(ctx)
         // TODO: use inferred argument types as well

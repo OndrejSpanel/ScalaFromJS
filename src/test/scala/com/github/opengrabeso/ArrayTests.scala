@@ -71,4 +71,22 @@ class ArrayTests extends FunSuite with TestUtils {
       )
   }
 
+  test("Smart Array.isArray conditional handling") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      function f( shapes ) {
+       shapes = Array.isArray( shapes ) ? shapes : [ shapes ];
+      }
+
+      var x1 = a1;
+      var a1 = x2;
+      var x2 = "";
+      """)
+      .required(
+        "shapes_par: Array[Unit]"
+      ).forbidden(
+        "Array[Array["
+      )
+  }
 }
