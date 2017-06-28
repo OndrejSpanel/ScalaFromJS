@@ -275,10 +275,12 @@ object Variables {
       val b = mutable.ArrayBuilder.make[(SymbolDef, AST_Node)]
       var assignsOnly = true
       n.walk {
+        case _ : AST_Sequence =>
+          false
         case AST_Assign(AST_SymbolRefDef(sym), "=", init) if !nodeContainsRef(init, sym) =>
           b += sym -> init
           true
-        case _ =>
+        case nn =>
           assignsOnly = false
           true
       }
