@@ -213,7 +213,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
           val dot = short.indexOf('.')
           val simpleName = if (dot <0) short else short.take(dot)
           // embed wrapped code as a variable using ES6 template string
-          val wrap = s"var $simpleName = `" + code + "`\n"
+          val wrap = s"\nvar $simpleName = {value: \n`" + code + "`}\n"
           wrap -> path
       }
 
