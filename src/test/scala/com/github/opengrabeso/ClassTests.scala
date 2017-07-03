@@ -136,4 +136,40 @@ class ClassTests extends FunSuite with TestUtils {
     )
   }
 
+  test("Create a class when constructor is returning a value") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function C() {
+
+        var list = {};
+
+        function priv( id ) {}
+
+        function get( id ) {
+          var buffer = list[ id ];
+          priv(id);
+          return buffer;
+        }
+
+        function update( geometry ) {}
+
+        function proc( geometry ) {}
+
+        return {
+          get: get,
+          update: update,
+          process: proc
+        };
+      }
+
+      var w = new C;
+      """).required(
+        "class C",
+        "var list",
+        "def get(",
+        "def process("
+      )
+  }
+
 }

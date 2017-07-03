@@ -10,6 +10,7 @@ import SymbolTypes.SymbolMapId
 import scala.scalajs.js
 import js.JSConverters._
 import scala.collection.immutable.ListMap
+import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 import scala.scalajs.js.RegExp
 
@@ -26,6 +27,16 @@ object TransformClasses {
     def apply(sym: AST_Symbol): ClassId = ClassId(sym.thedef.get)
   }
 
+  object ClassDefineValue {
+    // function C() {return {a: x, b:y}
+    def unapply(arg: AST_Node) = arg match {
+      case AST_Defun(Defined(sym), args, body :+ AST_Return(AST_Object(proto))) =>
+        Some(sym, args, body, proto)
+      case _ =>
+        None
+    }
+
+  }
   object ClassDefine {
     def unapply(arg: AST_Node): Option[(AST_Symbol, Seq[AST_SymbolFunarg], Seq[AST_Statement])] = arg match {
       // function ClassName() {}
@@ -79,7 +90,13 @@ object TransformClasses {
     membersStatic: ListMap[String, ClassMember] = ListMap.empty,
     // when empty, no need to emit class, only object - no JS corresponding constructor exists
     staticOnly: Boolean = false
-  )
+  ) {
+    def addMember(name: String, m: ClassMember) = copy(members = members + (name -> m))
+    def addValue(name: String, m: ClassVarMember) = copy(values = values + (name -> m))
+    def renameMember(name: String, newName: String) = copy(members = members.map { case (k, v) =>
+      if (k == name) newName -> v else k -> v
+    })
+  }
 
   object ClassPropertyDef {
     def unapply(arg: AST_Node) = arg match {
@@ -391,40 +408,94 @@ object TransformClasses {
       }
     }
 
+    def processBody(clsId: SymbolMapId, body: Seq[AST_Statement]) = {
+      // constructor may contain property definitions
+      // note: we do not currently handle property definitions in any inner scopes
+      val bodyFiltered = body.filter {
+        //Object.defineProperty( this, 'id', { value: textureId ++ } );
+        case AST_SimpleStatement(AST_Call(
+        AST_SymbolRefName("Object") AST_Dot "defineProperty", _: AST_This, prop: AST_String,
+        AST_Object(properties)
+        )) =>
+          //println(s"Detect defineProperty ${sym.name}.${prop.value}")
+          properties.foreach {
+            case p: AST_ObjectKeyVal => classes.defineSingleProperty(clsId, prop.value, p)
+            case _ =>
+          }
+          false
+        case _ =>
+          true
+      }
+      bodyFiltered
+    }
+
     n.top.walk {
 
       case _: AST_Toplevel =>
         false
-      case ClassDefine(AST_SymbolDef(symDef), args, body) =>
-        for (clsId <- SymbolTypes.id(symDef)) {
-          // check if there exists a type with this name
-          if (classNames contains clsId) {
-            // looks like a constructor
-            //println("Constructor " + sym.name)
+      case ClassDefineValue(AST_SymbolDef(symDef), args, body, proto) =>
+        for {
+          clsId <- SymbolTypes.id(symDef) if classNames contains clsId
+        } {
 
-            // constructor may contain property definitions
-            // note: we do not currently handle property definitions in any inner scopes
-            val bodyFiltered = body.filter {
-              //Object.defineProperty( this, 'id', { value: textureId ++ } );
-              case AST_SimpleStatement(AST_Call(
-              AST_SymbolRefName("Object") AST_Dot "defineProperty", _: AST_This, prop: AST_String,
-              AST_Object(properties)
-              )) =>
-                //println(s"Detect defineProperty ${sym.name}.${prop.value}")
-                properties.foreach {
-                  case p: AST_ObjectKeyVal => classes.defineSingleProperty(clsId, prop.value, p)
-                  case _ =>
-                }
-                false
-              case _ =>
-                true
-            }
+          //println(s"Constructor ${symDef.name} returning value")
 
-            val constructor = ClassFunMember(args, bodyFiltered)
+          // scan for value and member definitions
 
-            val c = classes.defClass(clsId)
-            classes += clsId -> c.copy(members = c.members + ("constructor" -> constructor))
+          //val c = classes.defClass(clsId)
+          object res {
+            var clazz = new ClassDef
+            val body = ArrayBuffer.empty[AST_Statement]
           }
+
+          body.foreach {
+            case AST_Defun(Defined(AST_SymbolDef(sym)), fArgs, fBody) =>
+              val member = ClassFunMember(fArgs, fBody)
+              res.clazz = res.clazz.addMember(sym.name, member)
+            case AST_Definitions(vars@_*) =>
+              //println("Vardef")
+              vars.foreach {
+                case AST_VarDef(AST_SymbolName(vName), Defined(vValue)) =>
+                  val member = ClassVarMember(vValue)
+                  res.clazz = res.clazz.addValue(vName, member)
+                case _ =>
+              }
+            case s =>
+              println(nodeClassName(s))
+              res.body.append(s)
+          }
+
+
+          proto.foreach {
+            case AST_ObjectKeyVal(name, value) =>
+              //println(s"$name, $value")
+              value match {
+                case AST_SymbolName(`name`) => // same name, no need for any action
+                case AST_SymbolName(other) =>
+                  res.clazz = res.clazz.renameMember(other, name)
+                case _ =>
+                // TODO: we should include only the ones used by the return value - this may include some renaming
+                // TODO: the unused ones should be marked private
+              }
+            case _ =>
+          }
+
+          val constructor = ClassFunMember(args, res.body)
+          classes += clsId -> res.clazz.addMember("constructor", constructor)
+        }
+        true
+
+      case ClassDefine(AST_SymbolDef(symDef), args, body) =>
+        for (clsId <- SymbolTypes.id(symDef) if classNames contains clsId ) {
+          // looks like a constructor
+          //println("Constructor " + symDef.name)
+
+          val bodyFiltered = processBody(clsId, body)
+
+          val constructor = ClassFunMember(args, bodyFiltered)
+
+          val c = classes.defClass(clsId)
+          classes += clsId -> c.copy(members = c.members + ("constructor" -> constructor))
         }
 
         true
@@ -669,28 +740,36 @@ object TransformClasses {
         }
       }
 
+
+      def classDefine(sym: AST_Symbol) = {
+        val clsId = ClassId(sym)
+        //println(s"  ${walker.stack.map(nodeClassName).mkString("|")}")
+        // check if there exists a type with this name
+        val clazz = classes(clsId)
+
+        object helper extends Helper(node)
+        import helper._
+
+        val baseDef = clazz.base.flatMap(classes.get)
+
+        val base = clazz.base.fold(js.undefined: js.UndefOr[AST_Node])(b => AST_SymbolRef(node)(b.name))
+
+        val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }
+        val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
+        val mappedSetters = clazz.setters.map { case (k, v) => newSetter(k, v.args, v.body) }
+        val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value, false) }
+        val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
+
+        val properties = mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues ++ mappedStatic
+        newClass(sym, base, properties)
+      }
+
       node match {
+        case ClassDefineValue(sym, _, _, _) if classes contains ClassId(sym) =>
+          classDefine(sym)
+
         case ClassDefine(sym, _, _) if classes contains ClassId(sym) =>
-          val clsId = ClassId(sym)
-          //println(s"  ${walker.stack.map(nodeClassName).mkString("|")}")
-          // check if there exists a type with this name
-          val clazz = classes(clsId)
-
-          object helper extends Helper(node)
-          import helper._
-
-          val baseDef = clazz.base.flatMap(classes.get)
-
-          val base = clazz.base.fold(js.undefined: js.UndefOr[AST_Node])(b => AST_SymbolRef(node)(b.name))
-
-          val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }
-          val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
-          val mappedSetters = clazz.setters.map { case (k, v) => newSetter(k, v.args, v.body) }
-          val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value, false) }
-          val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
-
-          val properties = mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues ++ mappedStatic
-          newClass(sym, base, properties)
+          classDefine(sym)
 
         case DefineStaticMembers(sym, _) if classes.contains(ClassId(sym)) =>
           val clsId = ClassId(sym)
