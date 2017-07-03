@@ -458,7 +458,9 @@ object TransformClasses {
                 case AST_VarDef(AST_SymbolName(vName), Defined(vValue)) =>
                   val member = ClassVarMember(vValue)
                   res.clazz = res.clazz.addValue(vName, member)
-                case _ =>
+                case vd@AST_VarDef(AST_SymbolName(vName), _) =>
+                  val member = ClassVarMember(AST_SymbolRef(vd)("_"))
+                  res.clazz = res.clazz.addValue(vName, member)
               }
             case s =>
               //println(nodeClassName(s))
