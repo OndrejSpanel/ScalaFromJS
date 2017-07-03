@@ -877,8 +877,11 @@ object ScalaOut {
             case _ => false
           }
 
-          //out(s"${functionMembers.length} ${varMembers.length}")
-          varMembers.foreach(nodeToOut)
+          //out(s"/*fun: ${functionMembers.length} var: ${varMembers.length}*/")
+          varMembers.foreach { n =>
+            //out"/*${nodeClassName(n)}*/"
+            nodeToOut(n)
+          }
 
           if ((varMembers.nonEmpty || tn.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
 
