@@ -159,7 +159,8 @@ class ClassTests extends FunSuite with TestUtils {
         return {
           get: get,
           update: update,
-          process: proc
+          process: proc,
+          calc: function ( t ) {return t * t;}
         };
       }
 
@@ -168,7 +169,9 @@ class ClassTests extends FunSuite with TestUtils {
         "class C",
         "var list",
         "def get(",
-        "def process("
+        "def process(",
+        "def calc(",
+        "t * t"
       )
   }
 

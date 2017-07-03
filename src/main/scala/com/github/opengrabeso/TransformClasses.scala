@@ -461,7 +461,7 @@ object TransformClasses {
                 case _ =>
               }
             case s =>
-              println(nodeClassName(s))
+              //println(nodeClassName(s))
               res.body.append(s)
           }
 
@@ -473,6 +473,9 @@ object TransformClasses {
                 case AST_SymbolName(`name`) => // same name, no need for any action
                 case AST_SymbolName(other) =>
                   res.clazz = res.clazz.renameMember(other, name)
+                case AST_Lambda(fArgs, fBody) =>
+                  val member = ClassFunMember(fArgs, fBody)
+                  res.clazz = res.clazz.addMember(name, member)
                 case _ =>
                 // TODO: we should include only the ones used by the return value - this may include some renaming
                 // TODO: the unused ones should be marked private
