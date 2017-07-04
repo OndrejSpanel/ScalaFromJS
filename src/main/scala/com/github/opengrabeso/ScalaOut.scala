@@ -284,11 +284,14 @@ object ScalaOut {
       out.submitLocation(s.pos, source.lines.next)
     }
 
-    def outputVarDef(name: AST_Symbol, init: js.UndefOr[AST_Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
+    def outputVarDef(name: AST_Symbol, initInput: js.UndefOr[AST_Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
       out"$name"
 
-      //println(s"AST_VarDef ${name.name} type: $sType init: ${init.nonNull.map(_.toString)}")
-      if (types || init.nonNull.isEmpty) {
+      // handle a hack: uninitialized variable using AST_EmptyStatement
+      val init = if (initInput.nonNull.exists(_.isInstanceOf[AST_EmptyStatement])) None else initInput.nonNull
+
+      out(s"/*outputVarDef ${name.name} type: $sType init: ${init.map(_.toString)}*/")
+      if (types || init.isEmpty) {
         for (tp <- sType) {
           if (tp.typeOnInit) out": ${tp.toOut}"
         }
@@ -302,7 +305,7 @@ object ScalaOut {
         }
       }
 
-      init.nonNull.flatMap(trivialInit).fold {
+      init.flatMap(trivialInit).fold {
         //println(s"trivialInit of $sType")
         val construct = sType.map(_.scalaConstruct).getOrElse("_")
         out" = $construct"
@@ -316,7 +319,7 @@ object ScalaOut {
     }
 
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions, types: Boolean = false) = {
-      //out("/*outputDefinitions*/")
+      out"/*outputDefinitions ${tn.definitions.length}*/"
       //println("outputDefinitions -")
       def outValVar() = {
         out(if (isVal) "val " else "var ")
@@ -348,6 +351,7 @@ object ScalaOut {
           outValVar()
           //out("/*outputDefinitions*/")
           val sType = getSymbolType(sym)
+          out"/*AST_VarDef sym ${SymbolTypes.id(sym)} $sType*/"
           //println(s"AST_VarDef sym ${SymbolTypes.id(sym)} $sType")
           //println(getType(sym))
           outputVarDef(s, init, sType, types)

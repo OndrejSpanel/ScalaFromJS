@@ -679,8 +679,9 @@ object InferTypes {
     }
     // TODO: protect JSDoc explicit types
     //println(s"inferred ${inferred.types}")
-    //println(s"n.types ${n.types.types}")
-    n.copy(types = n.types ++ inferred)
+    val ret = n.copy(types = n.types ++ inferred)
+    println(s"n.types ${ret.types.types.filter(_._1.sourcePos>=0)}")
+    ret
   }
 
   def multipass(n: AST_Extended): AST_Extended = {
