@@ -273,6 +273,7 @@ object InferTypes {
       override def toString = s"Member(${symbol.cls}.${symbol.name}})"
 
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
+        //println(s"SymbolAccessDot: addSymbolInferredType $this $tpe")
         addInferredMemberType(Some(symbol), tpe, kind)
       }
 
@@ -285,6 +286,7 @@ object InferTypes {
 
     case class SymbolAccessArray(symbol: SymbolDef) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
+        //println(s"SymbolAccessArray: addSymbolInferredType $this $tpe")
 
         val mappedTpe = tpe.map(_.map(ArrayType))
         //println(s"${symbol.name}: Array type $tpe $mappedTpe")
@@ -299,6 +301,7 @@ object InferTypes {
 
     case class SymbolAccessMap(symbol: SymbolDef) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
+        //println(s"SymbolAccessMap: addSymbolInferredType $this $tpe")
 
         val mappedTpe = tpe.map(_.map(MapType))
         //println(s"${symbol.name}: Map type $tpe $mappedTpe")
@@ -326,6 +329,7 @@ object InferTypes {
 
     case class SymbolAccessDotArray(symbol: MemberId) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
+        //println(s"SymbolAccessDotArray: addSymbolInferredType $symbol $tpe")
         val mappedTpe = tpe.map(_.map(ArrayType))
         addInferredMemberType(Some(symbol), mappedTpe, kind)
       }
@@ -680,7 +684,7 @@ object InferTypes {
     // TODO: protect JSDoc explicit types
     //println(s"inferred ${inferred.types}")
     val ret = n.copy(types = n.types ++ inferred)
-    println(s"n.types ${ret.types.types.filter(_._1.sourcePos>=0)}")
+    //println(s"n.types ${ret.types.types.filter(_._1.sourcePos>=0)}")
     ret
   }
 

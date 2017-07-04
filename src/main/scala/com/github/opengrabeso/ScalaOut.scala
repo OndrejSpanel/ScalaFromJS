@@ -290,7 +290,7 @@ object ScalaOut {
       // handle a hack: uninitialized variable using AST_EmptyStatement
       val init = if (initInput.nonNull.exists(_.isInstanceOf[AST_EmptyStatement])) None else initInput.nonNull
 
-      out(s"/*outputVarDef ${name.name} type: $sType init: ${init.map(_.toString)}*/")
+      //out(s"/*outputVarDef ${name.name} type: $sType init: ${init.map(_.toString)}*/")
       if (types || init.isEmpty) {
         for (tp <- sType) {
           if (tp.typeOnInit) out": ${tp.toOut}"
@@ -319,7 +319,7 @@ object ScalaOut {
     }
 
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions, types: Boolean = false) = {
-      out"/*outputDefinitions ${tn.definitions.length}*/"
+      //out"/*outputDefinitions ${tn.definitions.length}*/"
       //println("outputDefinitions -")
       def outValVar() = {
         out(if (isVal) "val " else "var ")
@@ -351,7 +351,7 @@ object ScalaOut {
           outValVar()
           //out("/*outputDefinitions*/")
           val sType = getSymbolType(sym)
-          out"/*AST_VarDef sym ${SymbolTypes.id(sym)} $sType*/"
+          //out"/*AST_VarDef sym ${SymbolTypes.id(sym)} $sType*/"
           //println(s"AST_VarDef sym ${SymbolTypes.id(sym)} $sType")
           //println(getType(sym))
           outputVarDef(s, init, sType, types)
@@ -860,8 +860,9 @@ object ScalaOut {
           out" {\n"
           out.indent()
 
-          // class body should be a list of variable declarations, constructor statements may follow
+          //out"/* inlineBody count ${inlineBody.value.body.length} */\n"
 
+          // class body should be a list of variable declarations, constructor statements may follow
           inlineBody.value.body.foreach {
             case df: AST_Definitions =>
 

@@ -926,7 +926,8 @@ object TransformClasses {
     val ret = n.top.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
-          println(s"convertClassMembers AST_DefClass ${cls.name.get.name} ${cls.start.get.pos}")
+          //println(s"convertClassMembers AST_DefClass ${cls.name.get.name} ${cls.start.get.pos}")
+
           val newMembers = mutable.ArrayBuffer.empty[AST_Var]
           cls.properties.foreach {
             //case AST_ConciseMethod(AST_SymbolName(p), _) =>
@@ -937,12 +938,15 @@ object TransformClasses {
             case _ =>
           }
           val inlineBody = classInlineBody(cls)
+          //println(s"inlineBody ${inlineBody.body}")
+          //println(s"convertClassMembers newMembers ${newMembers.mkString(",")}")
 
           inlineBody.body ++= (newMembers: Iterable[AST_Statement]).toJSArray
 
           // remove overwritten members
-          println(s"props ${cls.properties} new ${newMembers.map(_.definitions)}")
+          //println(s"  props ${cls.properties}")
           cls.properties = cls.properties.filterNot(p => newMembers.exists(_.definitions.exists(_.name.name == propertyName(p))))
+          //println(s"  => props ${cls.properties}")
 
           cls
         case _ =>
@@ -965,10 +969,15 @@ object TransformClasses {
     val ret = n.top.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
+          val accessor = classInlineBody(cls)
           //println(s"AST_DefClass ${cls.name.get.name} ${cls.start.get.pos}")
           var newMembers = collection.immutable.ListMap.empty[String, Option[AST_Node]]
           // scan known prototype members (both function and var) first
-          var existingMembers = listPrototypeMemberNames(cls)
+          val existingInlineMembers = accessor.body.collect {
+            case AST_Definitions(AST_VarDef(AST_SymbolName(name), _)) =>
+              name
+          }
+          var existingMembers = listPrototypeMemberNames(cls) ++ existingInlineMembers
           //println(s"existingMembers $existingMembers")
 
           cls.walk {
@@ -994,7 +1003,6 @@ object TransformClasses {
               false
           }
 
-          //println(s"newMembers $newMembers")
           val vars = newMembers.map { case (m, init) =>
             new AST_Var {
               fillTokens(this, cls)
@@ -1003,8 +1011,8 @@ object TransformClasses {
             }
           }
 
-          val accessor = classInlineBody(cls)
           accessor.body ++= (vars: Iterable[AST_Statement]).toJSArray
+          //println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
 
           // remove overwritten members
           cls.properties = cls.properties.filterNot(p => newMembers.contains(propertyName(p)))
@@ -1411,7 +1419,7 @@ object TransformClasses {
     onTopNode(inlinePrototypeVariables),
     onTopNode(inlineConstructorFunction),
     convertProtoClasses,
-    //convertClassMembers,
+    convertClassMembers,
     fillVarMembers,
     // applyRules after fillVarMembers - we cannot delete members before they are created
     // applyRules before inlineConstructors, so that constructor is a single function

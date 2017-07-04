@@ -20,6 +20,10 @@ UglifyJS.AST_Symbol.prototype.toDebug = function() {
     return this.name;
 };
 
+UglifyJS.AST_Var.prototype.toDebug = function() {
+    return this.definitions.join(",");
+};
+
 UglifyJS.AST_VarDef.prototype.toDebug = function() {
     return this.name;
 };
@@ -27,6 +31,10 @@ UglifyJS.AST_VarDef.prototype.toDebug = function() {
 UglifyJS.AST_ConciseMethod.prototype.toDebug = function() {
     return this.key.name;
 };
+
+UglifyJS.AST_ObjectProperty.prototype.toDebug = function() {
+    return this.key;
+}
 
 UglifyJS.AST_Defun.prototype.toDebug = function() {
     return this.name;
