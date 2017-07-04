@@ -73,7 +73,7 @@ object Variables {
     }
   }
 
-  // detect function key values can be declared as concise methods instead
+  // detect function key values which can be declared as concise methods instead
   def detectMethods(n: AST_Node): AST_Node = {
     val refs = buildReferenceStacks(n)
 
@@ -81,12 +81,12 @@ object Variables {
       node match {
         case obj@AST_Object(props) =>
         //case AST_Definitions(AST_VarDef(AST_SymbolDef(df), Defined(obj@AST_Object(props)))) =>
-          // check which members are ever written to - we can convert all others to getters and methods
+
+          // check if the object is part of variable / const initialization, like: var df = {}
           transformer.parent(1).nonNull match {
             case Some(AST_Definitions(AST_VarDef(AST_SymbolDef(df), Defined(o: AST_Object)))) =>
-              //println(s"Scan object ${df.name} for methods")
+              //println(s"Scan object ${df.name} for methods ${o.properties}")
               assert(o == obj)
-
 
               object IsDf extends Extractor[String] {
                 def unapply(arg: AST_Node) = arg match {
@@ -96,12 +96,12 @@ object Variables {
               }
               object IsDfModified extends IsModified(IsDf)
 
+              // check which members are ever written to - we can convert all others to getters and methods
               var modifiedMembers = Set.empty[String]
               refs.walkReferences(df, IsDfModified) { key =>
                 modifiedMembers += key
                 false
               }
-
               //println(s"Detected modified members $modifiedMembers")
 
               val newProps = props.map {

@@ -486,7 +486,7 @@ object TransformClasses {
                   val member = ClassVarMember(vValue)
                   res.clazz = res.clazz.addValue(vName, member)
                 case vd@AST_VarDef(AST_SymbolName(vName), _) =>
-                  println(s"value member $vName as undefined")
+                  //println(s"value member $vName as undefined")
                   val member = ClassVarMember(AST_EmptyStatement(vd))
                   res.clazz = res.clazz.addValue(vName, member)
               }

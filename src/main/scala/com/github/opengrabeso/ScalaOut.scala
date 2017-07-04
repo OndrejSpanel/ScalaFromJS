@@ -335,8 +335,9 @@ object ScalaOut {
           out("}\n")
         // empty object - might be a map instead
         case v@AST_VarDef(s@AST_Symbol(name, _, Defined(symDef)), Defined(AST_Object(Seq()))) =>
-          val tpe = input.types.get(symDef).map(_.declType)
-          //println(s"Var $name type $tpe")
+          val symId = SymbolTypes.id(symDef)
+          val tpe = input.types.get(symId).map(_.declType)
+          //println(s"Var $name ($symId) type $tpe empty object")
           tpe match {
             case Some(mType: SymbolTypes.MapType) =>
               outValVar()

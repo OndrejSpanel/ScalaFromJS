@@ -441,6 +441,8 @@ object Transform {
         val elementTypes = a.elements.map(expressionType(_)(ctx))
         val elType = elementTypes.reduceOption(typeUnionOption).flatten
         Some(TypeInfo.target(ArrayType(elType.map(_.declType).getOrElse(NoType))))
+      case a: AST_Object =>
+        Some(TypeInfo.target(ObjectOrMap))
       case _: AST_Number =>
         Some(TypeInfo.target(number))
       case _: AST_String =>

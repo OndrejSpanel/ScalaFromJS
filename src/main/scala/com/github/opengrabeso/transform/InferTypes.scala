@@ -124,7 +124,7 @@ object InferTypes {
         //println(s"Member type was $id: ${inferred.getMember(id)}")
 
         val symType = kind(inferred.getMember(id), tpe)
-        //println(s"Adding member type $id: $tpe -> $symType")
+        //println(s"  Adding member type $id: $tpe -> $symType")
 
         /*
         if (idAccess.contains(MemberId("_Math", "generateUUID"))) {
@@ -143,7 +143,7 @@ object InferTypes {
         */
 
         for (tp <- symType) {
-          //println(s"Add member type $idAccess - $id: $tp")
+          //println(s"  Add member type $idAccess - $id: $tp")
           //println("  " + classInfo)
           if (tp.nonEmpty) {
             inferred = inferred addMember id -> tp
@@ -252,35 +252,37 @@ object InferTypes {
     * */
     trait SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit
-      def unknownType(types: SymbolTypes): Boolean
+      def tpe(types: SymbolTypes): Option[TypeInfo]
+      def unknownType(types: SymbolTypes): Boolean = tpe(types).isEmpty
     }
 
     case class SymbolAccessSymbol(symbol: SymbolDef) extends SymbolAccessInfo {
       override def toString = s"Symbol(${id(symbol)})"
 
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
+        //println(s"SymbolAccessSymbol: addSymbolInferredType $this $tpe")
         addInferredType(id(symbol), tpe, kind)
       }
 
-      def unknownType(types: SymbolTypes) = {
+      def tpe(types: SymbolTypes) = {
         //println(s"Check $s => ${n.types.get(s)}")
-        n.types.get(symbol).isEmpty
+        n.types.get(symbol)
       }
 
     }
 
     case class SymbolAccessDot(symbol: MemberId) extends SymbolAccessInfo {
-      override def toString = s"Member(${symbol.cls}.${symbol.name}})"
+      override def toString = s"Member(${symbol.cls}.${symbol.name})"
 
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target): Unit = {
         //println(s"SymbolAccessDot: addSymbolInferredType $this $tpe")
         addInferredMemberType(Some(symbol), tpe, kind)
       }
 
-      def unknownType(types: SymbolTypes) =  {
+      def tpe(types: SymbolTypes) =  {
         val p = findInParents(symbol.cls, symbol.name)(ctx)
         //println(s"Check $d => $p = ${n.types.getMember(dot)}")
-        types.getMember(p.map(pp => symbol.copy(cls = pp))).isEmpty
+        types.getMember(p.map(pp => symbol.copy(cls = pp)))
       }
     }
 
@@ -293,9 +295,9 @@ object InferTypes {
         addInferredType(id(symbol), mappedTpe, kind)
       }
 
-      def unknownType(types: SymbolTypes) = {
-        // TODO: implement
-        false
+      def tpe(types: SymbolTypes) =  {
+        val t = types.get(id(symbol))
+        t.map(_.map(ArrayType))
       }
     }
 
@@ -308,9 +310,9 @@ object InferTypes {
         addInferredType(id(symbol), mappedTpe, kind)
       }
 
-      def unknownType(types: SymbolTypes) = {
-        // TODO: implement
-        false
+      def tpe(types: SymbolTypes) =  {
+        val t = types.get(id(symbol))
+        t.map(_.map(MapType))
       }
     }
 
@@ -320,10 +322,10 @@ object InferTypes {
         addInferredMemberType(Some(symbol), mappedTpe, kind)
       }
 
-      def unknownType(types: SymbolTypes) =  { // TODO: verify
+      def tpe(types: SymbolTypes) =  { // TODO: verify
         val p = findInParents(symbol.cls, symbol.name)(ctx)
         //println(s"Check $d => $p = ${n.types.getMember(dot)}")
-        types.getMember(p.map(pp => symbol.copy(cls = pp))).isEmpty
+        types.getMember(p.map(pp => symbol.copy(cls = pp)))
       }
     }
 
@@ -334,10 +336,10 @@ object InferTypes {
         addInferredMemberType(Some(symbol), mappedTpe, kind)
       }
 
-      def unknownType(types: SymbolTypes) =  { // TODO: verify
+      def tpe(types: SymbolTypes) =  { // TODO: verify
         val p = findInParents(symbol.cls, symbol.name)(ctx)
         //println(s"Check $d => $p = ${n.types.getMember(dot)}")
-        types.getMember(p.map(pp => symbol.copy(cls = pp))).isEmpty
+        types.getMember(p.map(pp => symbol.copy(cls = pp)))
       }
     }
 
@@ -347,7 +349,7 @@ object InferTypes {
           Some(SymbolAccessSymbol(symDef))
 
         case AST_SymbolRefDef(symDef) AST_Sub property =>
-          //println(s"${symDef.name} - AST_Sub")
+          //println(s"AST_Sub - ${symDef.name}")
           expressionType(property)(ctx).flatMap {
             _.declType match {
               case `number` =>
@@ -361,6 +363,7 @@ object InferTypes {
           }
 
         case expr AST_Dot name AST_Sub property =>
+          //println(s"AST_Dot AST_Sub - $name $property")
           // consider DRY with the case above
           expressionType(property)(ctx).flatMap {
             _.declType match {
@@ -425,15 +428,16 @@ object InferTypes {
     }
 
     n.top.walkWithDescend { (node, descend, walker) =>
-      //println(s"${nodeClassName(node)}")
+      //println(s"${nodeClassName(node)} ${node.toLocaleString()}")
       descend(node, walker)
 
       node match {
         case AST_VarDef(AST_SymbolDef(symDef), Defined(right)) =>
           val log = false
-          val leftT = n.types.get(symDef)
+          val symId = id(symDef)
+          val leftT = n.types.get(symId)
           val rightT = expressionType(right)(ctx)
-          if (log) println(s"Infer var $leftT - $rightT ${ScalaOut.outputNode(node)}")
+          if (log) println(s"Infer var $symId $leftT - $rightT `${ScalaOut.outputNode(node)}` $right")
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
             for (symInfo <- Some(SymbolAccessSymbol(symDef))) {
               if (log) println(s"  Infer var: $symInfo = $rightT")
@@ -651,31 +655,27 @@ object InferTypes {
               }
           }
 
-        case AST_SymbolRef(_, _, Defined(sym)) AST_Sub property =>
-          expressionType(property)(ctx).map(_.declType) match {
-            case Some(`number`) =>
-              addInferredType(sym, Some(TypeInfo.target(ArrayType(NoType))))
-            case Some(`string`) =>
-              addInferredType(sym, Some(TypeInfo.target(MapType(NoType))))
+        case SymbolInfo(symbol) AST_Sub property =>
+          val tpe = symbol.tpe(ctx.types)
+          //println(s"$symbol AST_Sub $property `$tpe` -> `${tpe.map(_.declType)}`")
+          tpe.map(_.declType) match {
+            case Some(ObjectOrMap) =>
+              // initialized as {}, cannot be an Array, must be a map
+              // note: TODO: index must be a string
 
+              symbol.addSymbolInferredType(Some(TypeInfo.target(MapType(NoType))))
+            case Some(_: MapType) | Some(_: ArrayType) =>
+              // once determined, do not change
             case _ =>
-
+              expressionType(property)(ctx).map(_.declType) match {
+                case Some(`number`) =>
+                  symbol.addSymbolInferredType(Some(TypeInfo.target(ArrayType(NoType))))
+                case Some(`string`) =>
+                  symbol.addSymbolInferredType(Some(TypeInfo.target(MapType(NoType))))
+                case _ =>
+              }
           }
 
-        case expr AST_Dot memberName AST_Sub property =>
-          for (clsName <- SymbolTypes.classFromType(expressionType(expr)(ctx))) {
-            val memberId = MemberId(clsName, memberName)
-
-            implicit val classPos: (SymbolMapId) => Int = classes.classPos
-            val symId = Some(ctx.types.symbolFromMember(memberId))
-            expressionType(property)(ctx).map(_.declType) match {
-              case Some(`number`) =>
-                addInferredType(symId, Some(TypeInfo.target(ArrayType(NoType))))
-              case Some(`string`) =>
-                addInferredType(symId, Some(TypeInfo.target(MapType(NoType))))
-              case _ =>
-            }
-          }
 
         case _ =>
       }
@@ -684,7 +684,7 @@ object InferTypes {
     // TODO: protect JSDoc explicit types
     //println(s"inferred ${inferred.types}")
     val ret = n.copy(types = n.types ++ inferred)
-    //println(s"n.types ${ret.types.types.filter(_._1.sourcePos>=0)}")
+    //println(s"** n.types ${ret.types.types.filter(_._1.sourcePos>=0)}")
     ret
   }
 
@@ -706,8 +706,10 @@ object InferTypes {
         inferTypesStep(r, depth + 1, newMetrics, byMembers - 1) // never repeat byMembers
       }
       else if (byMembers > 0) {
+        if (log) println("  inference dropped, perform by members")
         inferTypesStep(n, depth + 1, metrics, 0) // normal inference exhausted, perform byMembers
       } else {
+        if (log) println("  inference dropped")
         n
       }
     }
