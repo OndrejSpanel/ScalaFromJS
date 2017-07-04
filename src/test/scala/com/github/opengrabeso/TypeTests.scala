@@ -141,7 +141,7 @@ class TypeTests extends FunSuite with TestUtils {
         "def fullName =",
         "def fullName_=(value",
         "def isSnake =",
-        "var kind = \"snake\""
+        "var kind: String = \"snake\""
       )
   }
 
