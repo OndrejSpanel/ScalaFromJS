@@ -661,14 +661,20 @@ object InferTypes {
           tpe.map(_.declType) match {
             case Some(ObjectOrMap) =>
               // initialized as {}, cannot be an Array, must be a map
+
+              symbol.addSymbolInferredType(Some(TypeInfo.target(MapType(NoType))))
+            case Some(_: MapType) =>
               // addressing map, we know index must be a string
               for (SymbolInfo(symbol) <- Some(property)) {
                 val indexType = Some(TypeInfo.target(string))
                 symbol.addSymbolInferredType(indexType)
               }
-
-              symbol.addSymbolInferredType(Some(TypeInfo.target(MapType(NoType))))
-            case Some(_: MapType) | Some(_: ArrayType) =>
+            case Some(_: ArrayType) =>
+              // addressing array, we know index must be a number
+              for (SymbolInfo(symbol) <- Some(property)) {
+                val indexType = Some(TypeInfo.target(number))
+                symbol.addSymbolInferredType(indexType)
+              }
               // once determined, do not change
             case _ =>
               expressionType(property)(ctx).map(_.declType) match {
