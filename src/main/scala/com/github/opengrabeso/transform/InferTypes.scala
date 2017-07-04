@@ -661,7 +661,11 @@ object InferTypes {
           tpe.map(_.declType) match {
             case Some(ObjectOrMap) =>
               // initialized as {}, cannot be an Array, must be a map
-              // note: TODO: index must be a string
+              // addressing map, we know index must be a string
+              for (SymbolInfo(symbol) <- Some(property)) {
+                val indexType = Some(TypeInfo.target(string))
+                symbol.addSymbolInferredType(indexType)
+              }
 
               symbol.addSymbolInferredType(Some(TypeInfo.target(MapType(NoType))))
             case Some(_: MapType) | Some(_: ArrayType) =>
