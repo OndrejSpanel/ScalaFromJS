@@ -89,4 +89,33 @@ class ArrayTests extends FunSuite with TestUtils {
         "Array[Array["
       )
   }
+
+  test("Map and Array types should be inferred from property access") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      function C() {
+          this.mb = {};
+      }
+
+      C.prototype.constructor = C;
+
+      C.prototype.getMap1 = function (id) {
+        return this.mb[id]
+      };
+
+      C.prototype.getMap2 = function () {
+        return this.ma[""]
+      };
+
+      C.prototype.getArray = function () {
+        return this.aa[0]
+      }
+      """)
+      .required(
+        "var ma = Map.empty[String,",
+        "var aa = Array.empty[",
+        "var mb = Map.empty[String,"
+      )
+  }
 }
