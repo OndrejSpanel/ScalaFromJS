@@ -979,8 +979,8 @@ object TransformClasses {
           }
           val existingParameters = accessor.argnames.map(_.name)
 
-          var existingMembers = listPrototypeMemberNames(cls) ++ existingInlineMembers ++ existingParameters
-          //println(s"existingMembers $existingMembers")
+          var existingMembers = listPrototypeMemberNames(cls) ++ existingInlineMembers // ++ existingParameters
+          //println(s"existingMembers $existingMembers proto ${listPrototypeMemberNames(cls)} inline ${existingInlineMembers}")
 
           cls.walk {
             case AST_Assign(IsThis() AST_Dot mem, _, _) =>
@@ -1009,12 +1009,13 @@ object TransformClasses {
             new AST_Var {
               fillTokens(this, cls)
               val varDef = init.fold(AST_VarDef.uninitialized(cls)(m))(AST_VarDef.initialized(cls) (m, _))
+              println(s"fillVarMembers $varDef")
               definitions = js.Array(varDef)
             }
           }
 
           accessor.body ++= (vars: Iterable[AST_Statement]).toJSArray
-          //println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
+          println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
 
           // remove overwritten members
           cls.properties = cls.properties.filterNot(p => newMembers.contains(propertyName(p)))

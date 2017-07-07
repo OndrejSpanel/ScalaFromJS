@@ -694,7 +694,7 @@ object InferTypes {
     // TODO: protect JSDoc explicit types
     //println(s"inferred ${inferred.types}")
     val ret = n.copy(types = n.types ++ inferred)
-    //println(s"** n.types ${ret.types.types.filter(_._1.sourcePos>=0)}")
+    println(s"** n.types ${ret.types.types.filter(_._1.sourcePos>=0)}")
     ret
   }
 

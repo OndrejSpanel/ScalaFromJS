@@ -862,13 +862,18 @@ object ScalaOut {
           out.indent()
 
           //out"/* inlineBody count ${inlineBody.value.body.length} */\n"
+          //out"/* inlineBody ${inlineBody.value.body.mkString(",")} */\n"
+          out"/* inlineBody defs ${inlineBody.value.body.collect {
+            case AST_Definitions(AST_VarDef(AST_SymbolName(vn),_)) =>
+              vn
+          }.mkString(",")} */\n"
 
           // class body should be a list of variable declarations, constructor statements may follow
           inlineBody.value.body.foreach {
             case df: AST_Definitions =>
 
               //println("outputDefinitions - getMemberType")
-              //out"/*inlineBody ${nodeClassName(df)} ${df.definitions.length}*/"
+              out"/*inlineBody ${nodeClassName(df)} ${df.definitions.length}*/"
               outputDefinitions(false, df, true)
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
             case ss =>

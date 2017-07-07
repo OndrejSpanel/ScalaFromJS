@@ -163,9 +163,10 @@ object Variables {
     n.walk { node =>
       node match {
         case AST_VarDef(name, value) if value.nonNull.isEmpty =>
-          //println(s"AST_VarDef ${name.name}")
+          println(s"varInitialization AST_VarDef ${name.name}")
           for (df <- name.thedef) {
             assert(df.name == name.name)
+            println(s"  refs ${df.references}")
             if (df.references.nonEmpty) {
               // find the first reference
               val firstRef = df.references.minBy { ref =>
@@ -187,7 +188,7 @@ object Variables {
     val refs = pairs.values.toSet
     var replaced = Set.empty[SymbolDef]
 
-    //println(s"transform, vars ${pairs.keys.map(_.name).mkString(",")}")
+    println(s"transform, vars ${pairs.keys.map(_.name).mkString(",")}")
 
     object MatchInitWithAssign {
       def unapply(arg: AST_Node) = arg match {
@@ -217,7 +218,8 @@ object Variables {
           val stackTail = transformer.stack.takeRight(2).dropRight(1).toSeq
           stackTail match {
             case Seq(_: AST_Block) =>
-              //println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef, value ${nodeTreeToString(right)}")
+              //println(s"Replaced $vName AST_SymbolRef with AST_VarDef, value ${nodeTreeToString(right)}")
+              println(s"Replaced $vName AST_SymbolRef with AST_VarDef, value ${nodeClassName(right)}")
               replaced += td
               new AST_Var {
                 // use td.orig if possible to keep original initialization tokens
@@ -234,7 +236,7 @@ object Variables {
       }
     }
 
-    //println(s"transform done, replaced ${replaced.map(_.name).mkString(",")}")
+    println(s"transform done, replaced ${replaced.map(_.name).mkString(",")}")
 
     pairs = pairs.filterKeys(replaced.contains)
 
@@ -250,6 +252,7 @@ object Variables {
               d.name.thedef.exists(pairs.contains)
           }
           val vv = v.clone()
+          println(s"var to val ${vv.definitions} -> $af")
           vv.definitions = af
           vv
         case c =>
