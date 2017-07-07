@@ -514,7 +514,7 @@ object TransformClasses {
           }
 
           val constructor = ClassFunMember(args, res.body)
-          classes += clsId -> res.clazz.addMember("constructor", constructor)
+          classes += clsId -> res.clazz.addMember(inlineBodyName, constructor)
         }
         true
 
@@ -977,7 +977,9 @@ object TransformClasses {
             case AST_Definitions(AST_VarDef(AST_SymbolName(name), _)) =>
               name
           }
-          var existingMembers = listPrototypeMemberNames(cls) ++ existingInlineMembers
+          val existingParameters = accessor.argnames.map(_.name)
+
+          var existingMembers = listPrototypeMemberNames(cls) ++ existingInlineMembers ++ existingParameters
           //println(s"existingMembers $existingMembers")
 
           cls.walk {
@@ -1093,6 +1095,7 @@ object TransformClasses {
               a.name = p.name + parSuffix
               a
             }
+            //println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
 
 
             // add the constructor call itself, so that type inference binds its parameters and arguments

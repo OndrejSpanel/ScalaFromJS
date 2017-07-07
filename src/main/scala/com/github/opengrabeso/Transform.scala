@@ -599,7 +599,7 @@ object Transform {
             argName
           }
 
-          //println(s"$clsSym: parMembers $parMembers")
+          //println(s"${clsSym.name}: parMembers $parMembers")
           val clsMembers = clsId -> (members ++ varMembers ++ parMembers).distinct
 
           listMembers = listMembers.copy(members = listMembers.members + clsMembers)

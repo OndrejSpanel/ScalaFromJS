@@ -175,4 +175,21 @@ class ClassTests extends FunSuite with TestUtils {
       )
   }
 
+  test("Handle constructor parameters when constructor is returning a value") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function C(gl) {
+        function get( id ) {gl.get(id)}
+
+        return {
+          get: get
+        };
+      }
+
+      var w = new C;
+      """).required(
+        "class C(var gl:"
+      )
+  }
 }
