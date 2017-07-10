@@ -985,7 +985,7 @@ object TransformClasses {
           }
           val existingParameters = accessor.argnames.map(_.name)
 
-          var existingMembers = listPrototypeMemberNames(cls) ++ existingInlineMembers // ++ existingParameters
+          var existingMembers = listPrototypeMemberNames(cls) ++ existingInlineMembers ++ existingParameters
           //println(s"existingMembers $existingMembers proto ${listPrototypeMemberNames(cls)} inline ${existingInlineMembers}")
 
           cls.walk {
@@ -1033,7 +1033,7 @@ object TransformClasses {
     }
 
     val classInfo = listClassMembers(ret)
-    //println(classInfo)
+    //println(s"Members ${classInfo.members}")
 
     // remove members already present in a parent from a derived class
     val cleanup = ret.transformAfter { (node, _) =>

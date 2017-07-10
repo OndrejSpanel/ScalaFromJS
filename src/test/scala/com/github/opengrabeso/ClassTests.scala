@@ -180,7 +180,7 @@ class ClassTests extends FunSuite with TestUtils {
       // language=JavaScript
       """
       function C(gl) {
-        function get( id ) {gl.get(id)}
+        function get() {return gl[""]}
 
         return {
           get: get
@@ -189,7 +189,9 @@ class ClassTests extends FunSuite with TestUtils {
 
       var w = new C;
       """).required(
-        "class C(var gl:"
+        "class C(var gl: Map["
+      ).forbidden(
+        "var gl ="
       )
   }
 }

@@ -590,17 +590,24 @@ object Transform {
           // list data members
           val varMembers = for (VarName(member) <- classInlineBody(cls).body) yield member
 
-          val parMembers = for {
-            constructor <- findConstructor(cls).toSeq
-            args <- constructor.value.argnames
-            argName = args.name
-            if !argName.endsWith(parSuffix)
-          } yield {
-            argName
+          // TODO: maybe parMembersInline is enough?
+
+          def listParameterMembers(method: Option[AST_ConciseMethod]) = {
+            val parMembersInline = for {
+              constructor <- method.toSeq
+              args <- constructor.value.argnames
+              if !args.name.endsWith(parSuffix)
+            } yield {
+              args.name
+            }
+            parMembersInline
           }
 
-          //println(s"${clsSym.name}: parMembers $parMembers")
-          val clsMembers = clsId -> (members ++ varMembers ++ parMembers).distinct
+          val parMembers = listParameterMembers(findConstructor(cls))
+          val parMembersInline = listParameterMembers(findInlineBody(cls))
+
+          //println(s"${clsSym.name}: parMembers $parMembers $parMembersInline")
+          val clsMembers = clsId -> (members ++ varMembers ++ parMembers ++ parMembersInline).distinct
 
           listMembers = listMembers.copy(members = listMembers.members + clsMembers)
           //println(s"listMembers $listMembers (++ $clsMembers)")
