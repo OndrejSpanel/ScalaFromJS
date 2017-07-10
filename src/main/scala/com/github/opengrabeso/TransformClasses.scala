@@ -513,7 +513,13 @@ object TransformClasses {
             case _ =>
           }
 
-          val constructor = ClassFunMember(args, res.body)
+          // transform args to be in the class namespace (constructor symbol)
+          val argsTransformed = args.map { arg =>
+            val t = arg.clone()
+            fillTokens(t, defun)
+            t
+          }
+          val constructor = ClassFunMember(argsTransformed, res.body)
           classes += clsId -> res.clazz.addMember(inlineBodyName, constructor)
         }
         true
@@ -1005,11 +1011,11 @@ object TransformClasses {
               false
           }
 
-          val vars = newMembers.map { case (m, init) =>
+          val vars = newMembers.map { case (memberName, init) =>
             new AST_Var {
               fillTokens(this, cls)
-              val varDef = init.fold(AST_VarDef.uninitialized(cls)(m))(AST_VarDef.initialized(cls) (m, _))
-              println(s"fillVarMembers $varDef")
+              val varDef = init.fold(AST_VarDef.uninitialized(cls)(memberName))(AST_VarDef.initialized(cls) (memberName, _))
+              println(s"fillVarMembers $varDef ${cls.start.get.pos} init $init")
               definitions = js.Array(varDef)
             }
           }
@@ -1083,7 +1089,7 @@ object TransformClasses {
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
                   case (_: AST_This) AST_Dot member if !transformer.parent().isInstanceOf[AST_Call] =>
-                    AST_SymbolRef(node)(member)
+                    AST_SymbolRef(cls)(member)
                   case _ =>
                     node
                 }
@@ -1094,9 +1100,12 @@ object TransformClasses {
             accessor.argnames = constructor.argnames.map { p =>
               val a = p.clone()
               a.name = p.name + parSuffix
+              // TODO: marking source as cls makes sense so that they use the class scope
+              // but it needs to be done on some other locations as well, otherwise parameter - member relation is not maintained
+              fillTokens(a, cls)
               a
             }
-            //println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
+            println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
 
 
             // add the constructor call itself, so that type inference binds its parameters and arguments

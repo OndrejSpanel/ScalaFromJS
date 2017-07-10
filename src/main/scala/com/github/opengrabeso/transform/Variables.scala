@@ -163,7 +163,7 @@ object Variables {
     n.walk { node =>
       node match {
         case AST_VarDef(name, value) if value.nonNull.isEmpty =>
-          println(s"varInitialization AST_VarDef ${name.name}")
+          println(s"varInitialization AST_VarDef $name")
           for (df <- name.thedef) {
             assert(df.name == name.name)
             println(s"  refs ${df.references}")
@@ -188,7 +188,7 @@ object Variables {
     val refs = pairs.values.toSet
     var replaced = Set.empty[SymbolDef]
 
-    println(s"transform, vars ${pairs.keys.map(_.name).mkString(",")}")
+    println(s"transform, vars ${pairs.keys.map(SymbolTypes.id).mkString(",")}")
 
     object MatchInitWithAssign {
       def unapply(arg: AST_Node) = arg match {
@@ -219,7 +219,7 @@ object Variables {
           stackTail match {
             case Seq(_: AST_Block) =>
               //println(s"Replaced $vName AST_SymbolRef with AST_VarDef, value ${nodeTreeToString(right)}")
-              println(s"Replaced $vName AST_SymbolRef with AST_VarDef, value ${nodeClassName(right)}")
+              println(s"Replaced $sr AST_SymbolRef with AST_VarDef, value ${nodeClassName(right)}")
               replaced += td
               new AST_Var {
                 // use td.orig if possible to keep original initialization tokens
@@ -236,7 +236,7 @@ object Variables {
       }
     }
 
-    println(s"transform done, replaced ${replaced.map(_.name).mkString(",")}")
+    println(s"transform done, replaced ${replaced.map(SymbolTypes.id).mkString(",")}")
 
     pairs = pairs.filterKeys(replaced.contains)
 
@@ -253,6 +253,8 @@ object Variables {
           }
           val vv = v.clone()
           println(s"var to val ${vv.definitions} -> $af")
+          vv.start = v.start
+          vv.end = v.end
           vv.definitions = af
           vv
         case c =>

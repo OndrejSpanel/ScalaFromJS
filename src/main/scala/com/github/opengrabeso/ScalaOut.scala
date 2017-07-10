@@ -117,7 +117,7 @@ object ScalaOut {
           //println("symbol")
           identifierToOut(output, s.name)
 
-          if (false) { // output symbol ids and types
+          if (true) { // output symbol ids and types
             val symId = SymbolTypes.id(s.thedef.get)
             out"/*${symId.fold(-1)(_.sourcePos)}*/"
             out"/*${input.types.get(symId)}*/"

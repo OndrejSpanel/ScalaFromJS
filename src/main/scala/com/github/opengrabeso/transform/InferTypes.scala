@@ -477,19 +477,19 @@ object InferTypes {
 
         case AST_Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
           if symLeft.unknownType(n.types) && symRight.unknownType(n.types) =>
-          //println(s"Infer arithmetic: both unknown $symLeft $symRight")
+          println(s"Infer arithmetic: both unknown $symLeft $symRight")
           val numType = Some(TypeInfo.both(number))
           symLeft.addSymbolInferredType(numType)
           symRight.addSymbolInferredType(numType)
 
         case AST_Binary(SymbolInfo(symInfo), op, expr) if symInfo.unknownType(n.types) =>
-          //println(s"Infer binary: left unknown $symInfo")
           val tpe = typeFromOperation(op, expr)
+          println(s"Infer binary: left unknown $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)
 
         case AST_Binary(expr, op, SymbolInfo(symInfo)) if symInfo.unknownType(n.types) =>
-          //println(s"Infer binary: right unknown $symInfo")
           val tpe = typeFromOperation(op, expr)
+          println(s"Infer binary: right unknown $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)
 
         case AST_Switch(SymbolInfo(symInfo), body) =>
