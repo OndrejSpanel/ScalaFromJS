@@ -1015,13 +1015,13 @@ object TransformClasses {
             new AST_Var {
               fillTokens(this, cls)
               val varDef = init.fold(AST_VarDef.uninitialized(cls)(memberName))(AST_VarDef.initialized(cls) (memberName, _))
-              println(s"fillVarMembers $varDef ${cls.start.get.pos} init $init")
+              //println(s"fillVarMembers $varDef ${cls.start.get.pos} init $init")
               definitions = js.Array(varDef)
             }
           }
 
           accessor.body ++= (vars: Iterable[AST_Statement]).toJSArray
-          println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
+          //println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
 
           // remove overwritten members
           cls.properties = cls.properties.filterNot(p => newMembers.contains(propertyName(p)))
@@ -1100,12 +1100,11 @@ object TransformClasses {
             accessor.argnames = constructor.argnames.map { p =>
               val a = p.clone()
               a.name = p.name + parSuffix
-              // TODO: marking source as cls makes sense so that they use the class scope
-              // but it needs to be done on some other locations as well, otherwise parameter - member relation is not maintained
+              // marking source as cls so that they use the class scope, same as member variables
               fillTokens(a, cls)
               a
             }
-            println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
+            //println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
 
 
             // add the constructor call itself, so that type inference binds its parameters and arguments
