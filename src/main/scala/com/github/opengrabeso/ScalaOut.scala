@@ -319,7 +319,7 @@ object ScalaOut {
     }
 
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions, types: Boolean = false) = {
-      //out"/*outputDefinitions ${tn.definitions.length}*/"
+      //out"/*outputDefinitions ${tn.definitions}*/"
       //println("outputDefinitions -")
       def outValVar() = {
         out(if (isVal) "val " else "var ")
@@ -817,7 +817,7 @@ object ScalaOut {
 
         val (staticProperties, nonStaticProperties) = tn.properties.partition(propertyIsStatic)
 
-        if (staticProperties.nonEmpty) {
+        if (staticProperties.nonEmpty || nonStaticProperties.isEmpty) {
           out.eol(2)
 
           out"object ${tn.name} {\n"

@@ -194,4 +194,22 @@ class ClassTests extends FunSuite with TestUtils {
         "var gl ="
       )
   }
+
+  test("Handle local classes") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function C() {
+
+        function L() {
+        }
+
+        L.prototype.constructor = L;
+      }
+
+      C.prototype.constructor = C;
+      """).required("class C", "class L").forbidden("def C","def L")
+
+
+  }
 }

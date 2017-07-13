@@ -588,7 +588,11 @@ object Transform {
           val members = listPrototypeMemberNames(cls)
 
           // list data members
-          val varMembers = for (VarName(member) <- classInlineBody(cls).body) yield member
+          //println(s"varMembers for $cls")
+          val varMembers = for {
+            inlineBody <- findInlineBody(cls).toSeq
+            VarName(member) <- inlineBody.value.body
+          } yield member
 
           // TODO: maybe parMembersInline is enough?
 

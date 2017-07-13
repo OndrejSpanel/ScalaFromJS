@@ -145,7 +145,7 @@ object ClassesByMembers {
     val byMembers = MemberList(classes.classes)
 
     n.top.walkWithDescend { (node, descend, walker) =>
-      //println(s"${nodeClassName(node)}")
+      //println(s"by members walk $node")
       descend(node, walker)
 
       node match {

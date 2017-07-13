@@ -166,7 +166,7 @@ object TransformClasses {
     //def unapply(arg: AST_Node): Option[(AST_SymbolVarOrConst, AST_Object)] = None
 
     def unapply(arg: AST_Node) = arg match {
-      case AST_Definitions(AST_VarDef(sym: AST_Symbol, Defined(objDef: AST_Object))) =>
+      case AST_Definitions(AST_VarDef(sym: AST_Symbol, Defined(objDef: AST_Object))) if objDef.properties.nonEmpty =>
         //println(s"Detect static class definition ${sym.name}")
         Some(sym, objDef)
       case _ =>
@@ -418,7 +418,7 @@ object TransformClasses {
 
     n.walk {
 
-      case _: AST_Toplevel =>
+      case `n` => // always enter into the scope we are processing
         false
       case defun@ClassDefineValue(AST_SymbolDef(symDef), args, body, proto) =>
         for {
@@ -570,6 +570,7 @@ object TransformClasses {
         processPrototype(name, prototypeDef)
         true
       case DefineStaticMembers(clsName, objDef) =>
+        //println(s"DefineStaticMembers $clsName")
         processPrototype(ClassId(clsName), objDef, true)
         true
       case ClassParentDef(name, sym) =>
@@ -582,7 +583,7 @@ object TransformClasses {
         true
 
       // note: after ClassPrototypeDef, as  prototype definition would match static member definition as well
-      case DefineStaticMember(clsName, clsSym, scope, member, value) =>
+      case DefineStaticMember(clsName, clsSym, scope, member, value) if classNames contains clsName =>
         // is it the same scope as the class definition? If not, do not consider it as a static init
         //println(s"Nesting ${scope.nesting} .. ${clsSym.scope.nesting}")
         if (scope == clsSym.scope) {
@@ -597,10 +598,25 @@ object TransformClasses {
       case _ =>
         false
     }
-    //println(classNames)
-    //println(classes)
+
+    //println(s"classNames $classNames")
+    //println(s"classes ${classes.classes}")
 
     classes
+  }
+
+  def convertProtoClassesRecursive(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, _) =>
+      node match {
+        //case _: AST_Toplevel =>
+        //  node
+        case _: AST_Scope =>
+          //println(s"scope $node")
+          convertProtoClasses(node)
+        case _ =>
+          node
+      }
+    }
   }
 
   def convertProtoClasses(n: AST_Node): AST_Node = {
@@ -610,7 +626,7 @@ object TransformClasses {
     val classes = classList(n)
 
 
-    //println(classes.classes)
+    //println(s"Classes ${classes.classes.keys}")
 
     // we delete only initialization for static members, nothing else
     var staticMemberDeleted = Set.empty[(ClassId, String)]
@@ -646,7 +662,7 @@ object TransformClasses {
               false
             case ClassParentAndPrototypeDef(name, _, _) if classes contains name =>
               false
-            case DefineStaticMember(name, _, _, member, statement)  =>
+            case DefineStaticMember(name, _, _, member, statement) if classes contains name =>
               // verify we are deleting only the initialization, not any other use
               val clsMember = classes.get(name).flatMap(_.membersStatic.get(member))
               val isInit = clsMember.exists(_.definedFrom(statement))
@@ -917,11 +933,11 @@ object TransformClasses {
 
 
   // convert class members represented as AST_ObjectKeyVal into inline class body variables
-  def convertClassMembers(n: AST_Extended): AST_Extended = {
-    val ret = n.top.transformAfter { (node, _) =>
+  def convertClassMembers(n: AST_Node): AST_Node = {
+    val ret = n.transformAfter { (node, _) =>
       node match {
-        case cls: AST_DefClass =>
-          //println(s"convertClassMembers AST_DefClass ${cls.name.get.name} ${cls.start.get.pos}")
+        case cls: AST_DefClass  =>
+          //println(s"convertClassMembers AST_DefClass ${ClassId(cls.name.get)}")
 
           val newMembers = mutable.ArrayBuffer.empty[AST_Var]
           cls.properties.foreach {
@@ -932,26 +948,28 @@ object TransformClasses {
             //case s: AST_ObjectGetter =>
             case _ =>
           }
-          val inlineBody = classInlineBody(cls)
-          //println(s"inlineBody ${inlineBody.body}")
-          //println(s"convertClassMembers newMembers ${newMembers.mkString(",")}")
+          if (newMembers.nonEmpty) {
+            val inlineBody = classInlineBody(cls)
+            //println(s"inlineBody ${inlineBody.body}")
+            //println(s"convertClassMembers newMembers ${newMembers.mkString(",")}")
 
-          inlineBody.body ++= (newMembers: Iterable[AST_Statement]).toJSArray
+            inlineBody.body ++= (newMembers: Iterable[AST_Statement]).toJSArray
 
-          // remove overwritten members
-          //println(s"  props ${cls.properties}")
-          cls.properties = cls.properties.filterNot(p => newMembers.exists(_.definitions.exists(_.name.name == propertyName(p))))
-          //println(s"  => props ${cls.properties}")
+            // remove overwritten members
+            //println(s"  props ${cls.properties}")
+            cls.properties = cls.properties.filterNot(p => newMembers.exists(_.definitions.exists(_.name.name == propertyName(p))))
+            //println(s"  => props ${cls.properties}")
+          }
 
           cls
         case _ =>
           node
       }
     }
-    n.copy(top = ret)
+    ret
   }
 
-  def fillVarMembers(n: AST_Extended): AST_Extended = {
+  def fillVarMembers(n: AST_Node): AST_Node = {
     object IsThis {
       def unapply(arg: AST_Node) = arg match {
         case _: AST_This => true
@@ -961,18 +979,18 @@ object TransformClasses {
     }
 
     // TODO: detect access other than this (see AST_This in expressionType to check general this handling)
-    val ret = n.top.transformAfter { (node, _) =>
+    val ret = n.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
-          val accessor = classInlineBody(cls)
+          val accessor = findInlineBody(cls)
           //println(s"AST_DefClass ${cls.name.get.name} ${cls.start.get.pos}")
           var newMembers = collection.immutable.ListMap.empty[String, Option[AST_Node]]
           // scan known prototype members (both function and var) first
-          val existingInlineMembers = accessor.body.collect {
+          val existingInlineMembers = accessor.map { _.value.body.toSeq.collect {
             case AST_Definitions(AST_VarDef(AST_SymbolName(name), _)) =>
               name
-          }
-          val existingParameters = accessor.argnames.map(_.name)
+          }}.getOrElse(Seq())
+          val existingParameters = accessor.map(_.value.argnames.toSeq.map(_.name)).getOrElse(Seq())
 
           var existingMembers = listPrototypeMemberNames(cls) ++ existingInlineMembers ++ existingParameters
           //println(s"existingMembers $existingMembers proto ${listPrototypeMemberNames(cls)} inline ${existingInlineMembers}")
@@ -1009,11 +1027,15 @@ object TransformClasses {
             }
           }
 
-          accessor.body ++= (vars: Iterable[AST_Statement]).toJSArray
-          //println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
+          if (vars.nonEmpty) {
+            val accessor = classInlineBody(cls)
 
-          // remove overwritten members
-          cls.properties = cls.properties.filterNot(p => newMembers.contains(propertyName(p)))
+            accessor.body ++= (vars: Iterable[AST_Statement]).toJSArray
+            //println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
+
+            // remove overwritten members
+            cls.properties = cls.properties.filterNot(p => newMembers.contains(propertyName(p)))
+          }
 
           cls
         case _ =>
@@ -1031,10 +1053,10 @@ object TransformClasses {
           for {
             AST_SymbolDef(base) <- cls.`extends`
             baseId <- SymbolTypes.id(base)
+            inlineBody <- findInlineBody(cls)
           } {
             //println(s"Detected base $base")
-            val accessor = classInlineBody(cls)
-            accessor.body = accessor.body.filter {
+            inlineBody.value.body = inlineBody.value.body.filter {
               case VarName(member) => classInfo.classContains(baseId, member).isEmpty
               case _ => true
             }
@@ -1045,7 +1067,7 @@ object TransformClasses {
       }
     }
 
-    n.copy(top = cleanup)
+    cleanup
   }
 
   def inlineConstructors(n: AST_Node): AST_Node = {
@@ -1419,9 +1441,9 @@ object TransformClasses {
   val transforms = Seq[AST_Extended => AST_Extended](
     onTopNode(inlinePrototypeVariables),
     onTopNode(inlineConstructorFunction),
-    onTopNode(convertProtoClasses),
-    convertClassMembers,
-    fillVarMembers,
+    onTopNode(convertProtoClassesRecursive),
+    onTopNode(convertClassMembers),
+    onTopNode(fillVarMembers),
     // applyRules after fillVarMembers - we cannot delete members before they are created
     // applyRules before inlineConstructors, so that constructor is a single function
     applyRules,
