@@ -117,7 +117,7 @@ object ScalaOut {
           //println("symbol")
           identifierToOut(output, s.name)
 
-          if (false) { // output symbol ids and types
+          if (true) { // output symbol ids and types
             val symId = SymbolTypes.id(s.thedef.get)
             out"/*${symId.fold(-1)(_.sourcePos)}*/"
             out"/*${input.types.get(symId)}*/"
@@ -755,10 +755,10 @@ object ScalaOut {
 
         tn.expression match {
           // CASE_CAST
-          case AST_Const(AST_VarDef(
+          case AST_BlockStatement(Seq(AST_Const(AST_VarDef(
             AST_SymbolDef(name),
             Defined(AsInstanceOfCondition(name2, classes))
-          )) if name == name2 =>
+          )))) if name == name2 =>
             classes match {
               case Seq(cls) =>
                 out"${identifier(name.name)}: $cls"

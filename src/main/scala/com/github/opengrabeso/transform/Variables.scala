@@ -397,13 +397,13 @@ object Variables {
       }
     }
 
-    def condition(sym: SymbolDef, cs: Seq[AST_SymbolRef])(from: AST_Node): AST_Binary = {
+    def condition(sym: AST_SymbolRef, cs: Seq[AST_SymbolRef])(from: AST_Node): AST_Binary = {
       cs match {
         case Seq(head) =>
-          AST_Binary(from) (AST_SymbolRef.symDef(from)(sym), asinstanceof, head.clone())
+          AST_Binary(from) (sym, asinstanceof, head.clone())
         case head +: tail =>
           AST_Binary(from) (
-            AST_Binary(from) (AST_SymbolRef.symDef(from)(sym), asinstanceof, head.clone()),
+            AST_Binary(from) (sym, asinstanceof, head.clone()),
             "||",
             condition(sym, tail)(from)
           )
@@ -422,15 +422,29 @@ object Variables {
     val castSuffix = "_cast"
     n.transformBefore { (node, descend, transformer) =>
       node match {
+        // note: handles one or multiple casts
         case s@SequenceOfCasts(symDef, casts, elseStatement) /*if casts.lengthCompare(1) > 0*/ =>
+          println(s"SequenceOfCasts $s ${s.start.get.pos}")
           val castVar = AST_SymbolRef.symDef(s)(symDef)
           new AST_Switch {
             expression = castVar
             this.body = casts.map { cast =>
+              def createCaseVariable(from: AST_Node, name: String) = {
+                println(s"createCaseVariable $name $from ${from.start.get.pos}")
+                val symRef = AST_SymbolRef(from)(name)
+                //AST_Const(from)(AST_VarDef.initialized(from)(name, condition(symRef, cast._1)(from)))
+                AST_Const(from)(AST_VarDef.uninitialized(from)(name))
+              }
               new AST_Case {
                 // note: this is not a valid JS, we handle it in the ScalaOut as a special case, see CASE_CAST
-                expression = AST_Const(s)(AST_VarDef.initialized(s) (symDef.name, condition(symDef, cast._1)(s)))
-                this.body = makeBlock(cast._2) :+ new AST_Break().withTokens(s)
+                expression = new AST_True {
+                  fillTokens(this, s)
+                }
+                this.body = js.Array(new AST_BlockStatement {
+                  fillTokens(this, s)
+                  this.body = createCaseVariable(s, symDef.name) +: makeBlock(cast._2)
+                }, new AST_Break().withTokens(s))
+
               }.withTokens(s):AST_Statement
             }.toJSArray :+ new AST_Default {
               this.body = elseStatement.map { e =>
@@ -438,35 +452,6 @@ object Variables {
               }.getOrElse(js.Array())
             }.withTokens(node)
           }.withTokens(node)
-        // note: currently never matches, even sequence of one cast is handled by the pattern above
-        case s@SingleCast(symDef, cs, ifStatement, _) =>
-          //println(s"Implied cast $node")
-          val symName = symDef.name
-
-          val defVar = AST_Const(s) (AST_VarDef.initialized(s) (symDef.name + castSuffix, condition(symDef, cs)(s)))
-          val ifBodyTransformed = ifStatement.transformAfter { (node, transformer) =>
-            node match {
-              case sym@AST_SymbolName(`symName`) =>
-                sym.name = symName + castSuffix
-                sym
-              case _ =>
-                node
-            }
-          }
-
-          s.body = ifBodyTransformed match {
-            case block: AST_BlockStatement =>
-              block.body = defVar +: block.body
-              block
-            case _ =>
-              new AST_BlockStatement {
-                fillTokens(this, s)
-                this.body = js.Array(defVar, ifBodyTransformed)
-              }
-          }
-
-          s.alternative = s.alternative.map(_.transform_js(transformer).asInstanceOf[AST_Statement])
-          s
         case _ =>
           //println(s"No match $node")
           val n = node.clone()
