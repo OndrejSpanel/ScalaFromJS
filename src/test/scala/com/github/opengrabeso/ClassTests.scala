@@ -136,4 +136,62 @@ class ClassTests extends FunSuite with TestUtils {
     )
   }
 
+  test("Create a class when constructor is returning a value") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function C() {
+
+        var list = {};
+
+        function priv( id ) {}
+
+        function get( id ) {
+          var buffer = list[ id ];
+          priv(id);
+          return buffer;
+        }
+
+        function update( geometry ) {}
+
+        function proc( geometry ) {}
+
+        return {
+          get: get,
+          update: update,
+          process: proc,
+          calc: function ( t ) {return t * t;}
+        };
+      }
+
+      var w = new C;
+      """).required(
+        "class C",
+        "var list",
+        "def get(",
+        "def process(",
+        "def calc(",
+        "t * t"
+      )
+  }
+
+  test("Handle constructor parameters when constructor is returning a value") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function C(gl) {
+        function get() {return gl[""]}
+
+        return {
+          get: get
+        };
+      }
+
+      var w = new C;
+      """).required(
+        "class C(var gl: Map["
+      ).forbidden(
+        "var gl ="
+      )
+  }
 }

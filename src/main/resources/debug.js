@@ -9,7 +9,7 @@ Object.prototype.toString = function () {
     var name = objectGetName(this);
     var value = this.toDebug ? this.toDebug() : "";
     if (!name) return "[unknown object]";
-    else return "[object " + name + "=" + value + "]";
+    else return "[" + name + "=" + value + "]";
 };
 
 UglifyJS.AST_DefClass.prototype.toDebug = function() {
@@ -17,6 +17,30 @@ UglifyJS.AST_DefClass.prototype.toDebug = function() {
 };
 
 UglifyJS.AST_Symbol.prototype.toDebug = function() {
-    return this.name;
+    if (this.thedef && this.thedef.orig.length > 0 && this.thedef.orig[0].start) {
+        return this.thedef.name + ":" + this.thedef.orig[0].start.pos;
+    }
+    else {
+        return this.name + ":-";
+    }
 };
 
+UglifyJS.AST_Var.prototype.toDebug = function() {
+    return this.definitions.join(",");
+};
+
+UglifyJS.AST_VarDef.prototype.toDebug = function() {
+    return this.name.toString();
+};
+
+UglifyJS.AST_ConciseMethod.prototype.toDebug = function() {
+    return this.key.name;
+};
+
+UglifyJS.AST_ObjectProperty.prototype.toDebug = function() {
+    return this.key;
+};
+
+UglifyJS.AST_Defun.prototype.toDebug = function() {
+    return this.name;
+};

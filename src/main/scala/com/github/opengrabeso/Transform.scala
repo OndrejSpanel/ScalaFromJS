@@ -441,6 +441,8 @@ object Transform {
         val elementTypes = a.elements.map(expressionType(_)(ctx))
         val elType = elementTypes.reduceOption(typeUnionOption).flatten
         Some(TypeInfo.target(ArrayType(elType.map(_.declType).getOrElse(NoType))))
+      case a: AST_Object =>
+        Some(TypeInfo.target(ObjectOrMap))
       case _: AST_Number =>
         Some(TypeInfo.target(number))
       case _: AST_String =>
@@ -588,17 +590,24 @@ object Transform {
           // list data members
           val varMembers = for (VarName(member) <- classInlineBody(cls).body) yield member
 
-          val parMembers = for {
-            constructor <- findConstructor(cls).toSeq
-            args <- constructor.value.argnames
-            argName = args.name
-            if !argName.endsWith(parSuffix)
-          } yield {
-            argName
+          // TODO: maybe parMembersInline is enough?
+
+          def listParameterMembers(method: Option[AST_ConciseMethod]) = {
+            val parMembersInline = for {
+              constructor <- method.toSeq
+              args <- constructor.value.argnames
+              if !args.name.endsWith(parSuffix)
+            } yield {
+              args.name
+            }
+            parMembersInline
           }
 
-          //println(s"$clsSym: parMembers $parMembers")
-          val clsMembers = clsId -> (members ++ varMembers ++ parMembers).distinct
+          val parMembers = listParameterMembers(findConstructor(cls))
+          val parMembersInline = listParameterMembers(findInlineBody(cls))
+
+          //println(s"${clsSym.name}: parMembers $parMembers $parMembersInline")
+          val clsMembers = clsId -> (members ++ varMembers ++ parMembers ++ parMembersInline).distinct
 
           listMembers = listMembers.copy(members = listMembers.members + clsMembers)
           //println(s"listMembers $listMembers (++ $clsMembers)")

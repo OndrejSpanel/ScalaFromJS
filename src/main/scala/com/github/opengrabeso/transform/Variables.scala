@@ -73,7 +73,7 @@ object Variables {
     }
   }
 
-  // detect function key values can be declared as concise methods instead
+  // detect function key values which can be declared as concise methods instead
   def detectMethods(n: AST_Node): AST_Node = {
     val refs = buildReferenceStacks(n)
 
@@ -81,12 +81,12 @@ object Variables {
       node match {
         case obj@AST_Object(props) =>
         //case AST_Definitions(AST_VarDef(AST_SymbolDef(df), Defined(obj@AST_Object(props)))) =>
-          // check which members are ever written to - we can convert all others to getters and methods
+
+          // check if the object is part of variable / const initialization, like: var df = {}
           transformer.parent(1).nonNull match {
             case Some(AST_Definitions(AST_VarDef(AST_SymbolDef(df), Defined(o: AST_Object)))) =>
-              //println(s"Scan object ${df.name} for methods")
+              //println(s"Scan object ${df.name} for methods ${o.properties}")
               assert(o == obj)
-
 
               object IsDf extends Extractor[String] {
                 def unapply(arg: AST_Node) = arg match {
@@ -96,12 +96,12 @@ object Variables {
               }
               object IsDfModified extends IsModified(IsDf)
 
+              // check which members are ever written to - we can convert all others to getters and methods
               var modifiedMembers = Set.empty[String]
               refs.walkReferences(df, IsDfModified) { key =>
                 modifiedMembers += key
                 false
               }
-
               //println(s"Detected modified members $modifiedMembers")
 
               val newProps = props.map {
@@ -163,9 +163,10 @@ object Variables {
     n.walk { node =>
       node match {
         case AST_VarDef(name, value) if value.nonNull.isEmpty =>
-          //println(s"AST_VarDef ${name.name}")
+          //println(s"varInitialization AST_VarDef $name")
           for (df <- name.thedef) {
             assert(df.name == name.name)
+            //println(s"  refs ${df.references}")
             if (df.references.nonEmpty) {
               // find the first reference
               val firstRef = df.references.minBy { ref =>
@@ -187,7 +188,7 @@ object Variables {
     val refs = pairs.values.toSet
     var replaced = Set.empty[SymbolDef]
 
-    //println(s"transform, vars ${pairs.keys.map(_.name).mkString(",")}")
+    //println(s"transform, vars ${pairs.keys.map(SymbolTypes.id).mkString(",")}")
 
     object MatchInitWithAssign {
       def unapply(arg: AST_Node) = arg match {
@@ -217,7 +218,8 @@ object Variables {
           val stackTail = transformer.stack.takeRight(2).dropRight(1).toSeq
           stackTail match {
             case Seq(_: AST_Block) =>
-              //println(s"Replaced ${vv.name.name} AST_SymbolRef with AST_VarDef, value ${nodeTreeToString(right)}")
+              //println(s"Replaced $sr AST_SymbolRef with AST_VarDef, value ${nodeTreeToString(right)}")
+              //println(s"Replaced $sr AST_SymbolRef with AST_VarDef, value ${nodeClassName(right)}")
               replaced += td
               new AST_Var {
                 // use td.orig if possible to keep original initialization tokens
@@ -234,7 +236,7 @@ object Variables {
       }
     }
 
-    //println(s"transform done, replaced ${replaced.map(_.name).mkString(",")}")
+    //println(s"transform done, replaced ${replaced.map(SymbolTypes.id).mkString(",")}")
 
     pairs = pairs.filterKeys(replaced.contains)
 
@@ -250,6 +252,9 @@ object Variables {
               d.name.thedef.exists(pairs.contains)
           }
           val vv = v.clone()
+          //println(s"var to val ${vv.definitions} -> $af")
+          vv.start = v.start
+          vv.end = v.end
           vv.definitions = af
           vv
         case c =>

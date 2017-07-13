@@ -284,11 +284,14 @@ object ScalaOut {
       out.submitLocation(s.pos, source.lines.next)
     }
 
-    def outputVarDef(name: AST_Symbol, init: js.UndefOr[AST_Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
+    def outputVarDef(name: AST_Symbol, initInput: js.UndefOr[AST_Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
       out"$name"
 
-      //println(s"AST_VarDef ${name.name} type: $sType init: ${init.nonNull.map(_.toString)}")
-      if (types || init.nonNull.isEmpty) {
+      // handle a hack: uninitialized variable using AST_EmptyStatement
+      val init = if (initInput.nonNull.exists(_.isInstanceOf[AST_EmptyStatement])) None else initInput.nonNull
+
+      //out(s"/*outputVarDef ${name.name} type: $sType init: ${init.map(_.toString)}*/")
+      if (types || init.isEmpty) {
         for (tp <- sType) {
           if (tp.typeOnInit) out": ${tp.toOut}"
         }
@@ -302,7 +305,7 @@ object ScalaOut {
         }
       }
 
-      init.nonNull.flatMap(trivialInit).fold {
+      init.flatMap(trivialInit).fold {
         //println(s"trivialInit of $sType")
         val construct = sType.map(_.scalaConstruct).getOrElse("_")
         out" = $construct"
@@ -316,7 +319,7 @@ object ScalaOut {
     }
 
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions, types: Boolean = false) = {
-      //out("/*outputDefinitions*/")
+      //out"/*outputDefinitions ${tn.definitions.length}*/"
       //println("outputDefinitions -")
       def outValVar() = {
         out(if (isVal) "val " else "var ")
@@ -332,8 +335,9 @@ object ScalaOut {
           out("}\n")
         // empty object - might be a map instead
         case v@AST_VarDef(s@AST_Symbol(name, _, Defined(symDef)), Defined(AST_Object(Seq()))) =>
-          val tpe = input.types.get(symDef).map(_.declType)
-          //println(s"Var $name type $tpe")
+          val symId = SymbolTypes.id(symDef)
+          val tpe = input.types.get(symId).map(_.declType)
+          //println(s"Var $name ($symId) type $tpe empty object")
           tpe match {
             case Some(mType: SymbolTypes.MapType) =>
               outValVar()
@@ -348,6 +352,7 @@ object ScalaOut {
           outValVar()
           //out("/*outputDefinitions*/")
           val sType = getSymbolType(sym)
+          //out"/*AST_VarDef sym ${SymbolTypes.id(sym)} $sType*/"
           //println(s"AST_VarDef sym ${SymbolTypes.id(sym)} $sType")
           //println(getType(sym))
           outputVarDef(s, init, sType, types)
@@ -856,8 +861,18 @@ object ScalaOut {
           out" {\n"
           out.indent()
 
-          // class body should be a list of variable declarations, constructor statements may follow
+          //out"/* inlineBody count ${inlineBody.value.body.length} */\n"
+          //out"/* inlineBody ${inlineBody.value.body.mkString(",")} */\n"
+          if (false) {
+            out"/* inlineBody defs ${
+              inlineBody.value.body.collect {
+                case AST_Definitions(AST_VarDef(AST_SymbolName(vn), _)) =>
+                  vn
+              }.mkString(",")
+            } */\n"
+          }
 
+          // class body should be a list of variable declarations, constructor statements may follow
           inlineBody.value.body.foreach {
             case df: AST_Definitions =>
 
@@ -877,8 +892,11 @@ object ScalaOut {
             case _ => false
           }
 
-          //out(s"${functionMembers.length} ${varMembers.length}")
-          varMembers.foreach(nodeToOut)
+          //out(s"/*fun: ${functionMembers.length} var: ${varMembers.length}*/")
+          varMembers.foreach { n =>
+            //out"/*${nodeClassName(n)}*/"
+            nodeToOut(n)
+          }
 
           if ((varMembers.nonEmpty || tn.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
 

@@ -799,6 +799,10 @@ object UglifyExt {
     }
 
     object AST_Var {
+      def apply(from: AST_Node)(defs: AST_VarDef*): AST_Var = {
+        init(new AST_Var)(_.definitions = defs.toJSArray).withTokens(from)
+      }
+
       def unapplySeq(arg: AST_Var) = AST_Definitions.unapplySeq(arg)
     }
 

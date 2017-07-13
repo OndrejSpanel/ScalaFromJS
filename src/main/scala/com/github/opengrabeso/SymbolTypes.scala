@@ -9,13 +9,19 @@ object SymbolTypes {
 
 
   sealed trait TypeDesc {
-    def scalaConstruct: String = s"_"
+    def scalaConstruct: String = "_"
     // should type be written explicitly when initializing a variable of this type?
     def typeOnInit: Boolean = true
 
     def knownItems: Int = 0
 
     def toOut: String
+  }
+  case object ObjectOrMap extends TypeDesc {
+    override def toOut = AnyType.toOut
+    override def scalaConstruct: String = "new {}"
+    override def typeOnInit = false
+    override def knownItems = 0
   }
   case class SimpleType(name: String) extends TypeDesc {
     override def toString = name
@@ -37,7 +43,7 @@ object SymbolTypes {
 
     override def typeOnInit = false
 
-    override def knownItems = super.knownItems + elem.knownItems
+    override def knownItems = 1 + elem.knownItems
 
     def union(that: ArrayType)(implicit classOps: ClassOps) = ArrayType(typeUnion(elem, that.elem))
     def intersect(that: ArrayType)(implicit classOps: ClassOps) = ArrayType(typeIntersect(elem, that.elem))
@@ -51,7 +57,7 @@ object SymbolTypes {
 
     override def typeOnInit = false
 
-    override def knownItems = super.knownItems + elem.knownItems
+    override def knownItems = 1 + elem.knownItems
 
     def union(that: MapType)(implicit classOps: ClassOps) = MapType(typeUnion(elem, that.elem))
     def intersect(that: MapType)(implicit classOps: ClassOps) = MapType(typeIntersect(elem, that.elem))
@@ -61,7 +67,7 @@ object SymbolTypes {
   case class FunctionType(ret: TypeDesc, args: IndexedSeq[TypeDesc]) extends TypeDesc {
 
     //println(s"FunctionType ${args.mkString("(",",",")")} => $ret")
-    override def knownItems = super.knownItems + ret.knownItems + args.map(_.knownItems).sum
+    override def knownItems = 1 + ret.knownItems + args.map(_.knownItems).sum
 
     override def toString = {
       def outputType(o: TypeDesc) = o.toString
@@ -171,6 +177,8 @@ object SymbolTypes {
       case (a1: MapType, a2: MapType) =>
         //println(s"a1 intersect a2 $a1 $a2")
         a1 intersect a2
+      case (a: MapType, ObjectOrMap) => a
+      case (ObjectOrMap, a: MapType) => a
       case (c1: ClassType, _) => // while technically incorrect, we always prefer a class type against a non-class one
         c1
       case (_, c2: ClassType) =>
@@ -197,8 +205,9 @@ object SymbolTypes {
         f1 union f2
       case (a1: ArrayType, a2: ArrayType) =>
         a1 union a2
-      case (a1: MapType, a2: MapType) =>
-        a1 union a2
+      case (a1: MapType, a2: MapType) => a1 union a2
+      case (ObjectOrMap, a: MapType) => a
+      case (a: MapType, ObjectOrMap) => a
       case _ =>
         AnyType
     }

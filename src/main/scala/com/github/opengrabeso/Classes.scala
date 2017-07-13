@@ -210,6 +210,7 @@ object Classes {
             pn.fold(sym) { p =>
               val c = sym.clone()
               c.name = c.name + Symbols.parSuffix
+              //println(s"transformClassParameters ${c.name}")
               c
             }
           case _ =>
