@@ -301,53 +301,39 @@ object TransformClasses {
 
   implicit def classesFromClassList(cl: ClassList):  Map[ClassId, ClassDef] = cl.classes
 
-  private def classList(n: AST_Extended) = {
+  private def classList(n: AST_Node) = {
     var classes = new ClassList
 
     var classNames = Set.empty[ClassId]
 
-    n.top.walkWithDescend { (node, _, walker) =>
-      node match {
-        // new XXX()
-        case AST_New(AST_SymbolRefDef(call), _*) =>
-          classNames += ClassId(call)
-          false
-
-        // any use of XXX.prototype probably marks a class
-        case AST_SymbolRefDef(name) AST_Dot "prototype" =>
-          classNames += ClassId(name)
-          false
-
-        /* the rule did more harm than good - functions are sometimes defined externally
-        // use of this in a function most likely means the function is a constructor
-        case (_: AST_This) AST_Dot _ =>
-          for {
-            fun <- walker.stack.reverse.collectFirst { case c: AST_Lambda => c }
-            sym <- fun.name.nonNull
-            Some(sym: AST_SymbolDefun) <- sym.thedef.nonNull.map(_.orig.headOption)
-          } {
-            //println(s"Detected class ${sym.name}")
-            classNames += sym.name
-          }
-          false
-        */
-
-        /*
-      // XXXX.prototype = ...;
-      case AST_SimpleStatement(AST_Assign(AST_Dot(AST_SymbolRef(name, _, _), "prototype"), "=", _)) =>
-        classNames += name
+    n.walk {
+      // new XXX()
+      case AST_New(AST_SymbolRefDef(call), _*) =>
+        classNames += ClassId(call)
         false
 
-      // Object.create(XXXX.prototype)
-      case AST_Call(AST_Dot(AST_SymbolRef("Object", _, _), "create"), AST_Dot(AST_SymbolRef(name, _, _), "prototype")) =>
-        classNames += name
+      // any use of XXX.prototype probably marks a class
+      case AST_SymbolRefDef(name) AST_Dot "prototype" =>
+        classNames += ClassId(name)
+        false
+
+      /* the rule did more harm than good - functions are sometimes defined externally
+      // use of this in a function most likely means the function is a constructor
+      case (_: AST_This) AST_Dot _ =>
+        for {
+          fun <- walker.stack.reverse.collectFirst { case c: AST_Lambda => c }
+          sym <- fun.name.nonNull
+          Some(sym: AST_SymbolDefun) <- sym.thedef.nonNull.map(_.orig.headOption)
+        } {
+          //println(s"Detected class ${sym.name}")
+          classNames += sym.name
+        }
         false
       */
 
-        case x =>
-          //println(nodeClassName(x))
-          false
-      }
+      case x =>
+        //println(nodeClassName(x))
+        false
     }
 
 
@@ -430,7 +416,7 @@ object TransformClasses {
       bodyFiltered
     }
 
-    n.top.walk {
+    n.walk {
 
       case _: AST_Toplevel =>
         false
@@ -604,6 +590,9 @@ object TransformClasses {
           classes.defineStaticMember(clsName, member, value)
         }
         true
+      case _: AST_Scope =>
+        // do not enter any other scopes, they will be handled by recursion
+        true
 
       case _ =>
         false
@@ -614,7 +603,7 @@ object TransformClasses {
     classes
   }
 
-  def convertProtoClasses(n: AST_Extended): AST_Extended = {
+  def convertProtoClasses(n: AST_Node): AST_Node = {
     // for any class types try to find constructors and prototypes and try to transform them
     // start with global classes (are local classes even used in JS?)
 
@@ -643,7 +632,7 @@ object TransformClasses {
       } else false
     }
 
-    val deleteProtos = n.top.transformAfter { (node, transformer) =>
+    val deleteProtos = n.transformAfter { (node, transformer) =>
       node match {
         case t: AST_Block =>
           val newBody = t.body.filter {
@@ -923,7 +912,7 @@ object TransformClasses {
       }
     }
 
-    n.copy(top = cleanupClasses)
+    cleanupClasses
   }
 
 
@@ -1430,7 +1419,7 @@ object TransformClasses {
   val transforms = Seq[AST_Extended => AST_Extended](
     onTopNode(inlinePrototypeVariables),
     onTopNode(inlineConstructorFunction),
-    convertProtoClasses,
+    onTopNode(convertProtoClasses),
     convertClassMembers,
     fillVarMembers,
     // applyRules after fillVarMembers - we cannot delete members before they are created
