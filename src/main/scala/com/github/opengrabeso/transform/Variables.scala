@@ -430,10 +430,10 @@ object Variables {
             expression = castVar
             this.body = casts.map { cast =>
               def createCaseVariable(from: AST_Node, name: String) = {
-                println(s"createCaseVariable $name $from ${from.start.get.pos}")
+                println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
                 val symRef = AST_SymbolRef(from)(name)
                 //AST_Const(from)(AST_VarDef.initialized(from)(name, condition(symRef, cast._1)(from)))
-                AST_Const(from)(AST_VarDef.uninitialized(from)(name))
+                AST_Let(from)(AST_VarDef.uninitialized(from)(name))
               }
               new AST_Case {
                 // note: this is not a valid JS, we handle it in the ScalaOut as a special case, see CASE_CAST

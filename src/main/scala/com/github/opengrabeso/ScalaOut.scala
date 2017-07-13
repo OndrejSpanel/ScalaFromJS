@@ -479,7 +479,7 @@ object ScalaOut {
       }
     }
 
-    if (false) {
+    if (true) {
       out"/*${nodeClassName(n)}*/"
     }
 
@@ -755,6 +755,7 @@ object ScalaOut {
 
         tn.expression match {
           // CASE_CAST
+            /*
           case AST_BlockStatement(Seq(AST_Const(AST_VarDef(
             AST_SymbolDef(name),
             Defined(AsInstanceOfCondition(name2, classes))
@@ -766,6 +767,7 @@ object ScalaOut {
                 val matchClasses = classes.map(c => s"_: ${identifier(c.name)}").mkString(" | ")
                 out(matchClasses)
             }
+            */
           case _ =>
             nodeToOut(tn.expression)
         }
