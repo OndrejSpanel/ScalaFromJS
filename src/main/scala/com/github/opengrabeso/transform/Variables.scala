@@ -437,7 +437,6 @@ object Variables {
       }
     }
 
-    val castSuffix = "_cast"
     val ret = n.transformBefore { (node, descend, transformer) =>
       node match {
         // note: handles one or multiple casts

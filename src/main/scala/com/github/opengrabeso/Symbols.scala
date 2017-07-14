@@ -9,6 +9,8 @@ trait Symbols {
   be considered a part of the identifier, as in name_!: Any
   */
   final val parSuffix = "_par"
+  final val castSuffix = "_cast"
+
 }
 
 

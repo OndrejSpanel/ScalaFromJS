@@ -196,8 +196,8 @@ class TypeTests extends FunSuite with TestUtils {
           }
       }
       """).required(
-        "case c: C",
-        "case c: D",
+        "case c_cast: C",
+        "case c_cast: D",
         "x: C"
       ).forbidden(
       )
