@@ -461,14 +461,16 @@ object Variables {
                 //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
                 //val symRef = AST_SymbolRef(from)(name)
                 //AST_Const(from)(AST_VarDef.initialized(from)(name, condition(symRef, cast._1)(from)))
-                AST_Let(from)(AST_VarDef.uninitialized(from)(name))
+                AST_Let(from)(AST_VarDef.initialized(from)(name, castVar))
               }
               new AST_Case {
                 // we handle this in the ScalaOut as a special case, see CASE_CAST
                 expression = new AST_Call() {
                   fillTokens(this, s)
                   expression = AST_SymbolRef(s)("cast_^")
-                  args = js.Array(AST_SymbolRef.symDef(s)(symDef))
+                  val castExpr = condition(castVar, cast._1)(s)
+                  //args = js.Array(AST_SymbolRef.symDef(s)(symDef), castExpr)
+                  args = js.Array(castExpr)
                 }
                 this.body = js.Array(new AST_BlockStatement {
                   fillTokens(this, s)
