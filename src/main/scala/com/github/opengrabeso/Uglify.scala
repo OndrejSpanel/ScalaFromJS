@@ -919,21 +919,21 @@ object UglifyExt {
     }
 
     object AST_SymbolDef {
-      def unapply(arg: AST_Node): Option[SymbolDef] = arg match {
+      def unapply(arg: AST_Symbol): Option[SymbolDef] = arg match {
         case AST_Symbol(_, _, Defined(sym)) => Some(sym)
         case _ => None
       }
     }
 
     object AST_SymbolRefDef {
-      def unapply(arg: AST_Node): Option[SymbolDef] = arg match {
+      def unapply(arg: AST_SymbolRef): Option[SymbolDef] = arg match {
         case AST_SymbolRef(_, _, Defined(sym)) => Some(sym)
         case _ => None
       }
     }
 
     object VarName {
-      def unapply(arg: AST_Node) = arg match {
+      def unapply(arg: AST_Definitions) = arg match {
         case AST_Definitions(AST_VarDef(AST_SymbolName(s), _)) => Some(s)
         case _ => None
       }
@@ -944,7 +944,7 @@ object UglifyExt {
     }
 
     object Statements {
-      def unapply(arg: AST_Node) = arg match {
+      def unapply(arg: AST_Statement) = arg match {
         case AST_BlockStatement(body) => Some(body)
         case s@AST_SimpleStatement(body) => Some(Seq(s))
         case _ => None
@@ -952,7 +952,7 @@ object UglifyExt {
     }
 
     object SingleStatement {
-      def unapply(arg: AST_Node) = arg match {
+      def unapply(arg: AST_Statement) = arg match {
         case AST_BlockStatement(Seq(AST_SimpleStatement(body))) => Some(body)
         case AST_SimpleStatement(body) => Some(body)
         case _ => None

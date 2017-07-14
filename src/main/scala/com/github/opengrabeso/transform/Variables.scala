@@ -293,6 +293,24 @@ object Variables {
       if (assignsOnly && r.nonEmpty) Some(r) else None
     }
   }
+
+  def renameVariable[T <: AST_Node](n: T, oldName: SymbolDef, newName: String): T = {
+    val ret = n.transformAfter { (node, _) =>
+      node match {
+        case sym@AST_SymbolRefDef(`oldName`) =>
+          sym.name = newName
+          sym.thedef = js.undefined // scope and definition needs to be filled by the parser
+          sym.scope = js.undefined
+          sym
+        // do not inline call, we need this.call form for the inference
+        // on the other hand form without this is better for variable initialization
+        case _ =>
+          node
+      }
+    }
+    ret.asInstanceOf[T]
+  }
+
   /**
     * when possible, introduce a var into the for loop
     * i.e. transform for (i = 0; ..) {} into for (var i = 0; ..)
@@ -420,29 +438,43 @@ object Variables {
     }
 
     val castSuffix = "_cast"
-    n.transformBefore { (node, descend, transformer) =>
+    val ret = n.transformBefore { (node, descend, transformer) =>
       node match {
         // note: handles one or multiple casts
         case s@SequenceOfCasts(symDef, casts, elseStatement) /*if casts.lengthCompare(1) > 0*/ =>
-          println(s"SequenceOfCasts $s ${s.start.get.pos}")
+          /*
+          val tokenSource = casts(0)._2 match {
+            case b: AST_BlockStatement if b.body.nonEmpty =>
+              b.body.head
+            case nn =>
+              nn
+
+          }
+          */
+          //println(s"SequenceOfCasts $s ${s.start.get.pos}")
+          //println(s"  tokenSource $tokenSource ${tokenSource.start.get.pos}")
           val castVar = AST_SymbolRef.symDef(s)(symDef)
           new AST_Switch {
             expression = castVar
             this.body = casts.map { cast =>
               def createCaseVariable(from: AST_Node, name: String) = {
-                println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
-                val symRef = AST_SymbolRef(from)(name)
+                //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
+                //val symRef = AST_SymbolRef(from)(name)
                 //AST_Const(from)(AST_VarDef.initialized(from)(name, condition(symRef, cast._1)(from)))
                 AST_Let(from)(AST_VarDef.uninitialized(from)(name))
               }
               new AST_Case {
-                // note: this is not a valid JS, we handle it in the ScalaOut as a special case, see CASE_CAST
-                expression = new AST_True {
+                // we handle this in the ScalaOut as a special case, see CASE_CAST
+                expression = new AST_Call() {
                   fillTokens(this, s)
+                  expression = AST_SymbolRef(s)("cast_^")
+                  args = js.Array(AST_SymbolRef.symDef(s)(symDef))
                 }
                 this.body = js.Array(new AST_BlockStatement {
                   fillTokens(this, s)
-                  this.body = createCaseVariable(s, symDef.name) +: makeBlock(cast._2)
+                  // without renaming I was unable to convince Uglify scoper (figure_out_scope) this is a new variable
+                  val transformedBlock = makeBlock(cast._2).map(renameVariable(_, symDef, symDef.name + castSuffix))
+                  this.body = createCaseVariable(s, symDef.name + castSuffix) +: transformedBlock
                 }, new AST_Break().withTokens(s))
 
               }.withTokens(s):AST_Statement
@@ -460,6 +492,7 @@ object Variables {
 
       }
     }
+    ret
   }
 
 }
