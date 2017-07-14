@@ -755,7 +755,6 @@ object ScalaOut {
         def outputCaseBody(body: Seq[AST_Statement]) = {
           out(" =>\n")
           out.indent()
-          // TODO: handle CASE_CAST body special form (leading var declaration)
           blockToOut(body)
           out.eol()
           out.unindent()
@@ -772,13 +771,9 @@ object ScalaOut {
                 out(matchClasses)
             }
 
-            //AST_Let(from)(AST_VarDef.initialized(from)(name, castVar))
-            //val transformedBlock = makeBlock(cast._2).map(renameVariable(_, symDef, symDef.name + castSuffix))
-            //this.body = createCaseVariable(s, symDef.name + castSuffix) +: transformedBlock
-
             tn.body.toSeq match {
-              case Seq(AST_BlockStatement(AST_Let(AST_VarDef(sv, _) ) +: body)) =>
-                // check sv - variable correspondence
+              case Seq(AST_BlockStatement(AST_Let(AST_VarDef(sv, AsInstanceOfCondition(_, _))) +: body)) =>
+                // we might check sv - variable name correspondence
                 outputCaseBody(body)
               case _ =>
                 outputCaseBody(tn.body)

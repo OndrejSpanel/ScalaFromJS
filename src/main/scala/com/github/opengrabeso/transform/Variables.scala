@@ -458,9 +458,8 @@ object Variables {
             this.body = casts.map { cast =>
               def createCaseVariable(from: AST_Node, name: String) = {
                 //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
-                //val symRef = AST_SymbolRef(from)(name)
-                //AST_Const(from)(AST_VarDef.initialized(from)(name, condition(symRef, cast._1)(from)))
-                AST_Let(from)(AST_VarDef.initialized(from)(name, castVar))
+                val symRef = AST_SymbolRef(from)(name)
+                AST_Let(from)(AST_VarDef.initialized(from)(name + castSuffix, condition(symRef, cast._1)(from)))
               }
               new AST_Case {
                 // we handle this in the ScalaOut as a special case, see CASE_CAST
@@ -475,7 +474,7 @@ object Variables {
                   fillTokens(this, s)
                   // without renaming I was unable to convince Uglify scoper (figure_out_scope) this is a new variable
                   val transformedBlock = makeBlock(cast._2).map(renameVariable(_, symDef, symDef.name + castSuffix))
-                  this.body = createCaseVariable(s, symDef.name + castSuffix) +: transformedBlock
+                  this.body = createCaseVariable(s, symDef.name) +: transformedBlock
                 }, new AST_Break().withTokens(s))
 
               }.withTokens(s):AST_Statement
