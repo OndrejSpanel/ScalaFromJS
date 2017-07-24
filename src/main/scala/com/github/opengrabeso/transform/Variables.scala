@@ -10,6 +10,7 @@ import Classes._
 import scala.scalajs.js
 import js.JSConverters._
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 
 object Variables {
@@ -415,6 +416,21 @@ object Variables {
       }
     }
 
+    object ExpressionWithCasts {
+      def unapplySeq(arg: AST_Node): Option[Seq[(SymbolDef, SymbolDef)]] = {
+        val buffer = ArrayBuffer.empty[(SymbolDef, SymbolDef)]
+        arg.walk {
+          case AST_Binary(AST_SymbolRefDef(symDef), `instanceof`, AST_SymbolRefDef(cs)) =>
+            buffer.append((symDef, cs))
+            false
+          case _ =>
+           false
+        }
+        if (buffer.isEmpty) None
+        else Some(buffer)
+      }
+    }
+
     def condition(sym: AST_SymbolRef, cs: Seq[AST_SymbolRef])(from: AST_Node): AST_Binary = {
       cs match {
         case Seq(head) =>
@@ -437,30 +453,20 @@ object Variables {
       }
     }
 
+    def createCaseVariable(from: AST_Node, name: String, castTo: Seq[AST_SymbolRef]) = {
+      //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
+      val symRef = AST_SymbolRef(from)(name)
+      AST_Let(from)(AST_VarDef.initialized(from)(name + castSuffix, condition(symRef, castTo)(from)))
+    }
+
     val ret = n.transformBefore { (node, descend, transformer) =>
       node match {
         // note: handles one or multiple casts
         case s@SequenceOfCasts(symDef, casts, elseStatement) /*if casts.lengthCompare(1) > 0*/ =>
-          /*
-          val tokenSource = casts(0)._2 match {
-            case b: AST_BlockStatement if b.body.nonEmpty =>
-              b.body.head
-            case nn =>
-              nn
-
-          }
-          */
-          //println(s"SequenceOfCasts $s ${s.start.get.pos}")
-          //println(s"  tokenSource $tokenSource ${tokenSource.start.get.pos}")
           val castVar = AST_SymbolRef.symDef(s)(symDef)
           new AST_Switch {
             expression = castVar
             this.body = casts.map { cast =>
-              def createCaseVariable(from: AST_Node, name: String) = {
-                //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
-                val symRef = AST_SymbolRef(from)(name)
-                AST_Let(from)(AST_VarDef.initialized(from)(name + castSuffix, condition(symRef, cast._1)(from)))
-              }
               new AST_Case {
                 // we handle this in the ScalaOut as a special case, see CASE_CAST
                 expression = new AST_Call() {
@@ -474,7 +480,7 @@ object Variables {
                   fillTokens(this, s)
                   // without renaming I was unable to convince Uglify scoper (figure_out_scope) this is a new variable
                   val transformedBlock = makeBlock(cast._2).map(renameVariable(_, symDef, symDef.name + castSuffix))
-                  this.body = createCaseVariable(s, symDef.name) +: transformedBlock
+                  this.body = createCaseVariable(s, symDef.name, cast._1) +: transformedBlock
                 }, new AST_Break().withTokens(s))
 
               }.withTokens(s):AST_Statement
@@ -484,6 +490,25 @@ object Variables {
               }.getOrElse(js.Array())
             }.withTokens(node)
           }.withTokens(node)
+        case ifs@AST_If(ex@ExpressionWithCasts(casts@_*), ifStatement, elseStatement) =>
+          //println(s"Detected casts ${casts.map(p => SymbolTypes.id(p._1) + " " + SymbolTypes.id(p._2))}")
+          val n = new AST_If {
+            fillTokens(this, ifs)
+            condition = ex
+            body = new AST_BlockStatement {
+              fillTokens(this, ifStatement)
+              this.body = (casts.map { c =>
+                createCaseVariable(ex, c._1.name, Seq(AST_SymbolRef.symDef(ex)(c._2)))
+              } ++ makeBlock(ifStatement).map { s =>
+                casts.foldLeft(s) { (s, c) =>
+                  renameVariable(s, c._1, c._1.name + castSuffix)
+                }
+              }).toJSArray
+            }
+            alternative = elseStatement.orUndefined
+          }
+          descend(n, transformer)
+          n
         case _ =>
           //println(s"No match $node")
           val n = node.clone()

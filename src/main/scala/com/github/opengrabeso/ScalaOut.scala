@@ -750,7 +750,7 @@ object ScalaOut {
         out("case ")
 
         import Casting._
-        object AsInstanceOfCondition extends InstanceOfCondition(`asinstanceof`)
+        object AsInstanceOfCondition extends InstanceOfCondition(asinstanceof)
 
         def outputCaseBody(body: Seq[AST_Statement]) = {
           out(" =>\n")
