@@ -6,6 +6,7 @@ import Uglify._
 import UglifyExt._
 import UglifyExt.Import._
 import Classes._
+import com.github.opengrabeso.SymbolTypes._
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -431,13 +432,13 @@ object Variables {
       }
     }
 
-    def condition(sym: AST_SymbolRef, cs: Seq[AST_SymbolRef])(from: AST_Node): AST_Binary = {
+    def condition(sym: AST_SymbolRef, cs: Seq[String])(from: AST_Node): AST_Binary = {
       cs match {
         case Seq(head) =>
-          AST_Binary(from) (sym, asinstanceof, head.clone())
+          AST_Binary(from) (sym, asinstanceof, AST_SymbolRef(from)(head))
         case head +: tail =>
           AST_Binary(from) (
-            AST_Binary(from) (sym, asinstanceof, head.clone()),
+            AST_Binary(from) (sym, asinstanceof, AST_SymbolRef(from)(head)),
             "||",
             condition(sym, tail)(from)
           )
@@ -453,10 +454,38 @@ object Variables {
       }
     }
 
-    def createCaseVariable(from: AST_Node, name: String, castTo: Seq[AST_SymbolRef]) = {
+    def createCaseVariable(from: AST_Node, name: String, castTo: Seq[String]) = {
       //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
       val symRef = AST_SymbolRef(from)(name)
       AST_Let(from)(AST_VarDef.initialized(from)(name + castSuffix, condition(symRef, castTo)(from)))
+    }
+
+    lazy val classInfo = Transform.listClassMembers(n)
+
+    implicit object classOps extends ClassOps {
+      def mostDerived(c1: ClassType, c2: ClassType) = {
+        //println("mostDerived")
+        classInfo.mostDerived(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
+      }
+
+      def commonBase(c1: ClassType, c2: ClassType) = {
+        //println("commonBase")
+        classInfo.commonBase(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
+      }
+    }
+
+    def consolidateCasts(casts: Seq[(SymbolDef, SymbolDef)]): Seq[(SymbolDef, String)] = {
+      val varOrder = casts.map(_._1.name).zipWithIndex.toMap
+      val castGroups = casts.groupBy(_._1)
+      val castSets = castGroups.map { case (id, cg) =>
+        id -> cg.map(_._2).map { clsSym =>
+          val clsId = TransformClasses.ClassId(clsSym)
+          ClassType(clsId)
+        }
+      }
+      castSets.map { case (id, cs) =>
+        id -> cs.reduceLeft(typeUnion).toOut
+      }.toSeq.sortBy(v => varOrder(v._1.name)) // sort by order in casts
     }
 
     val ret = n.transformBefore { (node, descend, transformer) =>
@@ -472,7 +501,7 @@ object Variables {
                 expression = new AST_Call() {
                   fillTokens(this, s)
                   expression = AST_SymbolRef(s)("cast_^")
-                  val castExpr = condition(castVar, cast._1)(s)
+                  val castExpr = condition(castVar, cast._1.map(_.name))(s)
                   //args = js.Array(AST_SymbolRef.symDef(s)(symDef), castExpr)
                   args = js.Array(castExpr)
                 }
@@ -480,7 +509,7 @@ object Variables {
                   fillTokens(this, s)
                   // without renaming I was unable to convince Uglify scoper (figure_out_scope) this is a new variable
                   val transformedBlock = makeBlock(cast._2).map(renameVariable(_, symDef, symDef.name + castSuffix))
-                  this.body = createCaseVariable(s, symDef.name, cast._1) +: transformedBlock
+                  this.body = createCaseVariable(s, symDef.name, cast._1.map(_.name)) +: transformedBlock
                 }, new AST_Break().withTokens(s))
 
               }.withTokens(s):AST_Statement
@@ -490,7 +519,8 @@ object Variables {
               }.getOrElse(js.Array())
             }.withTokens(node)
           }.withTokens(node)
-        case ifs@AST_If(ex@ExpressionWithCasts(casts@_*), ifStatement, elseStatement) =>
+        case ifs@AST_If(ex@ExpressionWithCasts(extractedCasts@_*), ifStatement, elseStatement) =>
+          val casts = consolidateCasts(extractedCasts)
           //println(s"Detected casts ${casts.map(p => SymbolTypes.id(p._1) + " " + SymbolTypes.id(p._2))}")
           val n = new AST_If {
             fillTokens(this, ifs)
@@ -498,7 +528,7 @@ object Variables {
             body = new AST_BlockStatement {
               fillTokens(this, ifStatement)
               this.body = (casts.map { c =>
-                createCaseVariable(ex, c._1.name, Seq(AST_SymbolRef.symDef(ex)(c._2)))
+                createCaseVariable(ex, c._1.name, Seq(c._2))
               } ++ makeBlock(ifStatement).map { s =>
                 casts.foldLeft(s) { (s, c) =>
                   renameVariable(s, c._1, c._1.name + castSuffix)

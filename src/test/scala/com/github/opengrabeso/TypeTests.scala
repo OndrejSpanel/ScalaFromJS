@@ -221,7 +221,7 @@ class TypeTests extends FunSuite with TestUtils {
 
       D.prototype.constructor = D;
 
-      function f(x, y, z, u, v) {
+      function f(x, y, z, u, v, w) {
         console.log(x.c);
         if (x instanceof D && y instanceof C) {}
 
@@ -231,6 +231,9 @@ class TypeTests extends FunSuite with TestUtils {
         else if (u instanceof D || v instanceof C || false) {
           console.log(v.d)
         }
+
+        if (w instanceof D && w instanceof C) {
+        }
       }
       """).required(
         "var x_cast = x.asInstanceOf[D]",
@@ -238,12 +241,15 @@ class TypeTests extends FunSuite with TestUtils {
         "var z_cast = z.asInstanceOf[D]",
         "var u_cast = u.asInstanceOf[D]",
         "var v_cast = v.asInstanceOf[C]",
+        "var w_cast = w.asInstanceOf[C]",
         "x: C",
         "y: Any",
         "z: Any",
         "u: Any",
-        "v: Any"
+        "v: Any",
+        "w: Any"
       ).forbidden(
+        "var w_cast = w.asInstanceOf[D]"
       )
 
   }
