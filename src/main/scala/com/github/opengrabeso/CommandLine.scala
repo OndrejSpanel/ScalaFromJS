@@ -2,6 +2,7 @@ package com.github.opengrabeso
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
+import scala.util.Try
 
 @JSGlobal("$require")
 @js.native
@@ -216,12 +217,37 @@ object CommandLine {
 
       val inFilePackage = inFileRelative.split('/')
 
-      val packagePrefix = inFilePackage.map(item => s"package $item").mkString("", "\n", "\n")
+      val packageDirectives = inFilePackage.map(item => s"package $item").toSeq
+      val packagePrefix = packageDirectives.mkString("", "\n", "\n")
 
       val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
-      //println(s"Write $outFileCombined from $inFile (out: $out)")
-      mkAllDirs(outFileCombined)
-      writeFile(outFileCombined, extendedPrefix + packagePrefix + outCode)
+      val outCodeWithPackage = packagePrefix + outCode
+
+      val skip = Try {
+        val existingFile = readFile(outFileCombined)
+        val existingLines = scala.io.Source.fromString(existingFile).getLines().toSeq
+        val outputLines = scala.io.Source.fromString(outCodeWithPackage).getLines().toSeq
+        existingLines match {
+          case "/*" +: _ +:  _ +:  "*/" +:  "" +: `outputLines` =>
+            // skip storing the file if the only difference between the file and the existing version is the prefix
+            //println(s"  Identical content for $outFileBase")
+            true
+          /*
+          case "/*" +: _ +:  _ +:  "*/" +:  "" +: rest  =>
+            println(s"  prefix detected for outFileBase, rest starts with ${rest.head}")
+            false
+          */
+          case _ =>
+            false
+        }
+      }.getOrElse(false)
+      // check existing prefix
+      // error handling - non-existing file?
+      if (!skip) {
+        //println(s"Write $outFileCombined from $inFile (out: $out)")
+        mkAllDirs(outFileCombined)
+        writeFile(outFileCombined, extendedPrefix + outCodeWithPackage)
+      }
       outFileCombined
     }
   }
