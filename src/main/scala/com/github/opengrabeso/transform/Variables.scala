@@ -6,10 +6,12 @@ import Uglify._
 import UglifyExt._
 import UglifyExt.Import._
 import Classes._
+import com.github.opengrabeso.SymbolTypes._
 
 import scala.scalajs.js
 import js.JSConverters._
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 
 object Variables {
@@ -293,6 +295,24 @@ object Variables {
       if (assignsOnly && r.nonEmpty) Some(r) else None
     }
   }
+
+  def renameVariable[T <: AST_Node](n: T, oldName: SymbolDef, newName: String): T = {
+    val ret = n.transformAfter { (node, _) =>
+      node match {
+        case sym@AST_SymbolRefDef(`oldName`) =>
+          sym.name = newName
+          sym.thedef = js.undefined // scope and definition needs to be filled by the parser
+          sym.scope = js.undefined
+          sym
+        // do not inline call, we need this.call form for the inference
+        // on the other hand form without this is better for variable initialization
+        case _ =>
+          node
+      }
+    }
+    ret.asInstanceOf[T]
+  }
+
   /**
     * when possible, introduce a var into the for loop
     * i.e. transform for (i = 0; ..) {} into for (var i = 0; ..)
@@ -397,13 +417,28 @@ object Variables {
       }
     }
 
-    def condition(sym: SymbolDef, cs: Seq[AST_SymbolRef])(from: AST_Node): AST_Binary = {
+    object ExpressionWithCasts {
+      def unapplySeq(arg: AST_Node): Option[Seq[(SymbolDef, SymbolDef)]] = {
+        val buffer = ArrayBuffer.empty[(SymbolDef, SymbolDef)]
+        arg.walk {
+          case AST_Binary(AST_SymbolRefDef(symDef), `instanceof`, AST_SymbolRefDef(cs)) =>
+            buffer.append((symDef, cs))
+            false
+          case _ =>
+           false
+        }
+        if (buffer.isEmpty) None
+        else Some(buffer)
+      }
+    }
+
+    def condition(sym: AST_SymbolRef, cs: Seq[String])(from: AST_Node): AST_Binary = {
       cs match {
         case Seq(head) =>
-          AST_Binary(from) (AST_SymbolRef.symDef(from)(sym), asinstanceof, head.clone())
+          AST_Binary(from) (sym, asinstanceof, AST_SymbolRef(from)(head))
         case head +: tail =>
           AST_Binary(from) (
-            AST_Binary(from) (AST_SymbolRef.symDef(from)(sym), asinstanceof, head.clone()),
+            AST_Binary(from) (sym, asinstanceof, AST_SymbolRef(from)(head)),
             "||",
             condition(sym, tail)(from)
           )
@@ -419,18 +454,64 @@ object Variables {
       }
     }
 
-    val castSuffix = "_cast"
-    n.transformBefore { (node, descend, transformer) =>
+    def createCaseVariable(from: AST_Node, name: String, castTo: Seq[String]) = {
+      //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
+      val symRef = AST_SymbolRef(from)(name)
+      AST_Let(from)(AST_VarDef.initialized(from)(name + castSuffix, condition(symRef, castTo)(from)))
+    }
+
+    lazy val classInfo = Transform.listClassMembers(n)
+
+    implicit object classOps extends ClassOps {
+      def mostDerived(c1: ClassType, c2: ClassType) = {
+        //println("mostDerived")
+        classInfo.mostDerived(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
+      }
+
+      def commonBase(c1: ClassType, c2: ClassType) = {
+        //println("commonBase")
+        classInfo.commonBase(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
+      }
+    }
+
+    def consolidateCasts(casts: Seq[(SymbolDef, SymbolDef)]): Seq[(SymbolDef, String)] = {
+      val varOrder = casts.map(_._1.name).zipWithIndex.toMap
+      val castGroups = casts.groupBy(_._1)
+      val castSets = castGroups.map { case (id, cg) =>
+        id -> cg.map(_._2).map { clsSym =>
+          val clsId = TransformClasses.ClassId(clsSym)
+          ClassType(clsId)
+        }
+      }
+      castSets.map { case (id, cs) =>
+        id -> cs.reduceLeft(typeUnion).toOut
+      }.toSeq.sortBy(v => varOrder(v._1.name)) // sort by order in casts
+    }
+
+    val ret = n.transformBefore { (node, descend, transformer) =>
       node match {
+        // note: handles one or multiple casts
         case s@SequenceOfCasts(symDef, casts, elseStatement) /*if casts.lengthCompare(1) > 0*/ =>
           val castVar = AST_SymbolRef.symDef(s)(symDef)
           new AST_Switch {
             expression = castVar
             this.body = casts.map { cast =>
               new AST_Case {
-                // note: this is not a valid JS, we handle it in the ScalaOut as a special case, see CASE_CAST
-                expression = AST_Const(s)(AST_VarDef.initialized(s) (symDef.name, condition(symDef, cast._1)(s)))
-                this.body = makeBlock(cast._2) :+ new AST_Break().withTokens(s)
+                // we handle this in the ScalaOut as a special case, see CASE_CAST
+                expression = new AST_Call() {
+                  fillTokens(this, s)
+                  expression = AST_SymbolRef(s)("cast_^")
+                  val castExpr = condition(castVar, cast._1.map(_.name))(s)
+                  //args = js.Array(AST_SymbolRef.symDef(s)(symDef), castExpr)
+                  args = js.Array(castExpr)
+                }
+                this.body = js.Array(new AST_BlockStatement {
+                  fillTokens(this, s)
+                  // without renaming I was unable to convince Uglify scoper (figure_out_scope) this is a new variable
+                  val transformedBlock = makeBlock(cast._2).map(renameVariable(_, symDef, symDef.name + castSuffix))
+                  this.body = createCaseVariable(s, symDef.name, cast._1.map(_.name)) +: transformedBlock
+                }, new AST_Break().withTokens(s))
+
               }.withTokens(s):AST_Statement
             }.toJSArray :+ new AST_Default {
               this.body = elseStatement.map { e =>
@@ -438,35 +519,26 @@ object Variables {
               }.getOrElse(js.Array())
             }.withTokens(node)
           }.withTokens(node)
-        // note: currently never matches, even sequence of one cast is handled by the pattern above
-        case s@SingleCast(symDef, cs, ifStatement, _) =>
-          //println(s"Implied cast $node")
-          val symName = symDef.name
-
-          val defVar = AST_Const(s) (AST_VarDef.initialized(s) (symDef.name + castSuffix, condition(symDef, cs)(s)))
-          val ifBodyTransformed = ifStatement.transformAfter { (node, transformer) =>
-            node match {
-              case sym@AST_SymbolName(`symName`) =>
-                sym.name = symName + castSuffix
-                sym
-              case _ =>
-                node
+        case ifs@AST_If(ex@ExpressionWithCasts(extractedCasts@_*), ifStatement, elseStatement) =>
+          val casts = consolidateCasts(extractedCasts)
+          //println(s"Detected casts ${casts.map(p => SymbolTypes.id(p._1) + " " + SymbolTypes.id(p._2))}")
+          val n = new AST_If {
+            fillTokens(this, ifs)
+            condition = ex
+            body = new AST_BlockStatement {
+              fillTokens(this, ifStatement)
+              this.body = (casts.map { c =>
+                createCaseVariable(ex, c._1.name, Seq(c._2))
+              } ++ makeBlock(ifStatement).map { s =>
+                casts.foldLeft(s) { (s, c) =>
+                  renameVariable(s, c._1, c._1.name + castSuffix)
+                }
+              }).toJSArray
             }
+            alternative = elseStatement.orUndefined
           }
-
-          s.body = ifBodyTransformed match {
-            case block: AST_BlockStatement =>
-              block.body = defVar +: block.body
-              block
-            case _ =>
-              new AST_BlockStatement {
-                fillTokens(this, s)
-                this.body = js.Array(defVar, ifBodyTransformed)
-              }
-          }
-
-          s.alternative = s.alternative.map(_.transform_js(transformer).asInstanceOf[AST_Statement])
-          s
+          descend(n, transformer)
+          n
         case _ =>
           //println(s"No match $node")
           val n = node.clone()
@@ -475,6 +547,7 @@ object Variables {
 
       }
     }
+    ret
   }
 
 }

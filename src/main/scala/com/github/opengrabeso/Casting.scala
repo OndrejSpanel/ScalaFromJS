@@ -37,6 +37,6 @@ object Casting {
     }
   }
 
-  object InstanceOfCondition extends InstanceOfCondition(`instanceof`)
+  object InstanceOfCondition extends InstanceOfCondition(instanceof)
 
 }

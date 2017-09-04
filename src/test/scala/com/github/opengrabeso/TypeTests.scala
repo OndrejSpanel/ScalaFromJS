@@ -196,13 +196,64 @@ class TypeTests extends FunSuite with TestUtils {
           }
       }
       """).required(
-        "case c: C",
-        "case c: D",
+        "case c_cast: C",
+        "case c_cast: D",
         "x: C"
-      ).forbidden(
       )
 
   }
+
+  test("Handle instanceof implied cast - if variant") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      function C() {
+        this.c = ""
+      }
+
+      C.prototype.constructor = C;
+
+      function D() {
+        this.d = ""
+      }
+
+      D.prototype = new C;
+
+      D.prototype.constructor = D;
+
+      function f(x, y, z, u, v, w) {
+        console.log(x.c);
+        if (x instanceof D && y instanceof C) {}
+
+        if (z instanceof D || false) {
+          console.log(z.d)
+        }
+        else if (u instanceof D || v instanceof C || false) {
+          console.log(v.d)
+        }
+
+        if (w instanceof D && w instanceof C) {
+        }
+      }
+      """).required(
+        "var x_cast = x.asInstanceOf[D]",
+        "var y_cast = y.asInstanceOf[C]",
+        "var z_cast = z.asInstanceOf[D]",
+        "var u_cast = u.asInstanceOf[D]",
+        "var v_cast = v.asInstanceOf[C]",
+        "var w_cast = w.asInstanceOf[C]",
+        "x: C",
+        "y: Any",
+        "z: Any",
+        "u: Any",
+        "v: Any",
+        "w: Any"
+      ).forbidden(
+        "var w_cast = w.asInstanceOf[D]"
+      )
+
+  }
+
 
   test("Function variable types should be inferred") {
     execute check ConversionCheck(

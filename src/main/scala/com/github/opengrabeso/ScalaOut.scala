@@ -750,31 +750,39 @@ object ScalaOut {
         out("case ")
 
         import Casting._
-        object AsInstanceOfCondition extends InstanceOfCondition(`asinstanceof`)
+        object AsInstanceOfCondition extends InstanceOfCondition(asinstanceof)
 
+        def outputCaseBody(body: Seq[AST_Statement]) = {
+          out(" =>\n")
+          out.indent()
+          blockToOut(body)
+          out.eol()
+          out.unindent()
+        }
 
         tn.expression match {
           // CASE_CAST
-          case AST_Const(AST_VarDef(
-            AST_SymbolDef(name),
-            Defined(AsInstanceOfCondition(name2, classes))
-          )) if name == name2 =>
+          case AST_Call(AST_SymbolRefName("cast_^"),AsInstanceOfCondition(name, classes)) =>
             classes match {
               case Seq(cls) =>
-                out"${identifier(name.name)}: $cls"
+                out"${identifier(name.name + castSuffix)}: $cls"
               case _ =>
                 val matchClasses = classes.map(c => s"_: ${identifier(c.name)}").mkString(" | ")
                 out(matchClasses)
             }
+
+            tn.body.toSeq match {
+              case Seq(AST_BlockStatement(AST_Let(AST_VarDef(sv, AsInstanceOfCondition(_, _))) +: body)) =>
+                // we might check sv - variable name correspondence
+                outputCaseBody(body)
+              case _ =>
+                outputCaseBody(tn.body)
+            }
           case _ =>
             nodeToOut(tn.expression)
+            outputCaseBody(tn.body)
         }
 
-        out(" =>\n")
-        out.indent()
-        blockToOut(tn.body)
-        out.eol()
-        out.unindent()
       case tn: AST_Default =>
         out("case _ =>\n")
         out.indent()
@@ -969,7 +977,7 @@ object ScalaOut {
     }
   }
 
-  private def blockToOut(body: js.Array[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
+  private def blockToOut(body: Seq[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
     for ((s, notLast) <- markEnd(body)) {
       nodeToOut(s)
       if (notLast) out.eol()
