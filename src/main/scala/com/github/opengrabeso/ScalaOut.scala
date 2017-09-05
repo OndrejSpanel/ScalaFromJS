@@ -533,10 +533,7 @@ object ScalaOut {
       //case tn: AST_ObjectProperty =>
       case tn: AST_ConciseMethod =>
         //out"/*${nodeClassName(n)}*/"
-        val keyName = tn.key.name /*match {
-          case "constructor" => "this"
-          case x => x
-        }*/
+        val keyName = tn.key.name
         out"def ${identifier(keyName)}${tn.value}\n"
 
       case tn: AST_Object =>
@@ -898,10 +895,7 @@ object ScalaOut {
 
           //blockToOut(tn.body)
 
-          val (functionMembers, varMembers) = nonStaticProperties.partition {
-            case _: AST_ConciseMethod => true
-            case _ => false
-          }
+          val (functionMembers, varMembers) = nonStaticProperties.partitionByType[AST_ConciseMethod]
 
           //out(s"/*fun: ${functionMembers.length} var: ${varMembers.length}*/")
           varMembers.foreach { n =>
