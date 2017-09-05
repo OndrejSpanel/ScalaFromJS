@@ -212,4 +212,40 @@ class ClassTests extends FunSuite with TestUtils {
 
 
   }
+
+
+  test("Handle override for member functions") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      class Person {
+          constructor(name) {
+              this.name = name;
+          }
+
+          clone() {
+              return new Person(name);
+          }
+      }
+
+      class Employee extends Person {
+          constructor(name, salary ) {
+              super(name);
+              this.salary = salary;
+          }
+
+          clone() {
+              return new Employee(name, salary);
+          }
+      }
+
+      let bob = new Employee('Bob', 1000);
+      """).required(
+        "def clone()",
+        "override def clone()"
+      )
+
+
+  }
+
 }
