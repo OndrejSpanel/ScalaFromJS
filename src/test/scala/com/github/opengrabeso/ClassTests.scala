@@ -226,8 +226,11 @@ class ClassTests extends FunSuite with TestUtils {
           set(name) {
               this.name = name;
           }
-
           clone() {
+              return new Person(name);
+          }
+
+          myClone() {
               return new Person(name);
           }
 
@@ -244,16 +247,16 @@ class ClassTests extends FunSuite with TestUtils {
               this.salary = salary;
           }
 
-          clone() {
+          myClone() {
               return new Employee(name, salary);
           }
       }
 
       let bob = new Employee('Bob', 1000);
       """).required(
-        "def clone()",
-        "def set(",
-        "override def clone()"
+      "def set(",
+        "override def clone()",
+        "override def myClone()"
       ).forbidden(
         "override def set("
       )

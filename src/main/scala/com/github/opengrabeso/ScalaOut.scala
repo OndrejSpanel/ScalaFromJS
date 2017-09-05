@@ -909,23 +909,30 @@ object ScalaOut {
 
           for (p <- functionMembers if p != inlineBody) {
             // check overrides
-
-
-            val isOverride = for {
-              parentSym <- Classes.superClass(tn)
-              parentCls <- input.classes.get(parentSym)
-              parentMethod <- Classes.findMethod(parentCls, p.key.name)
-            } yield {
-              // check method signature
-              def getArgTypes(m: AST_ConciseMethod) = {
-                m.value.argnames.flatMap(_.thedef.nonNull).map(SymbolTypes.id).map(input.types.get)
-              }
-              val myParTypes = getArgTypes(p)
-              val parentTypes = getArgTypes(parentMethod)
-              myParTypes.toSeq == parentTypes.toSeq
+            def isObjectOverride = {
+              // special case: override AnyRef (java.lang.Object) methods:
+              val objectMethods = Set("clone", "toString", "hashCode", "getClass")
+              p.value.argnames.isEmpty && objectMethods.contains(p.key.name)
             }
 
-            if (isOverride.contains(true)) out("override ")
+            def isNormalOverride = {
+              val isOverride = for {
+                parentSym <- Classes.superClass(tn)
+                parentCls <- input.classes.get(parentSym)
+                parentMethod <- Classes.findMethod(parentCls, p.key.name)
+              } yield {
+                // check method signature
+                def getArgTypes(m: AST_ConciseMethod) = {
+                  m.value.argnames.flatMap(_.thedef.nonNull).map(SymbolTypes.id).map(input.types.get)
+                }
+                val myParTypes = getArgTypes(p)
+                val parentTypes = getArgTypes(parentMethod)
+                myParTypes.toSeq == parentTypes.toSeq
+              }
+              isOverride.contains(true)
+            }
+
+            if (isObjectOverride || isNormalOverride) out("override ")
             out"def ${p.key}${p.value}\n"
           }
 
