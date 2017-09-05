@@ -533,10 +533,7 @@ object ScalaOut {
       //case tn: AST_ObjectProperty =>
       case tn: AST_ConciseMethod =>
         //out"/*${nodeClassName(n)}*/"
-        val keyName = tn.key.name /*match {
-          case "constructor" => "this"
-          case x => x
-        }*/
+        val keyName = tn.key.name
         out"def ${identifier(keyName)}${tn.value}\n"
 
       case tn: AST_Object =>
@@ -898,10 +895,7 @@ object ScalaOut {
 
           //blockToOut(tn.body)
 
-          val (functionMembers, varMembers) = nonStaticProperties.partition {
-            case _: AST_ConciseMethod => true
-            case _ => false
-          }
+          val (functionMembers, varMembers) = nonStaticProperties.partitionByType[AST_ConciseMethod]
 
           //out(s"/*fun: ${functionMembers.length} var: ${varMembers.length}*/")
           varMembers.foreach { n =>
@@ -913,7 +907,34 @@ object ScalaOut {
 
           if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
-          for (p <- functionMembers if p != inlineBody) nodeToOut(p)
+          for (p <- functionMembers if p != inlineBody) {
+            // check overrides
+            def isObjectOverride = {
+              // special case: override AnyRef (java.lang.Object) methods:
+              val objectMethods = Set("clone", "toString", "hashCode", "getClass")
+              p.value.argnames.isEmpty && objectMethods.contains(p.key.name)
+            }
+
+            def isNormalOverride = {
+              val isOverride = for {
+                parentSym <- Classes.superClass(tn)
+                parentCls <- input.classes.get(parentSym)
+                parentMethod <- Classes.findMethod(parentCls, p.key.name)
+              } yield {
+                // check method signature
+                def getArgTypes(m: AST_ConciseMethod) = {
+                  m.value.argnames.flatMap(_.thedef.nonNull).map(SymbolTypes.id).map(input.types.get)
+                }
+                val myParTypes = getArgTypes(p)
+                val parentTypes = getArgTypes(parentMethod)
+                myParTypes.toSeq == parentTypes.toSeq
+              }
+              isOverride.contains(true)
+            }
+
+            if (isObjectOverride || isNormalOverride) out("override ")
+            out"def ${p.key}${p.value}\n"
+          }
 
           out.unindent()
           out.eol()
