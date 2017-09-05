@@ -90,4 +90,50 @@ class RuleTests extends FunSuite with TestUtils {
       )
 
   }
+
+  test("Handle method extending") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      class Person {
+          constructor(name) {
+              this.name = name;
+          }
+
+          equals(that) {
+              return this.name = that.name;
+          }
+
+      }
+
+      let bob = new Person('Bob');
+      let dan = new Person('Dan');
+      let same = bob.equals(dan);
+
+      var ScalaFromJS_settings = {
+          members: [
+              {
+                  cls: ".*",
+                  name: "equals",
+                  operation: "replicate",
+                  template: [
+                      "override def $name(that: Any) = {",
+                      "  obj match {",
+                      "    case v: $class => this.equals(v)",
+                      "    case _ => false",
+                      "  }",
+                      "}",
+                    ]
+              }]
+      };
+      """).required(
+        "def equals(that: Person)",
+        "override def equals(that: Any)"
+      ).forbidden(
+        "override def equals(that: Person)"
+      )
+
+
+  }
+
 }

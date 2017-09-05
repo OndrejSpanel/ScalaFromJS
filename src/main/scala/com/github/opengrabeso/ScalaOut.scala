@@ -528,14 +528,25 @@ object ScalaOut {
       case tn: AST_ObjectGetter =>
         accessorToOut(tn, "")
       case tn: AST_ObjectKeyVal =>
+        if (tn.key startsWith templatePrefix) {
+          out.eol()
+          val content = tn.value match {
+            case s: AST_String => s.value
+            case x => x.toString
+          }
+          out(content)
+          out.eol()
+        } else {
+          out.eol()
+          out"var ${identifier(tn.key)} = ${tn.value}\n"
+        }
+
         //out"/*${nodeClassName(n)}*/"
-        out"var ${identifier(tn.key)} = ${tn.value}\n"
       //case tn: AST_ObjectProperty =>
       case tn: AST_ConciseMethod =>
         //out"/*${nodeClassName(n)}*/"
-        val keyName = tn.key.name
-        out"def ${identifier(keyName)}${tn.value}\n"
-
+        out.eol()
+        out"def ${tn.key}${tn.value}\n"
       case tn: AST_Object =>
         if (tn.properties.isEmpty) {
           out("new {}")

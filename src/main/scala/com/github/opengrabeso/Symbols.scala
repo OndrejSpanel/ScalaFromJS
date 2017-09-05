@@ -10,7 +10,7 @@ trait Symbols {
   */
   final val parSuffix = "_par"
   final val castSuffix = "_cast"
-
+  final val templatePrefix = "template_^_"
 }
 
 

@@ -1365,8 +1365,7 @@ object TransformClasses {
         }
         object MatchName {
           def unapply(arg: String): Option[String] = {
-            if (member.name.test(arg)) Some(arg)
-            else None
+            Some(arg).filter(member.name.test)
           }
         }
 
@@ -1388,6 +1387,33 @@ object TransformClasses {
       }
 
       applied.getOrElse(c)
+    }
+
+  }
+
+  def replicateMember(n: AST_Extended, member: ConvertProject.MemberDesc, template: String) = {
+
+    def applyTemplate(cls: String, name: String) = {
+      template.replace("$class", cls).replace("${class}", cls).replace("$name", name).replace("${name}", name)
+    }
+
+    TransformClasses.processAllClasses(n, Some(member.cls)) { c =>
+      val cc = c.clone()
+      val clsName = cc.name.fold("")(_.name)
+      val mappedProps = cc.properties.flatMap { p =>
+        val name = propertyName(p)
+        if (member.name.test(name)) {
+          val value = applyTemplate(clsName, name)
+          Seq(
+            p,
+            AST_ObjectKeyVal(p)(templatePrefix + name, AST_String(p)(value))
+          )
+        } else {
+          Seq(p)
+        }
+      }
+      cc.properties = mappedProps
+      cc
     }
 
   }

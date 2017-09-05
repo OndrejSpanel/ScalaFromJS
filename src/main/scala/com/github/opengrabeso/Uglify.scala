@@ -812,6 +812,12 @@ object UglifyExt {
 
     object AST_String {
       def unapply(arg: AST_String) = Some(arg.value)
+      def apply(from: AST_Node)(value: String, quote: String="\"") = {
+        val v = new AST_String
+        v.value = value
+        v.quote = quote
+        v.withTokens(from)
+      }
     }
 
     object AST_This {
@@ -902,6 +908,13 @@ object UglifyExt {
 
     object AST_ObjectKeyVal {
       def unapply(arg: AST_ObjectKeyVal) = Some(arg.key, arg.value)
+      def apply(from: AST_Node)(key: String, value: AST_Node) = {
+        val kv = new AST_ObjectKeyVal
+        kv.key = key
+        kv.value = value
+        kv.quote = "\""
+        kv.withTokens(from)
+      }
     }
 
 

@@ -17,7 +17,13 @@ object ConvertProject {
 
   def loadStringValue(o: AST_Object, name: String): Option[String] = {
     o.properties.collectFirst {
-      case AST_ObjectKeyVal(`name`, AST_String(value)) => value
+      case AST_ObjectKeyVal(`name`, AST_String(value)) =>
+        value
+      case AST_ObjectKeyVal(`name`, AST_Array(lines@_*)) =>
+        val lineStrings = lines.collect {
+          case s: AST_String => s.value
+        }
+        lineStrings.mkString("\n")
     }
   }
 
@@ -51,6 +57,13 @@ object ConvertProject {
     override def apply(n: AST_Extended) = {
       TransformClasses.makeProperties(n, member)
     }
+  }
+
+  case class ReplicateMemberRule(member: MemberDesc, template: String) extends Rule {
+    override def apply(n: AST_Extended) = {
+      TransformClasses.replicateMember(n, member, template)
+    }
+
   }
 
   case class AliasPackageRule(folder: String, name: String) extends Rule {
@@ -91,6 +104,9 @@ object ConvertProject {
                   Some(MakePropertyRule(m))
                 case Some("instanceof") =>
                   Some(IsClassMemberRule(m))
+                case Some("replicate") =>
+                  val template = loadStringValue(o, "template")
+                  Some(ReplicateMemberRule(m, template.get))
                 case Some(opName) =>
                   throw new UnsupportedOperationException(s"Unknown operation $opName for member $m")
                 case _ =>
