@@ -8,7 +8,7 @@ version := "0.1.1"
 
 scalaVersion in ThisBuild  := "2.12.1"
 
-scalacOptions in ThisBuild ++= Seq("-unchecked", "-feature", "-deprecation")
+scalacOptions in ThisBuild ++= Seq("-unchecked", "-feature", "-deprecation", "-P:scalajs:sjsDefinedByDefault")
 
 jsDependencies += ProvidedJS / "uglifyjs.js"
 

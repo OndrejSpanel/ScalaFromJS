@@ -10,7 +10,7 @@ import org.scalajs.dom.Event
 
 import scala.util.{Success, Try}
 
-object ScalaFromJS extends js.JSApp {
+object ScalaFromJS {
 
   private lazy val in = dom.document.getElementById("in")
   private lazy val out = dom.document.getElementById("out")
@@ -93,7 +93,7 @@ object ScalaFromJS extends js.JSApp {
 
   }
 
-  def main(): Unit = {
+  def main(args: Array[String]): Unit = {
     if (!js.isUndefined(dom.window.document)) {
       dom.window.addEventListener("load", windowLoaded)
     } else {

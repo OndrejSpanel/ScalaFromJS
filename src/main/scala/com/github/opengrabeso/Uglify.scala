@@ -518,12 +518,10 @@ object UglifyExt {
 
   object Options {
 
-    @ScalaJSDefined
     class Parse extends js.Object {
       var strict: Boolean = false
     }
 
-    @ScalaJSDefined
     class Compress extends js.Object {
       // https://github.com/mishoo/UglifyJS2#compressor-options
       var sequences: Boolean = true
@@ -554,7 +552,6 @@ object UglifyExt {
       var global_defs: Map[String, Any] = Map.empty
     }
 
-    @ScalaJSDefined
     class Output extends js.Object {
       var indent_start: Int = 0
       var indent_level: Int = 4
@@ -577,7 +574,6 @@ object UglifyExt {
 
   }
 
-  @ScalaJSDefined
   class Options extends js.Object {
 
     import Options._
