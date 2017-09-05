@@ -223,14 +223,24 @@ class ClassTests extends FunSuite with TestUtils {
               this.name = name;
           }
 
+          set(name) {
+              this.name = name;
+          }
+
           clone() {
               return new Person(name);
           }
+
       }
 
       class Employee extends Person {
           constructor(name, salary ) {
               super(name);
+              this.salary = salary;
+          }
+
+          set(name, salary) {
+              this.name = name;
               this.salary = salary;
           }
 
@@ -242,7 +252,10 @@ class ClassTests extends FunSuite with TestUtils {
       let bob = new Employee('Bob', 1000);
       """).required(
         "def clone()",
+        "def set(",
         "override def clone()"
+      ).forbidden(
+        "override def set("
       )
 
 

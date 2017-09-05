@@ -907,7 +907,27 @@ object ScalaOut {
 
           if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
-          for (p <- functionMembers if p != inlineBody) nodeToOut(p)
+          for (p <- functionMembers if p != inlineBody) {
+            // check overrides
+
+
+            val isOverride = for {
+              parentSym <- Classes.superClass(tn)
+              parentCls <- input.classes.get(parentSym)
+              parentMethod <- Classes.findMethod(parentCls, p.key.name)
+            } yield {
+              // check method signature
+              def getArgTypes(m: AST_ConciseMethod) = {
+                m.value.argnames.flatMap(_.thedef.nonNull).map(SymbolTypes.id).map(input.types.get)
+              }
+              val myParTypes = getArgTypes(p)
+              val parentTypes = getArgTypes(parentMethod)
+              myParTypes.toSeq == parentTypes.toSeq
+            }
+
+            if (isOverride.contains(true)) out("override ")
+            out"def ${p.key}${p.value}\n"
+          }
 
           out.unindent()
           out.eol()
