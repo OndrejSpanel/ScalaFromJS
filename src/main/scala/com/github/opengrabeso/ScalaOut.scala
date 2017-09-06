@@ -532,7 +532,7 @@ object ScalaOut {
       case tn: AST_ObjectGetter =>
         accessorToOut(tn, "")
       case tn: AST_ObjectKeyVal =>
-        if (tn.key startsWith templatePrefix) {
+        if (keyValIsTemplate(tn)) {
           tn.value match {
             case AST_Sequence(node: AST_ObjectProperty, AST_String(template)) =>
 
@@ -924,7 +924,12 @@ object ScalaOut {
 
           //blockToOut(tn.body)
 
-          val (functionMembers, varMembers) = nonStaticProperties.partitionByType[AST_ConciseMethod]
+          val (functionMembers, varMembers) = nonStaticProperties.partition {
+            case _: AST_ConciseMethod => true
+            case kv: AST_ObjectKeyVal if keyValIsTemplate(kv) => true
+            case _ => false
+          }
+
 
           //out(s"/*fun: ${functionMembers.length} var: ${varMembers.length}*/")
           varMembers.foreach { n =>
@@ -936,33 +941,39 @@ object ScalaOut {
 
           if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
-          for (p <- functionMembers if p != inlineBody) {
-            // check overrides
-            def isObjectOverride = {
-              // special case: override AnyRef (java.lang.Object) methods:
-              val objectMethods = Set("clone", "toString", "hashCode", "getClass")
-              p.value.argnames.isEmpty && objectMethods.contains(p.key.name)
-            }
-
-            def isNormalOverride = {
-              val isOverride = for {
-                parentSym <- Classes.superClass(tn)
-                parentCls <- input.classes.get(parentSym)
-                parentMethod <- Classes.findMethod(parentCls, p.key.name)
-              } yield {
-                // check method signature
-                def getArgTypes(m: AST_ConciseMethod) = {
-                  m.value.argnames.flatMap(_.thedef.nonNull).map(SymbolTypes.id).map(input.types.get)
+          for (pm <- functionMembers if pm != inlineBody) {
+            pm match {
+              case p: AST_ConciseMethod =>
+                // check overrides
+                def isObjectOverride = {
+                  // special case: override AnyRef (java.lang.Object) methods:
+                  val objectMethods = Set("clone", "toString", "hashCode", "getClass")
+                  p.value.argnames.isEmpty && objectMethods.contains(p.key.name)
                 }
-                val myParTypes = getArgTypes(p)
-                val parentTypes = getArgTypes(parentMethod)
-                myParTypes.toSeq == parentTypes.toSeq
-              }
-              isOverride.contains(true)
-            }
 
-            if (isObjectOverride || isNormalOverride) out("override ")
-            out"def ${p.key}${p.value}\n"
+                def isNormalOverride = {
+                  val isOverride = for {
+                    parentSym <- Classes.superClass(tn)
+                    parentCls <- input.classes.get(parentSym)
+                    parentMethod <- Classes.findMethod(parentCls, p.key.name)
+                  } yield {
+                    // check method signature
+                    def getArgTypes(m: AST_ConciseMethod) = {
+                      m.value.argnames.flatMap(_.thedef.nonNull).map(SymbolTypes.id).map(input.types.get)
+                    }
+
+                    val myParTypes = getArgTypes(p)
+                    val parentTypes = getArgTypes(parentMethod)
+                    myParTypes.toSeq == parentTypes.toSeq
+                  }
+                  isOverride.contains(true)
+                }
+
+                if (isObjectOverride || isNormalOverride) out("override ")
+                out"def ${p.key}${p.value}\n"
+              case _ =>
+                nodeToOut(pm)
+            }
           }
 
           out.unindent()

@@ -1057,4 +1057,6 @@ object UglifyExt {
     case p: AST_ConciseMethod => p.key.name
   }
 
+  def keyValIsTemplate(kv: AST_ObjectKeyVal): Boolean = kv.key startsWith Symbols.templatePrefix
+
 }
