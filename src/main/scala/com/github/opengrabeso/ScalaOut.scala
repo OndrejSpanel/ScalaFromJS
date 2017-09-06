@@ -529,13 +529,15 @@ object ScalaOut {
         accessorToOut(tn, "")
       case tn: AST_ObjectKeyVal =>
         if (tn.key startsWith templatePrefix) {
-          out.eol()
-          val content = tn.value match {
-            case s: AST_String => s.value
-            case x => x.toString
+          tn.value match {
+            case AST_Sequence(node: AST_ObjectProperty, AST_String(template)) =>
+              nodeToOut(node)
+              out.eol()
+              out(template)
+              out.eol()
+
+            case x =>
           }
-          out(content)
-          out.eol()
         } else {
           out.eol()
           out"var ${identifier(tn.key)} = ${tn.value}\n"

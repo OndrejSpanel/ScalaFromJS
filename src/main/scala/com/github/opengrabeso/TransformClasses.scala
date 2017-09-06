@@ -1404,10 +1404,11 @@ object TransformClasses {
         val name = propertyName(p)
         if (member.name.test(name)) {
           val value = applyTemplate(clsName, name)
-          Seq(
-            p,
-            AST_ObjectKeyVal(p)(templatePrefix + name, AST_String(p)(value))
-          )
+          val v = new AST_Sequence {
+            fillTokens(this, p)
+            expressions = js.Array(p, AST_String(p)(value))
+          }
+          Seq[AST_ObjectProperty](AST_ObjectKeyVal(p)(templatePrefix + name, v))
         } else {
           Seq(p)
         }

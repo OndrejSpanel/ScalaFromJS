@@ -283,7 +283,7 @@ object Uglify extends js.Object {
 
   @js.native class AST_Sequence extends AST_Node {
     // array of expressions (at least two)
-    val expressions: js.Array[AST_Node] = js.native
+    var expressions: js.Array[AST_Node] = js.native
   }
 
   @js.native sealed abstract class AST_PropAccess extends AST_Node {
@@ -886,6 +886,10 @@ object UglifyExt {
 
     object AST_Sub {
       def unapply(arg: AST_Sub) = Some(arg.expression, arg.property)
+    }
+
+    object AST_Sequence {
+      def unapplySeq(arg: AST_Sequence) = Some(arg.expressions.toSeq)
     }
 
     object AST_Array {
