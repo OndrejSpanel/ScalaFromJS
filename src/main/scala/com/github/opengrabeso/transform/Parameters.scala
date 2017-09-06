@@ -303,14 +303,15 @@ object Parameters {
   * */
   def inlineConstructorVars(n: AST_Extended): AST_Extended = {
     var types = n.types
+    val logging = false
     def handleConstructorVars(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
       if (!f.name.nonNull.exists(_.name == Classes.inlineBodyName)) Some(f)
       else {
         // inline all parameters, or constructor only?
         val parName = par.name
-        //println(s"Checking par $parName in ${f.name.map(_.name)}")
+        if (logging) println(s"Checking par $parName in ${f.name.map(_.name)}")
         if (parName.endsWith(Symbols.parSuffix) && par.thedef.isDefined) {
-          //println(s"  is _par")
+          if (logging) println(s"  is _par")
           val parDef = par.thedef.get
           object IsVarPar {
 
@@ -338,8 +339,14 @@ object Parameters {
           var otherUse = false
           f.walk {
             case IsVarPar(varSym) =>
-              //println(s"Detected deprecated par for $parName")
-              if (!otherUse) isVarPar = Some(varSym)
+              if (logging) println(s"Detected variable par ${varSym.name} for $parName")
+              // only one var-par is allowed
+              if (!otherUse && isVarPar.isEmpty) isVarPar = Some(varSym)
+              else {
+                if (logging) println(s"  multiple variable par candidates for $parName")
+                isVarPar = None
+                otherUse = true
+              }
               true // use inside of the current pattern must not set otherUse
             case AST_Call(AST_This() AST_Dot "constructor", args@_*) if args.exists(isParRef) =>
               // passed to the constructor - this is always allowed
@@ -347,7 +354,7 @@ object Parameters {
               //println(s"Detected constructor call for $parName")
               true
             case AST_SymbolRefName(`parName`) =>
-              //println(s"Detected other use for $parName")
+              if (logging) println(s"Detected other use for $parName")
               isVarPar = None
               otherUse = true
               true
@@ -357,7 +364,7 @@ object Parameters {
           }
 
           isVarPar.map { varSym =>
-            //println(s"Rename ${varSym.name} in ${f.name.get.name}")
+            if (logging) println(s"Rename ${varSym.name} in ${f.name.get.name}")
 
             val parIndex = f.argnames.indexOf(par)
             val parNode = f.argnames(parIndex).clone()

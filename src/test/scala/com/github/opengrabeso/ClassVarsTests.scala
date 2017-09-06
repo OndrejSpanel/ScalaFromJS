@@ -73,4 +73,28 @@ class ClassVarsTests extends FunSuite with TestUtils {
       )
 
   }
+
+  test("Duplicate assignment prevents introducing a parameter variable") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      class Person {
+          constructor(name) {
+              this.name = name;
+              this.c = name
+          }
+
+      }
+
+      let bob = new Person('Bob');
+      """).required(
+        "class Person(name_par: String)",
+        "var name: String = name_par",
+        "var c: String = name_par"
+      ).forbidden(
+        "(var name:"
+      )
+
+  }
+
 }
