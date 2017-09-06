@@ -148,11 +148,11 @@ object Classes {
 
   }
 
-  def classInlineBody(cls: AST_DefClass): AST_Accessor = {
+  def classInlineBody(cls: AST_DefClass, tokensFrom: AST_Node): AST_Accessor = {
     //println(s"Class inline body $cls")
     val present = findInlineBody(cls)
     val method = present.getOrElse {
-      val newInlineBody = newMethod(inlineBodyName, Seq(), Seq(), cls)
+      val newInlineBody = newMethod(inlineBodyName, Seq(), Seq(), tokensFrom)
       cls.properties = cls.properties :+ newInlineBody
       newInlineBody
     }

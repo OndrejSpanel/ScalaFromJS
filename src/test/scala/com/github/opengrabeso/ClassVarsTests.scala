@@ -27,4 +27,50 @@ class ClassVarsTests extends FunSuite with TestUtils {
     )
 
   }
+
+  test("Infer type of class members when using class variables in prototype based classes") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function Person(name){
+          this.name = name;
+      }
+
+      Person.prototype.set = function(n){
+          this.name = n
+      };
+
+      var bob = new Person('Bob');
+      """).required(
+        "class Person(var name: String)",
+        "def set(n: String)"
+      ).forbidden(
+        "Any"
+      )
+
+  }
+
+  test("Infer type of class members when using class variables in ES6 classes") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      class Person {
+          constructor(name) {
+              this.name = name;
+          }
+
+          set(n) {
+              this.name = n;
+          }
+      }
+
+      var bob = new Person("Bob")
+      """).required(
+        "class Person(var name: String)",
+        "def set(n: String)"
+      ).forbidden(
+        "Any"
+      )
+
+  }
 }

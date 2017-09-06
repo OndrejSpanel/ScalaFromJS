@@ -931,6 +931,12 @@ object TransformClasses {
     cleanupClasses
   }
 
+  def classTokenSource(cls: AST_DefClass): AST_Node = {
+    // prefer class name symbol as the token source
+    // ES6 classes parse class name as it is, we do not want to change this
+    // instead we change the class token root so that all symbols in the class have the same offset as the class symbol
+    cls.name.getOrElse(cls)
+  }
 
   // convert class members represented as AST_ObjectKeyVal into inline class body variables
   def convertClassMembers(n: AST_Node): AST_Node = {
@@ -949,7 +955,7 @@ object TransformClasses {
             case _ =>
           }
           if (newMembers.nonEmpty) {
-            val inlineBody = classInlineBody(cls)
+            val inlineBody = classInlineBody(cls, classTokenSource(cls))
             //println(s"inlineBody ${inlineBody.body}")
             //println(s"convertClassMembers newMembers ${newMembers.mkString(",")}")
 
@@ -1018,17 +1024,18 @@ object TransformClasses {
               false
           }
 
+          val clsTokenDef = classTokenSource(cls)
           val vars = newMembers.map { case (memberName, init) =>
             new AST_Var {
-              fillTokens(this, cls)
-              val varDef = init.fold(AST_VarDef.uninitialized(cls)(memberName))(AST_VarDef.initialized(cls) (memberName, _))
+              fillTokens(this, clsTokenDef)
+              val varDef = init.fold(AST_VarDef.uninitialized(clsTokenDef)(memberName))(AST_VarDef.initialized(clsTokenDef) (memberName, _))
               //println(s"fillVarMembers $varDef ${cls.start.get.pos} init $init")
               definitions = js.Array(varDef)
             }
           }
 
           if (vars.nonEmpty) {
-            val accessor = classInlineBody(cls)
+            val accessor = classInlineBody(cls, clsTokenDef)
 
             accessor.body ++= (vars: Iterable[AST_Statement]).toJSArray
             //println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
@@ -1074,7 +1081,7 @@ object TransformClasses {
     n.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
-
+          val clsTokenDef = classTokenSource(cls)
           for {
             constructorProperty@AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)
           } {
@@ -1100,14 +1107,14 @@ object TransformClasses {
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
                   case (_: AST_This) AST_Dot member if !transformer.parent().isInstanceOf[AST_Call] =>
-                    AST_SymbolRef(cls)(member)
+                    AST_SymbolRef(clsTokenDef)(member)
                   case _ =>
                     node
                 }
               }
             }
             // add adjusted constructor argument names so that parser correctly resolves them inside of the function
-            val accessor = classInlineBody(cls)
+            val accessor = classInlineBody(cls, clsTokenDef)
             accessor.argnames = constructor.argnames.map { p =>
               val a = p.clone()
               a.name = p.name + parSuffix
