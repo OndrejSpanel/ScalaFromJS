@@ -118,9 +118,13 @@ object ScalaOut {
           identifierToOut(output, s.name)
 
           if (false) { // output symbol ids and types
-            val symId = SymbolTypes.id(s.thedef.get)
-            out"/*${symId.fold(-1)(_.sourcePos)}*/"
-            out"/*${input.types.get(symId)}*/"
+            s.thedef.fold {
+              out"/*thedef == null*/"
+            } { df =>
+              val symId = SymbolTypes.id(df)
+              out"/*${symId.fold(-1)(_.sourcePos)}*/"
+              out"/*${input.types.get(symId)}*/"
+            }
           }
         case n: AST_Node =>
           nodeToOut(n)
