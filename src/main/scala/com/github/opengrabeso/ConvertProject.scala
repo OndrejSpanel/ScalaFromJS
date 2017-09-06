@@ -61,7 +61,7 @@ object ConvertProject {
 
   case class ReplicateMemberRule(member: MemberDesc, template: String) extends Rule {
     override def apply(n: AST_Extended) = {
-      TransformClasses.replicateMember(n, member, template)
+      TransformClasses.substMember(n, member, template)
     }
 
   }
@@ -104,7 +104,7 @@ object ConvertProject {
                   Some(MakePropertyRule(m))
                 case Some("instanceof") =>
                   Some(IsClassMemberRule(m))
-                case Some("replicate") =>
+                case Some("subst") =>
                   val template = loadStringValue(o, "template")
                   Some(ReplicateMemberRule(m, template.get))
                 case Some(opName) =>

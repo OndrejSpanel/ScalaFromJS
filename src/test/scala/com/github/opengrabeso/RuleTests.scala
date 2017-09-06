@@ -115,8 +115,9 @@ class RuleTests extends FunSuite with TestUtils {
               {
                   cls: ".*",
                   name: "equals",
-                  operation: "replicate",
+                  operation: "subst",
                   template: [
+                      "$this",
                       "override def $name(that: Any) = {",
                       "  obj match {",
                       "    case v: $class => this.equals(v)",

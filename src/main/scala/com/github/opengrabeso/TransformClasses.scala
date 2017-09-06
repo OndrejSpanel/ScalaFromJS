@@ -1391,7 +1391,7 @@ object TransformClasses {
 
   }
 
-  def replicateMember(n: AST_Extended, member: ConvertProject.MemberDesc, template: String) = {
+  def substMember(n: AST_Extended, member: ConvertProject.MemberDesc, template: String) = {
 
     def applyTemplate(cls: String, name: String) = {
       template.replace("$class", cls).replace("${class}", cls).replace("$name", name).replace("${name}", name)

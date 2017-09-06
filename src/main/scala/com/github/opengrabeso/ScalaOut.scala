@@ -531,11 +531,23 @@ object ScalaOut {
         if (tn.key startsWith templatePrefix) {
           tn.value match {
             case AST_Sequence(node: AST_ObjectProperty, AST_String(template)) =>
-              nodeToOut(node)
-              out.eol()
-              out(template)
-              out.eol()
 
+              val thisPattern = """(\$this|\${this})""".r.unanchored
+              val split = thisPattern.pattern.split(template, -1) // -1: do not discard trailing empty match
+
+              if (split.nonEmpty) {
+                // if reference to this is present, insert it where necessary
+                out.eol()
+                out(split.head)
+                for (s <- split.tail) {
+                  nodeToOut(node)
+                  out(s)
+                }
+                out.eol()
+              } else {
+                // if not, just output the template
+                out(template)
+              }
             case x =>
           }
         } else {
