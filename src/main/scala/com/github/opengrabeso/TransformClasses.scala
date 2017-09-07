@@ -1086,9 +1086,24 @@ object TransformClasses {
             constructorProperty@AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)
           } {
             // anything before a first variable declaration can be inlined, variables need to stay private
-            val (inlined, rest) = constructor.body.span {
+            val (inlined, rest_?) = constructor.body.span {
               case _: AST_Definitions => false
               case _ => true
+            }
+
+            // DRY: InitStatement
+            object IsConstant {
+              def unapply(arg: AST_Node) = arg match {
+                case c: AST_Constant => Some(arg)
+                case _ => None
+              }
+            }
+
+            val (inlineVars, rest) = rest_?.partition {
+              case AST_SimpleStatement(AST_Assign( (_: AST_This) AST_Dot member, "=", IsConstant(expr))) =>
+                true
+              case _ =>
+                false
             }
             //println(s"inlined ${inlined.map(nodeClassName)}")
             //println(s"rest ${rest.map(nodeClassName)}")
