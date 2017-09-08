@@ -125,9 +125,9 @@ object Uglify extends js.Object {
     // [string*/S] an array of directives declared in this scope
     val directives: js.UndefOr[js.Array[String]] = js.native
     // [Object/S] a map of name -> SymbolDef for all variables/functions defined in this scope
-    var variables: Dictionary[AST_SymbolVar] = js.native
+    var variables: Dictionary[SymbolDef] = js.native
     // [Object/S] like `variables`, but only lists function declarations
-    var functions: Dictionary[AST_SymbolDefun] = js.native
+    var functions: Dictionary[SymbolDef] = js.native
     // [boolean/S] tells whether this scope uses the `with` statement
     val uses_with: js.UndefOr[Boolean] = js.native
     // [boolean/S] tells whether this scope contains a direct call to the global `eval`
@@ -999,6 +999,14 @@ object UglifyExt {
     //println(s"fillTokens ${nodeClassName(to)} ${from.start.map(_.pos)}")
     to.start = from.start
     to.end = from.end
+  }
+
+  def fillTokensRecursively(to: AST_Node, from: AST_Node): Unit = {
+    to.transformBefore {(node, descend, transformer) =>
+      fillTokens(node, from)
+      descend(node, transformer)
+      node
+    }
   }
 
   def keyNode(orig: AST_Node, k: String) = AST_SymbolRef(orig)(k)

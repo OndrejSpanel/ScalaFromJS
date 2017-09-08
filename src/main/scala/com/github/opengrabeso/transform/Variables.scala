@@ -314,6 +314,39 @@ object Variables {
     ret.asInstanceOf[T]
   }
 
+  def replaceVariable[T <: AST_Node](n: T, oldName: SymbolDef, newExpr: AST_Node): T = {
+    val ret = n.transformAfter { (node, _) =>
+      node match {
+        case AST_SymbolRefDef(`oldName`) =>
+          val r = newExpr.clone()
+          fillTokensRecursively(r, node)
+          r
+        case _ =>
+          node
+      }
+    }
+    ret.asInstanceOf[T]
+  }
+
+  def replaceVariableInit[T <: AST_Node](n: T, oldName: SymbolDef)(transform: (AST_Symbol, AST_Node) => AST_Node): T = {
+    val ret = n.transformAfter { (node, _) =>
+      node match {
+        case AST_Definitions(varDef@AST_VarDef(AST_SymbolDef(`oldName`), init)) =>
+          init.map { init =>
+            val r = transform(varDef.name, init)
+            fillTokensRecursively(r, node)
+            r
+          }.getOrElse {
+            AST_EmptyStatement(node)
+          }
+        case _ =>
+          node
+      }
+    }
+    ret.asInstanceOf[T]
+
+  }
+
   /**
     * when possible, introduce a var into the for loop
     * i.e. transform for (i = 0; ..) {} into for (var i = 0; ..)

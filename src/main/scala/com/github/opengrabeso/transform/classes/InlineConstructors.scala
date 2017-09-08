@@ -8,28 +8,69 @@ import UglifyExt.Import._
 import Classes._
 import Expressions._
 import TransformClasses._
+import Variables._
 import Symbols._
+import VariableUtils.buildReferenceStacks
+
 
 object InlineConstructors {
-  private def detectPrivateMembers(n: AST_Lambda): Seq[AST_SymbolVar] = {
+  private def detectPrivateMembers(n: AST_Lambda): Seq[SymbolDef] = {
     // any variable defined in the main body scope and references from any function is considered a private member
     //n.variables = Dictionary.empty[SymbolDef]
-    val locals = for {
+
+    val refs = buildReferenceStacks(n)
+
+    val privates = for {
       (_, sym) <- n.variables
-      if sym.thedef.exists(_.references.nonEmpty) // empty 'references' means automatic symbol, like "arguments"
+      // empty 'references' means automatic symbol, like "arguments"
+      rs <- refs.refs.get(sym)
+      if (rs -- Set(n)).exists(_.isInstanceOf[AST_Lambda])
     } yield {
       sym
     }
 
-    /*
-    n.walk {
-      case AST_Definitions() =>
-        false
-      case _ =>
-        true
+    privates.toSeq
+  }
+
+  def privateVariables(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, _) =>
+      node match {
+        case cls: AST_DefClass =>
+          for {
+            constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
+          } {
+            val locals = detectPrivateMembers(rawConstructor)
+            //println(s"Locals ${locals.map(_.name)}")
+            // convert private variables to members (TODO: mark them as private somehow)
+
+            def newThisDotMember(member: String) = new AST_Dot {
+              expression = new AST_This {
+                name = "this"
+              }
+              property = member
+            }
+
+            def privateMember(v: SymbolDef): AST_Node = newThisDotMember(v.name)
+
+            val constructor = locals.foldLeft(rawConstructor) { (constructor, privateVar) =>
+              val replacedInit = replaceVariableInit(constructor, privateVar) { (sym, init) =>
+                new AST_SimpleStatement {
+                  body = new AST_Assign {
+                    left = newThisDotMember(sym.name)
+                    operator = "="
+                    right = init.clone()
+                  }
+                }
+              }
+              replaceVariable(replacedInit, privateVar, privateMember(privateVar))
+            }
+            constructorProperty.value = constructor
+          }
+          cls
+        case _ =>
+          node
+      }
     }
-    */
-    locals.toSeq
   }
 
   def apply(n: AST_Node): AST_Node = {
@@ -40,8 +81,6 @@ object InlineConstructors {
           for {
             constructorProperty@AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)
           } {
-            val locals = detectPrivateMembers(constructor)
-            println(s"Locals ${locals.map(_.name)}")
             // anything before a first variable declaration can be inlined, variables need to stay private
             val (inlined, rest_?) = constructor.body.span {
               case _: AST_Definitions => false

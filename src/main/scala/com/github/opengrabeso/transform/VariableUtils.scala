@@ -28,7 +28,6 @@ object VariableUtils {
 
   case class ReferenceScopes(refs: Map[SymbolDef, Set[AST_Scope]]) {
     def walkReferences[X](df: SymbolDef, isDfModified: Extractor[X])(onModification: X => Boolean): Boolean = {
-      // ++ orig is a hotfix for issue https://github.com/mishoo/UglifyJS2/issues/1702 - include orig, likely to help
       val scopes = refs.getOrElse(df, Seq())
 
       scopes.exists { s =>
