@@ -20,6 +20,9 @@ object InlineConstructors {
 
     val refs = buildReferenceStacks(n)
 
+    // TODO: consider only references from exported functions, ignore references from local named functions
+    // beware of local functions used from exported functions, including their transitive closure
+    // to stay safe, we do not ignore them now (may result in more private members than needed)
     val privates = for {
       (_, sym) <- n.variables
       // empty 'references' means automatic symbol, like "arguments"
