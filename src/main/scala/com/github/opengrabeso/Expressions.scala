@@ -4,9 +4,8 @@ import com.github.opengrabeso.Uglify._
 import com.github.opengrabeso.UglifyExt.Import._
 
 object Expressions {
-  // DRY: InitStatement
   object IsConstant {
-    def unapply(arg: AST_Node) = arg match {
+    def unapply(arg: AST_Node): Option[AST_Node] = arg match {
       case c: AST_Constant => Some(arg)
       case _ => None
     }
@@ -14,7 +13,7 @@ object Expressions {
 
   object InitStatement {
     def unapply(arg: AST_Node) = arg match {
-      case c: AST_Constant => Some(c)
+      case IsConstant(c) => Some(c)
       // TODO: accept only some forms of new or Array (avoid reordering dependent expressions)
       case c: AST_Array => Some(c)
       case c: AST_New => Some(c)
@@ -41,7 +40,7 @@ object Expressions {
   }
 
   object SingleStatement {
-    def unapply(arg: AST_Statement) = arg match {
+    def unapply(arg: AST_Statement): Option[AST_Node] = arg match {
       case AST_BlockStatement(Seq(AST_SimpleStatement(body))) => Some(body)
       case AST_SimpleStatement(body) => Some(body)
       case _ => None

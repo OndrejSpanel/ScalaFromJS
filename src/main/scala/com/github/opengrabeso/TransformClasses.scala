@@ -1093,7 +1093,8 @@ object TransformClasses {
             }
 
             val (inlineVars, rest) = rest_?.partition {
-              case AST_SimpleStatement(AST_Assign( (_: AST_This) AST_Dot member, "=", IsConstant(expr))) =>
+              case SingleStatement(AST_Assign( (_: AST_This) AST_Dot member, "=", IsConstant(expr))) =>
+                println(s"Assign const $expr")
                 true
               case _ =>
                 false
@@ -1106,7 +1107,7 @@ object TransformClasses {
             object IsParameter {
               def unapply(arg: String): Boolean = parNamesSet contains arg
             }
-            val parNamesAdjusted = inlined.map { s =>
+            val parNamesAdjusted = (inlined ++ inlineVars).map { s =>
               s.transformAfter { (node, transformer) =>
                 node match {
                   case sym@AST_SymbolName(IsParameter()) =>
