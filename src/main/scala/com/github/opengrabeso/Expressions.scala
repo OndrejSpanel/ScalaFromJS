@@ -11,6 +11,24 @@ object Expressions {
     }
   }
 
+  object IsConstantInitializer {
+    private def allConstants(seq: Seq[AST_Node]): Boolean = seq.forall(IsConstantInitializer.unapply(_).isDefined)
+    def unapply(arg: AST_Node): Option[AST_Node] = arg match {
+      case IsConstant(c) =>
+        Some(c)
+      case AST_New(cls, args@_*) if allConstants(args) =>
+        Some(arg)
+      case AST_Array(args@_*) if allConstants(args) =>
+        Some(arg)
+      case c@AST_Object(Seq()) => // empty object/map initializer
+        Some(c)
+      case _ =>
+        None
+    }
+  }
+
+  // a bit relaxed, some non-constant expression allowed as well
+  // while this theoretically incorrect, in practice the results seem good
   object InitStatement {
     def unapply(arg: AST_Node) = arg match {
       case IsConstant(c) => Some(c)

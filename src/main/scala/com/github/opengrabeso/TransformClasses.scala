@@ -1093,8 +1093,8 @@ object TransformClasses {
             }
 
             val (inlineVars, rest) = rest_?.partition {
-              case SingleStatement(AST_Assign( (_: AST_This) AST_Dot member, "=", IsConstant(expr))) =>
-                println(s"Assign const $expr")
+              case SingleStatement(AST_Assign( (_: AST_This) AST_Dot member, "=", IsConstantInitializer(expr))) =>
+                //println(s"Assign const $expr")
                 true
               case _ =>
                 false
