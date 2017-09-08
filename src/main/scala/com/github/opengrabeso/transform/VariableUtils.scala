@@ -4,6 +4,7 @@ package transform
 import Uglify._
 import UglifyExt._
 import UglifyExt.Import._
+import Expressions._
 
 import scala.language.implicitConversions
 

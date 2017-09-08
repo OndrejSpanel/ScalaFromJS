@@ -6,6 +6,7 @@ import UglifyExt._
 import JsUtils._
 import UglifyExt.Import._
 import SymbolTypes.SymbolMapId
+import Expressions._
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -1086,9 +1087,17 @@ object TransformClasses {
             constructorProperty@AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)
           } {
             // anything before a first variable declaration can be inlined, variables need to stay private
-            val (inlined, rest) = constructor.body.span {
+            val (inlined, rest_?) = constructor.body.span {
               case _: AST_Definitions => false
               case _ => true
+            }
+
+            val (inlineVars, rest) = rest_?.partition {
+              case SingleStatement(AST_Assign( (_: AST_This) AST_Dot member, "=", IsConstantInitializer(expr))) =>
+                //println(s"Assign const $expr")
+                true
+              case _ =>
+                false
             }
             //println(s"inlined ${inlined.map(nodeClassName)}")
             //println(s"rest ${rest.map(nodeClassName)}")
@@ -1098,7 +1107,7 @@ object TransformClasses {
             object IsParameter {
               def unapply(arg: String): Boolean = parNamesSet contains arg
             }
-            val parNamesAdjusted = inlined.map { s =>
+            val parNamesAdjusted = (inlined ++ inlineVars).map { s =>
               s.transformAfter { (node, transformer) =>
                 node match {
                   case sym@AST_SymbolName(IsParameter()) =>

@@ -97,4 +97,43 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
   }
 
+
+
+  test("Member initializations after var inlined only when constant") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function Cls() {
+        var x = 0;
+        this.prop = true;
+        this.props = "";
+        this.a = [];
+        this.b = [0];
+        this.c = [something];
+        this.d = Infinity;
+        this.e = -1;
+        this.f = 1 + 2 * 5;
+      }
+
+      var w = new Cls()
+      """).required(
+        "this.c =",
+        "var a",
+        "var b",
+        "var c",
+        "var prop",
+        "var props"
+      ).forbidden(
+        "this.prop =",
+        "this.props =",
+        "this.a =",
+        "this.b =",
+        "this.d =",
+        "this.e =",
+        "this.f ="
+      )
+
+  }
+
+
 }

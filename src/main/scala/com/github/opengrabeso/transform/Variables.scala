@@ -6,7 +6,8 @@ import Uglify._
 import UglifyExt._
 import UglifyExt.Import._
 import Classes._
-import com.github.opengrabeso.SymbolTypes._
+import SymbolTypes._
+import Expressions._
 
 import scala.scalajs.js
 import js.JSConverters._

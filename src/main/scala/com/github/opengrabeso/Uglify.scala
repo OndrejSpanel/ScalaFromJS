@@ -952,26 +952,6 @@ object UglifyExt {
       }
     }
 
-    object UnaryModification {
-      def unapply(arg: String): Boolean = arg == "++" || arg == "--"
-    }
-
-    object Statements {
-      def unapply(arg: AST_Statement) = arg match {
-        case AST_BlockStatement(body) => Some(body)
-        case s@AST_SimpleStatement(body) => Some(Seq(s))
-        case _ => None
-      }
-    }
-
-    object SingleStatement {
-      def unapply(arg: AST_Statement) = arg match {
-        case AST_BlockStatement(Seq(AST_SimpleStatement(body))) => Some(body)
-        case AST_SimpleStatement(body) => Some(body)
-        case _ => None
-      }
-    }
-
   }
 
   object Import extends AST_Extractors
