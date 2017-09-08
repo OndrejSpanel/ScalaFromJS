@@ -148,7 +148,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
       }
       var w = new WebGLRenderer()
       """).required(
-      "var x =",
+      "val x =",
       "this._gl"
     ).forbidden(
       "this.x"
