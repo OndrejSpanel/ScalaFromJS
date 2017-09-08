@@ -11,6 +11,27 @@ import TransformClasses._
 import Symbols._
 
 object InlineConstructors {
+  private def detectPrivateMembers(n: AST_Lambda): Seq[AST_SymbolVar] = {
+    // any variable defined in the main body scope and references from any function is considered a private member
+    //n.variables = Dictionary.empty[SymbolDef]
+    val locals = for {
+      (_, sym) <- n.variables
+      if sym.thedef.exists(_.references.nonEmpty) // empty 'references' means automatic symbol, like "arguments"
+    } yield {
+      sym
+    }
+
+    /*
+    n.walk {
+      case AST_Definitions() =>
+        false
+      case _ =>
+        true
+    }
+    */
+    locals.toSeq
+  }
+
   def apply(n: AST_Node): AST_Node = {
     n.transformAfter { (node, _) =>
       node match {
@@ -19,6 +40,8 @@ object InlineConstructors {
           for {
             constructorProperty@AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)
           } {
+            val locals = detectPrivateMembers(constructor)
+            println(s"Locals ${locals.map(_.name)}")
             // anything before a first variable declaration can be inlined, variables need to stay private
             val (inlined, rest_?) = constructor.body.span {
               case _: AST_Definitions => false

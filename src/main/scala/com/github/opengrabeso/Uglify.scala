@@ -5,6 +5,7 @@ import scala.scalajs.js
 import scala.scalajs.js.RegExp
 import scala.scalajs.js.annotation._
 import JsUtils._
+
 import js.JSConverters._
 
 object Helpers {
@@ -67,6 +68,14 @@ object Uglify extends js.Object {
     var id: js.Any = js.native
   }
 
+  @js.native class Dictionary[T] extends js.Any {
+    def set(key: String, v: T): this.type = js.native
+    def get(key: String): T = js.native
+    def has(key: String): T = js.native
+    def each[R](f: js.Function2[T, String, R]): Unit = js.native
+    def size: Int = js.native
+    def toObject: js.Dynamic = js.native
+  }
 
 
   // f:  return true to abort the walk
@@ -116,9 +125,9 @@ object Uglify extends js.Object {
     // [string*/S] an array of directives declared in this scope
     val directives: js.UndefOr[js.Array[String]] = js.native
     // [Object/S] a map of name -> SymbolDef for all variables/functions defined in this scope
-    val variables: js.Dynamic = js.native
+    var variables: Dictionary[AST_SymbolVar] = js.native
     // [Object/S] like `variables`, but only lists function declarations
-    val functions: js.Dynamic = js.native
+    var functions: Dictionary[AST_SymbolDefun] = js.native
     // [boolean/S] tells whether this scope uses the `with` statement
     val uses_with: js.UndefOr[Boolean] = js.native
     // [boolean/S] tells whether this scope contains a direct call to the global `eval`
@@ -1038,5 +1047,11 @@ object UglifyExt {
   }
 
   def keyValIsTemplate(kv: AST_ObjectKeyVal): Boolean = kv.key startsWith Symbols.templatePrefix
+
+  implicit class DictionaryWrapper[T](dict: Uglify.Dictionary[T]) extends Traversable[(String, T)] {
+    override def foreach[U](f: ((String, T)) => U) = {
+      dict.each((t,s) => f(s,t))
+    }
+  }
 
 }
