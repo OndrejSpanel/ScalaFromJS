@@ -5,6 +5,7 @@ import Uglify._
 import UglifyExt._
 import UglifyExt.Import._
 import Classes._
+import Expressions._
 
 import scala.collection.mutable
 import scala.scalajs.js

@@ -7,6 +7,7 @@ import UglifyExt._
 import UglifyExt.Import._
 import scalajs.js
 import Transform._
+import Expressions._
 
 object Parameters {
 
@@ -56,22 +57,6 @@ object Parameters {
   }
 
   def defaultValues(n: AST_Node): AST_Node = {
-
-    object InitStatement {
-      def unapply(arg: AST_Node) = arg match {
-        case c: AST_Constant => Some(c)
-        // TODO: accept only some forms of new or Array (avoid reordering dependent expressions)
-        case c: AST_Array => Some(c)
-        case c: AST_New => Some(c)
-        case c@AST_Object(Seq()) => Some(c)
-        // TODO: check for dependent expressions
-        case c: AST_SymbolRef => Some(c)
-        case c@((x: AST_SymbolRef) AST_Dot _) => Some(c)
-        case _ =>
-          //println(s"${nodeClassName(arg)}")
-          None
-      }
-    }
 
     // the only use of a parameter is in a `x_par || value` form
     def introduceDefaultValue(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {

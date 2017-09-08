@@ -6,6 +6,7 @@ import UglifyExt._
 import JsUtils._
 import UglifyExt.Import._
 import SymbolTypes.SymbolMapId
+import Expressions._
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -1089,14 +1090,6 @@ object TransformClasses {
             val (inlined, rest_?) = constructor.body.span {
               case _: AST_Definitions => false
               case _ => true
-            }
-
-            // DRY: InitStatement
-            object IsConstant {
-              def unapply(arg: AST_Node) = arg match {
-                case c: AST_Constant => Some(arg)
-                case _ => None
-              }
             }
 
             val (inlineVars, rest) = rest_?.partition {
