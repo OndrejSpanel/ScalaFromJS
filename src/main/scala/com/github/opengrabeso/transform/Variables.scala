@@ -332,7 +332,7 @@ object Variables {
     val ret = n.transformAfter { (node, _) =>
       node match {
         case AST_Definitions(varDef@AST_VarDef(AST_SymbolDef(`oldName`), init)) =>
-          init.map { init =>
+          init.nonNull.map { init =>
             val r = transform(varDef.name, init)
             fillTokensRecursively(r, node)
             r
