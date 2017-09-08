@@ -109,7 +109,10 @@ class ClassVarsTests extends FunSuite with TestUtils {
         this.props = "";
         this.a = [];
         this.b = [0];
-        this.c = [something]
+        this.c = [something];
+        this.d = Infinity;
+        this.e = -1;
+        this.f = 1 + 2 * 5;
       }
 
       var w = new Cls()
@@ -124,7 +127,10 @@ class ClassVarsTests extends FunSuite with TestUtils {
         "this.prop =",
         "this.props =",
         "this.a =",
-        "this.b ="
+        "this.b =",
+        "this.d =",
+        "this.e =",
+        "this.f ="
       )
 
   }

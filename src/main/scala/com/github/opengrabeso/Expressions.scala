@@ -5,33 +5,49 @@ import com.github.opengrabeso.UglifyExt.Import._
 
 object Expressions {
   object IsConstant {
-    def unapply(arg: AST_Node): Option[AST_Node] = arg match {
-      case c: AST_Constant => Some(arg)
-      case _ => None
+    def unapply(arg: AST_Node): Boolean = arg match {
+      case _: AST_Constant => true
+      case AST_SymbolRef("Infinity", _, _) => true
+      case _ => false
     }
   }
 
-  object IsConstantInitializer {
-    private def allConstants(seq: Seq[AST_Node]): Boolean = seq.forall(IsConstantInitializer.unapply(_).isDefined)
+  trait RecursiveExpressionCondition {
+    def allow(c: AST_Node): Boolean
+
+    def check(c: AST_Node): Boolean = unapply(c).isDefined
+
     def unapply(arg: AST_Node): Option[AST_Node] = arg match {
-      case IsConstant(c) =>
+      case c if allow(c) =>
         Some(c)
-      case AST_New(cls, args@_*) if allConstants(args) =>
+      case AST_New(cls, args@_*) if args.forall(check) =>
         Some(arg)
-      case AST_Array(args@_*) if allConstants(args) =>
+      case AST_Array(args@_*) if args.forall(check) =>
         Some(arg)
       case c@AST_Object(Seq()) => // empty object/map initializer
         Some(c)
+      case AST_Binary(a, _, b) if check(a) && check(b) =>
+        Some(arg)
+      case AST_Unary(UnaryModification(), _) =>
+        None
+      case AST_Unary(_, a) if check(a) =>
+        Some(arg)
       case _ =>
         None
     }
+
+  }
+
+  object IsConstantInitializer extends RecursiveExpressionCondition {
+    def allow(c: AST_Node): Boolean = IsConstant.unapply(c)
   }
 
   // a bit relaxed, some non-constant expression allowed as well
   // while this theoretically incorrect, in practice the results seem good
+  // TODO: use RecursiveExpressionCondition trait instead, define relaxed requirements explicitely
   object InitStatement {
     def unapply(arg: AST_Node) = arg match {
-      case IsConstant(c) => Some(c)
+      case c@IsConstant() => Some(c)
       // TODO: accept only some forms of new or Array (avoid reordering dependent expressions)
       case c: AST_Array => Some(c)
       case c: AST_New => Some(c)
