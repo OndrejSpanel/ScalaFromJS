@@ -12,6 +12,8 @@ import Variables._
 import Symbols._
 import VariableUtils.buildReferenceStacks
 
+import scala.scalajs.js
+
 
 object InlineConstructors {
   private def detectPrivateMembers(n: AST_Lambda): Seq[SymbolDef] = {
@@ -99,7 +101,7 @@ object InlineConstructors {
             }
 
             constructorProperty.value._body = rest
-            // add funs as methods
+            // add functions as methods
             cls.properties = cls.properties ++ functions.map {
               case node@DefinePrivateFunction(funName, lambda) =>
                 new AST_ConciseMethod {
@@ -112,7 +114,16 @@ object InlineConstructors {
                     // scope, thedef will be filled
 
                   }
-                  value = lambda
+                  value = new AST_Accessor {
+                    fillTokens(this, node)
+                    name = lambda.name
+                    argnames = lambda.argnames
+                    uses_arguments = lambda.uses_arguments
+                    this.body = lambda.body
+                  }
+                  `static` = false
+                  is_generator = false
+                  quote = "\""
                 }
 
             }
