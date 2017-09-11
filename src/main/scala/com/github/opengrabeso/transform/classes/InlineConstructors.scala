@@ -76,6 +76,54 @@ object InlineConstructors {
     }
   }
 
+  def privateFunctions(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, _) =>
+      node match {
+        case cls: AST_DefClass =>
+          for {
+            constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
+          } {
+            object DefinePrivateFunction {
+              def unapply(arg: AST_Statement) = arg match {
+                case SingleStatement(AST_Assign(AST_This() AST_Dot funName, "=", lambda: AST_Lambda)) =>
+                  Some(funName, lambda)
+                case _ =>
+                  None
+              }
+            }
+            val (functions, rest) = rawConstructor.body.partition {
+              case DefinePrivateFunction(_, _) =>
+                true
+              case _ =>
+                false
+            }
+
+            constructorProperty.value._body = rest
+            // add funs as methods
+            cls.properties = cls.properties ++ functions.map {
+              case node@DefinePrivateFunction(funName, lambda) =>
+                new AST_ConciseMethod {
+                  fillTokens(this, node)
+                  key = new AST_SymbolMethod {
+                    /*_*/
+                    fillTokens(this, node)
+                    /*_*/
+                    name = funName
+                    // scope, thedef will be filled
+
+                  }
+                  value = lambda
+                }
+
+            }
+          }
+          cls
+        case _ =>
+          node
+      }
+    }
+  }
+
   def apply(n: AST_Node): AST_Node = {
     n.transformAfter { (node, _) =>
       node match {

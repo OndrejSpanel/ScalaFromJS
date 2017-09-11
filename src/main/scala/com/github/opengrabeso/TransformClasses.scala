@@ -1296,6 +1296,8 @@ object TransformClasses {
     // privateVariables before FillVarMembers, so that variables are introduced correctly
     onTopNode(transform.classes.InlineConstructors.privateVariables),
     onTopNode(transform.classes.FillVarMembers.apply),
+    // privateFunctions after privateVariables, are already converted to this.member references
+    onTopNode(transform.classes.InlineConstructors.privateFunctions),
     // applyRules after fillVarMembers - we cannot delete members before they are created
     // applyRules before inlineConstructors, so that constructor is a single function
     applyRules,
