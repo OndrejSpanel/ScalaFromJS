@@ -26,17 +26,79 @@ class ValVarTests extends FunSuite with TestUtils {
     execute check ConversionCheck(
       // language=JavaScript
       """
-      var g = {
-        hi: "Hi"
+      function W() {
+          var wg = {
+              hi: "Hi"
+          }
       }
+
+      var g = {
+          hi: "Hi"
+      };
+
+      var w = new W()
       """).required(
-        "object g"
+        "object g",
+        "object wg"
       ).forbidden(
-        "val g",
-        "var g"
+        "val wg","var wg",
+        "val g","var g"
       )
 
   }
 
+  test("Do not detect object when var is reassigned") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function W() {
+          var wg = {
+              hi: "Hi"
+          };
+          wg = undefined;
+      }
+
+      var g = {
+          hi: "Hi"
+      };
+      g = undefined;
+
+      var w = new W()
+      """).required(
+        "var g",
+        "var wg"
+      ).forbidden(
+        "object g",
+        "object wg"
+      )
+
+  }
+
+  test("Detect object instead of variable even when used in a function") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function W() {
+          var wg = {
+              hi: "Hi"
+          };
+          var wf = function() {return wg}
+      }
+
+      var g = {
+          hi: "Hi"
+      };
+      var f = function() {return g};
+
+      var w = new W()
+      """).required(
+      "object g",
+      "object wg"
+    ).forbidden(
+      "val wg","var wg",
+      "val g","var g"
+    )
+
+  }
 
 }

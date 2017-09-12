@@ -331,7 +331,7 @@ object ScalaOut {
 
       tn.definitions.foreach {
 
-        case AST_VarDef(name, Defined(AST_Object(props))) if props.nonEmpty =>
+        case AST_VarDef(name, Defined(AST_Object(props))) if props.nonEmpty && isVal =>
           out"object $name {\n"
           out.indent()
           for (elem <- props) nodeToOut(elem)
