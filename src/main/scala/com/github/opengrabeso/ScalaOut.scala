@@ -331,7 +331,7 @@ object ScalaOut {
 
       tn.definitions.foreach {
 
-        case AST_VarDef(name, Defined(AST_Object(props))) if isVal && props.nonEmpty =>
+        case AST_VarDef(name, Defined(AST_Object(props))) if props.nonEmpty =>
           out"object $name {\n"
           out.indent()
           for (elem <- props) nodeToOut(elem)
@@ -354,7 +354,7 @@ object ScalaOut {
 
         case AST_VarDef(s@AST_Symbol(name, _, Defined(sym)), init) =>
           outValVar()
-          //out("/*outputDefinitions*/")
+          //out("/*outputDefinitions 1*/")
           val sType = getSymbolType(sym)
           //out"/*AST_VarDef sym ${SymbolTypes.id(sym)} $sType*/"
           //println(s"AST_VarDef sym ${SymbolTypes.id(sym)} $sType")
@@ -865,7 +865,7 @@ object ScalaOut {
         // find a constructor and output it
 
         val isStaticOnly = tn.`extends` match {
-          case Defined(AST_SymbolName("static_^")) =>
+          case Defined(AST_SymbolName(`staticClassName`)) =>
             true
           case _ =>
             false

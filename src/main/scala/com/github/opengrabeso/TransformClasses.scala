@@ -162,19 +162,6 @@ object TransformClasses {
     }
   }
 
-  object DefineStaticMembers {
-    //def unapply(arg: AST_Node): Option[(AST_SymbolVarOrConst, AST_Object)] = None
-
-    def unapply(arg: AST_Node) = arg match {
-      case AST_Definitions(AST_VarDef(sym: AST_Symbol, Defined(objDef: AST_Object))) if objDef.properties.nonEmpty =>
-        //println(s"Detect static class definition ${sym.name}")
-        Some(sym, objDef)
-      case _ =>
-        None
-    }
-  }
-
-
   object ClassParentAndPrototypeDef {
     def unapply(arg: AST_Node) = arg match {
       // name.prototype = Object.assign( Object.create( sym.prototype ), {... prototype object ... } )
@@ -569,10 +556,6 @@ object TransformClasses {
         }
         processPrototype(name, prototypeDef)
         true
-      case DefineStaticMembers(clsName, objDef) =>
-        //println(s"DefineStaticMembers $clsName")
-        processPrototype(ClassId(clsName), objDef, true)
-        true
       case ClassParentDef(name, sym) =>
         for (clazz <- classes.get(name)) {
           classes += name -> clazz.copy(base = Some(ClassId(sym)))
@@ -815,19 +798,6 @@ object TransformClasses {
 
         case ClassDefine(sym, _, _) if classes contains ClassId(sym) =>
           classDefine(sym)
-
-        case DefineStaticMembers(sym, _) if classes.contains(ClassId(sym)) =>
-          val clsId = ClassId(sym)
-          val clazz = classes(clsId)
-
-          object helper extends Helper(node)
-          import helper._
-
-          val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
-
-          val markerBase = AST_SymbolRef(node)("static_^")
-
-          newClass(sym, markerBase, mappedStatic)
 
         case DefineProperties(name, _) if classes.contains(name) =>
           emptyNode
