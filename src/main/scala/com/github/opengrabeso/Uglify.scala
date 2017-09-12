@@ -265,7 +265,7 @@ object Uglify extends js.Object {
   @js.native class AST_Break extends AST_LoopControl
   @js.native class AST_Continue extends AST_LoopControl
 
-  @js.native sealed abstract class AST_Definitions extends AST_Statement {
+  @js.native sealed abstract class AST_Definitions extends AST_Statement with CloneSelf[AST_Definitions] {
     // [AST_VarDef*] array of variable definitions
     var definitions: js.Array[AST_VarDef] = js.native
   }

@@ -158,6 +158,32 @@ object Variables {
     }
   }
 
+  /*
+  * many transformations assume each AST_Definitions contains at most one AST_VarDef
+  * Split multiple definitions (comma separated definitiob lists)
+  * */
+  def splitMultipleDefinitions(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, transformer) =>
+      node match {
+        case block: AST_Block =>
+          block.body = block.body.flatMap {
+            case defs: AST_Definitions =>
+              defs.definitions.map { d =>
+                val clone = defs.clone() // keeps AST_Definitions type (AST_Var or whatever it is)
+                clone.definitions = js.Array(d)
+                clone
+              }
+            case other =>
+              Seq(other)
+          }
+          block
+        case _ =>
+          node
+      }
+
+    }
+
+  }
   // merge variable declaration and first assignment if possible
   def varInitialization(n: AST_Node): AST_Node = {
 
