@@ -175,19 +175,11 @@ object Parameters {
         val parName = par.name
         //println(s"Checking $parName")
 
-        // check if the parameter is ever modified
-
-        object IsPar extends Extractor[Unit] {
-          def unapply(arg: AST_Node) = arg match {
-            case AST_SymbolRefDef(`parDef`) => Some(())
-            case _ => None
-          }
-        }
-        object IsParModified extends IsModified(IsPar)
 
         // TODO: cloning destroys reference stacks - gather first
 
-        val assignedInto = refs.walkReferences(parDef, IsParModified)(_ => true)
+        // check if the parameter is ever modified
+        val assignedInto = refs.isModified(parDef)
         if (assignedInto) {
           //println(s"Detected assignment into $parName")
           // we need to replace parameter x with x_par and intruduce var x = x_par

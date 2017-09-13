@@ -25,9 +25,17 @@ object VariableUtils {
     }
   }
 
+  class IsSym(sym: SymbolDef) extends Extractor[Unit] {
+    def unapply(arg: AST_Node) = arg match {
+      case AST_SymbolRefDef(`sym`) => Some(())
+      case _ => None
+    }
+  }
+
+  class VarIsModified(sym: SymbolDef) extends IsModified(new IsSym(sym))
 
   case class ReferenceScopes(refs: Map[SymbolDef, Set[AST_Scope]]) {
-    def walkReferences[X](df: SymbolDef, isDfModified: Extractor[X])(onModification: X => Boolean): Boolean = {
+    def walkReferences[X](df: SymbolDef, isDfModified: Extractor[X])(onModification: X => Boolean = (_: X) => true): Boolean = {
       val scopes = refs.getOrElse(df, Seq())
 
       scopes.exists { s =>
@@ -36,8 +44,9 @@ object VariableUtils {
         s.walk {
           case ss: AST_Scope =>
             ss != s // do not descend into any other scopes, they are listed in references if needed
-          case isDfModified(x) =>
-            //println(s"  Detected modification of ${df.name}")
+          //noinspection ScalaUnusedSymbol
+          case node@isDfModified(x) =>
+            //println(s"  Detected modification of ${df.name} by $node")
             if (onModification(x)) abort = true
             abort
           case _ =>
@@ -46,6 +55,8 @@ object VariableUtils {
         abort
       }
     }
+
+    def isModified(df: SymbolDef): Boolean = walkReferences(df, new VarIsModified(df))()
   }
 
   def buildReferenceStacks(n: AST_Node) = {

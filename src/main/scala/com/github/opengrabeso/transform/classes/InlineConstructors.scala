@@ -10,13 +10,12 @@ import Expressions._
 import TransformClasses._
 import Variables._
 import Symbols._
-import VariableUtils.buildReferenceStacks
-
-import scala.scalajs.js
-
+import VariableUtils._
 
 object InlineConstructors {
-  private def detectPrivateMembers(n: AST_Lambda): Seq[SymbolDef] = {
+  private case class PrivateMember(sym: SymbolDef, isVal: Boolean)
+
+  private def detectPrivateMembers(n: AST_Lambda): Seq[PrivateMember] = {
     // any variable defined in the main body scope and references from any function is considered a private member
     //n.variables = Dictionary.empty[SymbolDef]
 
@@ -34,7 +33,14 @@ object InlineConstructors {
       sym
     }
 
-    privates.toSeq
+    privates.toSeq.map { priv =>
+
+      // check which members are ever written to - we can convert all others to getters and methods
+      val modified = refs.isModified(priv)
+
+      PrivateMember(priv, modified)
+
+    }
   }
 
   def privateVariables(n: AST_Node): AST_Node = {
@@ -45,7 +51,7 @@ object InlineConstructors {
             constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
           } {
             val locals = detectPrivateMembers(rawConstructor)
-            //println(s"Locals ${locals.map(_.name)}")
+            println(s"Locals ${locals.map(l => l.sym.name -> l.isVal)}")
             // convert private variables to members (TODO: mark them as private somehow)
 
             def newThisDotMember(member: String) = new AST_Dot {
@@ -58,7 +64,7 @@ object InlineConstructors {
             def privateMember(v: SymbolDef): AST_Node = newThisDotMember(v.name)
 
             val constructor = locals.foldLeft(rawConstructor) { (constructor, privateVar) =>
-              val replacedInit = replaceVariableInit(constructor, privateVar) { (sym, init) =>
+              val replacedInit = replaceVariableInit(constructor, privateVar.sym) { (sym, init) =>
                 new AST_SimpleStatement {
                   body = new AST_Assign {
                     left = newThisDotMember(sym.name)
@@ -67,7 +73,7 @@ object InlineConstructors {
                   }
                 }
               }
-              replaceVariable(replacedInit, privateVar, privateMember(privateVar))
+              replaceVariable(replacedInit, privateVar.sym, privateMember(privateVar.sym))
             }
             constructorProperty.value = constructor
           }

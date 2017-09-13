@@ -40,15 +40,7 @@ object Variables {
             assert(df.name == varName.name)
             // check if any reference is assignment target
 
-            object IsDf extends Extractor[Unit] {
-              def unapply(arg: AST_Node) = arg match {
-                case AST_SymbolRefDef(`df`) => Some(())
-                case _ => None
-              }
-            }
-            object IsDfModified extends IsModified(IsDf)
-
-            val assignedInto = refs.walkReferences(df, IsDfModified)(_ => true)
+            val assignedInto = refs.isModified(df)
             val n = if (!assignedInto) {
               val c = varDef.clone()
               c.name = new AST_SymbolConst {
@@ -91,13 +83,13 @@ object Variables {
               //println(s"Scan object ${df.name} for methods ${o.properties}")
               assert(o == obj)
 
-              object IsDf extends Extractor[String] {
+              object IsDfMember extends Extractor[String] {
                 def unapply(arg: AST_Node) = arg match {
                   case AST_SymbolRefDef(`df`) AST_Dot key => Some(key)
                   case _ => None
                 }
               }
-              object IsDfModified extends IsModified(IsDf)
+              object IsDfModified extends IsModified(IsDfMember)
 
               // check which members are ever written to - we can convert all others to getters and methods
               var modifiedMembers = Set.empty[String]
