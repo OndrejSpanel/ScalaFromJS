@@ -747,11 +747,25 @@ object UglifyExt {
       def unapply(arg: AST_VarDef) = Some(arg.name, arg.value)
 
       def apply(from: AST_Node)(name: AST_SymbolVarOrConst, value: js.UndefOr[AST_Node]): AST_VarDef = {
+        //println(s"AST_VarDef.apply $name")
         init(new AST_VarDef()) { node =>
           fillTokens(node, from)
           node.name = name
           node.value = value
         }
+      }
+
+      def uninitializedSym(from: AST_Node)(sym: SymbolDef): AST_VarDef = {
+        AST_VarDef(from)(
+          new AST_SymbolVar {
+            fillTokens(this, from)
+            name = sym.name
+            thedef = sym
+            // thedef and scope will be filled by uglify
+            init = js.Array[AST_Node]()
+          },
+          js.undefined
+        )
       }
 
       def uninitialized(from: AST_Node)(vName: String): AST_VarDef = {
@@ -778,6 +792,21 @@ object UglifyExt {
         )
 
       }
+
+      def initializedSym(node: AST_Node)(vSym: SymbolDef, right: AST_Node): AST_VarDef = {
+        AST_VarDef(node)(
+          new AST_SymbolVar {
+            fillTokens(this, node)
+            name = vSym.name
+            thedef = vSym
+            // scope will be filled by uglify
+            init = js.Array(right)
+          },
+          right
+        )
+
+      }
+
     }
 
     object AST_Unary {

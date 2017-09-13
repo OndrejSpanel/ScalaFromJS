@@ -798,7 +798,7 @@ object ScalaOut {
             }
 
             tn.body.toSeq match {
-              case Seq(AST_BlockStatement(AST_Let(AST_VarDef(sv, AsInstanceOfCondition(_, _))) +: body)) =>
+              case Seq(AST_BlockStatement(AST_Definitions(AST_VarDef(sv, AsInstanceOfCondition(_, _))) +: body)) =>
                 // we might check sv - variable name correspondence
                 outputCaseBody(body)
               case _ =>
@@ -911,10 +911,9 @@ object ScalaOut {
 
           // class body should be a list of variable declarations, constructor statements may follow
           inlineBody.value.body.foreach {
+            case df: AST_Const =>
+              outputDefinitions(true, df, true)
             case df: AST_Definitions =>
-
-              //println("outputDefinitions - getMemberType")
-              //out"/*inlineBody ${nodeClassName(df)} ${df.definitions.length}*/"
               outputDefinitions(false, df, true)
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
             case ss =>

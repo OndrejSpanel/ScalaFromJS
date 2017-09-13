@@ -25,7 +25,7 @@ UglifyJS.AST_Symbol.prototype.toDebug = function() {
     }
 };
 
-UglifyJS.AST_Var.prototype.toDebug = function() {
+UglifyJS.AST_Definitions.prototype.toDebug = function() {
     return this.definitions.join(",");
 };
 

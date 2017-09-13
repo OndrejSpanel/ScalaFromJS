@@ -12,6 +12,9 @@ import Variables._
 import Symbols._
 import VariableUtils._
 
+import scala.scalajs.js
+import js.JSConverters._
+
 object InlineConstructors {
   private case class PrivateMember(sym: SymbolDef, isVal: Boolean)
 
@@ -38,7 +41,7 @@ object InlineConstructors {
       // check which members are ever written to - we can convert all others to getters and methods
       val modified = refs.isModified(priv)
 
-      PrivateMember(priv, modified)
+      PrivateMember(priv, !modified)
 
     }
   }
@@ -51,7 +54,7 @@ object InlineConstructors {
             constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
           } {
             val locals = detectPrivateMembers(rawConstructor)
-            println(s"Locals ${locals.map(l => l.sym.name -> l.isVal)}")
+            //println(s"Locals ${locals.map(l => l.sym.name -> l.isVal)}")
             // convert private variables to members (TODO: mark them as private somehow)
 
             def newThisDotMember(member: String) = new AST_Dot {
@@ -76,6 +79,28 @@ object InlineConstructors {
               replaceVariable(replacedInit, privateVar.sym, privateMember(privateVar.sym))
             }
             constructorProperty.value = constructor
+
+            // DRY: FillVarMembers
+            val clsTokenDef = classTokenSource(cls)
+
+            val vars = locals.map { local =>
+              val varDecl = if (local.isVal) new AST_Const else new AST_Var
+              fillTokens(varDecl, clsTokenDef)
+              varDecl.definitions = js.Array(AST_VarDef.uninitializedSym(clsTokenDef)(local.sym))
+              //println(s"privateVariables ${local.sym.name} $varDecl ${cls.start.get.pos}")
+              varDecl
+            }
+
+            if (vars.nonEmpty) {
+              val accessor = classInlineBody(cls, clsTokenDef)
+
+              accessor.body ++= (vars: Iterable[AST_Statement]).toJSArray
+              //println(s"privateVariables newMembers $vars")
+
+              // remove overwritten members
+              //cls.properties = cls.properties.filterNot(p => newMembers.contains(propertyName(p)))
+            }
+
           }
           cls
         case _ =>

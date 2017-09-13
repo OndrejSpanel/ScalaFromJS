@@ -35,8 +35,9 @@ object FillVarMembers {
           }}.getOrElse(Seq())
           val existingParameters = accessor.map(_.value.argnames.toSeq.map(_.name)).getOrElse(Seq())
 
-          var existingMembers = listPrototypeMemberNames(cls) ++ existingInlineMembers ++ existingParameters
-          //println(s"existingMembers $existingMembers proto ${listPrototypeMemberNames(cls)} inline ${existingInlineMembers}")
+          val existingProtoMembers = listPrototypeMemberNames(cls)
+          var existingMembers = existingProtoMembers ++ existingInlineMembers ++ existingParameters
+          //println(s"  existingMembers ${existingProtoMembers.mkString(",")} inline ${existingInlineMembers.mkString(",")}")
 
           cls.walk {
             case AST_Assign(IsThis() AST_Dot mem, _, _) =>

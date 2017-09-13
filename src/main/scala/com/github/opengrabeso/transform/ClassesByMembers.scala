@@ -54,7 +54,7 @@ object ClassesByMembers {
 
         val varMembers = for {
           body <- findInlineBody(cls).toSeq
-          AST_Var(AST_VarDef(AST_SymbolName(varName), _)) <- body.value.body
+          AST_Definitions(AST_VarDef(AST_SymbolName(varName), _)) <- body.value.body
         } yield varName
 
         //println(s"Cls ${id(cls.name.get.thedef.get)}: Fun $funMembers mem $varMembers")
