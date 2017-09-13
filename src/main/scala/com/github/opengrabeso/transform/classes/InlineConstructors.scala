@@ -27,8 +27,11 @@ object InlineConstructors {
     // TODO: consider only references from exported functions, ignore references from local named functions
     // beware of local functions used from exported functions, including their transitive closure
     // to stay safe, we do not ignore them now (may result in more private members than needed)
+    //println(s"n.variables ${n.variables.map(_._1)}")
+    //println(s"n.functions ${n.functions.map(_._1)}")
+    val variables = n.variables.filter(v => !n.functions.contains(v._1))
     val privates = for {
-      (_, sym) <- n.variables
+      (_, sym) <- variables
       // empty 'references' means automatic symbol, like "arguments"
       rs <- refs.refs.get(sym)
       if (rs -- Set(n)).exists(_.isInstanceOf[AST_Lambda])

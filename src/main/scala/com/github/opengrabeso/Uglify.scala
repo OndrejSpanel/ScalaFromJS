@@ -71,7 +71,7 @@ object Uglify extends js.Object {
   @js.native class Dictionary[T] extends js.Any {
     def set(key: String, v: T): this.type = js.native
     def get(key: String): T = js.native
-    def has(key: String): T = js.native
+    def has(key: String): Boolean = js.native
     def each[R](f: js.Function2[T, String, R]): Unit = js.native
     def size: Int = js.native
     def toObject: js.Dynamic = js.native
@@ -1089,6 +1089,8 @@ object UglifyExt {
     override def foreach[U](f: ((String, T)) => U) = {
       dict.each((t,s) => f(s,t))
     }
+
+    def contains(key: String): Boolean = dict.has(key)
   }
 
 }

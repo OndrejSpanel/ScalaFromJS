@@ -156,5 +156,30 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
   }
 
+  test("Private variables should not be created for known functions") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function C() {
+
+        function f() {}
+
+        function g() {
+          f();
+          this.a();
+        }
+      }
+
+      C.prototype.constructor = C;
+      """).required(
+        "def f()",
+        "def g()",
+        "f()",
+        "var a: () => Unit"
+      ).forbidden(
+        "var f"
+      )
+
+  }
 
 }
