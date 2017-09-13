@@ -101,4 +101,31 @@ class ValVarTests extends FunSuite with TestUtils {
 
   }
 
+  test("Private variable which cannot be initialized on construction should not be a val") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function GL() {
+        var x;
+        var gl = getGL();
+
+        this.destroy = function() {
+            gl.fun();
+        };
+
+        return this;
+
+      }
+
+      var p = new GL();
+      """).required(
+        "var gl",
+        "this.gl ="
+      ).forbidden(
+        "val gl"
+      )
+
+  }
+
+
 }

@@ -38,6 +38,7 @@ object InlineConstructors {
 
     privates.toSeq.map { priv =>
 
+      //println(s"  priv ${priv.name} ${refs.refs.get(priv)} ")
       // check which members are ever written to - we can convert all others to getters and methods
       val modified = refs.isModified(priv)
 

@@ -14,14 +14,17 @@ object VariableUtils {
   }
 
   class IsModified[X](extract: Extractor[X]) extends Extractor[X] {
-    def unapply(arg: AST_Node): Option[X] = arg match {
-      case AST_Assign(extract(x), _, _) =>
-        //println(s"  Detected assignment modification of ${df.name}")
-        Some(x)
-      case AST_Unary(UnaryModification(), extract(x)) =>
-        Some(x)
-      case _ =>
-        None
+    def unapply(arg: AST_Node): Option[X] = {
+      //println(s"Check modification of $arg")
+      arg match {
+        case AST_Assign(extract(x), _, _) =>
+          //println(s"  Detected assignment modification of ${df.name}")
+          Some(x)
+        case AST_Unary(UnaryModification(), extract(x)) =>
+          Some(x)
+        case _ =>
+          None
+      }
     }
   }
 
@@ -43,6 +46,7 @@ object VariableUtils {
         var abort = false
         s.walk {
           case ss: AST_Scope =>
+            //println(s"Enter scope $ss")
             ss != s // do not descend into any other scopes, they are listed in references if needed
           //noinspection ScalaUnusedSymbol
           case node@isDfModified(x) =>

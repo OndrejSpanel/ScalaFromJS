@@ -325,8 +325,8 @@ object ScalaOut {
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions, types: Boolean = false) = {
       //out"/*outputDefinitions ${tn.definitions}*/"
       //println("outputDefinitions -")
-      def outValVar() = {
-        out(if (isVal) "val " else "var ")
+      def outValVar(isInitialized: Boolean) = {
+        out(if (isVal && isInitialized) "val " else "var ")
       }
 
       tn.definitions.foreach {
@@ -344,16 +344,18 @@ object ScalaOut {
           //println(s"Var $name ($symId) type $tpe empty object")
           tpe match {
             case Some(mType: SymbolTypes.MapType) =>
-              outValVar()
+              outValVar(true)
               out"$s = ${mType.scalaConstruct}"
               out.eol()
             case _ =>
-              outValVar()
+              outValVar(false)
+              // it has no sense for uninitialized variable to be "val", fix it
+              // such variables can be created by extracting class private variables when their initialization cannot be extracted
               outputVarDef(s, js.undefined, tpe, false)
           }
 
         case AST_VarDef(s@AST_Symbol(name, _, Defined(sym)), init) =>
-          outValVar()
+          outValVar(init.isDefined)
           //out("/*outputDefinitions 1*/")
           val sType = getSymbolType(sym)
           //out"/*AST_VarDef sym ${SymbolTypes.id(sym)} $sType*/"
