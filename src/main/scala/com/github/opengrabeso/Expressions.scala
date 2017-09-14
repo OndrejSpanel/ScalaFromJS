@@ -8,7 +8,9 @@ object Expressions {
     def unapply(arg: AST_Node): Boolean = arg match {
       case _: AST_Constant => true
       case AST_SymbolRef("Infinity", _, _) => true
-      case _ => false
+      case _ =>
+        //println(s"Not constant $arg")
+        false
     }
   }
 
@@ -56,7 +58,7 @@ object Expressions {
       case c: AST_SymbolRef => Some(c)
       case c@((x: AST_SymbolRef) AST_Dot _) => Some(c)
       case _ =>
-        //println(s"${nodeClassName(arg)}")
+        //println(s"not InitStatement $arg")
         None
     }
   }

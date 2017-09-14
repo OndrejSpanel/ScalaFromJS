@@ -44,3 +44,7 @@ UglifyJS.AST_ObjectProperty.prototype.toDebug = function() {
 UglifyJS.AST_Defun.prototype.toDebug = function() {
     return this.name;
 };
+
+UglifyJS.AST_Dot.prototype.toDebug = function() {
+    return this.expression.toString() + "." + this.property;
+};

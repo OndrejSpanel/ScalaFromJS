@@ -213,5 +213,33 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
   }
 
+  test("Private variables should be extracted when initializer is constant") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function WebGLRenderer() {
+        var sentinel;
+        var a = 1;
+        var b = 2;
+        var c = a + b + fun();
+        var d = a + b;
+        var e = 1 + 2;
+        this.f = function () {
+          return a + b + c + d + e;
+        };
+      }
+      var w = new WebGLRenderer()
+      """).required(
+      "val a",
+      "val b",
+      "var c",
+      "val d",
+      "val e"
+    ).forbidden(
+      "val c"
+    )
+
+  }
+
 
 }

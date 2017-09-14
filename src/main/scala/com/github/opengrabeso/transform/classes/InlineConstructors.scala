@@ -184,8 +184,32 @@ object InlineConstructors {
               case _ => true
             }
 
+            def isClassConstant(varName: String): Boolean = {
+              val body = findInlineBody(cls)
+              body.exists {
+                _.value.body.exists {
+                  case AST_Const(AST_VarDef(AST_SymbolName(`varName`), _)) =>
+                    true
+                  case _ =>
+                    false
+                }
+              }
+            }
+
+
+            object IsConstantInitializerInThis extends RecursiveExpressionCondition {
+              def allow(c: AST_Node): Boolean = c match {
+                case IsConstant() =>
+                  true
+                case AST_This() AST_Dot varName if isClassConstant(varName) =>
+                  true
+                case _ =>
+                  false
+              }
+            }
+
             val (inlineVars, rest) = rest_?.partition {
-              case SingleStatement(AST_Assign((_: AST_This) AST_Dot member, "=", IsConstantInitializer(expr))) =>
+              case SingleStatement(AST_Assign((_: AST_This) AST_Dot member, "=", IsConstantInitializerInThis(expr))) =>
                 //println(s"Assign const $expr")
                 true
               case _ =>
