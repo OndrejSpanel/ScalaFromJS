@@ -182,4 +182,36 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
   }
 
+
+  test("Private variables should be extracted as object when appropriate") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function WebGLRenderer() {
+        var _gl = {
+          version: "0.1.2"
+        };
+        var x = {
+          key: "Value"
+        };
+        this.getContext = function () {
+          return _gl;
+        };
+        this.getX = function () {
+          return x;
+        };
+        this.setX = function (xx) {
+          x = xx;
+        };
+      }
+      var w = new WebGLRenderer()
+      """).required(
+      "object _gl","var x"
+    ).forbidden(
+      "val _gl","var _gl","object x"
+    )
+
+  }
+
+
 }

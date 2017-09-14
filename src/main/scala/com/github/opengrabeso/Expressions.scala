@@ -24,8 +24,8 @@ object Expressions {
         Some(arg)
       case AST_Array(args@_*) if args.forall(check) =>
         Some(arg)
-      case c@AST_Object(Seq()) => // empty object/map initializer
-        Some(c)
+      case AST_Object(props) if props.map(_.value).forall(check) =>
+        Some(arg)
       case AST_Binary(a, _, b) if check(a) && check(b) =>
         Some(arg)
       case AST_Unary(UnaryModification(), _) =>
