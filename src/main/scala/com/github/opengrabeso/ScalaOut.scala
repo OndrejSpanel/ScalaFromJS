@@ -325,13 +325,13 @@ object ScalaOut {
     def outputDefinitions(isVal: Boolean, tn: AST_Definitions, types: Boolean = false) = {
       //out"/*outputDefinitions ${tn.definitions}*/"
       //println("outputDefinitions -")
-      def outValVar() = {
-        out(if (isVal) "val " else "var ")
+      def outValVar(isInitialized: Boolean) = {
+        out(if (isVal && isInitialized) "val " else "var ")
       }
 
       tn.definitions.foreach {
 
-        case AST_VarDef(name, Defined(AST_Object(props))) if isVal && props.nonEmpty =>
+        case AST_VarDef(name, Defined(AST_Object(props))) if props.nonEmpty && isVal =>
           out"object $name {\n"
           out.indent()
           for (elem <- props) nodeToOut(elem)
@@ -344,17 +344,19 @@ object ScalaOut {
           //println(s"Var $name ($symId) type $tpe empty object")
           tpe match {
             case Some(mType: SymbolTypes.MapType) =>
-              outValVar()
+              outValVar(true)
               out"$s = ${mType.scalaConstruct}"
               out.eol()
             case _ =>
-              outValVar()
+              outValVar(false)
+              // it has no sense for uninitialized variable to be "val", fix it
+              // such variables can be created by extracting class private variables when their initialization cannot be extracted
               outputVarDef(s, js.undefined, tpe, false)
           }
 
         case AST_VarDef(s@AST_Symbol(name, _, Defined(sym)), init) =>
-          outValVar()
-          //out("/*outputDefinitions*/")
+          outValVar(init.isDefined)
+          //out("/*outputDefinitions 1*/")
           val sType = getSymbolType(sym)
           //out"/*AST_VarDef sym ${SymbolTypes.id(sym)} $sType*/"
           //println(s"AST_VarDef sym ${SymbolTypes.id(sym)} $sType")
@@ -798,7 +800,7 @@ object ScalaOut {
             }
 
             tn.body.toSeq match {
-              case Seq(AST_BlockStatement(AST_Let(AST_VarDef(sv, AsInstanceOfCondition(_, _))) +: body)) =>
+              case Seq(AST_BlockStatement(AST_Definitions(AST_VarDef(sv, AsInstanceOfCondition(_, _))) +: body)) =>
                 // we might check sv - variable name correspondence
                 outputCaseBody(body)
               case _ =>
@@ -865,7 +867,7 @@ object ScalaOut {
         // find a constructor and output it
 
         val isStaticOnly = tn.`extends` match {
-          case Defined(AST_SymbolName("static_^")) =>
+          case Defined(AST_SymbolName(`staticClassName`)) =>
             true
           case _ =>
             false
@@ -911,10 +913,9 @@ object ScalaOut {
 
           // class body should be a list of variable declarations, constructor statements may follow
           inlineBody.value.body.foreach {
+            case df: AST_Const =>
+              outputDefinitions(true, df, true)
             case df: AST_Definitions =>
-
-              //println("outputDefinitions - getMemberType")
-              //out"/*inlineBody ${nodeClassName(df)} ${df.definitions.length}*/"
               outputDefinitions(false, df, true)
             case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
             case ss =>

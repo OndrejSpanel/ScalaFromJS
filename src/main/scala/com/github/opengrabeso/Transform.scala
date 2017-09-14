@@ -767,6 +767,7 @@ object Transform {
 
     val transforms = Seq[AST_Extended => AST_Extended](
       onTopNode(handleIncrement),
+      onTopNode(Variables.splitMultipleDefinitions),
       onTopNode(Variables.varInitialization),
       readJSDoc,
       onTopNode(iife), // removes also trailing return within the IIFE construct

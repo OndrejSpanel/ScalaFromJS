@@ -5,6 +5,7 @@ import scala.scalajs.js
 import scala.scalajs.js.RegExp
 import scala.scalajs.js.annotation._
 import JsUtils._
+
 import js.JSConverters._
 
 object Helpers {
@@ -67,6 +68,14 @@ object Uglify extends js.Object {
     var id: js.Any = js.native
   }
 
+  @js.native class Dictionary[T] extends js.Any {
+    def set(key: String, v: T): this.type = js.native
+    def get(key: String): T = js.native
+    def has(key: String): Boolean = js.native
+    def each[R](f: js.Function2[T, String, R]): Unit = js.native
+    def size: Int = js.native
+    def toObject: js.Dynamic = js.native
+  }
 
 
   // f:  return true to abort the walk
@@ -116,9 +125,9 @@ object Uglify extends js.Object {
     // [string*/S] an array of directives declared in this scope
     val directives: js.UndefOr[js.Array[String]] = js.native
     // [Object/S] a map of name -> SymbolDef for all variables/functions defined in this scope
-    val variables: js.Dynamic = js.native
+    var variables: Dictionary[SymbolDef] = js.native
     // [Object/S] like `variables`, but only lists function declarations
-    val functions: js.Dynamic = js.native
+    var functions: Dictionary[SymbolDef] = js.native
     // [boolean/S] tells whether this scope uses the `with` statement
     val uses_with: js.UndefOr[Boolean] = js.native
     // [boolean/S] tells whether this scope contains a direct call to the global `eval`
@@ -256,7 +265,7 @@ object Uglify extends js.Object {
   @js.native class AST_Break extends AST_LoopControl
   @js.native class AST_Continue extends AST_LoopControl
 
-  @js.native sealed abstract class AST_Definitions extends AST_Statement {
+  @js.native sealed abstract class AST_Definitions extends AST_Statement with CloneSelf[AST_Definitions] {
     // [AST_VarDef*] array of variable definitions
     var definitions: js.Array[AST_VarDef] = js.native
   }
@@ -738,11 +747,25 @@ object UglifyExt {
       def unapply(arg: AST_VarDef) = Some(arg.name, arg.value)
 
       def apply(from: AST_Node)(name: AST_SymbolVarOrConst, value: js.UndefOr[AST_Node]): AST_VarDef = {
+        //println(s"AST_VarDef.apply $name")
         init(new AST_VarDef()) { node =>
           fillTokens(node, from)
           node.name = name
           node.value = value
         }
+      }
+
+      def uninitializedSym(from: AST_Node)(sym: SymbolDef): AST_VarDef = {
+        AST_VarDef(from)(
+          new AST_SymbolVar {
+            fillTokens(this, from)
+            name = sym.name
+            thedef = sym
+            // thedef and scope will be filled by uglify
+            init = js.Array[AST_Node]()
+          },
+          js.undefined
+        )
       }
 
       def uninitialized(from: AST_Node)(vName: String): AST_VarDef = {
@@ -769,6 +792,21 @@ object UglifyExt {
         )
 
       }
+
+      def initializedSym(node: AST_Node)(vSym: SymbolDef, right: AST_Node): AST_VarDef = {
+        AST_VarDef(node)(
+          new AST_SymbolVar {
+            fillTokens(this, node)
+            name = vSym.name
+            thedef = vSym
+            // scope will be filled by uglify
+            init = js.Array(right)
+          },
+          right
+        )
+
+      }
+
     }
 
     object AST_Unary {
@@ -992,6 +1030,14 @@ object UglifyExt {
     to.end = from.end
   }
 
+  def fillTokensRecursively(to: AST_Node, from: AST_Node): Unit = {
+    to.transformBefore {(node, descend, transformer) =>
+      fillTokens(node, from)
+      descend(node, transformer)
+      node
+    }
+  }
+
   def keyNode(orig: AST_Node, k: String) = AST_SymbolRef(orig)(k)
 
 
@@ -1038,5 +1084,13 @@ object UglifyExt {
   }
 
   def keyValIsTemplate(kv: AST_ObjectKeyVal): Boolean = kv.key startsWith Symbols.templatePrefix
+
+  implicit class DictionaryWrapper[T](dict: Uglify.Dictionary[T]) extends Traversable[(String, T)] {
+    override def foreach[U](f: ((String, T)) => U) = {
+      dict.each((t,s) => f(s,t))
+    }
+
+    def contains(key: String): Boolean = dict.has(key)
+  }
 
 }

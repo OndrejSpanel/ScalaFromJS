@@ -236,12 +236,12 @@ class TypeTests extends FunSuite with TestUtils {
         }
       }
       """).required(
-        "var x_cast = x.asInstanceOf[D]",
-        "var y_cast = y.asInstanceOf[C]",
-        "var z_cast = z.asInstanceOf[D]",
-        "var u_cast = u.asInstanceOf[D]",
-        "var v_cast = v.asInstanceOf[C]",
-        "var w_cast = w.asInstanceOf[C]",
+        "x_cast = x.asInstanceOf[D]",
+        "y_cast = y.asInstanceOf[C]",
+        "z_cast = z.asInstanceOf[D]",
+        "u_cast = u.asInstanceOf[D]",
+        "v_cast = v.asInstanceOf[C]",
+        "w_cast = w.asInstanceOf[C]",
         "x: C",
         "y: Any",
         "z: Any",
@@ -249,7 +249,7 @@ class TypeTests extends FunSuite with TestUtils {
         "v: Any",
         "w: Any"
       ).forbidden(
-        "var w_cast = w.asInstanceOf[D]"
+        "w_cast = w.asInstanceOf[D]"
       )
 
   }

@@ -34,21 +34,13 @@ object Variables {
             n
           } else cm.clone()
 
-        case AST_Var(varDef@AST_VarDef(varName, value)) if value.nonNull.nonEmpty => // var with init - search for a modification
+        case AST_Definitions(varDef@AST_VarDef(varName, value)) if value.nonNull.nonEmpty => // var with init - search for a modification
           //println(s"AST_VarDef ${varName.name}")
           varName.thedef.fold(node) { df =>
             assert(df.name == varName.name)
             // check if any reference is assignment target
 
-            object IsDf extends Extractor[Unit] {
-              def unapply(arg: AST_Node) = arg match {
-                case AST_SymbolRefDef(`df`) => Some(())
-                case _ => None
-              }
-            }
-            object IsDfModified extends IsModified(IsDf)
-
-            val assignedInto = refs.walkReferences(df, IsDfModified)(_ => true)
+            val assignedInto = refs.isModified(df)
             val n = if (!assignedInto) {
               val c = varDef.clone()
               c.name = new AST_SymbolConst {
@@ -91,13 +83,13 @@ object Variables {
               //println(s"Scan object ${df.name} for methods ${o.properties}")
               assert(o == obj)
 
-              object IsDf extends Extractor[String] {
+              object IsDfMember extends Extractor[String] {
                 def unapply(arg: AST_Node) = arg match {
                   case AST_SymbolRefDef(`df`) AST_Dot key => Some(key)
                   case _ => None
                 }
               }
-              object IsDfModified extends IsModified(IsDf)
+              object IsDfModified extends IsModified(IsDfMember)
 
               // check which members are ever written to - we can convert all others to getters and methods
               var modifiedMembers = Set.empty[String]
@@ -158,14 +150,40 @@ object Variables {
     }
   }
 
+  /*
+  * many transformations assume each AST_Definitions contains at most one AST_VarDef
+  * Split multiple definitions (comma separated definitiob lists)
+  * */
+  def splitMultipleDefinitions(n: AST_Node): AST_Node = {
+    n.transformAfter { (node, transformer) =>
+      node match {
+        case block: AST_Block =>
+          block.body = block.body.flatMap {
+            case defs: AST_Definitions =>
+              defs.definitions.map { d =>
+                val clone = defs.clone() // keeps AST_Definitions type (AST_Var or whatever it is)
+                clone.definitions = js.Array(d)
+                clone
+              }
+            case other =>
+              Seq(other)
+          }
+          block
+        case _ =>
+          node
+      }
+
+    }
+
+  }
   // merge variable declaration and first assignment if possible
   def varInitialization(n: AST_Node): AST_Node = {
 
     // walk the tree, check for first reference of each var
-    var pairs = Map.empty[SymbolDef, AST_SymbolRef] // symbol definition -> first reference
+    var pairs = Map.empty[SymbolDef, (AST_SymbolRef, Boolean)] // symbol definition -> first reference
     n.walk { node =>
       node match {
-        case AST_VarDef(name, value) if value.nonNull.isEmpty =>
+        case defs@AST_Definitions(AST_VarDef(name, value)) if value.nonNull.isEmpty =>
           //println(s"varInitialization AST_VarDef $name")
           for (df <- name.thedef) {
             assert(df.name == name.name)
@@ -178,9 +196,8 @@ object Variables {
               }
               // if the first ref is in the current scope, we might merge it with the declaration
               if (firstRef.scope == name.scope) {
-                pairs += df -> firstRef
+                pairs += df -> (firstRef, defs.isInstanceOf[AST_Const])
               }
-
             }
           }
         case _ =>
@@ -188,7 +205,7 @@ object Variables {
       false
     }
 
-    val refs = pairs.values.toSet
+    val refs = pairs.values.map(_._1).toSet
     var replaced = Set.empty[SymbolDef]
 
     //println(s"transform, vars ${pairs.keys.map(SymbolTypes.id).mkString(",")}")
@@ -221,15 +238,15 @@ object Variables {
           val stackTail = transformer.stack.takeRight(2).dropRight(1).toSeq
           stackTail match {
             case Seq(_: AST_Block) =>
-              //println(s"Replaced $sr AST_SymbolRef with AST_VarDef, value ${nodeTreeToString(right)}")
-              //println(s"Replaced $sr AST_SymbolRef with AST_VarDef, value ${nodeClassName(right)}")
               replaced += td
-              new AST_Var {
-                // use td.orig if possible to keep original initialization tokens
-                val origNode = td.orig.headOption.getOrElse(node)
-                fillTokens(this, origNode)
-                definitions = js.Array(AST_VarDef.initialized(origNode)(vName, right))
-              }
+              val isVal = pairs(td)._2
+              val r = if (isVal) new AST_Const else new AST_Var
+              // use td.orig if possible to keep original initialization tokens
+              val origNode = td.orig.headOption.getOrElse(node)
+              fillTokens(r, origNode)
+              r.definitions = js.Array(AST_VarDef.initializedSym(origNode)(td, right))
+              //println(s"  Replaced $sr AST_SymbolRef with $r, init ${nodeClassName(right)}")
+              r
             case _ =>
               node
           }
@@ -247,19 +264,15 @@ object Variables {
     changeAssignToVar.transformAfter{ (node, _) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
-        case v: AST_Var =>
+        case v: AST_Definitions =>
           // remove only the original declaration, not the one introduced by us
           // original declaration has no init value
           val af = v.definitions.filterNot { d =>
-            d.value.nonNull.isEmpty &&
-              d.name.thedef.exists(pairs.contains)
+            d.value.nonNull.isEmpty && d.name.thedef.exists(pairs.contains)
           }
-          val vv = v.clone()
-          //println(s"var to val ${vv.definitions} -> $af")
-          vv.start = v.start
-          vv.end = v.end
-          vv.definitions = af
-          vv
+          //if (af.size != v.definitions.size) println(s"  removed decl $v -> $af")
+          v.definitions = af
+          v
         case c =>
           c
       }
@@ -312,6 +325,39 @@ object Variables {
       }
     }
     ret.asInstanceOf[T]
+  }
+
+  def replaceVariable[T <: AST_Node](n: T, oldName: SymbolDef, newExpr: AST_Node): T = {
+    val ret = n.transformAfter { (node, _) =>
+      node match {
+        case AST_SymbolRefDef(`oldName`) =>
+          val r = newExpr.clone()
+          fillTokensRecursively(r, node)
+          r
+        case _ =>
+          node
+      }
+    }
+    ret.asInstanceOf[T]
+  }
+
+  def replaceVariableInit[T <: AST_Node](n: T, oldName: SymbolDef)(transform: (AST_Symbol, AST_Node) => AST_Node): T = {
+    val ret = n.transformAfter { (node, _) =>
+      node match {
+        case AST_Definitions(varDef@AST_VarDef(AST_SymbolDef(`oldName`), init)) =>
+          init.nonNull.map { init =>
+            val r = transform(varDef.name, init)
+            fillTokensRecursively(r, node)
+            r
+          }.getOrElse {
+            AST_EmptyStatement(node)
+          }
+        case _ =>
+          node
+      }
+    }
+    ret.asInstanceOf[T]
+
   }
 
   /**

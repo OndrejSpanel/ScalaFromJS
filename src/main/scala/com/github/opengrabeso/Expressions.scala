@@ -8,7 +8,9 @@ object Expressions {
     def unapply(arg: AST_Node): Boolean = arg match {
       case _: AST_Constant => true
       case AST_SymbolRef("Infinity", _, _) => true
-      case _ => false
+      case _ =>
+        //println(s"Not constant $arg")
+        false
     }
   }
 
@@ -24,8 +26,8 @@ object Expressions {
         Some(arg)
       case AST_Array(args@_*) if args.forall(check) =>
         Some(arg)
-      case c@AST_Object(Seq()) => // empty object/map initializer
-        Some(c)
+      case AST_Object(props) if props.map(_.value).forall(check) =>
+        Some(arg)
       case AST_Binary(a, _, b) if check(a) && check(b) =>
         Some(arg)
       case AST_Unary(UnaryModification(), _) =>
@@ -56,7 +58,7 @@ object Expressions {
       case c: AST_SymbolRef => Some(c)
       case c@((x: AST_SymbolRef) AST_Dot _) => Some(c)
       case _ =>
-        //println(s"${nodeClassName(arg)}")
+        //println(s"not InitStatement $arg")
         None
     }
   }

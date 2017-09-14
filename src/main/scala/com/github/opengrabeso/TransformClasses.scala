@@ -6,7 +6,6 @@ import UglifyExt._
 import JsUtils._
 import UglifyExt.Import._
 import SymbolTypes.SymbolMapId
-import Expressions._
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -162,19 +161,6 @@ object TransformClasses {
       case _ => None
     }
   }
-
-  object DefineStaticMembers {
-    //def unapply(arg: AST_Node): Option[(AST_SymbolVarOrConst, AST_Object)] = None
-
-    def unapply(arg: AST_Node) = arg match {
-      case AST_Definitions(AST_VarDef(sym: AST_Symbol, Defined(objDef: AST_Object))) if objDef.properties.nonEmpty =>
-        //println(s"Detect static class definition ${sym.name}")
-        Some(sym, objDef)
-      case _ =>
-        None
-    }
-  }
-
 
   object ClassParentAndPrototypeDef {
     def unapply(arg: AST_Node) = arg match {
@@ -570,10 +556,6 @@ object TransformClasses {
         }
         processPrototype(name, prototypeDef)
         true
-      case DefineStaticMembers(clsName, objDef) =>
-        //println(s"DefineStaticMembers $clsName")
-        processPrototype(ClassId(clsName), objDef, true)
-        true
       case ClassParentDef(name, sym) =>
         for (clazz <- classes.get(name)) {
           classes += name -> clazz.copy(base = Some(ClassId(sym)))
@@ -817,19 +799,6 @@ object TransformClasses {
         case ClassDefine(sym, _, _) if classes contains ClassId(sym) =>
           classDefine(sym)
 
-        case DefineStaticMembers(sym, _) if classes.contains(ClassId(sym)) =>
-          val clsId = ClassId(sym)
-          val clazz = classes(clsId)
-
-          object helper extends Helper(node)
-          import helper._
-
-          val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
-
-          val markerBase = AST_SymbolRef(node)("static_^")
-
-          newClass(sym, markerBase, mappedStatic)
-
         case DefineProperties(name, _) if classes.contains(name) =>
           emptyNode
         case DefineProperty(name, _, _) if classes.contains(name) =>
@@ -974,198 +943,6 @@ object TransformClasses {
       }
     }
     ret
-  }
-
-  def fillVarMembers(n: AST_Node): AST_Node = {
-    object IsThis {
-      def unapply(arg: AST_Node) = arg match {
-        case _: AST_This => true
-        case AST_SymbolRef("this", _, _) => true // not used in practice, AST_This seems to catch all
-        case _ => false
-      }
-    }
-
-    // TODO: detect access other than this (see AST_This in expressionType to check general this handling)
-    val ret = n.transformAfter { (node, _) =>
-      node match {
-        case cls: AST_DefClass =>
-          val accessor = findInlineBody(cls)
-          //println(s"AST_DefClass ${cls.name.get.name} ${cls.start.get.pos}")
-          var newMembers = collection.immutable.ListMap.empty[String, Option[AST_Node]]
-          // scan known prototype members (both function and var) first
-          val existingInlineMembers = accessor.map { _.value.body.toSeq.collect {
-            case AST_Definitions(AST_VarDef(AST_SymbolName(name), _)) =>
-              name
-          }}.getOrElse(Seq())
-          val existingParameters = accessor.map(_.value.argnames.toSeq.map(_.name)).getOrElse(Seq())
-
-          var existingMembers = listPrototypeMemberNames(cls) ++ existingInlineMembers ++ existingParameters
-          //println(s"existingMembers $existingMembers proto ${listPrototypeMemberNames(cls)} inline ${existingInlineMembers}")
-
-          cls.walk {
-            case AST_Assign(IsThis() AST_Dot mem, _, _) =>
-              //println(s"Detect this.$mem = ...")
-              if (!existingMembers.contains(mem)) {
-                newMembers += mem -> None
-                existingMembers = existingMembers :+ mem
-              } else for (prop <- isReadOnlyProperty(cls, mem)) {
-                //println(s"Convert property to value $mem")
-                newMembers += mem -> Some(prop)
-              }
-              false
-            case IsThis() AST_Dot mem =>
-              //println(s"Detect this.$mem")
-              if (!existingMembers.contains(mem)) {
-                newMembers += mem -> None
-                existingMembers = existingMembers :+ mem
-              }
-              false
-
-            case _ =>
-              false
-          }
-
-          val clsTokenDef = classTokenSource(cls)
-          val vars = newMembers.map { case (memberName, init) =>
-            new AST_Var {
-              fillTokens(this, clsTokenDef)
-              val varDef = init.fold(AST_VarDef.uninitialized(clsTokenDef)(memberName))(AST_VarDef.initialized(clsTokenDef) (memberName, _))
-              //println(s"fillVarMembers $varDef ${cls.start.get.pos} init $init")
-              definitions = js.Array(varDef)
-            }
-          }
-
-          if (vars.nonEmpty) {
-            val accessor = classInlineBody(cls, clsTokenDef)
-
-            accessor.body ++= (vars: Iterable[AST_Statement]).toJSArray
-            //println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
-
-            // remove overwritten members
-            cls.properties = cls.properties.filterNot(p => newMembers.contains(propertyName(p)))
-          }
-
-          cls
-        case _ =>
-          node
-      }
-    }
-
-    val classInfo = listClassMembers(ret)
-    //println(s"Members ${classInfo.members}")
-
-    // remove members already present in a parent from a derived class
-    val cleanup = ret.transformAfter { (node, _) =>
-      node match {
-        case cls: AST_DefClass =>
-          for {
-            AST_SymbolDef(base) <- cls.`extends`
-            baseId <- SymbolTypes.id(base)
-            inlineBody <- findInlineBody(cls)
-          } {
-            //println(s"Detected base $base")
-            inlineBody.value.body = inlineBody.value.body.filter {
-              case VarName(member) => classInfo.classContains(baseId, member).isEmpty
-              case _ => true
-            }
-          }
-          cls
-        case _ =>
-          node
-      }
-    }
-
-    cleanup
-  }
-
-  def inlineConstructors(n: AST_Node): AST_Node = {
-    n.transformAfter { (node, _) =>
-      node match {
-        case cls: AST_DefClass =>
-          val clsTokenDef = classTokenSource(cls)
-          for {
-            constructorProperty@AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)
-          } {
-            // anything before a first variable declaration can be inlined, variables need to stay private
-            val (inlined, rest_?) = constructor.body.span {
-              case _: AST_Definitions => false
-              case _ => true
-            }
-
-            val (inlineVars, rest) = rest_?.partition {
-              case SingleStatement(AST_Assign( (_: AST_This) AST_Dot member, "=", IsConstantInitializer(expr))) =>
-                //println(s"Assign const $expr")
-                true
-              case _ =>
-                false
-            }
-            //println(s"inlined ${inlined.map(nodeClassName)}")
-            //println(s"rest ${rest.map(nodeClassName)}")
-            // transform parameter names while inlining (we need to use parSuffix names)
-            val parNames = constructor.argnames.map(_.name)
-            val parNamesSet = parNames.toSet
-            object IsParameter {
-              def unapply(arg: String): Boolean = parNamesSet contains arg
-            }
-            val parNamesAdjusted = (inlined ++ inlineVars).map { s =>
-              s.transformAfter { (node, transformer) =>
-                node match {
-                  case sym@AST_SymbolName(IsParameter()) =>
-                    sym.name = sym.name + parSuffix
-                    sym
-                  // do not inline call, we need this.call form for the inference
-                  // on the other hand form without this is better for variable initialization
-                  case (_: AST_This) AST_Dot member if !transformer.parent().isInstanceOf[AST_Call] =>
-                    AST_SymbolRef(clsTokenDef)(member)
-                  case _ =>
-                    node
-                }
-              }
-            }
-            // add adjusted constructor argument names so that parser correctly resolves them inside of the function
-            val accessor = classInlineBody(cls, clsTokenDef)
-            accessor.argnames = constructor.argnames.map { p =>
-              val a = p.clone()
-              a.name = p.name + parSuffix
-              // marking source as cls so that they use the class scope, same as member variables
-              fillTokens(a, cls)
-              a
-            }
-            //println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
-
-
-            // add the constructor call itself, so that type inference binds its parameters and arguments
-            val constructorCall = if (rest.nonEmpty) Some(AST_SimpleStatement(constructorProperty) {
-              new AST_Call {
-                fillTokens(this, constructorProperty)
-                expression = new AST_Dot {
-                  fillTokens(this, constructorProperty)
-                  expression = new AST_This(){
-                    fillTokens(this, constructorProperty)
-                  }
-                  property = "constructor"
-                }
-
-                args = constructor.argnames.map { p =>
-                  AST_SymbolRef(p)(p.name + parSuffix)
-                }
-              }
-            }) else None
-
-            accessor.body = accessor.body ++ parNamesAdjusted ++ constructorCall
-
-            if (rest.nonEmpty) {
-              constructor.body = rest
-            } else {
-              cls.properties = cls.properties -- Seq(constructorProperty)
-            }
-          }
-
-          cls
-        case _ =>
-          node
-      }
-    }
   }
 
 
@@ -1486,10 +1263,15 @@ object TransformClasses {
     onTopNode(inlineConstructorFunction),
     onTopNode(convertProtoClassesRecursive),
     onTopNode(convertClassMembers),
-    onTopNode(fillVarMembers),
+    // privateVariables before FillVarMembers, so that variables are introduced correctly
+    onTopNode(transform.classes.InlineConstructors.privateVariables),
+    // privateFunctions after privateVariables, are already converted to this.member references
+    // privateFunctions before FillVarMembers, so that variables for the functions are not created yet
+    onTopNode(transform.classes.InlineConstructors.privateFunctions),
+    onTopNode(transform.classes.FillVarMembers.apply),
     // applyRules after fillVarMembers - we cannot delete members before they are created
     // applyRules before inlineConstructors, so that constructor is a single function
     applyRules,
-    onTopNode(inlineConstructors)
+    onTopNode(transform.classes.InlineConstructors.apply)
   )
 }

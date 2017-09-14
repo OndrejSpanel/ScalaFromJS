@@ -11,6 +11,7 @@ trait Symbols {
   final val parSuffix = "_par"
   final val castSuffix = "_cast"
   final val templatePrefix = "template_^_"
+  final val staticClassName = "static_^"
 }
 
 
