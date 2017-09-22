@@ -80,8 +80,11 @@ object ClassesByMembers {
       names.groupBy(identity).mapValues(_.size)
     }
 
-    def matchSignificance[T](used: Set[T], classDef: Set[T]): Double = {
-      (used intersect classDef).size
+    def matchSignificance[T](used: Set[T], classDef: Set[T], significance: Map[T, Int]): Double = {
+      val matching = used intersect classDef
+      val scores = matching.map(significance)
+      val total = scores.map(1.0/_).sum
+      total
     }
 
 
@@ -119,7 +122,7 @@ object ClassesByMembers {
           val msFuns = ms.funMembers
 
           val r = (
-            matchSignificance(msVars, useInfo.members) + matchSignificance(msFuns.toSet, useInfo.funMembers.toSet), // prefer the class having most common members
+            matchSignificance(msVars, useInfo.members, varSignificance) + matchSignificance(msFuns.toSet, useInfo.funMembers.toSet, funSignificance), // prefer the class having most common members
             -ms.members.size, // prefer a smaller class
             -ms.parentCount, // prefer a less derived class
             matchNames(useName, cls.name), // prefer a class with a matching name
