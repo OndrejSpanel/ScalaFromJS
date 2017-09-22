@@ -69,6 +69,25 @@ object ClassesByMembers {
       members
     }
 
+    // some member names are common and therefore not much significant
+    def computeSignificance[T](listMembers: ClassDefInfo => Set[T]): Map[T, Int] = {
+      val names = for {
+        d <- defList.values
+        cd <- listMembers(d)
+      } yield {
+        cd
+      }
+      names.groupBy(identity).mapValues(_.size)
+    }
+
+    def matchSignificance[T](used: Set[T], classDef: Set[T]): Double = {
+      (used intersect classDef).size
+    }
+
+
+    val varSignificance: Map[String, Int] = computeSignificance(d => d.members ++ d.propMembers)
+    val funSignificance: Map[(String, Int), Int] = computeSignificance(d => d.funMembers.toSet)
+
     def addMember(sym: SymbolDef, member: String) = {
       for (sid <- id(sym)) {
         //println(s"Add mem $sid $member")
@@ -91,13 +110,16 @@ object ClassesByMembers {
     }
 
     def bestMatch(useName: String, useInfo: ClassUseInfo): Option[SymbolMapId] = {
+      // avoid processing empty list so that we can use max safely
       defList.headOption.flatMap { _ =>
+        // determine how much is each function significant
+        // use a common function (like clone) means very little, use a function specific to just one class
         val best = defList.map { case (cls, ms) =>
           val msVars = ms.members ++ ms.propMembers
           val msFuns = ms.funMembers
 
           val r = (
-            (msVars intersect useInfo.members).size + (msFuns.toSet intersect useInfo.funMembers.toSet).size, // prefer the class having most common members
+            matchSignificance(msVars, useInfo.members) + matchSignificance(msFuns.toSet, useInfo.funMembers.toSet), // prefer the class having most common members
             -ms.members.size, // prefer a smaller class
             -ms.parentCount, // prefer a less derived class
             matchNames(useName, cls.name), // prefer a class with a matching name
@@ -108,12 +130,16 @@ object ClassesByMembers {
           r
         }.max //By(b => (b._1, b._2, b._3, b._4))
 
+        if (best._5.name == "Matrix4") {
+          println(s"By members ${best._5} from $useInfo, best $best")
+        }
 
         // if there are no common members, do not infer any type
         // if too many members are unmatched, do not infer any type
-        if (best._1 > 0 && best._1 > (useInfo.members.size + useInfo.funMembers.size)/2) {
-          val dumpUncertain = false
-          if (dumpUncertain) {
+        if (best._1 > 0 && best._1 > (useInfo.members.size + useInfo.funMembers.size)/2 && best._1 > 1) {
+          val interesting = best._5.name == "Matrix4"
+          val dumpUncertain = true
+          if (dumpUncertain && interesting) {
             // matching only a few members from a large class
             if (best._1 < useInfo.members.size + useInfo.funMembers.size) {
               println(s"Suspicious $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
