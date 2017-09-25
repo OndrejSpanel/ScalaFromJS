@@ -432,6 +432,15 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo])
 
   def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
     kv._1.fold(this) { id =>
+
+      if (id.name.startsWith("watchJS_")) {
+        if (types.get(id).exists(_.equivalent(kv._2))) {
+          println(s"++ Watched $id type == $kv._2")
+        } else {
+          println(s"++ Watched $id type $kv._2")
+        }
+      }
+
       copy(types = types + (id -> kv._2))
     }
   }
