@@ -93,6 +93,8 @@ object ClassesByMembers {
     def bestMatch(useName: String, useInfo: ClassUseInfo): Option[SymbolMapId] = {
       defList.headOption.flatMap { _ =>
 
+        val interesting = useName.startsWith("watchJS_")
+
         val candidates = defList.map { case (cls, ms) =>
           val msVars = ms.members ++ ms.propMembers
           val msFuns = ms.funMembers
@@ -102,23 +104,25 @@ object ClassesByMembers {
           cls -> (ms, score)
         }
 
-        //println(s"candidates $candidates")
+        // println(s"   candidates $candidates")
 
         val bestScore = candidates.maxBy(_._2._2)._2._2
 
-        //println(s"bestScore $bestScore")
+        if (interesting) {
+          println(s"  By members $useName: bestScore $bestScore")
+          println(s"    used $useInfo")
+        }
 
         // TODO: remove derived classes, if any
 
         val bestCandidates = candidates.filter(_._2._2 == bestScore)
-
-        //println(s"bestCandidates $bestCandidates")
 
         // if there are too many candidates or no match at all, assume nothing
         if (bestCandidates.size > 5 || bestScore == 0) {
           None
         } else {
           // multiple candidates - we need to choose based on some secondary criterion
+          if (interesting) println(s"bestCandidates ${bestCandidates.keys}")
 
           val best = bestCandidates.map { case (cls, (ms, score)) =>
 
