@@ -378,6 +378,8 @@ object TypeInfo {
 
 }
 case class TypeInfo(source: TypeDesc, target: TypeDesc) {
+  def equivalent(tp: TypeInfo): Boolean = source == tp.source && target == tp.target
+
   def knownItems = source.knownItems max target.knownItems
 
   def nonEmpty = source != AnyType || target != NoType

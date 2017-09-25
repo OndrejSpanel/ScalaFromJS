@@ -202,6 +202,11 @@ object ClassesByMembers {
       cls <- byMembers.bestMatch(sid.name, members)
     } {
       //println(s"Add type $sid $cls")
+
+      if (sid.name.startsWith("watchJS_")) {
+        println(s"Watched $sid class type by members $cls")
+      }
+
       allTypes.t += Some(sid) -> TypeInfo.target(ClassType(cls))
     }
     n.copy(types = allTypes.t)
