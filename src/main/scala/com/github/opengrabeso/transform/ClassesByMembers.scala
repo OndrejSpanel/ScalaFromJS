@@ -92,41 +92,68 @@ object ClassesByMembers {
 
     def bestMatch(useName: String, useInfo: ClassUseInfo): Option[SymbolMapId] = {
       defList.headOption.flatMap { _ =>
-        val best = defList.map { case (cls, ms) =>
+
+        val candidates = defList.map { case (cls, ms) =>
           val msVars = ms.members ++ ms.propMembers
           val msFuns = ms.funMembers
 
-          val r = (
-            (msVars intersect useInfo.members).size + (msFuns.toSet intersect useInfo.funMembers.toSet).size, // prefer the class having most common members
-            -ms.members.size, // prefer a smaller class
-            -ms.parentCount, // prefer a less derived class
-            matchNames(useName, cls.name), // prefer a class with a matching name
-            cls // keep ordering stable, otherwise each iteration may select a random class
-            //, ms.members intersect useInfo.members, ms.funMembers intersect useInfo.funMembers // debugging
-          )
-          //println(s"  Score $ms -> members: ${useInfo.members}, funs: ${useInfo.funMembers}: $r")
-          r
-        }.max //By(b => (b._1, b._2, b._3, b._4))
-
-
-        // if there are no common members, do not infer any type
-        // if too many members are unmatched, do not infer any type
-        if (best._1 > 0 && best._1 > (useInfo.members.size + useInfo.funMembers.size)/2) {
-          val dumpUncertain = false
-          if (dumpUncertain) {
-            // matching only a few members from a large class
-            if (best._1 < useInfo.members.size + useInfo.funMembers.size) {
-              println(s"Suspicious $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
-            }
-            else if (best._1 <= 2 && -best._2 > best._1) {
-              println(s"Uncertain $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
-            }
-          }
-
-          //println(s"$useInfo: Best $best")
-          Some(best._5)
+          // prefer the class having most common members
+          val score = (msVars intersect useInfo.members).size + (msFuns.toSet intersect useInfo.funMembers.toSet).size
+          cls -> (ms, score)
         }
-        else None
+
+        //println(s"candidates $candidates")
+
+        val bestScore = candidates.maxBy(_._2._2)._2._2
+
+        //println(s"bestScore $bestScore")
+
+        // TODO: remove derived classes, if any
+
+        val bestCandidates = candidates.filter(_._2._2 == bestScore)
+
+        //println(s"bestCandidates $bestCandidates")
+
+        // if there are too many candidates or no match at all, assume nothing
+        if (bestCandidates.size > 5 || bestScore == 0) {
+          None
+        } else {
+          // multiple candidates - we need to choose based on some secondary criterion
+
+          val best = bestCandidates.map { case (cls, (ms, score)) =>
+
+            val r = (
+              score, // prefer the class having most common members
+              -ms.members.size, // prefer a smaller class
+              -ms.parentCount, // prefer a less derived class
+              matchNames(useName, cls.name), // prefer a class with a matching name
+              cls // keep ordering stable, otherwise each iteration may select a random class
+              //, ms.members intersect useInfo.members, ms.funMembers intersect useInfo.funMembers // debugging
+            )
+            //println(s"  Score $ms -> members: ${useInfo.members}, funs: ${useInfo.funMembers}: $r")
+            r
+          }.max //By(b => (b._1, b._2, b._3, b._4))
+
+
+          // if there are no common members, do not infer any type
+          // if too many members are unmatched, do not infer any type
+          if (best._1 > 0 && best._1 > (useInfo.members.size + useInfo.funMembers.size) / 2) {
+            val dumpUncertain = false
+            if (dumpUncertain) {
+              // matching only a few members from a large class
+              if (best._1 < useInfo.members.size + useInfo.funMembers.size) {
+                println(s"Suspicious $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
+              }
+              else if (best._1 <= 2 && -best._2 > best._1) {
+                println(s"Uncertain $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
+              }
+            }
+
+            //println(s"$useInfo: Best $best")
+            Some(best._5)
+          }
+          else None
+        }
       }
     }
 
