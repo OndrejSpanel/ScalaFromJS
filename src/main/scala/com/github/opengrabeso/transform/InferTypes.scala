@@ -113,7 +113,7 @@ object InferTypes {
               allTypes.t += tid -> tp
             } else {
               if (tid.exists(watchedSym)) {
-                println(s"Watched ${tid.get} type ${tpe.get}")
+                println(s"Watched ${tid.get} type $oldType === ${tpe.get}")
                 debug.foreach(s => println("  " + s))
               }
             }
@@ -170,7 +170,7 @@ object InferTypes {
             allTypes.t = allTypes addMember id -> tp
           } else {
             if (id.exists(_.isWatched)) {
-              println(s"Watched ${id.get} type ${tpe.get}")
+              println(s"Watched ${id.get} type $oldType === ${tpe.get}")
               debug.foreach(s => println("  " + s))
             }
           }
