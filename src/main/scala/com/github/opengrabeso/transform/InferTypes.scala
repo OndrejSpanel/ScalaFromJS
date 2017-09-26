@@ -91,8 +91,8 @@ object InferTypes {
             if (tp.nonEmpty && !oldType.exists(tp.equivalent)) {
               //println(s"  Add type $tid: $tp")
 
-              if (tid.exists(_.name.startsWith("watchJS_"))) {
-                println(s"Watched $tid type $tpe")
+              if (tid.exists(watchedSym)) {
+                println(s"Watched ${tid.get} result $tp, type ${tpe.get}, was $oldType")
                 debug.foreach(s => println("  " + s))
               }
 
@@ -111,6 +111,11 @@ object InferTypes {
 
               inferred += tid -> tp
               allTypes.t += tid -> tp
+            } else {
+              if (tid.exists(watchedSym)) {
+                println(s"Watched ${tid.get} type ${tpe.get}")
+                debug.foreach(s => println("  " + s))
+              }
             }
             //println(s"All types ${allTypes.t.types}")
             //println(s"inferred ${inferred.types}")
@@ -155,14 +160,19 @@ object InferTypes {
           //println("  " + classInfo)
           if (tp.nonEmpty && !oldType.exists(tp.equivalent)) {
 
-            if (id.exists(_.name.startsWith("watchJS_"))) {
-              println(s"Watched $id type $tpe")
+            if (id.exists(_.isWatched)) {
+              println(s"Watched ${id.get} result $tp, type ${tpe.get}, was $oldType")
               debug.foreach(s => println("  " + s))
             }
 
 
             inferred = inferred addMember id -> tp
             allTypes.t = allTypes addMember id -> tp
+          } else {
+            if (id.exists(_.isWatched)) {
+              println(s"Watched ${id.get} type ${tpe.get}")
+              debug.foreach(s => println("  " + s))
+            }
           }
         }
       }
@@ -213,10 +223,10 @@ object InferTypes {
     }
 
 
-    def inferFunction(pars: Seq[AST_Node]) = {
-      val parTypes = pars.map(expressionType(_)(ctx))
+    def inferFunction(pars: Seq[AST_Node], log: Boolean) = {
+      val parTypes = pars.map(expressionType(_, log)(ctx))
       //println(s"  $pars $parTypes")
-      FunctionType(NoType, parTypes.map(_.fold[TypeDesc](NoType)(_.declType)).toIndexedSeq)
+      FunctionType(AnyType, parTypes.map(_.fold[TypeDesc](NoType)(_.declType)).toIndexedSeq)
     }
 
     def inferFunctionReturn(value: AST_Node, r: TypeInfo) = {
@@ -359,7 +369,7 @@ object InferTypes {
     }
 
     object SymbolInfo {
-      def unapply(arg: AST_Node) = arg match {
+      def unapply(arg: AST_Node): Option[SymbolAccessInfo] = arg match {
         case AST_SymbolRefDef(symDef) =>
           Some(SymbolAccessSymbol(symDef))
 
@@ -448,11 +458,13 @@ object InferTypes {
 
       node match {
         case AST_VarDef(AST_SymbolDef(symDef), Defined(right)) =>
-          val log = false
+          val log = watched(symDef.name)
           val symId = id(symDef)
           val leftT = n.types.get(symId)
-          val rightT = expressionType(right)(ctx)
-          if (log) println(s"Infer var $symId $leftT - $rightT `${ScalaOut.outputNode(node)}` $right")
+          val rightT = expressionType(right, log)(ctx)
+
+
+          if (log) println(s"Infer var $symId $leftT - $rightT `$node` $right")
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
             for (symInfo <- Some(SymbolAccessSymbol(symDef))) {
               if (log) println(s"  Infer var: $symInfo = $rightT")
@@ -539,10 +551,10 @@ object InferTypes {
             AST_DefClass(Defined(AST_SymbolDef(cls)), _, _) <- scope
             clsId <- id(cls)
           } {
-            //println(s"Infer return type for method $cls.$sym as $retType")
+            //println(s"Infer return type for method ${cls.name}.$sym as $retType")
             val classId = MemberId(clsId, sym)
             val funType = FunctionType(retType.declType, IndexedSeq())
-            addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(s"Infer return type for method $cls.$sym as $retType")
+            addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(s"Infer return type for method ${cls.name}.$sym as $retType")
           }
         case AST_ObjectGetter(AST_SymbolName(sym), fun: AST_Lambda) =>
           val allReturns = scanFunctionReturns(fun)(ctx)
@@ -554,9 +566,9 @@ object InferTypes {
             AST_DefClass(Defined(AST_SymbolDef(cls)), _, _) <- scope
             clsId <- id(cls)
           } {
-            //println(s"Infer return type for getter $cls.$sym as $retType")
+            //println(s"Infer return type for getter ${cls.name}.$sym as $retType")
             val classId = MemberId(clsId, sym)
-            addInferredMemberType(Some(classId), Some(retType))(s"Infer return type for getter $cls.$sym as $retType")
+            addInferredMemberType(Some(classId), Some(retType))(s"Infer return type for getter ${cls.name}.$sym as $retType")
           }
         case AST_ObjectSetter(AST_SymbolName(sym), fun: AST_Lambda) =>
           // method of which class is this?
@@ -608,10 +620,11 @@ object InferTypes {
                 case _ =>
               }
             case Some(varSym: AST_SymbolVar) =>
-              val tpe = inferFunction(args)
               //println(s"Infer arg types for a var call ${varSym.name} as $tpe")
-              varSym.thedef.foreach {
-                td => addInferredType(td, Some(TypeInfo.target(tpe)))(s"Infer ${td.name} args $args")
+              varSym.thedef.foreach { td =>
+                val log = watched(td.name)
+                val tpe = inferFunction(args, log)
+                addInferredType(td, Some(TypeInfo.target(tpe)))(s"Infer ${td.name} args $args")
               }
             // TODO: reverse inference
             case _ =>
@@ -641,9 +654,10 @@ object InferTypes {
                 val memberId = MemberId(c, call)
                 //println(s"memberId $memberId, args ${args.mkString(",")}")
                 if (ctx.classInfo.containsMember(c, call)) {
-                  val tpe = inferFunction(args)
+                  val log = memberId.isWatched
+                  val tpe = inferFunction(args, log)
 
-                  //println(s"Infer par types for a member call $c.$call as $tpe")
+                  if (log) println(s"Infer par types for a member call $c.$call as $tpe")
                   //println(allTypes)
                   addInferredMemberType(Some(memberId), Some(TypeInfo.target(tpe)))(s"Infer par types for a member call $c.$call as $tpe") // target or source?
 
@@ -720,7 +734,7 @@ object InferTypes {
       val log = false
       //if (log) println(s"Type inference: ${n.types} steps $maxDepth")
       val now = System.currentTimeMillis()
-      val r = if (byMembers == 0) ClassesByMembers(n) else inferTypes(n)
+      val r = if (byMembers == 0) ClassesByMembers(n, true) else inferTypes(n)
       val again = System.currentTimeMillis()
       if (log) println(s"Infer types ${if (byMembers == 0) "by members " else ""}step $depth, metrics: ${r.types.knownItems}: ${again - now} ms")
       val newMetrics = r.types.knownItems

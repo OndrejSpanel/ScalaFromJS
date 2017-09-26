@@ -373,7 +373,7 @@ object Transform {
     }
   }
 
-  def expressionType(n: AST_Node)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
+  def expressionType(n: AST_Node, log: Boolean = false)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
 
@@ -414,32 +414,34 @@ object Transform {
         rt
 
       case expr AST_Dot name =>
-        //println(s"Infer type of member $name, et ${expressionType(expr)(ctx)}")
+        val exprType = expressionType(expr, log)(ctx)
+        if (log) println(s"Infer type of member $expr.$name, class $exprType")
         for {
-          TypeDecl(ClassType(callOn)) <- expressionType(expr)(ctx)
+          TypeDecl(ClassType(callOn)) <- exprType
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(MemberId(c, name)))
         } yield {
-          //println(s"Infer type of member $c.$name as $r")
+          if (log) println(s"Infer type of member $c.$name as $r")
           r
         }
 
       case expr AST_Sub name =>
         //println(s"Infer type of array item $name, et ${expressionType(expr)(ctx)}")
-        expressionType(expr)(ctx) match {
+        expressionType(expr, log)(ctx) match {
           case Some(TypeDecl(ArrayType(item))) =>
             val r = TypeInfo.target(item)
-            //println(s"Infer type of array $expr.$name as $r")
+            if (log) println(s"Infer type of array $expr.$name as $r")
             Some(r)
           case Some(TypeDecl(MapType(item))) =>
-            //println(s"Infer type of map $c.$name as $r")
-            Some(TypeInfo.target(item))
+            val r = Some(TypeInfo.target(item))
+            if (log) println(s"Infer type of map $expr.$name as $r")
+            r
           case _ =>
             None
         }
 
       case a: AST_Array =>
-        val elementTypes = a.elements.map(expressionType(_)(ctx))
+        val elementTypes = a.elements.map(expressionType(_, log)(ctx))
         val elType = elementTypes.reduceOption(typeUnionOption).flatten
         Some(TypeInfo.target(ArrayType(elType.map(_.declType).getOrElse(NoType))))
       case a: AST_Object =>
@@ -453,12 +455,12 @@ object Transform {
 
       // Array.isArray( name ) ? name : [name]
       case AST_Conditional(AST_Call(AST_SymbolRefName("Array") AST_Dot "isArray", isArrayArg), exprTrue, exprFalse) =>
-        val exprType = expressionType(isArrayArg)
+        val exprType = expressionType(isArrayArg, log)
         //println(s"ExprType $exprType of Array.isArray( name ) ? name : [name] for $n1")
         if(exprType.exists(_.declType.isInstanceOf[ArrayType])) {
-          expressionType(exprTrue)
+          expressionType(exprTrue, log)
         } else {
-          expressionType(exprFalse)
+          expressionType(exprFalse, log)
         }
       case AST_Conditional(_, ExpressionType(t), ExpressionType(f)) =>
         typeUnionOption(t, f)
@@ -473,16 +475,16 @@ object Transform {
           case IsArithmetic() => Some(TypeInfo.target(number))
           case IsComparison() => Some(TypeInfo.target(boolean))
           case "+" =>
-            val typeLeft = expressionType(left)(ctx)
-            val typeRight = expressionType(right)(ctx)
+            val typeLeft = expressionType(left, log)(ctx)
+            val typeRight = expressionType(right, log)(ctx)
             // string + anything is a string
             if (typeLeft == typeRight) typeLeft
             else if (typeLeft.exists(_.target == string) || typeRight.exists(_.target == string)) Some(TypeInfo.target(string))
             else None
           case IsBoolean() =>
             // boolean with the same type is the same type
-            val typeLeft = expressionType(left)(ctx)
-            val typeRight = expressionType(right)(ctx)
+            val typeLeft = expressionType(left, log)(ctx)
+            val typeRight = expressionType(right, log)(ctx)
             if (typeLeft == typeRight) typeLeft
             else None
           case _ =>
@@ -492,21 +494,22 @@ object Transform {
         typeInfoFromClassSym(call)
       case AST_Call(AST_SymbolRefDef(call), _*) =>
         val tid = id(call)
-        //println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
+        if (log)  println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
         types.get(tid).map(callReturn)
 
       case AST_Call(cls AST_Dot name, _*) =>
-        //println(s"Infer type of member call $name")
+        val exprType = expressionType(cls, log)(ctx)
+        if (log) println(s"Infer type of member call $cls.$name class $exprType")
         for {
-          TypeDecl(ClassType(callOn)) <- expressionType(cls)(ctx)
+          TypeDecl(ClassType(callOn)) <- exprType
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(MemberId(c, name)))
         } yield {
-          //println(s"  Infer type of member call $c.$name as $r")
+          if (log) println(s"  Infer type of member call $c.$name as $r")
           callReturn(r)
         }
       case seq: AST_Sequence =>
-        expressionType(seq.expressions.last)(ctx)
+        expressionType(seq.expressions.last, log)(ctx)
       case AST_SimpleStatement(ExpressionType(t)) =>
         t
 
@@ -516,10 +519,10 @@ object Transform {
         val returnType = transform.InferTypes.scanFunctionReturns(fun)(ctx)
         // TODO: use inferred argument types as well
         val argTypes = args.map(_ => any).toIndexedSeq
+        if (log) println(s"lambda returns $returnType")
         returnType.map { rt =>
           TypeInfo.target(FunctionType(rt.declType, argTypes))
         }
-        //println(s"${symDef.name} returns $allReturns")
       case _ =>
         None
 

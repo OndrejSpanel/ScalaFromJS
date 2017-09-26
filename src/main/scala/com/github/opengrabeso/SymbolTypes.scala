@@ -7,6 +7,27 @@ import scala.language.implicitConversions
 
 object SymbolTypes {
 
+  def watched(name: String): Boolean = {
+    val watched = Set[String]()
+    name.startsWith("watchJS_") || watched.contains(name)
+  }
+
+  def watchedMember(cls: String, name: String): Boolean = {
+    val watched = Set[(String, String)](("Vector3", "copy"))
+    name.startsWith("watchJS_") || watched.contains(cls, name)
+  }
+
+  def watchedSym(sym: SymbolMapId): Boolean = {
+    watched(sym.name)
+  }
+
+  implicit class IsWatched(name: String) {
+    def isWatched: Boolean = watched(name)
+  }
+
+  implicit class IsWatchedMember(id: MemberId) {
+    def isWatched: Boolean = watchedMember(id.cls.name, id.name)
+  }
 
   sealed trait TypeDesc {
     def scalaConstruct: String = "_"
@@ -30,7 +51,7 @@ object SymbolTypes {
     override def knownItems = 1
   }
   case class ClassType(name: SymbolMapId) extends TypeDesc {
-    override def toString = if (name.sourcePos !=0) s"${name.name}:${name.sourcePos}" else name.name
+    override def toString = name.toString
     override def toOut = name.name
 
     override def knownItems = 1
@@ -79,17 +100,17 @@ object SymbolTypes {
       args.map(outputType).mkString("(", ", ",")") + " => " + outputType(ret)
     }
 
-    def op(that: FunctionType, combine: (TypeDesc, TypeDesc) => TypeDesc)(implicit classOps: ClassOps) = {
-      val ret = combine(this.ret, that.ret)
+    def op(that: FunctionType, parsCombine: (TypeDesc, TypeDesc) => TypeDesc, retCombine: (TypeDesc, TypeDesc) => TypeDesc)(implicit classOps: ClassOps) = {
+      val ret = retCombine(this.ret, that.ret)
       val args = for ((a1, a2) <- this.args.zipAll(that.args, NoType, NoType)) yield {
-        combine(a1, a2)
+        parsCombine(a1, a2)
       }
       FunctionType(ret, args)
     }
 
-    def union(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeUnion)
+    def union(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeUnion, typeIntersect)
 
-    def intersect(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeIntersect)
+    def intersect(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeIntersect, typeUnion)
   }
   case object AnyType extends TypeDesc { // supertype of all
     override def toString = "Any"
@@ -121,6 +142,7 @@ object SymbolTypes {
   // SymbolDef instances (including ids) are recreated on each figure_out_scope
   // we need a stable id. Original source location + name should be unique and stable
   case class SymbolMapId(name: String, sourcePos: Int) extends Ordered[SymbolMapId] {
+    override def toString = if (sourcePos != 0) s"$name:$sourcePos" else name
     def compare(that: SymbolMapId) = name compare that.name
   }
 
@@ -432,15 +454,15 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo])
 
   def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
     kv._1.fold(this) { id =>
-
+      /*
       if (id.name.startsWith("watchJS_")) {
         if (types.get(id).exists(_.equivalent(kv._2))) {
-          println(s"++ Watched $id type == $kv._2")
+          println(s"++ Watched $id type == ${kv._2}")
         } else {
-          println(s"++ Watched $id type $kv._2")
+          println(s"++ Watched $id type ${kv._2}")
         }
       }
-
+      */
       copy(types = types + (id -> kv._2))
     }
   }

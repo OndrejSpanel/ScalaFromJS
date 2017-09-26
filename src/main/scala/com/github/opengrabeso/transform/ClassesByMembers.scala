@@ -90,10 +90,10 @@ object ClassesByMembers {
       else 0
     }
 
-    def bestMatch(useName: String, useInfo: ClassUseInfo): Option[SymbolMapId] = {
+    def bestMatch(useName: String, useInfo: ClassUseInfo, desperate: Boolean): Option[SymbolMapId] = {
       defList.headOption.flatMap { _ =>
 
-        val interesting = useName.startsWith("watchJS_")
+        val interesting = watched(useName)
 
         val candidates = defList.map { case (cls, ms) =>
           val msVars = ms.members ++ ms.propMembers
@@ -114,6 +114,7 @@ object ClassesByMembers {
         }
 
         // TODO: remove derived classes, if any
+        // TODO: desperate derivation
 
         val bestCandidates = candidates.filter(_._2._2 == bestScore)
 
@@ -122,7 +123,7 @@ object ClassesByMembers {
           None
         } else {
           // multiple candidates - we need to choose based on some secondary criterion
-          if (interesting) println(s"bestCandidates ${bestCandidates.keys}")
+          if (interesting) println(s"    bestCandidates ${bestCandidates.keys}")
 
           val best = bestCandidates.map { case (cls, (ms, score)) =>
 
@@ -164,7 +165,7 @@ object ClassesByMembers {
 
   }
 
-  def apply(n: AST_Extended): AST_Extended = {
+  def apply(n: AST_Extended, desperate: Boolean): AST_Extended = {
 
     // try to identify any symbol not inferred completely
     val classInfo = listDefinedClassMembers(n.top)
@@ -203,11 +204,11 @@ object ClassesByMembers {
     // for each find the best match
     for {
       (sid, members) <- byMembers.list
-      cls <- byMembers.bestMatch(sid.name, members)
+      cls <- byMembers.bestMatch(sid.name, members, desperate)
     } {
       //println(s"Add type $sid $cls")
 
-      if (sid.name.startsWith("watchJS_")) {
+      if (watched(sid.name)) {
         println(s"Watched $sid class type by members $cls")
       }
 
