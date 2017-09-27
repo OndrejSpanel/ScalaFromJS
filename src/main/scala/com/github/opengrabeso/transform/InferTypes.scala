@@ -41,6 +41,8 @@ object InferTypes {
   }
 
   def inferTypes(n: AST_Extended): AST_Extended = {
+
+    // TODO: cleanup inferred, was used for members, not for variables, now it is not used at all
     var inferred = SymbolTypes()
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 
@@ -111,9 +113,9 @@ object InferTypes {
 
               inferred += tid -> tp
               allTypes.t += tid -> tp
-            } else {
+            } else if (false) {
               if (tid.exists(watchedSym)) {
-                println(s"Watched ${tid.get} type $oldType === ${tpe.get}")
+                println(s"Watched ${tid.get} type $oldType === $tp from ${tpe.get}")
                 debug.foreach(s => println("  " + s))
               }
             }
@@ -135,7 +137,7 @@ object InferTypes {
 
         //println(s"Member type was $id: ${inferred.getMember(id)}")
 
-        val oldType = inferred.getMember(id)
+        val oldType = allTypes.getMember(id)
         val symType = kind(oldType, tpe)
         //println(s"  Adding member type $id: $tpe -> $symType")
 
@@ -168,9 +170,9 @@ object InferTypes {
 
             inferred = inferred addMember id -> tp
             allTypes.t = allTypes addMember id -> tp
-          } else {
+          } else  if (false) {
             if (id.exists(_.isWatched)) {
-              println(s"Watched ${id.get} type $oldType === ${tpe.get}")
+              println(s"Watched ${id.get} type $oldType === $tp from ${tpe.get}")
               debug.foreach(s => println("  " + s))
             }
           }
@@ -226,7 +228,7 @@ object InferTypes {
     def inferFunction(pars: Seq[AST_Node], log: Boolean) = {
       val parTypes = pars.map(expressionType(_, log)(ctx))
       //println(s"  $pars $parTypes")
-      FunctionType(AnyType, parTypes.map(_.fold[TypeDesc](NoType)(_.declType)).toIndexedSeq)
+      FunctionType(AnyType, parTypes.map(_.fold[TypeDesc](NoType)(_.target)).toIndexedSeq)
     }
 
     def inferFunctionReturn(value: AST_Node, r: TypeInfo) = {
@@ -657,7 +659,7 @@ object InferTypes {
                   val log = memberId.isWatched
                   val tpe = inferFunction(args, log)
 
-                  if (log) println(s"Infer par types for a member call $c.$call as $tpe")
+                  //if (log) println(s"Infer par types for a member call $c.$call as $tpe")
                   //println(allTypes)
                   addInferredMemberType(Some(memberId), Some(TypeInfo.target(tpe)))(s"Infer par types for a member call $c.$call as $tpe") // target or source?
 
