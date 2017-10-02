@@ -192,12 +192,12 @@ object InferTypes {
 
     //println(functions.map(f => f._1.name))
 
-    def inferArgsFromPars(pars: Seq[Option[TypeInfo]], args: Seq[AST_Node])(debug: String*) = {
-      for ((Some(par), arg) <- pars zip args) {
+    def inferArgsFromPars(pars: Seq[(Option[SymbolMapId], Option[TypeInfo])], args: Seq[AST_Node])(debug: String*) = {
+      for (((parId, Some(par)), arg) <- pars zip args) {
         arg match {
           case SymbolInfo(a) =>
             //println(s"Infer arg $a as $par")
-            a.addSymbolInferredType(Some(par), source)(s"inferArgsFromPars $par $arg" +: debug:_*)
+            a.addSymbolInferredType(Some(par), source)(s"inferArgsFromPars $parId: $par $arg" +: debug:_*)
           case _ =>
         }
       }
@@ -215,11 +215,11 @@ object InferTypes {
         }
       }
 
-      inferArgsFromPars(parIds.map(allTypes.get), args)(debug:_*)
+      inferArgsFromPars(parIds.map(p => p -> allTypes.get(p)), args)(debug:_*)
     }
 
     def inferArgs(funType: FunctionType, args: Seq[AST_Node])(debug: String*) = {
-      val argTypes = funType.args.map(par => Some(TypeInfo.target(par)))
+      val argTypes = funType.args.map(par => None -> Some(TypeInfo.target(par)))
       //println(s"Infer args for $funType, $args, $argTypes")
       inferArgsFromPars(argTypes, args)(debug:_*)
     }
@@ -495,15 +495,15 @@ object InferTypes {
           }
           val leftT = expressionType(left, log)(ctx)
           val rightT = expressionType(right, log)(ctx)
-          if (log) println(s"Infer assign $leftT - $rightT ${ScalaOut.outputNode(node)}")
+          //if (log) println(s"Infer assign $leftT - $rightT ${ScalaOut.outputNode(node)}")
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
             for (SymbolInfo(symInfo) <- Some(left)) {
               if (log) println(s"  Infer assign: $symInfo = $rightT")
-              symInfo.addSymbolInferredType(rightT)(s"  Infer assign: $symInfo = $rightT")
+              symInfo.addSymbolInferredType(rightT)(s"  Infer assign: $symInfo = $rightT right $right")
             }
             for (SymbolInfo(symInfo) <- Some(right)) {
               if (log) println(s"  Infer reverse assign: $leftT = $symInfo")
-              symInfo.addSymbolInferredType(leftT, source)(s"  Infer reverse assign: $leftT = $symInfo")
+              symInfo.addSymbolInferredType(leftT, source)(s"  Infer reverse assign: $leftT = $symInfo left $left")
             }
           }
 
@@ -644,10 +644,10 @@ object InferTypes {
           val exprType = expressionType(expr)(ctx)
 
           (exprType.map(_.declType),call,expr) match {
-            case (Some(ArrayType(elemType)), "push", SymbolInfo(sym)) =>
+            case (Some(ArrayType(arrayElemType)), "push", SymbolInfo(sym)) =>
               if (args.nonEmpty) {
                 val elemType = args.map(expressionType(_)(ctx)).reduce(typeUnionOption)
-                sym.addSymbolInferredType(elemType.map(_.map(ArrayType)))(s"Array.push $sym")
+                sym.addSymbolInferredType(elemType.map(_.map(ArrayType)))(s"Array.push $sym elem: $elemType array: $arrayElemType")
               }
             case _ =>
               //println(s"Dot call $call")

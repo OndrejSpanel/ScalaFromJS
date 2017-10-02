@@ -7,13 +7,17 @@ import scala.language.implicitConversions
 
 object SymbolTypes {
 
-  def watched(name: String): Boolean = {
+  val watch = false
+
+  def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
+
+  def watched(name: String): Boolean = watchCondition {
     val watched = Set[String]()
     name.startsWith("watchJS_") || watched.contains(name)
   }
 
-  def watchedMember(cls: String, name: String): Boolean = {
-    val watched = Set[(String, String)](("Vector3", "copy"))
+  def watchedMember(cls: String, name: String): Boolean = watchCondition {
+    val watched = Set[(String, String)](("Vector3", "copy"), ("TubeGeometry", "normals"), ("TubeBufferGeometry", "normals"), ("Curve", "computeFrenetFrames"))
     name.startsWith("watchJS_") || watched.contains(cls, name)
   }
 

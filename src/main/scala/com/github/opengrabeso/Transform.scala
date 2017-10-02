@@ -465,8 +465,12 @@ object Transform {
         } else {
           expressionType(exprFalse, log)
         }
-      case AST_Conditional(_, ExpressionType(t), ExpressionType(f)) =>
-        typeUnionOption(t, f)
+      case AST_Conditional(_, te, fe) =>
+        val t = expressionType(te, log)
+        val f = expressionType(fe, log)
+        val ret = typeUnionOption(t, f)
+        if (log) println(s"AST_Conditional $te:$t / $fe:$f = $ret")
+        ret
 
       case AST_Binary(expr, `asinstanceof`, AST_SymbolRefDef(cls)) =>
         typeInfoFromClassSym(cls)
