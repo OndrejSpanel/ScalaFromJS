@@ -443,7 +443,10 @@ object Transform {
       case a: AST_Array =>
         val elementTypes = a.elements.map(expressionType(_, log)(ctx))
         val elType = elementTypes.reduceOption(typeUnionOption).flatten
-        Some(TypeInfo.target(ArrayType(elType.map(_.declType).getOrElse(NoType))))
+        if (log) {
+          println(s"  elementTypes $elementTypes => $elType")
+        }
+        Some(elType.map(_.map(ArrayType)).getOrElse(TypeInfo(ArrayType(AnyType), ArrayType(NoType))))
       case a: AST_Object =>
         Some(TypeInfo.target(ObjectOrMap))
       case _: AST_Number =>

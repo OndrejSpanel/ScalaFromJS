@@ -489,9 +489,12 @@ object InferTypes {
         case AST_Assign(SymbolInfo(symLeft), _, SymbolInfo(symRight)) if symLeft == symRight =>
 
         case AST_Assign(left, _, right) =>
-          val log = false
-          val leftT = expressionType(left)(ctx)
-          val rightT = expressionType(right)(ctx)
+          val log = left match {
+            case AST_SymbolDef(symDef) if watched(symDef.name) => true
+            case _ => false
+          }
+          val leftT = expressionType(left, log)(ctx)
+          val rightT = expressionType(right, log)(ctx)
           if (log) println(s"Infer assign $leftT - $rightT ${ScalaOut.outputNode(node)}")
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
             for (SymbolInfo(symInfo) <- Some(left)) {
