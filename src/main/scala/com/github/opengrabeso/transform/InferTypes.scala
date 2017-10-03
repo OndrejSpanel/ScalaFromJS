@@ -766,7 +766,7 @@ object InferTypes {
 
         // start new inference pass, this time a "desperate" one
       } else {
-        inferTypesStep(r, depth + 1, byMembers - 1, false)
+        inferTypesStep(r, depth + 1, byMembers - 1, desperateDone)
       }
     }
 
