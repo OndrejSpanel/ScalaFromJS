@@ -43,7 +43,6 @@ object InferTypes {
   def inferTypes(n: AST_Extended): AST_Extended = {
 
     // TODO: cleanup inferred, was used for members, not for variables, now it is not used at all
-    var inferred = SymbolTypes()
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 
     val classes = new ClassListHarmony(n)
@@ -111,7 +110,6 @@ object InferTypes {
               }
               */
 
-              inferred += tid -> tp
               allTypes.t += tid -> tp
             } else if (false) {
               if (tid.exists(watchedSym)) {
@@ -168,7 +166,6 @@ object InferTypes {
             }
 
 
-            inferred = inferred addMember id -> tp
             allTypes.t = allTypes addMember id -> tp
           } else  if (false) {
             if (id.exists(_.isWatched)) {
@@ -498,11 +495,11 @@ object InferTypes {
           //if (log) println(s"Infer assign $leftT - $rightT ${ScalaOut.outputNode(node)}")
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
             for (SymbolInfo(symInfo) <- Some(left)) {
-              if (log) println(s"  Infer assign: $symInfo = $rightT")
+              if (log) println(s"Infer assign: $symInfo = $rightT")
               symInfo.addSymbolInferredType(rightT)(s"  Infer assign: $symInfo = $rightT right $right")
             }
             for (SymbolInfo(symInfo) <- Some(right)) {
-              if (log) println(s"  Infer reverse assign: $leftT = $symInfo")
+              if (log) println(s"Infer reverse assign: $leftT = $symInfo")
               symInfo.addSymbolInferredType(leftT, source)(s"  Infer reverse assign: $leftT = $symInfo left $left")
             }
           }
@@ -727,7 +724,8 @@ object InferTypes {
     }
     // TODO: protect JSDoc explicit types
     //println(s"inferred ${inferred.types}")
-    val ret = n.copy(types = n.types ++ inferred)
+
+    val ret = n.copy(types = allTypes)
     //println(s"** n.types ${ret.types.types.filter(_._1.sourcePos>=0)}")
     ret
   }
@@ -735,30 +733,44 @@ object InferTypes {
   def multipass(n: AST_Extended): AST_Extended = {
     val maxDepth = 15
     val byMembersAfter = 3
-    def inferTypesStep(n: AST_Extended, depth: Int, metrics: Int, byMembers: Int): AST_Extended = {
-      val log = false
-      //if (log) println(s"Type inference: ${n.types} steps $maxDepth")
-      val now = System.currentTimeMillis()
-      val r = if (byMembers == 0) ClassesByMembers(n, true) else inferTypes(n)
-      val again = System.currentTimeMillis()
-      if (log) println(s"Infer types ${if (byMembers == 0) "by members " else ""}step $depth, metrics: ${r.types.knownItems}: ${again - now} ms")
-      val newMetrics = r.types.knownItems
+    val log = true
 
-      //if (log) println(s"Type inference done: ${cr.types}")
-      // if metrics was not improved, use previous result, after byMembers always try another normal inference
-      if ((newMetrics > metrics || byMembers == 0) && depth < maxDepth) {
-        inferTypesStep(r, depth + 1, newMetrics, byMembers - 1) // never repeat byMembers
-      }
-      else if (byMembers > 0) {
-        if (log) println("  inference dropped, perform by members")
-        inferTypesStep(n, depth + 1, metrics, 0) // normal inference exhausted, perform byMembers
-      } else {
-        if (log) println("  inference dropped")
+    def inferTypesOneStep(n: AST_Extended, depth: Int, doByMembers: Boolean, desperate: Boolean): AST_Extended = {
+
+      val now = System.currentTimeMillis()
+      val r = if (doByMembers) ClassesByMembers(n, desperate) else inferTypes(n)
+      val again = System.currentTimeMillis()
+      def condString(cond: Boolean, s: String) = if (cond) s else ""
+      if (log) println(s"Infer types ${condString(doByMembers, "by members ")}${condString(desperate, "desperate ")}step $depth, metrics: ${r.types.knownItems}: ${again - now} ms")
+      if (r.types.knownItems > n.types.knownItems) r else {
+        println("  inference dropped")
         n
       }
     }
 
-    inferTypesStep(n, 0, 0, byMembersAfter)
+
+    def inferTypesStep(n: AST_Extended, depth: Int, byMembers: Int, desperateDone: Boolean): AST_Extended = {
+      //if (log) println(s"Type inference: ${n.types} steps $maxDepth")
+      val r = inferTypesOneStep(n, depth, byMembers == 0, false)
+
+      if (depth >= maxDepth || r == n) { // normal inference exhausted, perform final desperate by members
+        if (!desperateDone) {
+          val byNamesDesperate = inferTypesOneStep(r, depth, true, true)
+
+          val lockedSymbols = byNamesDesperate.copy(types = n.types.copy(locked = true))
+          // start again, this time in "desperate" mode, never repeat by members again
+          inferTypesStep(lockedSymbols, 0, -1, true)
+        }  else {
+          r
+        }
+
+        // start new inference pass, this time a "desperate" one
+      } else {
+        inferTypesStep(r, depth + 1, byMembers - 1, false)
+      }
+    }
+
+    inferTypesStep(n, 0, byMembersAfter, false)
   }
 
 

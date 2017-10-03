@@ -7,7 +7,7 @@ import scala.language.implicitConversions
 
 object SymbolTypes {
 
-  val watch = false
+  val watch = true
 
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
@@ -17,7 +17,7 @@ object SymbolTypes {
   }
 
   def watchedMember(cls: String, name: String): Boolean = watchCondition {
-    val watched = Set[(String, String)](("Vector3", "copy"), ("TubeGeometry", "normals"), ("TubeBufferGeometry", "normals"), ("Curve", "computeFrenetFrames"))
+    val watched = Set[(String, String)](("Frustum", "set"), ("Frustum", "planes"))
     name.startsWith("watchJS_") || watched.contains(cls, name)
   }
 
@@ -261,7 +261,7 @@ object SymbolTypes {
   def apply(): SymbolTypes = SymbolTypes.std
   def apply(syms: Seq[(SymbolDef, TypeDesc)]) = {
     val idMap = syms.map { case (k,v) => id(k) -> v }.toMap - None
-    new SymbolTypes(StdLibraries(), idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)})
+    new SymbolTypes(StdLibraries(), idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)}, false)
   }
 
   case class ClassInfo(members: Map[SymbolMapId, Seq[String]] = Map.empty, parents: Map[SymbolMapId, SymbolMapId] = Map.empty) {
@@ -379,7 +379,7 @@ object SymbolTypes {
     stdLibs.symbolFromMember(k.cls, k.name).map(_ -> v)
   }.toMap
 
-  lazy val std: SymbolTypes = SymbolTypes(stdLibs, stdLibraries ++ stdLibraryMemberSymbols)
+  lazy val std: SymbolTypes = SymbolTypes(stdLibs, stdLibraries ++ stdLibraryMemberSymbols, false)
 
   lazy val stdClassInfo: ClassInfo = ClassInfo(libs, Map.empty)
 
@@ -435,7 +435,11 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   def map(f: TypeDesc => TypeDesc): TypeInfo = TypeInfo(f(source), f(target))
 }
 
-case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo]) {
+/**
+  Once locked, perform only "desperate" inference: i.e. from Unit to some type, never change a variable type
+*/
+
+case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo], locked: Boolean) {
 
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
 
@@ -454,7 +458,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo])
     get(id).fold (any.toOut) (t => t.declType.toOut)
   }
 
-  def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types)
+  def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types, locked || that.locked)
 
   def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
     kv._1.fold(this) { id =>

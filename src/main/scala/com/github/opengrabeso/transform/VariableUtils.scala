@@ -65,7 +65,7 @@ object VariableUtils {
 
   def buildReferenceStacks(n: AST_Node) = {
 
-    Time("buildReferenceStacks") {
+    Time.disabled("buildReferenceStacks") {
       var refs = Map.empty[SymbolDef, Set[AST_Scope]]
 
       n.walkWithDescend { (node, _, walker) =>

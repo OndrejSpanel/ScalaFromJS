@@ -90,7 +90,7 @@ object ClassesByMembers {
       else 0
     }
 
-    def bestMatch(useName: String, useInfo: ClassUseInfo, desperate: Boolean): Option[SymbolMapId] = {
+    def bestMatch(useName: String, useInfo: ClassUseInfo, desperate: Boolean)(classInfo: ClassInfo): Option[SymbolMapId] = {
       defList.headOption.flatMap { _ =>
 
         val interesting = watched(useName)
@@ -113,17 +113,32 @@ object ClassesByMembers {
           println(s"    used $useInfo")
         }
 
-        // TODO: remove derived classes, if any
-        // TODO: desperate derivation
+        val bestCandidatesIncludingChildren = candidates.filter(_._2._2 == bestScore)
 
-        val bestCandidates = candidates.filter(_._2._2 == bestScore)
+        def removeChildren(list: List[SymbolMapId], ret: Set[SymbolMapId]): Set[SymbolMapId] = {
+          if (list.isEmpty) {
+            ret
+          } else {
+            val headWithChildren = classInfo.listChildren(list.head)
+            removeChildren(list diff headWithChildren.toSeq, ret -- headWithChildren + list.head)
+          }
+        }
+
+        val noChildren = removeChildren(bestCandidatesIncludingChildren.keySet.toList, bestCandidatesIncludingChildren.keySet)
+
+        val bestCandidates = bestCandidatesIncludingChildren -- (bestCandidatesIncludingChildren.keySet -- noChildren)
+
+        //if (bestCandidates.keySet != bestCandidatesIncludingChildren.keySet) println(s"    bestCandidates ${bestCandidates.keys}, with children ${bestCandidatesIncludingChildren.keys}")
+
+
+        val maxCandidates = if (desperate) 5 else 1
 
         // if there are too many candidates or no match at all, assume nothing
-        if (bestCandidates.size > 5 || bestScore == 0) {
+        if (bestCandidates.size > maxCandidates || bestScore == 0) {
           None
         } else {
           // multiple candidates - we need to choose based on some secondary criterion
-          if (interesting) println(s"    bestCandidates ${bestCandidates.keys}")
+          if (interesting) println(s"    bestCandidates ${bestCandidates.keys}, with children ${bestCandidatesIncludingChildren.keys}")
 
           val best = bestCandidates.map { case (cls, (ms, score)) =>
 
@@ -176,45 +191,49 @@ object ClassesByMembers {
 
     val byMembers = MemberList(classes.classes)
 
-    n.top.walkWithDescend { (node, descend, walker) =>
-      //println(s"by members walk $node")
-      descend(node, walker)
+    Time("byMembers.addMember") {
+      n.top.walkWithDescend { (node, descend, walker) =>
+        //println(s"by members walk $node")
+        descend(node, walker)
 
-      node match {
-        case AST_SymbolRefDef(sym) AST_Dot member =>
-          //println(s"Symbol ${sym.name}")
-          val tpe = ctx.types.get(sym)
-          if (tpe.isEmpty) {
-            //println(s"Symbol ${sym.name} parent ${walker.parent().nonNull.map(nodeClassName)}")
-            walker.parent().nonNull match {
-              case Some(c: AST_Call) if c.expression == node =>
-                byMembers.addFunMember(sym, member, c.args.length)
-              case _ =>
-                //println(s"  ${sym.name}.$member")
-                byMembers.addMember(sym, member)
+        node match {
+          case AST_SymbolRefDef(sym) AST_Dot member =>
+            //println(s"Symbol ${sym.name}")
+            val tpe = ctx.types.get(sym)
+            if (tpe.isEmpty) {
+              //println(s"Symbol ${sym.name} parent ${walker.parent().nonNull.map(nodeClassName)}")
+              walker.parent().nonNull match {
+                case Some(c: AST_Call) if c.expression == node =>
+                  byMembers.addFunMember(sym, member, c.args.length)
+                case _ =>
+                  //println(s"  ${sym.name}.$member")
+                  byMembers.addMember(sym, member)
+              }
             }
-          }
-        case _ =>
+          case _ =>
+        }
+        true
       }
-      true
     }
 
-    //println(s"List ${byMembers.list}")
-    //println(s"Defs ${byMembers.defList}")
-    // for each find the best match
-    for {
-      (sid, members) <- byMembers.list
-      cls <- byMembers.bestMatch(sid.name, members, desperate)
-    } {
-      //println(s"Add type $sid $cls")
+    Time("byMembers.bestMatch") {
+      //println(s"List ${byMembers.list}")
+      //println(s"Defs ${byMembers.defList}")
+      // for each find the best match
+      for {
+        (sid, members) <- byMembers.list
+        cls <- byMembers.bestMatch(sid.name, members, desperate)(classInfo)
+      } {
+        //println(s"Add type $s id $cls")
 
-      if (watched(sid.name)) {
-        println(s"Watched $sid class type by members $cls")
+        if (watched(sid.name)) {
+          println(s"Watched $sid class type by members $cls")
+        }
+
+        allTypes.t += Some(sid) -> TypeInfo.target(ClassType(cls))
       }
-
-      allTypes.t += Some(sid) -> TypeInfo.target(ClassType(cls))
+      n.copy(types = allTypes.t)
     }
-    n.copy(types = allTypes.t)
 
   }
 }
