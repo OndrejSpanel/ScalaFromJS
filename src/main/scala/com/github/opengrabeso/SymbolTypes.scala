@@ -34,11 +34,29 @@ object SymbolTypes {
   }
 
   sealed trait TypeDesc {
+
     def scalaConstruct: String = "_"
     // should type be written explicitly when initializing a variable of this type?
     def typeOnInit: Boolean = true
 
     def knownItems: Int = 0
+
+    def isSafeReplacementOf(that: TypeDesc): Boolean = {
+      if (that ==  NoType || that == AnyType) {
+        true
+      } else {
+        (this, that) match {
+          case (ArrayType(thisElem), ArrayType(thatElem)) =>
+            thisElem isSafeReplacementOf thatElem
+          case (MapType(thisElem), MapType(thatElem)) =>
+            thisElem isSafeReplacementOf thatElem
+          case (FunctionType(thisRet, thisArgs), FunctionType(thatRet, thatArgs)) =>
+            (thisRet isSafeReplacementOf thatRet) && (thisArgs zip thatArgs).forall(tt => tt._1 isSafeReplacementOf tt._2)
+          case _ =>
+            this == that
+        }
+      }
+    }
 
     def toOut: String
   }
@@ -59,6 +77,8 @@ object SymbolTypes {
     override def toOut = name.name
 
     override def knownItems = 1
+
+    def isSafeReplacement(source: TypeDesc): Boolean = source == this
   }
   case class ArrayType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Array[${elem.toString}]"
@@ -411,6 +431,10 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   def nonEmpty = source != AnyType || target != NoType
 
   def known = source != AnyType && source!=NoType || target != NoType && target != AnyType
+
+  def isSafeReplacementOf(that: TypeInfo): Boolean = {
+    source.isSafeReplacementOf(that.source) && target.isSafeReplacementOf(that.target)
+  }
 
   //assert(source == AnyType || target == NoType)
   // source should be more specific than a target (target is a supertype, source a subtype)

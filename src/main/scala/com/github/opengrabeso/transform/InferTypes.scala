@@ -110,7 +110,14 @@ object InferTypes {
               }
               */
 
-              allTypes.t += tid -> tp
+              if (!allTypes.t.locked) {
+                allTypes.t += tid -> tp
+              } else {
+                // allow only unknown type replacement
+                if (allTypes.t.get(tid).forall(tp.isSafeReplacementOf)) {
+                  allTypes.t += tid -> tp
+                }
+              }
             } else if (false) {
               if (tid.exists(watchedSym)) {
                 println(s"Watched ${tid.get} type $oldType === $tp from ${tpe.get}")
@@ -742,7 +749,9 @@ object InferTypes {
       val again = System.currentTimeMillis()
       def condString(cond: Boolean, s: String) = if (cond) s else ""
       if (log) println(s"Infer types ${condString(doByMembers, "by members ")}${condString(desperate, "desperate ")}step $depth, metrics: ${r.types.knownItems}: ${again - now} ms")
-      if (r.types.knownItems > n.types.knownItems) r else {
+      if (r.types.knownItems > n.types.knownItems) {
+        r
+      } else {
         println("  inference dropped")
         n
       }
@@ -757,7 +766,7 @@ object InferTypes {
         if (!desperateDone) {
           val byNamesDesperate = inferTypesOneStep(r, depth, true, true)
 
-          val lockedSymbols = byNamesDesperate.copy(types = n.types.copy(locked = true))
+          val lockedSymbols = byNamesDesperate.copy(types = byNamesDesperate.types.copy(locked = true))
           // start again, this time in "desperate" mode, never repeat by members again
           inferTypesStep(lockedSymbols, 0, -1, true)
         }  else {

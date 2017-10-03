@@ -108,6 +108,8 @@ object ClassesByMembers {
 
         val bestScore = candidates.maxBy(_._2._2)._2._2
 
+        if (bestScore <= 0) return None
+
         if (interesting) {
           println(s"  By members $useName: bestScore $bestScore")
           println(s"    used $useInfo")
@@ -134,7 +136,7 @@ object ClassesByMembers {
         val maxCandidates = if (desperate) 5 else 1
 
         // if there are too many candidates or no match at all, assume nothing
-        if (bestCandidates.size > maxCandidates || bestScore == 0) {
+        if (bestCandidates.size > maxCandidates) {
           None
         } else {
           // multiple candidates - we need to choose based on some secondary criterion
@@ -157,9 +159,10 @@ object ClassesByMembers {
 
           // if there are no common members, do not infer any type
           // if too many members are unmatched, do not infer any type
-          if (best._1 > 0 && best._1 > (useInfo.members.size + useInfo.funMembers.size) / 2) {
+          assert(best._1 > 0) // already handled by bestScore <= 0 above
+          if (bestCandidates.size == 1 || best._1 > (useInfo.members.size + useInfo.funMembers.size) / 2) {
             val dumpUncertain = false
-            if (dumpUncertain) {
+            if (dumpUncertain && bestCandidates.size != 1) {
               // matching only a few members from a large class
               if (best._1 < useInfo.members.size + useInfo.funMembers.size) {
                 println(s"Suspicious $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
