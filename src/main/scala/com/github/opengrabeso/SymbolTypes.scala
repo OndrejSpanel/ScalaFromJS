@@ -41,6 +41,10 @@ object SymbolTypes {
 
     def knownItems: Int = 0
 
+    def depthComplexity: Int = 0
+
+    def acceptable: Boolean = depthComplexity <= 5
+
     def isSafeReplacementOf(that: TypeDesc): Boolean = {
       if (that ==  NoType || that == AnyType) {
         true
@@ -90,6 +94,8 @@ object SymbolTypes {
 
     override def knownItems = 1 + elem.knownItems
 
+    override def depthComplexity = elem.depthComplexity + 1
+
     def union(that: ArrayType)(implicit classOps: ClassOps) = ArrayType(typeUnion(elem, that.elem))
     def intersect(that: ArrayType)(implicit classOps: ClassOps) = ArrayType(typeIntersect(elem, that.elem))
   }
@@ -104,6 +110,8 @@ object SymbolTypes {
 
     override def knownItems = 1 + elem.knownItems
 
+    override def depthComplexity = elem.depthComplexity + 1
+
     def union(that: MapType)(implicit classOps: ClassOps) = MapType(typeUnion(elem, that.elem))
     def intersect(that: MapType)(implicit classOps: ClassOps) = MapType(typeIntersect(elem, that.elem))
   }
@@ -113,6 +121,8 @@ object SymbolTypes {
 
     //println(s"FunctionType ${args.mkString("(",",",")")} => $ret")
     override def knownItems = 1 + ret.knownItems + args.map(_.knownItems).sum
+
+    override def depthComplexity = ret.depthComplexity + args.headOption.map(_ => args.map(_.depthComplexity).max).getOrElse(0)
 
     override def toString = {
       def outputType(o: TypeDesc) = o.toString
@@ -429,6 +439,7 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   def knownItems = source.knownItems max target.knownItems
 
   def nonEmpty = source != AnyType || target != NoType
+  def acceptable = source.acceptable && target.acceptable
 
   def known = source != AnyType && source!=NoType || target != NoType && target != AnyType
 

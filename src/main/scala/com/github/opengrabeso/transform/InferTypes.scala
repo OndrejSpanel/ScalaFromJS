@@ -89,7 +89,7 @@ object InferTypes {
           //println(s"  Combined $symType = ${allTypes.get(tid)} * $tpe")
           for (tp <- symType) {
 
-            if (tp.nonEmpty && !oldType.exists(tp.equivalent)) {
+            if (tp.nonEmpty && tp.acceptable && !oldType.exists(tp.equivalent)) {
               //println(s"  Add type $tid: $tp")
 
               if (tid.exists(watchedSym)) {
