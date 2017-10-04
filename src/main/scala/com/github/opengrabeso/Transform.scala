@@ -415,13 +415,13 @@ object Transform {
 
       case expr AST_Dot name =>
         val exprType = expressionType(expr, log)(ctx)
-        if (log) println(s"Infer type of member $expr.$name, class $exprType")
+        if (log) println(s"type of member $expr.$name, class $exprType")
         for {
           TypeDecl(ClassType(callOn)) <- exprType
           c <- findInParents(callOn, name)(ctx)
           r <- types.getMember(Some(MemberId(c, name)))
         } yield {
-          if (log) println(s"Infer type of member $c.$name as $r")
+          if (log) println(s"type of member $c.$name as $r")
           r
         }
 
@@ -430,11 +430,11 @@ object Transform {
         expressionType(expr, log)(ctx) match {
           case Some(TypeDecl(ArrayType(item))) =>
             val r = TypeInfo.target(item)
-            if (log) println(s"Infer type of array $expr.$name as $r")
+            if (log) println(s"type of array $expr.$name as $r")
             Some(r)
           case Some(TypeDecl(MapType(item))) =>
             val r = Some(TypeInfo.target(item))
-            if (log) println(s"Infer type of map $expr.$name as $r")
+            if (log) println(s"type of map $expr.$name as $r")
             r
           case _ =>
             None
