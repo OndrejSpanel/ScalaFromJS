@@ -905,7 +905,12 @@ object TransformClasses {
     // prefer class name symbol as the token source
     // ES6 classes parse class name as it is, we do not want to change this
     // instead we change the class token root so that all symbols in the class have the same offset as the class symbol
-    cls.name.getOrElse(cls)
+    val name = cls.name.nonNull
+    // symbol declaration may sometimes be someplace else than the class location ifself. In such case prefer the declaration
+    // this happens with import directives
+    val declName = name.flatMap(_.thedef.nonNull.flatMap(_.orig.headOption))
+
+    declName.orElse(name).getOrElse(cls)
   }
 
   // convert class members represented as AST_ObjectKeyVal into inline class body variables
