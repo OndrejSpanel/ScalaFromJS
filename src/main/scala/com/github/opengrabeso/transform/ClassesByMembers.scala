@@ -25,7 +25,12 @@ object ClassesByMembers {
   case class MemberList(classes: Map[SymbolMapId, AST_DefClass]) {
 
     case class ClassUseInfo(members: Set[String] = Set.empty, funMembers: Map[String, Int] = Map.empty) {
-      def addMember(member: String): ClassUseInfo = copy(members = members + member)
+      def addMember(member: String): ClassUseInfo = {
+        // detecting by length makes more harm then good, as this is used for arrays
+        val ignored = Set("length")
+        if (ignored contains member) this
+        else copy(members = members + member)
+      }
       def addFunMember(member: String, pars: Int): ClassUseInfo = copy(funMembers = funMembers + (member -> pars))
     }
 
@@ -72,7 +77,7 @@ object ClassesByMembers {
     def addMember(sym: SymbolDef, member: String) = {
       for (sid <- id(sym)) {
         //println(s"Add mem $sid $member")
-        val memUpdated = list.get(sid).fold(ClassUseInfo(members = Set(member)))(_.addMember(member))
+        val memUpdated = list.getOrElse(sid, ClassUseInfo()).addMember(member)
         list += sid -> memUpdated
       }
     }
@@ -80,7 +85,7 @@ object ClassesByMembers {
     def addFunMember(sym: SymbolDef, member: String, pars: Int) = {
       for (sid <- id(sym)) {
         //println(s"Add fun mem $sid $member")
-        val memUpdated = list.get(sid).fold(ClassUseInfo(funMembers = Map(member -> pars)))(_.addFunMember(member, pars))
+        val memUpdated = list.getOrElse(sid, ClassUseInfo()).addFunMember(member, pars)
         list += sid -> memUpdated
       }
     }
