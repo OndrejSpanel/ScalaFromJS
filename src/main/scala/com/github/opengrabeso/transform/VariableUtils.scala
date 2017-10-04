@@ -39,7 +39,7 @@ object VariableUtils {
 
   case class ReferenceScopes(refs: Map[SymbolDef, Set[AST_Scope]]) {
     def walkReferences[X](df: SymbolDef, isDfModified: Extractor[X])(onModification: X => Boolean = (_: X) => true): Boolean = {
-      val scopes = refs.getOrElse(df, Seq())
+      val scopes = refs.getOrElse(df, Set())
 
       scopes.exists { s =>
         //println(s"Reference to ${df.name} in scope ${scopeName(s)}")
