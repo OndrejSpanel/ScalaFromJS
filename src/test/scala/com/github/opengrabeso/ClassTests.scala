@@ -63,8 +63,7 @@ class ClassTests extends FunSuite with TestUtils {
       var d = "";
       d = c.value;
       """).required(
-      "class C",
-      "(a_par: String)",
+      "class C(a: String)",
       "def constructor(a: String)"
     )
 

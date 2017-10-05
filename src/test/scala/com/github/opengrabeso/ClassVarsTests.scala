@@ -258,7 +258,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
       C.prototype.constructor = C;
       """).required(
-        "class C(x_par: Boolean = false)",
+        "class C(x: Boolean = false)",
         "var a",
         "var b"
       ).forbidden(
