@@ -7,7 +7,7 @@ import scala.language.implicitConversions
 
 object SymbolTypes {
 
-  val watch = true
+  val watch = false
 
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 

@@ -740,7 +740,7 @@ object InferTypes {
   def multipass(n: AST_Extended): AST_Extended = {
     val maxDepth = 15
     val byMembersAfter = 3
-    val log = true
+    val log = false
 
     def inferTypesOneStep(n: AST_Extended, depth: Int, doByMembers: Boolean, desperate: Boolean): AST_Extended = {
 
@@ -752,7 +752,7 @@ object InferTypes {
       if (r.types.knownItems > n.types.knownItems) {
         r
       } else {
-        println("  inference dropped")
+        if (log) println("  inference dropped")
         n
       }
     }
