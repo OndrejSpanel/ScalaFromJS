@@ -1277,6 +1277,6 @@ object TransformClasses {
     // applyRules after fillVarMembers - we cannot delete members before they are created
     // applyRules before inlineConstructors, so that constructor is a single function
     applyRules,
-    onTopNode(transform.classes.InlineConstructors.apply)
+    transform.classes.InlineConstructors.apply
   )
 }

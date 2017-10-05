@@ -10,8 +10,10 @@ import Expressions._
 import TransformClasses._
 import Variables._
 import Symbols._
+import SymbolTypes._
 import VariableUtils._
 import JsUtils._
+import Transform._
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -178,8 +180,9 @@ object InlineConstructors {
     }
   }
 
-  def apply(n: AST_Node): AST_Node = {
-    n.transformAfter { (node, _) =>
+  def apply(n: AST_Extended): AST_Extended = {
+    var types = n.types
+    val r = n.top.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
           val clsTokenDef = classTokenSource(cls)
@@ -235,7 +238,8 @@ object InlineConstructors {
               s.transformAfter { (node, transformer) =>
                 node match {
                   case sym@AST_SymbolName(IsParameter()) =>
-                    sym.name = sym.name + parSuffix
+                    //sym.name = sym.name + parSuffix
+                    types = types addHint sym.thedef.nonNull.flatMap(id) -> IsConstructorParameter
                     sym
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
@@ -250,9 +254,11 @@ object InlineConstructors {
             val accessor = classInlineBody(cls, clsTokenDef)
             accessor.argnames = constructor.argnames.map { p =>
               val a = p.clone()
-              a.name = p.name + parSuffix
+              a.name = p.name //+ parSuffix
+              val classSymbolId = cls.name.nonNull.flatMap(_.thedef.nonNull).flatMap(id)
+              types = types addHint classSymbolId.map(_.copy(name = a.name)) -> IsConstructorParameter
               // marking source as cls so that they use the class scope, same as member variables
-              fillTokens(a, cls)
+              fillTokens(a, clsTokenDef)
               a
             }
             //println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
@@ -271,7 +277,7 @@ object InlineConstructors {
                 }
 
                 args = constructor.argnames.map { p =>
-                  AST_SymbolRef(p)(p.name + parSuffix)
+                  AST_SymbolRef(p)(p.name /*+ parSuffix*/)
                 }
               }
             }) else None
@@ -291,8 +297,7 @@ object InlineConstructors {
       }
     }
 
-    // detect constructors
-    // detect
+    n.copy(top = r, types = types)
   }
 
 }
