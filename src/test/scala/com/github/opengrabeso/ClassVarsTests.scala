@@ -241,5 +241,30 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
   }
 
+  test("Private variables should not be extracted for class parameters") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function C( x ) {
 
+        var a, b;
+        x = x || false;
+
+        function f() {
+          a = b;
+          return x;
+        }
+      }
+
+      C.prototype.constructor = C;
+      """).required(
+        "class C(x_par: Boolean = false)",
+        "var a",
+        "var b"
+      ).forbidden(
+        "val x",
+        "var x"
+      )
+
+  }
 }

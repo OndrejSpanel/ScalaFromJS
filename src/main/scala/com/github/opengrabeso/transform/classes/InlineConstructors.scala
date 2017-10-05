@@ -11,6 +11,7 @@ import TransformClasses._
 import Variables._
 import Symbols._
 import VariableUtils._
+import JsUtils._
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -57,9 +58,16 @@ object InlineConstructors {
           for {
             constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
           } {
-            val locals = detectPrivateMembers(rawConstructor)
-            //println(s"Locals ${locals.map(l => l.sym.name -> l.isVal)}")
+            val allLocals = detectPrivateMembers(rawConstructor)
             // convert private variables to members (TODO: mark them as private somehow)
+
+            // some of them may be a constructor parameters, they need a different handling
+            val constructorParameters = allLocals.filter(_.sym.orig exists rawConstructor.argnames.contains)
+
+            //println(s"Locals ${allLocals.map(l => l.sym.name -> l.isVal)}")
+            //println(s"Parameters ${constructorParameters.map(l => l.sym.name -> l.isVal)}")
+
+            val locals = allLocals diff constructorParameters
 
             def newThisDotMember(member: String) = new AST_Dot {
               expression = new AST_This {
