@@ -616,23 +616,19 @@ object Transform {
 
           // TODO: maybe parMembersInline is enough?
 
-          def listParameterMembers(method: Option[AST_ConciseMethod]) = {
-            val parMembersInline = for {
-              constructor <- method.toSeq
-              arg <- constructor.value.argnames
-              argId = clsId.copy(name = arg.name) // arg may be constructed by us - may miss symbol/token information
-              _ = println(s"Arg $argId from cls $clsId hints ${node.types.hints.get(argId)}")
-              if !node.types.hints.get(argId).contains(IsConstructorParameter)
-            } yield {
-              arg.name
-            }
-            parMembersInline
+          def listParameters(method: Option[AST_ConciseMethod]) = method.toSeq.flatMap(_.value.argnames)
+
+          val parMembers = listParameters(findConstructor(cls)).map(_.name)
+          val parMembersInline = for {
+            arg <- listParameters(findInlineBody(cls))
+            argId = clsId.copy(name = arg.name) // arg may be constructed by us - may miss symbol/token information
+            //_ = println(s"Arg $argId from cls $clsId hints ${node.types.hints.get(argId)}")
+            if !node.types.hints.get(argId).contains(IsConstructorParameter) && !arg.name.endsWith(parSuffix)
+          } yield {
+            arg.name
           }
 
-          val parMembers = listParameterMembers(findConstructor(cls))
-          val parMembersInline = listParameterMembers(findInlineBody(cls))
-
-          println(s"${clsSym.name}: parMembers $parMembers $parMembersInline")
+          //println(s"${clsSym.name}: parMembers $parMembers $parMembersInline")
           val clsMembers = clsId -> (members ++ varMembers ++ parMembers ++ parMembersInline).distinct
 
           listMembers = listMembers.copy(members = listMembers.members + clsMembers)

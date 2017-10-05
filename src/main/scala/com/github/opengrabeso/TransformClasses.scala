@@ -924,6 +924,7 @@ object TransformClasses {
           cls.properties.foreach {
             //case AST_ConciseMethod(AST_SymbolName(p), _) =>
             case kv@AST_ObjectKeyVal(p, v) if !propertyIsStatic(kv) =>
+              //println(s"newMembers append $cls $p $v")
               newMembers append AST_Var(cls)(AST_VarDef.initialized(cls)(p, v))
             //case s: AST_ObjectSetter =>
             //case s: AST_ObjectGetter =>

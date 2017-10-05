@@ -280,7 +280,7 @@ object Parameters {
   * */
   def inlineConstructorVars(n: AST_Extended): AST_Extended = {
     var types = n.types
-    val logging = true
+    val logging = false
     def handleConstructorVars(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
       if (!f.name.nonNull.exists(_.name == Classes.inlineBodyName)) Some(f)
       else {

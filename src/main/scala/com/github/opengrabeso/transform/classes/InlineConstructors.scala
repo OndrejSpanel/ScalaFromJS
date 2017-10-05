@@ -238,7 +238,7 @@ object InlineConstructors {
               s.transformAfter { (node, transformer) =>
                 node match {
                   case sym@AST_SymbolName(IsParameter()) =>
-                    sym.name = sym.name //+ parSuffix
+                    sym.name = sym.name + parSuffix
                     types = types addHint sym.thedef.nonNull.flatMap(id).map(_.copy(name = sym.name)) -> IsConstructorParameter
                     sym
                   // do not inline call, we need this.call form for the inference
@@ -254,7 +254,7 @@ object InlineConstructors {
             val accessor = classInlineBody(cls, clsTokenDef)
             accessor.argnames = constructor.argnames.map { p =>
               val a = p.clone()
-              a.name = p.name //+ parSuffix
+              a.name = p.name + parSuffix
               val classSymbolId = cls.name.nonNull.flatMap(_.thedef.nonNull).flatMap(id)
               types = types addHint classSymbolId.map(_.copy(name = a.name)) -> IsConstructorParameter
               // marking source as cls so that they use the class scope, same as member variables
@@ -277,7 +277,7 @@ object InlineConstructors {
                 }
 
                 args = constructor.argnames.map { p =>
-                  AST_SymbolRef(p)(p.name /*+ parSuffix*/)
+                  AST_SymbolRef(p)(p.name + parSuffix)
                 }
               }
             }) else None

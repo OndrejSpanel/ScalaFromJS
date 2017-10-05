@@ -38,6 +38,7 @@ object FillVarMembers {
           val existingProtoMembers = listPrototypeMemberNames(cls)
           var existingMembers = existingProtoMembers ++ existingInlineMembers ++ existingParameters
           //println(s"  existingMembers ${existingProtoMembers.mkString(",")} inline ${existingInlineMembers.mkString(",")}")
+          //println(s"  existingParameters ${existingParameters.mkString(",")}")
 
           cls.walk {
             case AST_Assign(IsThis() AST_Dot mem, _, _) =>
@@ -67,7 +68,7 @@ object FillVarMembers {
             new AST_Var {
               fillTokens(this, clsTokenDef)
               val varDef = init.fold(AST_VarDef.uninitialized(clsTokenDef)(memberName))(AST_VarDef.initialized(clsTokenDef) (memberName, _))
-              //println(s"fillVarMembers $varDef ${cls.start.get.pos} init $init")
+              //println(s"fillVarMembers $memberName $varDef ${cls.start.get.pos} init $init")
               definitions = js.Array(varDef)
             }
           }

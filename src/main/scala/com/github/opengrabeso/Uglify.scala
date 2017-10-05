@@ -747,7 +747,7 @@ object UglifyExt {
       def unapply(arg: AST_VarDef) = Some(arg.name, arg.value)
 
       def apply(from: AST_Node)(name: AST_SymbolVarOrConst, value: js.UndefOr[AST_Node]): AST_VarDef = {
-        //println(s"AST_VarDef.apply $name")
+        //println(s"AST_VarDef.apply $name value $value")
         init(new AST_VarDef()) { node =>
           fillTokens(node, from)
           node.name = name
@@ -756,6 +756,7 @@ object UglifyExt {
       }
 
       def uninitializedSym(from: AST_Node)(sym: SymbolDef): AST_VarDef = {
+        //println(s"AST_VarDef.uninitializedSym ${sym.name}")
         AST_VarDef(from)(
           new AST_SymbolVar {
             fillTokens(this, from)
@@ -769,6 +770,7 @@ object UglifyExt {
       }
 
       def uninitialized(from: AST_Node)(vName: String): AST_VarDef = {
+        //println(s"AST_VarDef.uninitialized $vName")
         AST_VarDef(from)(
           new AST_SymbolVar {
             fillTokens(this, from)
@@ -781,6 +783,7 @@ object UglifyExt {
       }
 
       def initialized(node: AST_Node)(vName: String, right: AST_Node): AST_VarDef = {
+        //println(s"AST_VarDef.initialized $vName with $right")
         AST_VarDef(node)(
           new AST_SymbolVar {
             fillTokens(this, node)
