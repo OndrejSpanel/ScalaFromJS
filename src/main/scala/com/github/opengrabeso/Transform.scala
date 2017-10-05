@@ -797,6 +797,7 @@ object Transform {
       onTopNode(Parameters.removeDeprecated),
       onTopNode(Parameters.defaultValues),
       onTopNode(Parameters.modifications),
+      Parameters.simpleParameters _,
       onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
       Variables.instanceofImpliedCast _,
       objectAssign _,

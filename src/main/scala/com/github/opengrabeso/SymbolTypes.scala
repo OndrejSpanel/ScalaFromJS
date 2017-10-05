@@ -485,6 +485,14 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
   def getHint(id: Option[SymbolMapId]): Option[Hint] = id.flatMap(hints.get)
 
+  def renameHint(oldId: SymbolMapId, newId: SymbolMapId): SymbolTypes = {
+    val mod = for (hint <- hints.get(oldId)) yield {
+      var newHints = hints - oldId + (newId -> hint)
+      copy(hints = newHints)
+    }
+    mod.getOrElse(this)
+  }
+
   // TODO: move stdLibs and symbolFromMember out of SymbolTypes
   def symbolFromMember(memberId: MemberId)(implicit classPos: SymbolMapId => Int): SymbolMapId = {
     // first check stdLibraries, if not found, try normal lookup
