@@ -20,7 +20,7 @@ object Variables {
   import Symbols._
 
   // detect variables which can be declared as val instead of var
-  def detectVals(n: AST_Node): AST_Node = {
+  def detectVals(n: AST_Node): AST_Node = Time("detectVals") {
     // walk the tree, check for possible val replacements and perform them
     val refs = buildReferenceStacks(n)
 

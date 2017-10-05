@@ -371,6 +371,12 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
 
+    if (false) {
+      (fileOffsets zip exports).foreach { case (offset, filename) =>
+        println(s"  Offset $offset filename ${filename.fullName}")
+      }
+    }
+
     val outFiles = for ( (outCode, ConvertProject.Item(_, _, inFile)) <- output zip exports) yield {
       inFile -> outCode
     }

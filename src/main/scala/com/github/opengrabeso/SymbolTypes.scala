@@ -7,13 +7,61 @@ import scala.language.implicitConversions
 
 object SymbolTypes {
 
+  val watch = true
+
+  def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
+
+  def watched(name: String): Boolean = watchCondition {
+    val watched = Set[String]("planes")
+    name.startsWith("watchJS_") || watched.contains(name)
+  }
+
+  def watchedMember(cls: String, name: String): Boolean = watchCondition {
+    val watched = Set[(String, String)](("Frustum", "set"), ("Frustum", "planes"))
+    val watchedAllClasses = Set[String]("planes")
+    name.startsWith("watchJS_") || watched.contains(cls, name) || watchedAllClasses.contains(name)
+  }
+
+  def watchedSym(sym: SymbolMapId): Boolean = {
+    watched(sym.name)
+  }
+
+  implicit class IsWatched(name: String) {
+    def isWatched: Boolean = watched(name)
+  }
+
+  implicit class IsWatchedMember(id: MemberId) {
+    def isWatched: Boolean = watchedMember(id.cls.name, id.name)
+  }
 
   sealed trait TypeDesc {
+
     def scalaConstruct: String = "_"
     // should type be written explicitly when initializing a variable of this type?
     def typeOnInit: Boolean = true
 
     def knownItems: Int = 0
+
+    def depthComplexity: Int = 0
+
+    def acceptable: Boolean = depthComplexity <= 5
+
+    def isSafeReplacementOf(that: TypeDesc): Boolean = {
+      if (that ==  NoType || that == AnyType) {
+        true
+      } else {
+        (this, that) match {
+          case (ArrayType(thisElem), ArrayType(thatElem)) =>
+            thisElem isSafeReplacementOf thatElem
+          case (MapType(thisElem), MapType(thatElem)) =>
+            thisElem isSafeReplacementOf thatElem
+          case (FunctionType(thisRet, thisArgs), FunctionType(thatRet, thatArgs)) =>
+            (thisRet isSafeReplacementOf thatRet) && (thisArgs zip thatArgs).forall(tt => tt._1 isSafeReplacementOf tt._2)
+          case _ =>
+            this == that
+        }
+      }
+    }
 
     def toOut: String
   }
@@ -30,10 +78,12 @@ object SymbolTypes {
     override def knownItems = 1
   }
   case class ClassType(name: SymbolMapId) extends TypeDesc {
-    override def toString = if (name.sourcePos !=0) s"${name.name}:${name.sourcePos}" else name.name
+    override def toString = name.toString
     override def toOut = name.name
 
     override def knownItems = 1
+
+    def isSafeReplacement(source: TypeDesc): Boolean = source == this
   }
   case class ArrayType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Array[${elem.toString}]"
@@ -44,6 +94,8 @@ object SymbolTypes {
     override def typeOnInit = false
 
     override def knownItems = 1 + elem.knownItems
+
+    override def depthComplexity = elem.depthComplexity + 1
 
     def union(that: ArrayType)(implicit classOps: ClassOps) = ArrayType(typeUnion(elem, that.elem))
     def intersect(that: ArrayType)(implicit classOps: ClassOps) = ArrayType(typeIntersect(elem, that.elem))
@@ -59,6 +111,8 @@ object SymbolTypes {
 
     override def knownItems = 1 + elem.knownItems
 
+    override def depthComplexity = elem.depthComplexity + 1
+
     def union(that: MapType)(implicit classOps: ClassOps) = MapType(typeUnion(elem, that.elem))
     def intersect(that: MapType)(implicit classOps: ClassOps) = MapType(typeIntersect(elem, that.elem))
   }
@@ -68,6 +122,8 @@ object SymbolTypes {
 
     //println(s"FunctionType ${args.mkString("(",",",")")} => $ret")
     override def knownItems = 1 + ret.knownItems + args.map(_.knownItems).sum
+
+    override def depthComplexity = ret.depthComplexity + args.headOption.map(_ => args.map(_.depthComplexity).max).getOrElse(0)
 
     override def toString = {
       def outputType(o: TypeDesc) = o.toString
@@ -79,17 +135,17 @@ object SymbolTypes {
       args.map(outputType).mkString("(", ", ",")") + " => " + outputType(ret)
     }
 
-    def op(that: FunctionType, combine: (TypeDesc, TypeDesc) => TypeDesc)(implicit classOps: ClassOps) = {
-      val ret = combine(this.ret, that.ret)
+    def op(that: FunctionType, parsCombine: (TypeDesc, TypeDesc) => TypeDesc, retCombine: (TypeDesc, TypeDesc) => TypeDesc)(implicit classOps: ClassOps) = {
+      val ret = retCombine(this.ret, that.ret)
       val args = for ((a1, a2) <- this.args.zipAll(that.args, NoType, NoType)) yield {
-        combine(a1, a2)
+        parsCombine(a1, a2)
       }
       FunctionType(ret, args)
     }
 
-    def union(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeUnion)
+    def union(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeUnion, typeIntersect)
 
-    def intersect(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeIntersect)
+    def intersect(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeIntersect, typeUnion)
   }
   case object AnyType extends TypeDesc { // supertype of all
     override def toString = "Any"
@@ -121,6 +177,7 @@ object SymbolTypes {
   // SymbolDef instances (including ids) are recreated on each figure_out_scope
   // we need a stable id. Original source location + name should be unique and stable
   case class SymbolMapId(name: String, sourcePos: Int) extends Ordered[SymbolMapId] {
+    override def toString = if (sourcePos != 0) s"$name:$sourcePos" else name
     def compare(that: SymbolMapId) = name compare that.name
   }
 
@@ -235,7 +292,7 @@ object SymbolTypes {
   def apply(): SymbolTypes = SymbolTypes.std
   def apply(syms: Seq[(SymbolDef, TypeDesc)]) = {
     val idMap = syms.map { case (k,v) => id(k) -> v }.toMap - None
-    new SymbolTypes(StdLibraries(), idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)})
+    new SymbolTypes(StdLibraries(), idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)}, false)
   }
 
   case class ClassInfo(members: Map[SymbolMapId, Seq[String]] = Map.empty, parents: Map[SymbolMapId, SymbolMapId] = Map.empty) {
@@ -353,7 +410,7 @@ object SymbolTypes {
     stdLibs.symbolFromMember(k.cls, k.name).map(_ -> v)
   }.toMap
 
-  lazy val std: SymbolTypes = SymbolTypes(stdLibs, stdLibraries ++ stdLibraryMemberSymbols)
+  lazy val std: SymbolTypes = SymbolTypes(stdLibs, stdLibraries ++ stdLibraryMemberSymbols, false)
 
   lazy val stdClassInfo: ClassInfo = ClassInfo(libs, Map.empty)
 
@@ -378,11 +435,18 @@ object TypeInfo {
 
 }
 case class TypeInfo(source: TypeDesc, target: TypeDesc) {
+  def equivalent(tp: TypeInfo): Boolean = source == tp.source && target == tp.target
+
   def knownItems = source.knownItems max target.knownItems
 
   def nonEmpty = source != AnyType || target != NoType
+  def acceptable = source.acceptable && target.acceptable
 
   def known = source != AnyType && source!=NoType || target != NoType && target != AnyType
+
+  def isSafeReplacementOf(that: TypeInfo): Boolean = {
+    source.isSafeReplacementOf(that.source) && target.isSafeReplacementOf(that.target)
+  }
 
   //assert(source == AnyType || target == NoType)
   // source should be more specific than a target (target is a supertype, source a subtype)
@@ -407,7 +471,11 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   def map(f: TypeDesc => TypeDesc): TypeInfo = TypeInfo(f(source), f(target))
 }
 
-case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo]) {
+/**
+  Once locked, perform only "desperate" inference: i.e. from Unit to some type, never change a variable type
+*/
+
+case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo], locked: Boolean) {
 
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
 
@@ -426,10 +494,19 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo])
     get(id).fold (any.toOut) (t => t.declType.toOut)
   }
 
-  def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types)
+  def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types, locked || that.locked)
 
   def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
     kv._1.fold(this) { id =>
+      /*
+      if (id.name.startsWith("watchJS_")) {
+        if (types.get(id).exists(_.equivalent(kv._2))) {
+          println(s"++ Watched $id type == ${kv._2}")
+        } else {
+          println(s"++ Watched $id type ${kv._2}")
+        }
+      }
+      */
       copy(types = types + (id -> kv._2))
     }
   }

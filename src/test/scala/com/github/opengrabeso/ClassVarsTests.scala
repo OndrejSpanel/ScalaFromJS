@@ -175,7 +175,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
         "def f()",
         "def g()",
         "f()",
-        "var a: () => Unit"
+        "var a: () => "
       ).forbidden(
         "var f"
       )

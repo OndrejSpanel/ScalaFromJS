@@ -118,4 +118,25 @@ class ArrayTests extends FunSuite with TestUtils {
         "var mb = Map.empty[String,"
       )
   }
+
+  test("Array types should be inferred for multiple items, including function calls") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      var array;
+      var a1;
+      if (true) {
+        a1 = f1();
+        array = [f1(), f1()]
+      }
+
+      function f1(){return 0;}
+      """)
+      .required(
+        "var array = Array.empty[Double]",
+        "var a1: Double"
+      ).forbidden(
+        "array = Array.empty[Any]"
+      )
+  }
 }

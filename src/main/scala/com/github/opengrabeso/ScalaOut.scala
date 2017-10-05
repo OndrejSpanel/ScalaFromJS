@@ -118,7 +118,7 @@ object ScalaOut {
           identifierToOut(output, s.name)
 
           if (false) { // output symbol ids and types
-            s.thedef.fold {
+            s.thedef.nonNull.fold {
               out"/*thedef == null*/"
             } { df =>
               val symId = SymbolTypes.id(df)

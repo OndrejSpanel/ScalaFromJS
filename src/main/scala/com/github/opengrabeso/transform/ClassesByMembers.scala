@@ -25,7 +25,12 @@ object ClassesByMembers {
   case class MemberList(classes: Map[SymbolMapId, AST_DefClass]) {
 
     case class ClassUseInfo(members: Set[String] = Set.empty, funMembers: Map[String, Int] = Map.empty) {
-      def addMember(member: String): ClassUseInfo = copy(members = members + member)
+      def addMember(member: String): ClassUseInfo = {
+        // detecting by length makes more harm then good, as this is used for arrays
+        val ignored = Set("length")
+        if (ignored contains member) this
+        else copy(members = members + member)
+      }
       def addFunMember(member: String, pars: Int): ClassUseInfo = copy(funMembers = funMembers + (member -> pars))
     }
 
@@ -72,7 +77,7 @@ object ClassesByMembers {
     def addMember(sym: SymbolDef, member: String) = {
       for (sid <- id(sym)) {
         //println(s"Add mem $sid $member")
-        val memUpdated = list.get(sid).fold(ClassUseInfo(members = Set(member)))(_.addMember(member))
+        val memUpdated = list.getOrElse(sid, ClassUseInfo()).addMember(member)
         list += sid -> memUpdated
       }
     }
@@ -80,7 +85,7 @@ object ClassesByMembers {
     def addFunMember(sym: SymbolDef, member: String, pars: Int) = {
       for (sid <- id(sym)) {
         //println(s"Add fun mem $sid $member")
-        val memUpdated = list.get(sid).fold(ClassUseInfo(funMembers = Map(member -> pars)))(_.addFunMember(member, pars))
+        val memUpdated = list.getOrElse(sid, ClassUseInfo()).addFunMember(member, pars)
         list += sid -> memUpdated
       }
     }
@@ -90,50 +95,100 @@ object ClassesByMembers {
       else 0
     }
 
-    def bestMatch(useName: String, useInfo: ClassUseInfo): Option[SymbolMapId] = {
+    def bestMatch(useName: String, useInfo: ClassUseInfo, desperate: Boolean)(classInfo: ClassInfo): Option[SymbolMapId] = {
       defList.headOption.flatMap { _ =>
-        val best = defList.map { case (cls, ms) =>
+
+        val interesting = watched(useName)
+
+        val candidates = defList.map { case (cls, ms) =>
           val msVars = ms.members ++ ms.propMembers
           val msFuns = ms.funMembers
 
-          val r = (
-            (msVars intersect useInfo.members).size + (msFuns.toSet intersect useInfo.funMembers.toSet).size, // prefer the class having most common members
-            -ms.members.size, // prefer a smaller class
-            -ms.parentCount, // prefer a less derived class
-            matchNames(useName, cls.name), // prefer a class with a matching name
-            cls // keep ordering stable, otherwise each iteration may select a random class
-            //, ms.members intersect useInfo.members, ms.funMembers intersect useInfo.funMembers // debugging
-          )
-          //println(s"  Score $ms -> members: ${useInfo.members}, funs: ${useInfo.funMembers}: $r")
-          r
-        }.max //By(b => (b._1, b._2, b._3, b._4))
-
-
-        // if there are no common members, do not infer any type
-        // if too many members are unmatched, do not infer any type
-        if (best._1 > 0 && best._1 > (useInfo.members.size + useInfo.funMembers.size)/2) {
-          val dumpUncertain = false
-          if (dumpUncertain) {
-            // matching only a few members from a large class
-            if (best._1 < useInfo.members.size + useInfo.funMembers.size) {
-              println(s"Suspicious $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
-            }
-            else if (best._1 <= 2 && -best._2 > best._1) {
-              println(s"Uncertain $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
-            }
-          }
-
-          //println(s"$useInfo: Best $best")
-          Some(best._5)
+          // prefer the class having most common members
+          val score = (msVars intersect useInfo.members).size + (msFuns.toSet intersect useInfo.funMembers.toSet).size
+          cls -> (ms, score)
         }
-        else None
+
+        // println(s"   candidates $candidates")
+
+        val bestScore = candidates.maxBy(_._2._2)._2._2
+
+        if (bestScore <= 0) return None
+
+        if (interesting) {
+          println(s"  By members $useName: bestScore $bestScore")
+          println(s"    used $useInfo")
+        }
+
+        val bestCandidatesIncludingChildren = candidates.filter(_._2._2 == bestScore)
+
+        def removeChildren(list: List[SymbolMapId], ret: Set[SymbolMapId]): Set[SymbolMapId] = {
+          if (list.isEmpty) {
+            ret
+          } else {
+            val headWithChildren = classInfo.listChildren(list.head)
+            removeChildren(list diff headWithChildren.toSeq, ret -- headWithChildren + list.head)
+          }
+        }
+
+        val noChildren = removeChildren(bestCandidatesIncludingChildren.keySet.toList, bestCandidatesIncludingChildren.keySet)
+
+        val bestCandidates = bestCandidatesIncludingChildren -- (bestCandidatesIncludingChildren.keySet -- noChildren)
+
+        //if (bestCandidates.keySet != bestCandidatesIncludingChildren.keySet) println(s"    bestCandidates ${bestCandidates.keys}, with children ${bestCandidatesIncludingChildren.keys}")
+
+
+        val maxCandidates = if (desperate) 5 else 1
+
+        // if there are too many candidates or no match at all, assume nothing
+        if (bestCandidates.size > maxCandidates) {
+          None
+        } else {
+          // multiple candidates - we need to choose based on some secondary criterion
+          if (interesting) println(s"    bestCandidates ${bestCandidates.keys}, with children ${bestCandidatesIncludingChildren.keys}")
+
+          val best = bestCandidates.map { case (cls, (ms, score)) =>
+
+            val r = (
+              score, // prefer the class having most common members
+              -ms.members.size, // prefer a smaller class
+              -ms.parentCount, // prefer a less derived class
+              matchNames(useName, cls.name), // prefer a class with a matching name
+              cls // keep ordering stable, otherwise each iteration may select a random class
+              //, ms.members intersect useInfo.members, ms.funMembers intersect useInfo.funMembers // debugging
+            )
+            //println(s"  Score $ms -> members: ${useInfo.members}, funs: ${useInfo.funMembers}: $r")
+            r
+          }.max //By(b => (b._1, b._2, b._3, b._4))
+
+
+          // if there are no common members, do not infer any type
+          // if too many members are unmatched, do not infer any type
+          assert(best._1 > 0) // already handled by bestScore <= 0 above
+          if (bestCandidates.size == 1 || best._1 > (useInfo.members.size + useInfo.funMembers.size) / 2) {
+            val dumpUncertain = false
+            if (dumpUncertain && bestCandidates.size != 1) {
+              // matching only a few members from a large class
+              if (best._1 < useInfo.members.size + useInfo.funMembers.size) {
+                println(s"Suspicious $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
+              }
+              else if (best._1 <= 2 && -best._2 > best._1) {
+                println(s"Uncertain $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
+              }
+            }
+
+            //println(s"$useInfo: Best $best")
+            Some(best._5)
+          }
+          else None
+        }
       }
     }
 
 
   }
 
-  def apply(n: AST_Extended): AST_Extended = {
+  def apply(n: AST_Extended, desperate: Boolean): AST_Extended = {
 
     // try to identify any symbol not inferred completely
     val classInfo = listDefinedClassMembers(n.top)
@@ -144,40 +199,49 @@ object ClassesByMembers {
 
     val byMembers = MemberList(classes.classes)
 
-    n.top.walkWithDescend { (node, descend, walker) =>
-      //println(s"by members walk $node")
-      descend(node, walker)
+    Time("byMembers.addMember") {
+      n.top.walkWithDescend { (node, descend, walker) =>
+        //println(s"by members walk $node")
+        descend(node, walker)
 
-      node match {
-        case AST_SymbolRefDef(sym) AST_Dot member =>
-          //println(s"Symbol ${sym.name}")
-          val tpe = ctx.types.get(sym)
-          if (tpe.isEmpty) {
-            //println(s"Symbol ${sym.name} parent ${walker.parent().nonNull.map(nodeClassName)}")
-            walker.parent().nonNull match {
-              case Some(c: AST_Call) if c.expression == node =>
-                byMembers.addFunMember(sym, member, c.args.length)
-              case _ =>
-                //println(s"  ${sym.name}.$member")
-                byMembers.addMember(sym, member)
+        node match {
+          case AST_SymbolRefDef(sym) AST_Dot member =>
+            //println(s"Symbol ${sym.name}")
+            val tpe = ctx.types.get(sym)
+            if (tpe.isEmpty) {
+              //println(s"Symbol ${sym.name} parent ${walker.parent().nonNull.map(nodeClassName)}")
+              walker.parent().nonNull match {
+                case Some(c: AST_Call) if c.expression == node =>
+                  byMembers.addFunMember(sym, member, c.args.length)
+                case _ =>
+                  //println(s"  ${sym.name}.$member")
+                  byMembers.addMember(sym, member)
+              }
             }
-          }
-        case _ =>
+          case _ =>
+        }
+        true
       }
-      true
     }
 
-    //println(s"List ${byMembers.list}")
-    //println(s"Defs ${byMembers.defList}")
-    // for each find the best match
-    for {
-      (sid, members) <- byMembers.list
-      cls <- byMembers.bestMatch(sid.name, members)
-    } {
-      //println(s"Add type $sid $cls")
-      allTypes.t += Some(sid) -> TypeInfo.target(ClassType(cls))
+    Time("byMembers.bestMatch") {
+      //println(s"List ${byMembers.list}")
+      //println(s"Defs ${byMembers.defList}")
+      // for each find the best match
+      for {
+        (sid, members) <- byMembers.list
+        cls <- byMembers.bestMatch(sid.name, members, desperate)(classInfo)
+      } {
+        //println(s"Add type $s id $cls")
+
+        if (watched(sid.name)) {
+          println(s"Watched $sid class type by members $cls")
+        }
+
+        allTypes.t += Some(sid) -> TypeInfo.target(ClassType(cls))
+      }
+      n.copy(types = allTypes.t)
     }
-    n.copy(types = allTypes.t)
 
   }
 }
