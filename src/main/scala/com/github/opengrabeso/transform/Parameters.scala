@@ -245,7 +245,7 @@ object Parameters {
             if (!conflict) {
               // we may rename the variable now
               val renamedBody = f.body.map { s =>
-                println(s"Renaming $s")
+                //println(s"Renaming $s")
                 Variables.renameVariable(s, parDef, shortName)
               }
               f._body = renamedBody

@@ -315,7 +315,7 @@ object Variables {
     val ret = n.transformAfter { (node, _) =>
       node match {
         case sym@AST_SymbolRefDef(`oldName`) =>
-          println(s"  renamed ${oldName.name} to $newName")
+          //println(s"  renamed ${oldName.name} to $newName")
           sym.name = newName
           sym.thedef = js.undefined // scope and definition needs to be filled by the parser
           sym.scope = js.undefined
