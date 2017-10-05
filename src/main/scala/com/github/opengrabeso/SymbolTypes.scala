@@ -179,7 +179,7 @@ object SymbolTypes {
   // SymbolDef instances (including ids) are recreated on each figure_out_scope
   // we need a stable id. Original source location + name should be unique and stable
   case class SymbolMapId(name: String, sourcePos: Int) extends Ordered[SymbolMapId] {
-    override def toString = if (sourcePos != 0) s"$name:$sourcePos" else name
+    override def toString = s"$name:$sourcePos"
     def compare(that: SymbolMapId) = name compare that.name
   }
 
@@ -483,6 +483,7 @@ case object IsConstructorParameter extends Hint
 case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo], hints: Map[SymbolMapId, Hint] = Map.empty, locked: Boolean = false) {
 
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
+  def getHint(id: Option[SymbolMapId]): Option[Hint] = id.flatMap(hints.get)
 
   // TODO: move stdLibs and symbolFromMember out of SymbolTypes
   def symbolFromMember(memberId: MemberId)(implicit classPos: SymbolMapId => Int): SymbolMapId = {

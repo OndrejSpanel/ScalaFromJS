@@ -384,7 +384,8 @@ object ScalaOut {
     def outputClassArgNames(tn: AST_Lambda) = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        if (!n.thedef.nonNull.flatMap(SymbolTypes.id).flatMap(input.types.hints.get).contains(IsConstructorParameter)) {
+        // parSuffix is still used for parameters which are modified
+        if (!input.types.getHint(Transform.symbolId(n)).contains(IsConstructorParameter) && !n.name.endsWith(parSuffix)) {
           out("var ")
         }
         out"$n"

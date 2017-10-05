@@ -238,8 +238,8 @@ object InlineConstructors {
               s.transformAfter { (node, transformer) =>
                 node match {
                   case sym@AST_SymbolName(IsParameter()) =>
-                    //sym.name = sym.name + parSuffix
-                    types = types addHint sym.thedef.nonNull.flatMap(id) -> IsConstructorParameter
+                    sym.name = sym.name //+ parSuffix
+                    types = types addHint sym.thedef.nonNull.flatMap(id).map(_.copy(name = sym.name)) -> IsConstructorParameter
                     sym
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization

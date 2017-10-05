@@ -280,15 +280,19 @@ object Parameters {
   * */
   def inlineConstructorVars(n: AST_Extended): AST_Extended = {
     var types = n.types
-    val logging = false
+    val logging = true
     def handleConstructorVars(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
       if (!f.name.nonNull.exists(_.name == Classes.inlineBodyName)) Some(f)
       else {
         // inline all parameters, or constructor only?
+        // check hints: is it a variable?
+
+        val isPurePar = n.types.getHint(symbolId(par)).contains(IsConstructorParameter)
+
         val parName = par.name
         if (logging) println(s"Checking par $parName in ${f.name.map(_.name)}")
-        if (parName.endsWith(Symbols.parSuffix) && par.thedef.isDefined) {
-          if (logging) println(s"  is _par")
+        if (isPurePar) {
+          if (logging) println(s"  is a pure parameter")
           val parDef = par.thedef.get
           object IsVarPar {
 

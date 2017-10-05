@@ -12,7 +12,7 @@ import scala.scalajs.js
 import js.JSConverters._
 
 object FillVarMembers {
-  def apply(n: AST_Node): AST_Node = {
+  def apply(n: AST_Extended): AST_Extended = {
     object IsThis {
       def unapply(arg: AST_Node) = arg match {
         case _: AST_This => true
@@ -22,7 +22,7 @@ object FillVarMembers {
     }
 
     // TODO: detect access other than this (see AST_This in expressionType to check general this handling)
-    val ret = n.transformAfter { (node, _) =>
+    val retTop = n.top.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
           val accessor = findInlineBody(cls)
@@ -88,11 +88,13 @@ object FillVarMembers {
       }
     }
 
+    val ret = n.copy(top = retTop)
+
     val classInfo = listClassMembers(ret)
     //println(s"Members ${classInfo.members}")
 
     // remove members already present in a parent from a derived class
-    val cleanup = ret.transformAfter { (node, _) =>
+    val cleanup = ret.top.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
           for {
@@ -112,7 +114,7 @@ object FillVarMembers {
       }
     }
 
-    cleanup
+    ret.copy(top = cleanup)
   }
 
 

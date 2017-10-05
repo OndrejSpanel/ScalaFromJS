@@ -8,6 +8,7 @@ import UglifyExt.Import._
 import Classes._
 import SymbolTypes._
 import Expressions._
+import Transform._
 
 import scala.scalajs.js
 import js.JSConverters._
@@ -435,7 +436,7 @@ object Variables {
 
   }
 
-  def instanceofImpliedCast(n: AST_Node): AST_Node = {
+  def instanceofImpliedCast(n: AST_Extended): AST_Extended = {
 
     import Casting._
 
@@ -535,7 +536,7 @@ object Variables {
       }.toSeq.sortBy(v => varOrder(v._1.name)) // sort by order in casts
     }
 
-    val ret = n.transformBefore { (node, descend, transformer) =>
+    val ret = n.top.transformBefore { (node, descend, transformer) =>
       node match {
         // note: handles one or multiple casts
         case s@SequenceOfCasts(symDef, casts, elseStatement) /*if casts.lengthCompare(1) > 0*/ =>
@@ -594,7 +595,7 @@ object Variables {
 
       }
     }
-    ret
+    n.copy(top = ret)
   }
 
 }
