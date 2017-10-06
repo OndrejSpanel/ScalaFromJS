@@ -335,6 +335,7 @@ object Variables {
         case AST_SymbolRefDef(`oldName`) =>
           val r = newExpr.clone()
           fillTokensRecursively(r, node)
+          //println(s"replaceVariable ${oldName.name} $newExpr")
           r
         case _ =>
           node

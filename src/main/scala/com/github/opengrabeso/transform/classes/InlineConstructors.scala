@@ -21,15 +21,41 @@ import js.JSConverters._
 object InlineConstructors {
   private case class PrivateMember(sym: SymbolDef, isVal: Boolean)
 
+  private object DefinePrivateFunction {
+    def unapply(arg: AST_Statement) = arg match {
+      case SingleStatement(AST_Assign(AST_This() AST_Dot funName, "=", lambda: AST_Lambda)) =>
+        Some(funName, lambda)
+      case _ =>
+        None
+    }
+  }
+
+  private def detectPrivateFunctions(n: AST_Lambda) = {
+    // detect exported functions
+    var exportedFunctions = Set.empty[AST_Lambda]
+    n.walk {
+      case DefinePrivateFunction(_, fun) =>
+        exportedFunctions += fun
+        true
+      case _ =>
+        false
+    }
+    exportedFunctions
+
+    // TODO: transitive closure of exported functions
+    // TODO: detect exports as function xxx(){} this.aaa = xxxx;
+    // TODO: detect exports as Object.defineProperties
+    // or rather detect safe non-exports instead?
+
+  }
+
   private def detectPrivateMembers(n: AST_Lambda): Seq[PrivateMember] = {
     // any variable defined in the main body scope and references from any function is considered a private member
     //n.variables = Dictionary.empty[SymbolDef]
+    val functions = detectPrivateFunctions(n)
 
     val refs = buildReferenceStacks(n)
 
-    // TODO: consider only references from exported functions, ignore references from local named functions
-    // beware of local functions used from exported functions, including their transitive closure
-    // to stay safe, we do not ignore them now (may result in more private members than needed)
     //println(s"n.variables ${n.variables.map(_._1)}")
     //println(s"n.functions ${n.functions.map(_._1)}")
     val variables = n.variables.filter(v => !n.functions.contains(v._1))
@@ -37,7 +63,7 @@ object InlineConstructors {
       (_, sym) <- variables
       // empty 'references' means automatic symbol, like "arguments"
       rs <- refs.refs.get(sym)
-      if (rs -- Set(n)).exists(_.isInstanceOf[AST_Lambda])
+      if (rs -- Set(n)).intersect(functions.asInstanceOf[Set[AST_Scope]]).nonEmpty
     } yield {
       sym
     }
@@ -52,6 +78,7 @@ object InlineConstructors {
 
     }
   }
+
 
   def privateVariables(n: AST_Node): AST_Node = {
     n.transformAfter { (node, _) =>
@@ -88,8 +115,11 @@ object InlineConstructors {
                     operator = "="
                     right = init.clone()
                   }
+                  //println(s"Replaced init ${sym.name} $init")
                 }
               }
+
+              //println(s"Replaced private var ${privateVar.sym.name}")
               replaceVariable(replacedInit, privateVar.sym, privateMember(privateVar.sym))
             }
             constructorProperty.value = constructor
@@ -124,22 +154,17 @@ object InlineConstructors {
   }
 
   def privateFunctions(n: AST_Node): AST_Node = {
+
+
     n.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
           for {
             constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
           } {
-            object DefinePrivateFunction {
-              def unapply(arg: AST_Statement) = arg match {
-                case SingleStatement(AST_Assign(AST_This() AST_Dot funName, "=", lambda: AST_Lambda)) =>
-                  Some(funName, lambda)
-                case _ =>
-                  None
-              }
-            }
+            val functionsToConvert = detectPrivateFunctions(rawConstructor)
             val (functions, rest) = rawConstructor.body.partition {
-              case DefinePrivateFunction(_, _) =>
+              case DefinePrivateFunction(_, f) if functionsToConvert contains f =>
                 true
               case _ =>
                 false
