@@ -191,7 +191,7 @@ object ClassesByMembers {
   def apply(n: AST_Extended, desperate: Boolean): AST_Extended = {
 
     // try to identify any symbol not inferred completely
-    val classInfo = listDefinedClassMembers(n.top)
+    val classInfo = listDefinedClassMembers(n)
     val classes = new ClassListHarmony(n)
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 

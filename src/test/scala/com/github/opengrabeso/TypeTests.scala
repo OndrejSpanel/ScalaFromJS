@@ -82,7 +82,7 @@ class TypeTests extends FunSuite with TestUtils {
         "var b = b_par",
         "class c(aa_par_par:",
         "var aa_par",
-        "constructor(aa_par, bb_par, cc_par)"
+        "constructor(aa_par,"
 
       ).forbidden(
         "var c"

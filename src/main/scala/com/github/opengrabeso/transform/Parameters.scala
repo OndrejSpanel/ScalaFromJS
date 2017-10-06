@@ -7,6 +7,7 @@ import UglifyExt._
 import UglifyExt.Import._
 import scalajs.js
 import Transform._
+import Symbols._
 import Expressions._
 
 object Parameters {
@@ -165,6 +166,20 @@ object Parameters {
 
   }
 
+  private def renameParameter(f: AST_Lambda, par: AST_SymbolFunarg, newName: String) = {
+    val parIndex = f.argnames.indexOf(par)
+    val parNode = par.clone()
+
+    // introduce a new symbol
+    parNode.thedef = js.undefined
+    parNode.name = newName
+
+    f.argnames(parIndex) = parNode
+
+    parNode
+  }
+
+
   def modifications(n: AST_Node): AST_Node = {
     import VariableUtils._
 
@@ -185,16 +200,7 @@ object Parameters {
           // we need to replace parameter x with x_par and intruduce var x = x_par
           val newF = f.clone()
 
-          val parIndex = f.argnames.indexOf(par)
-          val parNode = par.clone()
-
-          //val oldParSym = parNode.thedef
-
-          // introduce a new symbol
-          parNode.thedef = js.undefined
-          parNode.name = parName + Symbols.parSuffix
-
-          newF.argnames(parIndex) = parNode
+          val parNode = renameParameter(newF, par, parName + Symbols.parSuffix)
 
           newF.body = js.Array(
             AST_Let(parNode)(AST_VarDef.initialized(parNode)(parName, AST_SymbolRef(parNode)(parName + Symbols.parSuffix)))
@@ -212,6 +218,58 @@ object Parameters {
 
     processAllFunctions(n, handleModification)
   }
+
+  /*
+  If a class inline body parameter is named xxx_par and a member named xxx does not exist, we can remove the _par
+  */
+  def simpleParameters(n: AST_Extended): AST_Extended = {
+
+    var types = n.types
+
+    def handleSimpleParameters(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+
+      if (!f.name.nonNull.exists(_.name == Classes.inlineBodyName)) Some(f)
+      else {
+        par.thedef.nonNull.map { parDef =>
+          val parName = par.name
+
+          if (parName endsWith parSuffix) {
+            // check for existence of variable without a suffix
+            val shortName = parName dropRight parSuffix.length
+            val conflict = f.body.exists {
+              case AST_Definitions(AST_VarDef(AST_SymbolName(`shortName`), _)) =>
+                true
+              case _ =>
+                false
+            }
+            if (!conflict) {
+              // we may rename the variable now
+              val renamedBody = f.body.map { s =>
+                //println(s"Renaming $s")
+                Variables.renameVariable(s, parDef, shortName)
+              }
+              f._body = renamedBody
+
+              renameParameter(f, par, shortName)
+              // rename hints as well
+              for (parId <- symbolId(par)) {
+                types = types.renameHint(parId, parId.copy(name = shortName))
+              }
+
+              f
+            }
+            else f
+
+          } else f
+        }
+      }
+
+    }
+
+    val ret = processAllFunctions(n.top, handleSimpleParameters).asInstanceOf[AST_Toplevel]
+    n.copy(top = ret, types = types)
+  }
+
 
   def removeDeprecated(n: AST_Node): AST_Node = {
     def removeOneDeprecated(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
@@ -285,10 +343,14 @@ object Parameters {
       if (!f.name.nonNull.exists(_.name == Classes.inlineBodyName)) Some(f)
       else {
         // inline all parameters, or constructor only?
+        // check hints: is it a variable?
+
+        val isPurePar = n.types.getHint(symbolId(par)).contains(IsConstructorParameter)
+
         val parName = par.name
         if (logging) println(s"Checking par $parName in ${f.name.map(_.name)}")
-        if (parName.endsWith(Symbols.parSuffix) && par.thedef.isDefined) {
-          if (logging) println(s"  is _par")
+        if (isPurePar) {
+          if (logging) println(s"  is a pure parameter")
           val parDef = par.thedef.get
           object IsVarPar {
 

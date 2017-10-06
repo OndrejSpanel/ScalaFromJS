@@ -20,6 +20,15 @@ object Transform {
   import SymbolTypes._
   import Symbols._
 
+  def symbolType(types: SymbolTypes, symbol: AST_Symbol): Option[TypeInfo] = {
+    types.get(symbolId(symbol))
+  }
+
+  def symbolId(symbol: AST_Symbol): Option[SymbolMapId] = {
+    symbol.thedef.nonNull.flatMap(id)
+  }
+
+
   object AST_Extended {
     def noTypes = SymbolTypes()
   }
@@ -584,11 +593,11 @@ object Transform {
     existingMembers
   }
 
-  def listDefinedClassMembers(node: AST_Node) = {
+  def listDefinedClassMembers(node: AST_Extended) = {
     var listMembers = ClassInfo()
-    node.walk {
+    node.top.walk {
       case cls@AST_DefClass(Defined(AST_Symbol(_, _, Defined(clsSym))), base, _) =>
-        for (clsId <- clsSym) {
+        for (clsId <- id(clsSym)) {
           for {
             AST_SymbolRefDef(parent) <- base
             parentId <- id(parent)
@@ -607,19 +616,17 @@ object Transform {
 
           // TODO: maybe parMembersInline is enough?
 
-          def listParameterMembers(method: Option[AST_ConciseMethod]) = {
-            val parMembersInline = for {
-              constructor <- method.toSeq
-              args <- constructor.value.argnames
-              if !args.name.endsWith(parSuffix)
-            } yield {
-              args.name
-            }
-            parMembersInline
-          }
+          def listParameters(method: Option[AST_ConciseMethod]) = method.toSeq.flatMap(_.value.argnames)
 
-          val parMembers = listParameterMembers(findConstructor(cls))
-          val parMembersInline = listParameterMembers(findInlineBody(cls))
+          val parMembers = listParameters(findConstructor(cls)).map(_.name)
+          val parMembersInline = for {
+            arg <- listParameters(findInlineBody(cls))
+            argId = clsId.copy(name = arg.name) // arg may be constructed by us - may miss symbol/token information
+            //_ = println(s"Arg $argId from cls $clsId hints ${node.types.hints.get(argId)}")
+            if !node.types.hints.get(argId).contains(IsConstructorParameter) && !arg.name.endsWith(parSuffix)
+          } yield {
+            arg.name
+          }
 
           //println(s"${clsSym.name}: parMembers $parMembers $parMembersInline")
           val clsMembers = clsId -> (members ++ varMembers ++ parMembers ++ parMembersInline).distinct
@@ -634,7 +641,7 @@ object Transform {
     listMembers
   }
 
-  def listClassMembers(node: AST_Node) = {
+  def listClassMembers(node: AST_Extended) = {
     SymbolTypes.stdClassInfo ++ listDefinedClassMembers(node)
   }
 
@@ -790,8 +797,9 @@ object Transform {
       onTopNode(Parameters.removeDeprecated),
       onTopNode(Parameters.defaultValues),
       onTopNode(Parameters.modifications),
+      Parameters.simpleParameters _,
       onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
-      onTopNode(Variables.instanceofImpliedCast),
+      Variables.instanceofImpliedCast _,
       objectAssign _,
       onTopNode(removeVarClassScope),
       InferTypes.multipass _,

@@ -5,6 +5,8 @@ import JsUtils._
 
 import scala.language.implicitConversions
 
+import SymbolTypes._
+
 object SymbolTypes {
 
   val watch = false
@@ -177,7 +179,7 @@ object SymbolTypes {
   // SymbolDef instances (including ids) are recreated on each figure_out_scope
   // we need a stable id. Original source location + name should be unique and stable
   case class SymbolMapId(name: String, sourcePos: Int) extends Ordered[SymbolMapId] {
-    override def toString = if (sourcePos != 0) s"$name:$sourcePos" else name
+    override def toString = s"$name:$sourcePos"
     def compare(that: SymbolMapId) = name compare that.name
   }
 
@@ -292,7 +294,7 @@ object SymbolTypes {
   def apply(): SymbolTypes = SymbolTypes.std
   def apply(syms: Seq[(SymbolDef, TypeDesc)]) = {
     val idMap = syms.map { case (k,v) => id(k) -> v }.toMap - None
-    new SymbolTypes(StdLibraries(), idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)}, false)
+    new SymbolTypes(StdLibraries(), idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)})
   }
 
   case class ClassInfo(members: Map[SymbolMapId, Seq[String]] = Map.empty, parents: Map[SymbolMapId, SymbolMapId] = Map.empty) {
@@ -410,13 +412,12 @@ object SymbolTypes {
     stdLibs.symbolFromMember(k.cls, k.name).map(_ -> v)
   }.toMap
 
-  lazy val std: SymbolTypes = SymbolTypes(stdLibs, stdLibraries ++ stdLibraryMemberSymbols, false)
+  lazy val std: SymbolTypes = SymbolTypes(stdLibs, stdLibraries ++ stdLibraryMemberSymbols)
 
   lazy val stdClassInfo: ClassInfo = ClassInfo(libs, Map.empty)
 
 }
 
-import SymbolTypes._
 
 object TypeInfo {
   def source(tpe: TypeDesc): TypeInfo = {
@@ -471,13 +472,26 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
   def map(f: TypeDesc => TypeDesc): TypeInfo = TypeInfo(f(source), f(target))
 }
 
+sealed trait Hint
+
+case object IsConstructorParameter extends Hint
+
 /**
   Once locked, perform only "desperate" inference: i.e. from Unit to some type, never change a variable type
 */
 
-case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo], locked: Boolean) {
+case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo], hints: Map[SymbolMapId, Hint] = Map.empty, locked: Boolean = false) {
 
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
+  def getHint(id: Option[SymbolMapId]): Option[Hint] = id.flatMap(hints.get)
+
+  def renameHint(oldId: SymbolMapId, newId: SymbolMapId): SymbolTypes = {
+    val mod = for (hint <- hints.get(oldId)) yield {
+      var newHints = hints - oldId + (newId -> hint)
+      copy(hints = newHints)
+    }
+    mod.getOrElse(this)
+  }
 
   // TODO: move stdLibs and symbolFromMember out of SymbolTypes
   def symbolFromMember(memberId: MemberId)(implicit classPos: SymbolMapId => Int): SymbolMapId = {
@@ -494,7 +508,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
     get(id).fold (any.toOut) (t => t.declType.toOut)
   }
 
-  def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types, locked || that.locked)
+  def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types, hints ++ that.hints, locked || that.locked)
 
   def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
     kv._1.fold(this) { id =>
@@ -511,9 +525,18 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
     }
   }
 
+  def addHint(kv: (Option[SymbolMapId], Hint)): SymbolTypes = {
+    kv._1.fold(this) { id =>
+      copy(hints = hints + (id -> kv._2))
+    }
+
+  }
+
+
   def addMember (kv: (Option[MemberId], TypeInfo))(implicit classId: SymbolMapId => Int): SymbolTypes = {
     this + (kv._1.map(symbolFromMember) -> kv._2)
   }
+
 
   def knownItems: Int = {
     def sumTypeInfo(types: Iterable[TypeInfo]) = types.foldLeft(0)((s, i) => s + i.knownItems)

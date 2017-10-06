@@ -49,7 +49,7 @@ object InferTypes {
     //println("Classes:\n" + classes.keys)
 
 
-    val classInfo = listClassMembers(n.top)
+    val classInfo = listClassMembers(n)
     //println("ClassInfo:\n" + classInfo)
 
     implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes) // note: ctx.allTypes is mutable

@@ -924,6 +924,7 @@ object TransformClasses {
           cls.properties.foreach {
             //case AST_ConciseMethod(AST_SymbolName(p), _) =>
             case kv@AST_ObjectKeyVal(p, v) if !propertyIsStatic(kv) =>
+              //println(s"newMembers append $cls $p $v")
               newMembers append AST_Var(cls)(AST_VarDef.initialized(cls)(p, v))
             //case s: AST_ObjectSetter =>
             //case s: AST_ObjectGetter =>
@@ -1273,10 +1274,10 @@ object TransformClasses {
     // privateFunctions after privateVariables, are already converted to this.member references
     // privateFunctions before FillVarMembers, so that variables for the functions are not created yet
     onTopNode(transform.classes.InlineConstructors.privateFunctions),
-    onTopNode(transform.classes.FillVarMembers.apply),
+    transform.classes.FillVarMembers.apply,
     // applyRules after fillVarMembers - we cannot delete members before they are created
     // applyRules before inlineConstructors, so that constructor is a single function
     applyRules,
-    onTopNode(transform.classes.InlineConstructors.apply)
+    transform.classes.InlineConstructors.apply
   )
 }
