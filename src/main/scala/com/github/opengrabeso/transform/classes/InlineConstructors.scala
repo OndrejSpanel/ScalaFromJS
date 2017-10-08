@@ -33,8 +33,6 @@ object InlineConstructors {
     def unapply(arg: AST_Statement): Option[(String, AST_Lambda)] = arg match {
       case AssignToMember(funName, lambda: AST_Lambda) =>
         Some(funName, lambda)
-      case fun: AST_Defun =>
-        fun.name.nonNull.map(_.name -> fun)
       case _ =>
         None
     }
@@ -42,29 +40,48 @@ object InlineConstructors {
 
   private def detectPrivateFunctions(n: AST_Lambda) = {
     // detect exported functions
-    var exportedFunctions = Set.empty[AST_Lambda]
+    var localLambdas = Set.empty[AST_Lambda]
     n.walk {
       case fun: AST_Lambda if fun != n =>
-        exportedFunctions += fun
+        localLambdas += fun
         true
       case _ =>
         false
     }
 
+    println(s"localLambdas $localLambdas")
     // detect functions which are not exported - i.e. local named function not assigned to anything
 
     var isExported = Set.empty[AST_Lambda]
     n.walk {
       case DefinePrivateFunction(_, lambda) =>
-        assert(exportedFunctions contains lambda)
+        assert(localLambdas contains lambda)
         isExported += lambda
         true
-      case AssignToMember(_, lambda: AST_Lambda) if exportedFunctions contains lambda =>
-        isExported += lambda
+      case AssignToMember(_, AST_SymbolRefName(funName)) if localLambdas.exists(_.name.nonNull.exists(_.name == funName)) =>
+        isExported ++= localLambdas.filter(_.name.nonNull.exists(_.name == funName))
         true
       case _ =>
         false
     }
+
+
+    val definedFunctions = localLambdas.filter(_.isInstanceOf[AST_Defun])
+    println(s"definedFunctions $definedFunctions")
+
+    var definedAndExported = Set.empty[AST_Lambda]
+    n.walk {
+      case AST_Call(AST_SymbolRefName(funName), _*) =>
+        true // a plain call, do not dive into
+      case AST_SymbolRefName(funName) if localLambdas.exists(_.name.nonNull.exists(_.name == funName)) =>
+        definedAndExported ++= localLambdas.filter(_.name.nonNull.exists(_.name == funName))
+        true
+      case _ =>
+        false
+    }
+
+    println(s"definedAndExported $definedAndExported")
+    println(s"isExported $isExported")
 
     isExported
 
@@ -181,7 +198,7 @@ object InlineConstructors {
   }
 
   def privateFunctions(n: AST_Node): AST_Node = {
-
+    val log = true
 
     n.transformAfter { (node, _) =>
       node match {
@@ -190,23 +207,23 @@ object InlineConstructors {
             constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
           } {
             val functionsToConvert = detectPrivateFunctions(rawConstructor)
-            //println(s"functionsToConvert ${functionsToConvert.map(_.name)}")
-            val (functions, restRaw) = rawConstructor.body.partition {
-              case DefinePrivateFunction(_, f) if functionsToConvert contains f =>
-                true
-              case _ =>
-                false
+            if (log) println(s"functionsToConvert ${functionsToConvert.map(_.name)}")
+
+            val functions = rawConstructor.body.collect {
+              case s@DefinePrivateFunction(funName, f) if functionsToConvert contains f =>
+                (s, funName, f)
+              case s@AST_Defun(Defined(AST_SymbolName(funName)), _, _) if functionsToConvert contains s =>
+                (s, funName, s)
             }
+
+            val restRaw = rawConstructor.body diff functions.map(_._1)
 
             val rest = restRaw.filter {
               case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot tgtName, "=", AST_SymbolRefName(funName)))
                 // TODO: relax tgtName == funName requirement
                 if tgtName == funName && (functionsToConvert exists (_.name.nonNull.exists(_.name==funName))) =>
-                  println(s"Drop assign $funName")
-                  false
-              case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot tgtName, "=", AST_SymbolRefName(funName))) =>
-                println(s"Drop assign candidate $funName")
-                true
+                if (log) println(s"Drop assign $funName")
+                false
               case _ =>
                 true
 
@@ -215,7 +232,7 @@ object InlineConstructors {
             constructorProperty.value._body = rest
             // add functions as methods
             cls.properties = cls.properties ++ functions.map {
-              case node@DefinePrivateFunction(funName, lambda) =>
+              case (statement, funName, lambda) =>
                 new AST_ConciseMethod {
                   fillTokens(this, node)
                   key = new AST_SymbolMethod {
