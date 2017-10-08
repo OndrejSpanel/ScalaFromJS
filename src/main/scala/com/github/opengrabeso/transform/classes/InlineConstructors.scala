@@ -21,10 +21,20 @@ import js.JSConverters._
 object InlineConstructors {
   private case class PrivateMember(sym: SymbolDef, isVal: Boolean)
 
+  private object AssignToMember {
+    def unapply(arg: AST_Node): Option[(String, AST_Node)] = arg match {
+      case SingleStatement(AST_Assign(AST_This() AST_Dot funName, "=", value)) =>
+        Some(funName, value)
+      case _ =>
+        None
+    }
+  }
   private object DefinePrivateFunction {
-    def unapply(arg: AST_Statement) = arg match {
-      case SingleStatement(AST_Assign(AST_This() AST_Dot funName, "=", lambda: AST_Lambda)) =>
+    def unapply(arg: AST_Statement): Option[(String, AST_Lambda)] = arg match {
+      case AssignToMember(funName, lambda: AST_Lambda) =>
         Some(funName, lambda)
+      case fun: AST_Defun =>
+        fun.name.nonNull.map(_.name -> fun)
       case _ =>
         None
     }
@@ -34,13 +44,30 @@ object InlineConstructors {
     // detect exported functions
     var exportedFunctions = Set.empty[AST_Lambda]
     n.walk {
-      case DefinePrivateFunction(_, fun) =>
+      case fun: AST_Lambda if fun != n =>
         exportedFunctions += fun
         true
       case _ =>
         false
     }
-    exportedFunctions
+
+    // detect functions which are not exported - i.e. local named function not assigned to anything
+
+    var isExported = Set.empty[AST_Lambda]
+    n.walk {
+      case DefinePrivateFunction(_, lambda) =>
+        assert(exportedFunctions contains lambda)
+        isExported += lambda
+        true
+      case AssignToMember(_, lambda: AST_Lambda) if exportedFunctions contains lambda =>
+        isExported += lambda
+        true
+      case _ =>
+        false
+    }
+
+    isExported
+
 
     // TODO: transitive closure of exported functions
     // TODO: detect exports as function xxx(){} this.aaa = xxxx;
@@ -163,11 +190,26 @@ object InlineConstructors {
             constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
           } {
             val functionsToConvert = detectPrivateFunctions(rawConstructor)
-            val (functions, rest) = rawConstructor.body.partition {
+            //println(s"functionsToConvert ${functionsToConvert.map(_.name)}")
+            val (functions, restRaw) = rawConstructor.body.partition {
               case DefinePrivateFunction(_, f) if functionsToConvert contains f =>
                 true
               case _ =>
                 false
+            }
+
+            val rest = restRaw.filter {
+              case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot tgtName, "=", AST_SymbolRefName(funName)))
+                // TODO: relax tgtName == funName requirement
+                if tgtName == funName && (functionsToConvert exists (_.name.nonNull.exists(_.name==funName))) =>
+                  println(s"Drop assign $funName")
+                  false
+              case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot tgtName, "=", AST_SymbolRefName(funName))) =>
+                println(s"Drop assign candidate $funName")
+                true
+              case _ =>
+                true
+
             }
 
             constructorProperty.value._body = rest
