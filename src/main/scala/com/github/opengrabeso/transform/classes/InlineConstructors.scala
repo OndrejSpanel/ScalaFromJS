@@ -21,15 +21,125 @@ import js.JSConverters._
 object InlineConstructors {
   private case class PrivateMember(sym: SymbolDef, isVal: Boolean)
 
+  private object AssignToMember {
+    def unapply(arg: AST_Node): Option[(String, AST_Node)] = arg match {
+      case SingleStatement(AST_Assign(AST_This() AST_Dot funName, "=", value)) =>
+        Some(funName, value)
+      case _ =>
+        None
+    }
+  }
+  private object DefinePrivateFunction {
+    def unapply(arg: AST_Statement): Option[(String, AST_Lambda)] = arg match {
+      case AssignToMember(funName, lambda: AST_Lambda) =>
+        Some(funName, lambda)
+      case _ =>
+        None
+    }
+  }
+
+  private def detectPrivateFunctions(n: AST_Lambda) = {
+    // detect exported functions
+    var localLambdas = Set.empty[AST_Lambda]
+    n.walk {
+      case fun: AST_Lambda if fun != n =>
+        localLambdas += fun
+        true
+      case _ =>
+        false
+    }
+
+    //println(s"localLambdas $localLambdas")
+    // detect functions which are not exported - i.e. local named function not assigned to anything
+
+    def localLambdaByName(name: String): Option[AST_Lambda] = {
+      localLambdas.find(_.name.nonNull.exists(_.name == name))
+    }
+
+    var isExported = Set.empty[AST_Lambda]
+    n.walk {
+      case DefinePrivateFunction(_, lambda) =>
+        assert(localLambdas contains lambda)
+        isExported += lambda
+        true
+      case AssignToMember(_, AST_SymbolRefName(funName)) =>
+        val isLocal = localLambdaByName(funName)
+        isExported ++= isLocal
+        isLocal.nonEmpty
+      case _ =>
+        false
+    }
+
+
+    val definedFunctions = localLambdas.filter(_.isInstanceOf[AST_Defun])
+    //println(s"definedFunctions $definedFunctions")
+
+    var definedAndExported = Set.empty[AST_Lambda]
+    n.walk {
+      case AST_Call(AST_SymbolRefName(_), _*) =>
+        true // a plain call, do not dive into
+      case AST_SymbolRefName(funName) if localLambdas.exists(_.name.nonNull.exists(_.name == funName)) =>
+        definedAndExported ++= localLambdas.filter(_.name.nonNull.exists(_.name == funName))
+        true
+      case _ =>
+        false
+    }
+
+    //println(s"definedAndExported $definedAndExported")
+
+    // select all lambdas with exception of plain defined functions which are not exported
+    val perhapsExported = localLambdas -- (definedFunctions -- definedAndExported)
+
+    //println(s"isExported $isExported")
+    //println(s"perhapsExported $perhapsExported")
+
+    val exportedDirectly = isExported ++ perhapsExported
+
+    //println(s"exportedDirectly $exportedDirectly")
+
+    // detect calls from exported functions
+
+    def transitiveClosure(functions: Set[AST_Lambda]): Set[AST_Lambda] = {
+      var called = functions
+      var someChange = false
+      n.walkWithDescend { (node, _, walker) =>
+        node match {
+          // any use other than a definition should be enough to export the function as well
+          case _: AST_Lambda =>
+            false
+          case AST_SymbolRefName(sym) =>
+            for {
+              fun <- localLambdaByName(sym)
+              inFunction <- walker.stack.reverse.collectFirst {
+                case c: AST_Lambda =>
+                  //println(s"Found ${c.name.map(_.name)}")
+                  c
+              }
+            } {
+              if ((called contains inFunction) && !(called contains fun)) {
+                called += fun
+                someChange = true
+              }
+            }
+
+            false
+          case _ =>
+            false
+        }
+      }
+      if (someChange) transitiveClosure(called) else called
+    }
+
+    transitiveClosure(exportedDirectly)
+  }
+
   private def detectPrivateMembers(n: AST_Lambda): Seq[PrivateMember] = {
     // any variable defined in the main body scope and references from any function is considered a private member
     //n.variables = Dictionary.empty[SymbolDef]
+    val functions = detectPrivateFunctions(n)
 
     val refs = buildReferenceStacks(n)
 
-    // TODO: consider only references from exported functions, ignore references from local named functions
-    // beware of local functions used from exported functions, including their transitive closure
-    // to stay safe, we do not ignore them now (may result in more private members than needed)
     //println(s"n.variables ${n.variables.map(_._1)}")
     //println(s"n.functions ${n.functions.map(_._1)}")
     val variables = n.variables.filter(v => !n.functions.contains(v._1))
@@ -37,7 +147,7 @@ object InlineConstructors {
       (_, sym) <- variables
       // empty 'references' means automatic symbol, like "arguments"
       rs <- refs.refs.get(sym)
-      if (rs -- Set(n)).exists(_.isInstanceOf[AST_Lambda])
+      if (rs -- Set(n)).intersect(functions.asInstanceOf[Set[AST_Scope]]).nonEmpty
     } yield {
       sym
     }
@@ -52,6 +162,7 @@ object InlineConstructors {
 
     }
   }
+
 
   def privateVariables(n: AST_Node): AST_Node = {
     n.transformAfter { (node, _) =>
@@ -88,8 +199,11 @@ object InlineConstructors {
                     operator = "="
                     right = init.clone()
                   }
+                  //println(s"Replaced init ${sym.name} $init")
                 }
               }
+
+              //println(s"Replaced private var ${privateVar.sym.name}")
               replaceVariable(replacedInit, privateVar.sym, privateMember(privateVar.sym))
             }
             constructorProperty.value = constructor
@@ -124,31 +238,41 @@ object InlineConstructors {
   }
 
   def privateFunctions(n: AST_Node): AST_Node = {
+    val log = false
+
     n.transformAfter { (node, _) =>
       node match {
         case cls: AST_DefClass =>
           for {
             constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
           } {
-            object DefinePrivateFunction {
-              def unapply(arg: AST_Statement) = arg match {
-                case SingleStatement(AST_Assign(AST_This() AST_Dot funName, "=", lambda: AST_Lambda)) =>
-                  Some(funName, lambda)
-                case _ =>
-                  None
-              }
+            val functionsToConvert = detectPrivateFunctions(rawConstructor)
+            if (log) println(s"functionsToConvert ${functionsToConvert.toSeq.map(_.name)}")
+
+            val functions = rawConstructor.body.collect {
+              case s@DefinePrivateFunction(funName, f) if functionsToConvert contains f =>
+                (s, funName, f)
+              case s@AST_Defun(Defined(AST_SymbolName(funName)), _, _) if functionsToConvert contains s =>
+                (s, funName, s)
             }
-            val (functions, rest) = rawConstructor.body.partition {
-              case DefinePrivateFunction(_, _) =>
-                true
-              case _ =>
+
+            val restRaw = rawConstructor.body diff functions.map(_._1)
+
+            val rest = restRaw.filter {
+              case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot tgtName, "=", AST_SymbolRefName(funName)))
+                // TODO: relax tgtName == funName requirement
+                if tgtName == funName && (functionsToConvert exists (_.name.nonNull.exists(_.name==funName))) =>
+                //if (log) println(s"Drop assign $funName")
                 false
+              case _ =>
+                true
+
             }
 
             constructorProperty.value._body = rest
             // add functions as methods
             cls.properties = cls.properties ++ functions.map {
-              case node@DefinePrivateFunction(funName, lambda) =>
+              case (statement, funName, lambda) =>
                 new AST_ConciseMethod {
                   fillTokens(this, node)
                   key = new AST_SymbolMethod {
