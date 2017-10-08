@@ -250,7 +250,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
         var a, b;
         x = x || false;
 
-        function f() {
+        this.f = function f() {
           a = b;
           return x;
         }
@@ -278,25 +278,25 @@ class ClassVarsTests extends FunSuite with TestUtils {
         this.getA = function () {return a;};
 
         function getB() {return b;}
-        function getC() {return c;}
+        function getCC() {return c;}
         function getD() {return d;}
-        function getCC() {return getC();}
-        this.getC = function(){return getCC();};
+        function getC() {return getCC();}
+        this.getC = function(){return getC();};
 
         this.getD = getD;
       }
       var v = new C()
       """).required(
-      "def getA", "var a", "this.a",
-      "def getC", "def getCC", "var c", "this.c",
-      "def getD", "var d", "this.d",
-    ).forbidden(
-      "this.b",
-      "var getA",
-      "var getB",
-      "var getC",
-      "var getD"
-    )
+        "def getA", "var a", "this.a",
+        "def getC", "def getCC", "var c", "this.c",
+        "def getD", "var d", "this.d"
+      ).forbidden(
+        "this.b",
+        "var getA",
+        "var getB",
+        "var getC",
+        "var getD"
+      )
 
   }
 

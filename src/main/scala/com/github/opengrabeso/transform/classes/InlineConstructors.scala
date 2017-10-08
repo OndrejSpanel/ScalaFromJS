@@ -49,8 +49,12 @@ object InlineConstructors {
         false
     }
 
-    println(s"localLambdas $localLambdas")
+    //println(s"localLambdas $localLambdas")
     // detect functions which are not exported - i.e. local named function not assigned to anything
+
+    def localLambdaByName(name: String): Option[AST_Lambda] = {
+      localLambdas.find(_.name.nonNull.exists(_.name == name))
+    }
 
     var isExported = Set.empty[AST_Lambda]
     n.walk {
@@ -58,20 +62,21 @@ object InlineConstructors {
         assert(localLambdas contains lambda)
         isExported += lambda
         true
-      case AssignToMember(_, AST_SymbolRefName(funName)) if localLambdas.exists(_.name.nonNull.exists(_.name == funName)) =>
-        isExported ++= localLambdas.filter(_.name.nonNull.exists(_.name == funName))
-        true
+      case AssignToMember(_, AST_SymbolRefName(funName)) =>
+        val isLocal = localLambdaByName(funName)
+        isExported ++= isLocal
+        isLocal.nonEmpty
       case _ =>
         false
     }
 
 
     val definedFunctions = localLambdas.filter(_.isInstanceOf[AST_Defun])
-    println(s"definedFunctions $definedFunctions")
+    //println(s"definedFunctions $definedFunctions")
 
     var definedAndExported = Set.empty[AST_Lambda]
     n.walk {
-      case AST_Call(AST_SymbolRefName(funName), _*) =>
+      case AST_Call(AST_SymbolRefName(_), _*) =>
         true // a plain call, do not dive into
       case AST_SymbolRefName(funName) if localLambdas.exists(_.name.nonNull.exists(_.name == funName)) =>
         definedAndExported ++= localLambdas.filter(_.name.nonNull.exists(_.name == funName))
@@ -80,17 +85,52 @@ object InlineConstructors {
         false
     }
 
-    println(s"definedAndExported $definedAndExported")
-    println(s"isExported $isExported")
+    //println(s"definedAndExported $definedAndExported")
 
-    isExported
+    // select all lambdas with exception of plain defined functions which are not exported
+    val perhapsExported = localLambdas -- (definedFunctions -- definedAndExported)
 
+    //println(s"isExported $isExported")
+    //println(s"perhapsExported $perhapsExported")
 
-    // TODO: transitive closure of exported functions
-    // TODO: detect exports as function xxx(){} this.aaa = xxxx;
-    // TODO: detect exports as Object.defineProperties
-    // or rather detect safe non-exports instead?
+    val exportedDirectly = isExported ++ perhapsExported
 
+    //println(s"exportedDirectly $exportedDirectly")
+
+    // detect calls from exported functions
+
+    def transitiveClosure(functions: Set[AST_Lambda]): Set[AST_Lambda] = {
+      var called = functions
+      var someChange = false
+      n.walkWithDescend { (node, _, walker) =>
+        node match {
+          // any use other than a definition should be enough to export the function as well
+          case _: AST_Lambda =>
+            false
+          case AST_SymbolRefName(sym) =>
+            for {
+              fun <- localLambdaByName(sym)
+              inFunction <- walker.stack.reverse.collectFirst {
+                case c: AST_Lambda =>
+                  //println(s"Found ${c.name.map(_.name)}")
+                  c
+              }
+            } {
+              if ((called contains inFunction) && !(called contains fun)) {
+                called += fun
+                someChange = true
+              }
+            }
+
+            false
+          case _ =>
+            false
+        }
+      }
+      if (someChange) transitiveClosure(called) else called
+    }
+
+    transitiveClosure(exportedDirectly)
   }
 
   private def detectPrivateMembers(n: AST_Lambda): Seq[PrivateMember] = {
@@ -198,7 +238,7 @@ object InlineConstructors {
   }
 
   def privateFunctions(n: AST_Node): AST_Node = {
-    val log = true
+    val log = false
 
     n.transformAfter { (node, _) =>
       node match {
@@ -207,7 +247,7 @@ object InlineConstructors {
             constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
           } {
             val functionsToConvert = detectPrivateFunctions(rawConstructor)
-            if (log) println(s"functionsToConvert ${functionsToConvert.map(_.name)}")
+            if (log) println(s"functionsToConvert ${functionsToConvert.toSeq.map(_.name)}")
 
             val functions = rawConstructor.body.collect {
               case s@DefinePrivateFunction(funName, f) if functionsToConvert contains f =>
@@ -222,7 +262,7 @@ object InlineConstructors {
               case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot tgtName, "=", AST_SymbolRefName(funName)))
                 // TODO: relax tgtName == funName requirement
                 if tgtName == funName && (functionsToConvert exists (_.name.nonNull.exists(_.name==funName))) =>
-                if (log) println(s"Drop assign $funName")
+                //if (log) println(s"Drop assign $funName")
                 false
               case _ =>
                 true
