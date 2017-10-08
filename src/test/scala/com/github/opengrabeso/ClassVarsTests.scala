@@ -272,7 +272,6 @@ class ClassVarsTests extends FunSuite with TestUtils {
     execute check ConversionCheck(
       // language=JavaScript
       """
-
       function C() {
         var a, b, c, d;
 
@@ -282,7 +281,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
         function getC() {return c;}
         function getD() {return d;}
         function getCC() {return getC();}
-        this.getC = getCC();
+        this.getC = function(){return getCC();};
 
         this.getD = getD;
       }
