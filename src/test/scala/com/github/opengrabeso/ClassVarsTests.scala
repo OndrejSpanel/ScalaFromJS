@@ -267,4 +267,42 @@ class ClassVarsTests extends FunSuite with TestUtils {
       )
 
   }
+
+  test("Constructor-local functions which are not exported (and their variables) should not be extracted as members") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+
+      function C() {
+        var a, b, c, d;
+
+        this.getA = function () {return a;};
+
+        function getB() {return b;}
+        function getC() {return c;}
+        function getD() {return d;}
+        function getCC() {return getC();}
+        this.getC = getCC();
+
+        this.getD = getD;
+      }
+      var v = new C()
+      """).required(
+      "def getA", "var a", "this.a",
+      "def getC", "def getCC", "var c", "this.c",
+      "def getD", "var d", "this.d",
+    ).forbidden(
+      "this.b",
+      "var getA",
+      "var getB",
+      "var getC",
+      "var getD"
+    )
+
+  }
+
+
+
+
+
 }
