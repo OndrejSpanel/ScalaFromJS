@@ -68,4 +68,24 @@ class CommandLineTest extends FunSuite with TestUtils {
         .forbidden("def C", "def E")
     }
   }
+
+  test("Multiple file conversion with non-js files") {
+    withTempDir("ScalaFromJS-test-") { temp =>
+      val out = convertFileToFile("src/test/resources/nonJSFiles/input.js", temp + "xxx.scala")
+      val sb = new StringBuilder
+      forEachFileWithCleanup(out) { f =>
+        assert(f.endsWith(".scala"))
+        val outCode = readFile(f)
+        sb append outCode
+        execute check ResultCheck(outCode).required("/*", "*/")
+      }
+      val outCode = sb.result
+      execute check ResultCheck(outCode)
+        .required(
+          "This is a plain text file, to be packed verbatim, as data.",
+          "var value =",
+          "object plain {"
+        )
+    }
+  }
 }

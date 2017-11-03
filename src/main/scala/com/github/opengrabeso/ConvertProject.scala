@@ -201,7 +201,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
 
   def checkIntegrity = {
     val missingEol = values.filterNot(_.code.endsWith("\n"))
-    missingEol.map(_.fullName).foreach(println)
+    missingEol.map(_.fullName).foreach(s => println(s"Missing eol in $s"))
     missingEol.isEmpty
   }
 
@@ -229,7 +229,14 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
           val dot = short.indexOf('.')
           val simpleName = if (dot <0) short else short.take(dot)
           // embed wrapped code as a variable using ES6 template string
-          val wrap = s"\nvar $simpleName = {value: \n`" + code + "`}\n"
+          // use isResource so that Scala output can check it and handle it as a special case
+          val wrap =
+            s"""
+               |var $simpleName = {
+               |  value: `$code`,
+               |  isResource: true
+               |}
+               |""".stripMargin
           wrap -> path
       }
 

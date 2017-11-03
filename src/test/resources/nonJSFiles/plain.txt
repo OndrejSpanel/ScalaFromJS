@@ -1,0 +1,2 @@
+This is a plain text file, to be packed verbatim, as data.
+This line is intentionally not ended with EOL.

@@ -34,7 +34,9 @@ object ScalaOut {
     def withParts(parts: Seq[Int]) = copy(parts = parts)
 
     def formatImport(imported_names: Seq[String], module_name: String, source: String) = {
-      val comment = s"/* $source */\n" // we cannot use //, some imports are multiline in the JS source
+      // Trim leading or trailing characters from a string? - https://stackoverflow.com/a/25691614/16673
+      val trimmedSource = source.replaceAll(";+$", "")
+      val comment = s"/* $trimmedSource */\n" // we cannot use //, some imports are multiline in the JS source
       // TODO: when importing many members, use wildcard instead
       val gen = if (imported_names.isEmpty) ""
       else {

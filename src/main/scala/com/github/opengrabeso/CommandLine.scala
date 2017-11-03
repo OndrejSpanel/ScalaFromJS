@@ -181,11 +181,12 @@ object CommandLine {
 
   // return filenames of the output files
   def convertFileToFile(in: String, out: String): Seq[String] = {
-    //println(s"Convert $in to $out")
+    val log = false
+    if (log) println(s"Convert $in to $out")
 
     val project = ConvertProject.loadControlFile(in)
 
-    //println(s"Convert ${(project.values.map(_.fullName) zip project.offsets).mkString("\n")}")
+    if (log) println(s"Convert ${(project.values.map(_.fullName) zip project.offsets).mkString("\n")}")
 
     val converted = project.convert
 
@@ -197,7 +198,7 @@ object CommandLine {
 
       val outFileCombined = changeExtension(outFileBase, out)
 
-      //println(s"out: $out, in: $in, inFile: $inFile -> $outFileCombined")
+      if (log) println(s"out: $out, in: $in, inFile: $inFile -> $outFileCombined")
 
       val inFilePathIndex = inFile.lastIndexOf('/')
       val inFilePath = if (inFilePathIndex < 0) "" else inFile.take(inFilePathIndex)
