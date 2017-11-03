@@ -84,7 +84,9 @@ class CommandLineTest extends FunSuite with TestUtils {
         .required(
           "This is a plain text file, to be packed verbatim, as data.",
           "var value =",
-          "object plain {"
+          "object plain extends Resource {"
+        ).forbidden(
+          "isResource"
         )
     }
   }

@@ -334,11 +334,23 @@ object ScalaOut {
       tn.definitions.foreach {
 
         case AST_VarDef(name, Defined(AST_Object(props))) if props.nonEmpty && isVal =>
-          out"object $name {\n"
-          out.indent()
-          for (elem <- props) nodeToOut(elem)
-          out.unindent()
-          out("}\n")
+          // special case handling for isResource marked object (see readFileAsJs)
+          val propNames = props.map(propertyName)
+          //println(s"propNames $propNames")
+          val markerKey = "isResource"
+          if ((propNames diff Seq("value", markerKey)).isEmpty) {
+            out"object $name extends Resource {\n"
+            out.indent()
+            for (elem <- props if propertyName(elem)!= markerKey) nodeToOut(elem)
+            out.unindent()
+            out("}\n")
+          } else {
+            out"object $name {\n"
+            out.indent()
+            for (elem <- props) nodeToOut(elem)
+            out.unindent()
+            out("}\n")
+          }
         // empty object - might be a map instead
         case v@AST_VarDef(s@AST_Symbol(name, _, Defined(symDef)), Defined(AST_Object(Seq()))) =>
           val symId = SymbolTypes.id(symDef)
