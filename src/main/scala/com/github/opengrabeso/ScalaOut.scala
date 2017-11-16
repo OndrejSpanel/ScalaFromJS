@@ -519,7 +519,17 @@ object ScalaOut {
       case tn: AST_Null => out("null")
       //case tn: AST_Atom => "AST_Atom"
       case tn: AST_RegExp => out""""${tn.value}".r"""
-      case tn: AST_Number => out"${tn.value}"
+      case tn: AST_Number =>
+        // prefer the same representation as in the original source
+        val src = source
+        def decodeInt(s: String) = {
+          val prefixes = Seq("0x", "0X", "#")
+          for (p <- prefixes if s startsWith p) yield Integer.parseUnsignedInt(s drop p.length, 16)
+        }
+        def isSourceOf(s: String, number: Double) = {
+          decodeInt(s).contains(number) || src.toDouble == number
+        }
+        if (isSourceOf(src, tn.value)) out(src) else out(tn.value.toString)
       case tn: AST_String => out(quote(tn.value))
       case tn: AST_TemplateString =>
         // TODO: handle expression interpolation
