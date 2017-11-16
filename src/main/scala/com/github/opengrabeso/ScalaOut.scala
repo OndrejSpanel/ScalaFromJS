@@ -7,6 +7,7 @@ import JsUtils._
 import Classes._
 
 import scala.scalajs.js
+import scala.util.Try
 
 object ScalaOut {
   import Symbols._
@@ -524,10 +525,15 @@ object ScalaOut {
         val src = source
         def decodeInt(s: String) = {
           val prefixes = Seq("0x", "0X", "#")
-          for (p <- prefixes if s startsWith p) yield Integer.parseUnsignedInt(s drop p.length, 16)
+          for {
+            p <- prefixes if s startsWith p
+            value <- Try(Integer.parseUnsignedInt(s drop p.length, 16)).toOption
+          } yield value
         }
+        def decodeDouble(s: String) = Try(s.toDouble).toOption
+
         def isSourceOf(s: String, number: Double) = {
-          decodeInt(s).contains(number) || src.toDouble == number
+          decodeInt(s).contains(number) || decodeDouble(s).contains(number)
         }
         if (isSourceOf(src, tn.value)) out(src) else out(tn.value.toString)
       case tn: AST_String => out(quote(tn.value))
