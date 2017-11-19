@@ -290,6 +290,8 @@ class ClassTests extends FunSuite with TestUtils {
       """).required(
         //"var undef: PACKAGE.Undef",
         //"var defined: PACKAGE.Defined",
+        "var undef: Undef",
+        "var defined: Defined",
         "var unknown: Unknown",
         "var known: Known"
       ).forbidden(

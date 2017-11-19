@@ -511,6 +511,10 @@ object Transform {
         }
       case AST_New(AST_SymbolRefDef(call), _*) =>
         typeInfoFromClassSym(call, true)
+      case AST_New(AST_SymbolRefDef(pack) AST_Dot call, _*) =>
+        // TODO: check if call is a known symbol and use it
+        // TODO: handle package names properly
+        Some(TypeInfo.both(ClassType(SymbolMapId(call, 0))))
       case AST_Call(AST_SymbolRefDef(call), _*) =>
         val tid = id(call)
         if (log)  println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
