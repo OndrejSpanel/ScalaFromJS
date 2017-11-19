@@ -22,8 +22,8 @@ Functions.prototype.a = function() {
 
 
 Functions.prototype.b = function() {
-    var temp = new Temporary()
+    var temp = new Temporary();
     return function() {
-        return "X";
+        return temp;
     }
 }();
