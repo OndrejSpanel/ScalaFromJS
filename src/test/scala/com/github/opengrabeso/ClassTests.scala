@@ -263,4 +263,40 @@ class ClassTests extends FunSuite with TestUtils {
 
   }
 
+  test("Handle unknown classes and classes in a package") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      var undef;
+      var defined;
+      var unknown;
+      var known;
+
+      class Known {
+      }
+      function init() {
+        undef = new PACKAGE.Undef();
+        defined = new PACKAGE.Defined();
+        unknown = new Unknown();
+        known = new Known();
+      }
+
+      PACKAGE.Defined = function ( object ) {
+
+        this.object = object;
+      };
+
+      new PACKAGE.Defined
+      """).required(
+        //"var undef: PACKAGE.Undef",
+        //"var defined: PACKAGE.Defined",
+        "var unknown: Unknown",
+        "var known: Known"
+      ).forbidden(
+
+      )
+
+
+  }
+
 }

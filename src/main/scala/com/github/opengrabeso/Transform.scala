@@ -386,18 +386,21 @@ object Transform {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
 
-    def typeInfoFromClassSym(classSym: SymbolDef): Option[TypeInfo] = {
+    /*
+    * @param certain when context indicates it is a class name (in new or instanceof)
+    * */
+    def typeInfoFromClassSym(classSym: SymbolDef, certain: Boolean = false): Option[TypeInfo] = {
       // is the symbol a class?
       for {
         cls <- id(classSym)
-        clsCls <- ctx.classes.get(cls)
+        if certain || ctx.classes.get(cls).isDefined
       } yield {
         TypeInfo.target(ClassType(cls))
       }
     }
 
     def typeInfoFromClassDef(classDef: Option[AST_DefClass]) = {
-      classDef.flatMap(_.name.nonNull).flatMap(_.thedef.nonNull).flatMap(typeInfoFromClassSym)
+      classDef.flatMap(_.name.nonNull).flatMap(_.thedef.nonNull).flatMap(typeInfoFromClassSym(_))
     }
 
     n match {
@@ -482,7 +485,7 @@ object Transform {
         ret
 
       case AST_Binary(expr, `asinstanceof`, AST_SymbolRefDef(cls)) =>
-        typeInfoFromClassSym(cls)
+        typeInfoFromClassSym(cls, true)
 
       case AST_Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
@@ -507,7 +510,7 @@ object Transform {
             None
         }
       case AST_New(AST_SymbolRefDef(call), _*) =>
-        typeInfoFromClassSym(call)
+        typeInfoFromClassSym(call, true)
       case AST_Call(AST_SymbolRefDef(call), _*) =>
         val tid = id(call)
         if (log)  println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
