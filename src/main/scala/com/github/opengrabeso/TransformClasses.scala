@@ -424,9 +424,7 @@ object TransformClasses {
 
                     new AST_Dot {
                       fillTokens(this, node)
-                      expression = new AST_This {
-                        fillTokens(this, node)
-                      }
+                      expression = AST_This().withTokens(node)
                       property = name
                     }
                   } else node
@@ -831,12 +829,6 @@ object TransformClasses {
         }
       }
 
-      def newAST_Super = new AST_Super {
-        fillTokens(this, node)
-        name = "super"
-      }
-
-
       def removeHeadThis(args: Seq[AST_Node]) = {
         if (args.headOption.exists(_.isInstanceOf[AST_This])) args.tail else args
       }
@@ -856,20 +848,20 @@ object TransformClasses {
         AST_Call(AST_SymbolRefName("Array") AST_Dot "prototype" AST_Dot "slice" AST_Dot "call", AST_SymbolRefName("arguments"))
         ) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
-          call.expression = newAST_Super
+          call.expression = AST_Super().withTokens(node)
           call.args = getClassArguments.toJSArray
           call
         // Super.apply(this, arguments)
         case call@AST_Call(AST_SymbolRefDef(IsSuperClass()) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")) =>
           // TODO: check class constructor arguments as pass them
-          call.expression = newAST_Super
+          call.expression = AST_Super().withTokens(node)
           call.args = getClassArguments.toJSArray
           call
 
         // Light.call( this, skyColor, intensity )
         case call@AST_Call(AST_SymbolRefDef(IsSuperClass()) AST_Dot "call", args@_*) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
-          call.expression = newAST_Super
+          call.expression = AST_Super().withTokens(node)
           call.args = removeHeadThis(args).toJSArray
           call
 
@@ -882,7 +874,7 @@ object TransformClasses {
           //println(s"Super call of $func in ${thisClass.map(_.name.get.name)}")
           call.expression = new AST_Dot {
             fillTokens(this, node)
-            expression = newAST_Super
+            expression = AST_Super().withTokens(node)
             property = func
           }
           call.args = removeHeadThis(args).toJSArray
@@ -968,7 +960,11 @@ object TransformClasses {
 
 
   def applyRules(n: AST_Extended): AST_Extended = {
-    n.config.rules.foldLeft(n)((n, rule) => rule(n))
+    n.config.rules.foldLeft(n){ (n, rule) =>
+      rule(n)
+      n.top.figure_out_scope()
+      n
+    }
 
   }
 
@@ -1194,8 +1190,9 @@ object TransformClasses {
 
   def substMember(n: AST_Extended, member: ConvertProject.MemberDesc, template: String) = {
 
+    import TextTemplates._
     def applyTemplate(cls: String, name: String) = {
-      template.replace("$class", cls).replace("${class}", cls).replace("$name", name).replace("${name}", name)
+      template.substitute("class", cls).substitute("name", name)
     }
 
     TransformClasses.processAllClasses(n, Some(member.cls)) { c =>
@@ -1219,6 +1216,44 @@ object TransformClasses {
       cc
     }
 
+  }
+
+  def removeScope(n: AST_Extended, scope: List[String]) = {
+    //println(s"Removing $toRemove")
+    object MatchingScope {
+
+      def matches(dot: AST_Node, seq: List[String]): Boolean = {
+        val seqHead = seq.head
+        dot match {
+          case expr AST_Dot `seqHead` if seq.tail.nonEmpty && matches(expr, seq.tail) =>
+            true
+          case AST_SymbolRefName(`seqHead`) =>
+            true
+          case _ =>
+            false
+        }
+      }
+
+      def unapply(arg: AST_Dot): Option[String] = {
+        val seq = scope.reverse
+        arg match {
+          case expr AST_Dot name if matches(expr, seq) =>
+            Some(name)
+          case _ =>
+            None
+        }
+      }
+    }
+
+    val r = n.top.transformAfter {(node, transformer) =>
+      node match {
+        case MatchingScope(name) =>
+          AST_SymbolRef(node)(name)
+        case _ =>
+          node
+      }
+    }
+    n.copy(top = r)
   }
 
   def replaceIsClass(n: AST_Extended, member: ConvertProject.MemberDesc): AST_Extended = {

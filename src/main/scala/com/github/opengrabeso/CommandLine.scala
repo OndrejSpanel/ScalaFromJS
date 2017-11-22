@@ -3,6 +3,7 @@ package com.github.opengrabeso
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
 import scala.util.Try
+import PathUtils._
 
 @JSGlobal("$require")
 @js.native
@@ -57,7 +58,7 @@ object CommandLine {
   // replace slash with a platform specific separator
   def separatorAsPlatform(path: String) = path.replace("/", separator)
 
-  def withTempDir(prefix: String)(perform: String => Unit): Unit = {
+  def withTempDir[T](prefix: String)(perform: String => T): T = {
     val dir = os.tmpdir().asInstanceOf[String]
     val tempBase = terminateBySeparator(dir)
     val tempDir = fs.mkdtempSync(tempBase + prefix).asInstanceOf[String]
@@ -136,49 +137,6 @@ object CommandLine {
   }
 
 
-  def resolveSibling(path: String, short: String): String = {
-    val dir = path.lastIndexOf('/')
-    if (dir < 0) short
-    else {
-      val currentPrefix = "./"
-      val parentPrefix ="../"
-      if (short.startsWith(parentPrefix)) {
-        resolveSibling(path.take(dir), short.drop(parentPrefix.length))
-      } else {
-        val shortFixed = if (short.startsWith(currentPrefix)) short.drop(currentPrefix.length) else short
-        path.take(dir + 1) + shortFixed
-      }
-    }
-  }
-
-  def relativePath(base: String, path: String): String = {
-    val dir = base.lastIndexOf('/')
-    if (dir < 0) path
-    else {
-      val baseDir = base.take(dir + 1)
-      if (path.startsWith(baseDir)) path.drop(baseDir.length)
-      else path
-    }
-
-  }
-
-  def shortName(path: String): String = {
-    val dir = path.lastIndexOf('/')
-    if (dir < 0) path
-    else path.drop(dir + 1)
-  }
-
-  def extension(path: String): String = {
-    val short = shortName(path)
-    val ext = short.lastIndexOf('.')
-    if (ext<0) ""
-    else short.drop(ext + 1)
-  }
-  def changeExtension(path: String, pathWithExtension: String): String = {
-    val ext = extension(path)
-    path.dropRight(ext.length) + extension(pathWithExtension)
-  }
-
   // return filenames of the output files
   def convertFileToFile(in: String, out: String): Seq[String] = {
     val log = false
@@ -200,29 +158,34 @@ object CommandLine {
 
       if (log) println(s"out: $out, in: $in, inFile: $inFile -> $outFileCombined")
 
-      val inFilePathIndex = inFile.lastIndexOf('/')
-      val inFilePath = if (inFilePathIndex < 0) "" else inFile.take(inFilePathIndex)
+      val inRelativePathIndex = inRelative.lastIndexOf('/')
+      val inRelativePath = if (inRelativePathIndex < 0) "" else inRelative.take(inRelativePathIndex)
+      val shortFileName = shortName(inFile)
 
-      def handleAlias(relPath: String): String = {
+      def handleAlias(filePath: String, content: String): (String, String) = {
         // check if we match any alias key
-        for (aliasFolder <- converted.aliases.keys) {
-          if (relPath startsWith aliasFolder) {
-            val aliasName = converted.aliases(aliasFolder)
-            return aliasName ++ relPath.drop(aliasFolder.length)
+        val terminated = terminatedPath(inRelativePath)
+        for (alias <- converted.aliases) {
+          val named = alias.namePackage(terminated)
+          if (named.isDefined) {
+            return (named.get, alias.applyTemplate(shortFileName, content))
           }
         }
-        relPath
+        (filePath, content)
       }
 
-      val inFileRelative = handleAlias(relativePath(in, inFilePath))
+      val (aliasedName, wrappedOutCode) = handleAlias(inRelative, outCode)
 
-      val inFilePackage = inFileRelative.split('/')
+      val inFilePackage = aliasedName.split('/')
+
 
       val packageDirectives = inFilePackage.map(item => s"package $item").toSeq
       val packagePrefix = packageDirectives.mkString("", "\n", "\n")
 
-      val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n${shortName(inFile)}\n*/\n\n"
-      val outCodeWithPackage = packagePrefix + outCode
+      //println(s"shortName $shortFileName inRelative $inRelative inRelativePath $inRelativePath aliasedName $aliasedName packageDirectives $packageDirectives")
+
+      val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n$shortFileName\n*/\n\n"
+      val outCodeWithPackage = packagePrefix + wrappedOutCode
 
       val skip = Try {
         val existingFile = readFile(outFileCombined)

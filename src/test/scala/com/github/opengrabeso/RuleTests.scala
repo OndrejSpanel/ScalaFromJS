@@ -4,7 +4,32 @@ import org.scalatest.FunSuite
 
 class RuleTests extends FunSuite with TestUtils {
   test("Delete member variables and functions") {
-    execute check ConversionCheck(rsc("rules/deleteMembers.js"))
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      function C() {
+
+      }
+
+      C.prototype.constructor = C;
+
+      C.prototype.naturalFunction = function() {
+          this.naturalMember = 0;
+          this.exoticMember = 0;
+      };
+
+      C.prototype.exoticFunction = function() {};
+
+      var ScalaFromJS_settings = {
+          members: [
+              {
+                  cls: ".*",
+                  name: "exotic.*",
+                  operation: "delete"
+              },
+          ]
+      };
+      """)
       .required(
         "def natural",
         "var natural"
@@ -137,4 +162,38 @@ class RuleTests extends FunSuite with TestUtils {
 
   }
 
+  test("Handle symbol scope removal") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+
+      let bob = new Some.Scope.Person('Bob');
+      let dan = new Other.Scope.Person('Dan');
+      let pete = new Scope.Person('Pete');
+
+      Scope.Middle.Person.func();
+
+      var ScalaFromJS_settings = {
+          symbols: [
+              {
+                  name: "Some/Scope",
+                  operation: "remove"
+              },
+              {
+                  name: "Scope",
+                  operation: "remove"
+              },
+              ]
+      };
+      """).required(
+      """new Person("Bob")""",
+      """new Other.Scope.Person("Dan")""",
+      """new Person("Pete")"""
+    ).forbidden(
+      "new Some.Scope.",
+      "new Scope."
+    )
+
+
+  }
 }

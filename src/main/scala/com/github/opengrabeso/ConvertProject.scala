@@ -12,6 +12,7 @@ import scala.scalajs.js
 import scala.scalajs.js.{JavaScriptException, RegExp}
 
 import ConvertProject._ // import before the object - see http://stackoverflow.com/a/43298181/16673
+import PathUtils._
 
 object ConvertProject {
 
@@ -27,6 +28,12 @@ object ConvertProject {
     }
   }
 
+  def loadRequiredStringValue(o: AST_Object, name: String): String = {
+    val opt = loadStringValue(o, name)
+    opt.getOrElse {
+      throw new UnsupportedOperationException(s"Missing entry '$name'")
+    }
+  }
   trait Rule {
     def apply(c: AST_Extended): AST_Extended
   }
@@ -35,9 +42,9 @@ object ConvertProject {
 
   object MemberDesc {
     def load(o: AST_Object): MemberDesc = {
-      val cls = loadStringValue(o, "cls").map(RegExp.apply(_))
-      val name = loadStringValue(o, "name").map(RegExp.apply(_))
-      MemberDesc(cls.get, name.get)
+      val cls = RegExp(loadRequiredStringValue(o, "cls"))
+      val name = RegExp(loadRequiredStringValue(o, "name"))
+      MemberDesc(cls, name)
     }
   }
 
@@ -66,23 +73,40 @@ object ConvertProject {
 
   }
 
-  case class AliasPackageRule(folder: String, name: String) extends Rule {
+  case class RemoveScopeRule(scope: List[String]) extends Rule {
+    override def apply(n: AST_Extended) = {
+      TransformClasses.removeScope(n, scope)
+    }
+  }
+
+  case class AliasPackageRule(folder: String, name: String, template: Option[String]) extends Rule {
     override def apply(n: AST_Extended) = n
+    def namePackage(path: String): Option[String] = {
+      if (path startsWith folder) {
+        val aliased = name ++ path.drop(folder.length)
+        //println(s"aliased $path -> $aliased")
+        Some(aliased)
+      }
+      else None
+    }
+    def applyTemplate(shortName: String, content: String): String = {
+      template.fold(content){ t =>
+        import TextTemplates._
+        val dotIndex = shortName.indexOf('.')
+        val className = if (dotIndex < 0) shortName else shortName.take(dotIndex)
+        t.substitute("class", className).substitute("this", content)
+      }
+    }
   }
 
   object AliasPackageRule {
     def load(o: AST_Object): AliasPackageRule = {
-      def pathFromString(s: String): String = {
-        val pathEnd = "/"
-        if (s.endsWith(pathEnd)) s else s + pathEnd
-      }
-
-      val folder = loadStringValue(o, "folder")
-      val name = loadStringValue(o, "name")
-      AliasPackageRule(pathFromString(folder.get), pathFromString(name.get))
+      val folder = loadRequiredStringValue(o, "folder")
+      val name = loadRequiredStringValue(o, "name")
+      val template = loadStringValue(o, "template")
+      AliasPackageRule(terminatedPath(folder), terminatedPath(name), template)
     }
   }
-
 
   val configName = "ScalaFromJS_settings"
 
@@ -105,8 +129,8 @@ object ConvertProject {
                 case Some("instanceof") =>
                   Some(IsClassMemberRule(m))
                 case Some("subst") =>
-                  val template = loadStringValue(o, "template")
-                  Some(ReplicateMemberRule(m, template.get))
+                  val template = loadRequiredStringValue(o, "template")
+                  Some(ReplicateMemberRule(m, template))
                 case Some(opName) =>
                   throw new UnsupportedOperationException(s"Unknown operation $opName for member $m")
                 case _ =>
@@ -118,7 +142,37 @@ object ConvertProject {
         case AST_ObjectKeyVal("packages", a: AST_Array) =>
           a.elements.toSeq.flatMap {
             case o: AST_Object =>
-              Some(AliasPackageRule.load(o))
+              val op = loadStringValue(o, "operation")
+              val folder = loadStringValue(o, "folder")
+              op match {
+                case Some("name") =>
+                  Some(AliasPackageRule.load(o))
+                case Some(opName) =>
+                  throw new UnsupportedOperationException(s"Unknown operation $opName for folder $folder")
+                case _ =>
+                  throw new UnsupportedOperationException(s"Missing operation for folder $folder")
+              }
+            case _ =>
+              None
+          }
+        case AST_ObjectKeyVal("symbols", a: AST_Array) =>
+          a.elements.toSeq.flatMap {
+            case o: AST_Object =>
+              val op = loadStringValue(o, "operation")
+              //println(s"op $op")
+              val name = loadRequiredStringValue(o, "name")
+              //println(s"name $name")
+              op match {
+                case Some("remove") =>
+                  val symbol = loadRequiredStringValue(o, "name").split("/")
+                  if (symbol.nonEmpty) {
+                    Some(RemoveScopeRule(symbol.toList))
+                  } else {
+                    None
+                  }
+                case _ =>
+                  throw new UnsupportedOperationException(s"Missing operation for symbol $name")
+              }
             case _ =>
               None
           }
@@ -127,7 +181,7 @@ object ConvertProject {
         case n =>
           throw new UnsupportedOperationException(s"Unexpected config entry of type ${nodeClassName(n)}")
       }
-      //println(rules)
+      //println("Rules " + rules)
       ConvertConfig(rules)
     }
   }
@@ -341,7 +395,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     }
   }
 
-  case class Converted(files: Seq[(String, String)], aliases: Map[String, String])
+  case class Converted(files: Seq[(String, String)], aliases: Seq[AliasPackageRule])
 
   def convert: Converted = {
     val exportsImports = values.sortBy(!_.included)
@@ -388,10 +442,8 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       inFile -> outCode
     }
 
-    val aliases = ext.config.rules.collect { case AliasPackageRule(folder, name) =>
-        folder -> name
-    }
+    val aliases = ext.config.rules.collect { case x: AliasPackageRule => x }
 
-    Converted(outFiles, aliases.toMap)
+    Converted(outFiles, aliases)
   }
 }

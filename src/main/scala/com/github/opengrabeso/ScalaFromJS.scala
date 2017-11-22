@@ -54,7 +54,9 @@ object ScalaFromJS {
     val conversionResult = if (false) {
       Success (Convert(code))
     } else {
-      Try(Convert(code))
+      val res = Try(Convert(code))
+      res.failed.foreach(_.printStackTrace())
+      res
     }
 
     conversionResult.fold(
