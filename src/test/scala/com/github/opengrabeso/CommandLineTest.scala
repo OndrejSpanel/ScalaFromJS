@@ -95,4 +95,9 @@ class CommandLineTest extends FunSuite with TestUtils {
       )
   }
 
+  test("Multiple file conversion with wrong rules") {
+    intercept[UnsupportedOperationException] {
+      convertProject("folderRules/ruleError.js")
+    }
+  }
 }
