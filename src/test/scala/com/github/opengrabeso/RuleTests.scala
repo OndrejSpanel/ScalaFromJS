@@ -171,6 +171,8 @@ class RuleTests extends FunSuite with TestUtils {
       let dan = new Other.Scope.Person('Dan');
       let pete = new Scope.Person('Pete');
 
+      Scope.Middle.Person.func();
+
       var ScalaFromJS_settings = {
           symbols: [
               {

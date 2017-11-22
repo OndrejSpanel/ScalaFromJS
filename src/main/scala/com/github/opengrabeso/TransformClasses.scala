@@ -1218,16 +1218,37 @@ object TransformClasses {
 
   }
 
-  def removeScope(n: AST_Extended, scope: Seq[String]) = {
-    val toRemove = scope.toSet
+  def removeScope(n: AST_Extended, scope: List[String]) = {
     //println(s"Removing $toRemove")
+    object MatchingScope {
+
+      def matches(dot: AST_Node, seq: List[String]): Boolean = {
+        val seqHead = seq.head
+        dot match {
+          case expr AST_Dot `seqHead` if seq.tail.nonEmpty && matches(expr, seq.tail) =>
+            true
+          case AST_SymbolRefName(`seqHead`) =>
+            true
+          case _ =>
+            false
+        }
+      }
+
+      def unapply(arg: AST_Dot): Option[String] = {
+        val seq = scope.reverse
+        arg match {
+          case expr AST_Dot name if matches(expr, seq) =>
+            Some(name)
+          case _ =>
+            None
+        }
+      }
+    }
+
     val r = n.top.transformAfter {(node, transformer) =>
       node match {
-        // TODO: remove sequences only
-        case AST_SymbolName(sym) AST_Dot name if toRemove contains sym =>
+        case MatchingScope(name) =>
           AST_SymbolRef(node)(name)
-        case AST_SymbolName(sym) AST_Dot name =>
-          node
         case _ =>
           node
       }

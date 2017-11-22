@@ -73,7 +73,7 @@ object ConvertProject {
 
   }
 
-  case class RemoveScopeRule(scope: Seq[String]) extends Rule {
+  case class RemoveScopeRule(scope: List[String]) extends Rule {
     override def apply(n: AST_Extended) = {
       TransformClasses.removeScope(n, scope)
     }
@@ -166,7 +166,7 @@ object ConvertProject {
                 case Some("remove") =>
                   val symbol = loadRequiredStringValue(o, "name").split("/")
                   if (symbol.nonEmpty) {
-                    Some(RemoveScopeRule(symbol))
+                    Some(RemoveScopeRule(symbol.toList))
                   } else {
                     None
                   }
