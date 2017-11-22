@@ -51,10 +51,12 @@ object ScalaFromJS {
 
     Persist.store("source", code)
 
-    val conversionResult = if (false) {
+    val conversionResult = if (true) {
       Success (Convert(code))
     } else {
-      Try(Convert(code))
+      val res = Try(Convert(code))
+      res.failed.foreach(_.printStackTrace())
+      res
     }
 
     conversionResult.fold(

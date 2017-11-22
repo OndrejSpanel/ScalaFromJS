@@ -1,4 +1,4 @@
-// demo file A
+// demo file folderRules A
 function A() {
     
 }

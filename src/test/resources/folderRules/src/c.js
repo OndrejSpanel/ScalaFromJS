@@ -1,7 +1,7 @@
 import {A} from "a.js"
 export * from "e.js"
 
-// demo file C
+// demo file folderRules C
 function C() {
     
 }

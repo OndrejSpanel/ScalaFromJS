@@ -1194,8 +1194,9 @@ object TransformClasses {
 
   def substMember(n: AST_Extended, member: ConvertProject.MemberDesc, template: String) = {
 
+    import TextTemplates._
     def applyTemplate(cls: String, name: String) = {
-      template.replace("$class", cls).replace("${class}", cls).replace("$name", name).replace("${name}", name)
+      template.substitute("class", cls).substitute("name", name)
     }
 
     TransformClasses.processAllClasses(n, Some(member.cls)) { c =>

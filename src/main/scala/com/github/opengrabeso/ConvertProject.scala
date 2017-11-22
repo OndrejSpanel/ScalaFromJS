@@ -12,6 +12,7 @@ import scala.scalajs.js
 import scala.scalajs.js.{JavaScriptException, RegExp}
 
 import ConvertProject._ // import before the object - see http://stackoverflow.com/a/43298181/16673
+import PathUtils._
 
 object ConvertProject {
 
@@ -66,23 +67,34 @@ object ConvertProject {
 
   }
 
-  case class AliasPackageRule(folder: String, name: String) extends Rule {
+  case class AliasPackageRule(folder: String, name: String, template: Option[String]) extends Rule {
     override def apply(n: AST_Extended) = n
+    def namePackage(path: String): Option[String] = {
+      if (path startsWith folder) {
+        val aliased = name ++ path.drop(folder.length)
+        println(s"aliased $path -> $aliased")
+        Some(aliased)
+      }
+      else None
+    }
+    def applyTemplate(shortName: String, content: String): String = {
+      template.fold(content){ t =>
+        import TextTemplates._
+        val dotIndex = shortName.indexOf('.')
+        val className = if (dotIndex < 0) shortName else shortName.take(dotIndex)
+        t.substitute("class", className).substitute("this", content)
+      }
+    }
   }
 
   object AliasPackageRule {
     def load(o: AST_Object): AliasPackageRule = {
-      def pathFromString(s: String): String = {
-        val pathEnd = "/"
-        if (s.endsWith(pathEnd)) s else s + pathEnd
-      }
-
       val folder = loadStringValue(o, "folder")
       val name = loadStringValue(o, "name")
-      AliasPackageRule(pathFromString(folder.get), pathFromString(name.get))
+      val template = loadStringValue(o, "template")
+      AliasPackageRule(terminatedPath(folder.get), terminatedPath(name.get), template)
     }
   }
-
 
   val configName = "ScalaFromJS_settings"
 
@@ -350,7 +362,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     }
   }
 
-  case class Converted(files: Seq[(String, String)], aliases: Map[String, String])
+  case class Converted(files: Seq[(String, String)], aliases: Seq[AliasPackageRule])
 
   def convert: Converted = {
     val exportsImports = values.sortBy(!_.included)
@@ -397,10 +409,8 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       inFile -> outCode
     }
 
-    val aliases = ext.config.rules.collect { case AliasPackageRule(folder, name) =>
-        folder -> name
-    }
+    val aliases = ext.config.rules.collect { case x: AliasPackageRule => x }
 
-    Converted(outFiles, aliases.toMap)
+    Converted(outFiles, aliases)
   }
 }
