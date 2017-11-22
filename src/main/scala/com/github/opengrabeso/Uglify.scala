@@ -692,7 +692,12 @@ object UglifyExt {
       def unapply(arg: AST_Symbol) = Some((arg.name, arg.scope, arg.thedef))
     }
     object AST_SymbolName {
-      def unapply(arg: AST_Symbol) = Some(arg.name)
+      def unapply(arg: AST_Symbol) = {
+        if (arg.name == js.undefined || arg.name == null) {
+          println("Prevented AST_SymbolName crash")
+          None
+        } else Some(arg.name)
+      }
     }
 
     object AST_SymbolRef {

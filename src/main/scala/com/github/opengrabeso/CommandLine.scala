@@ -182,7 +182,7 @@ object CommandLine {
       val packageDirectives = inFilePackage.map(item => s"package $item").toSeq
       val packagePrefix = packageDirectives.mkString("", "\n", "\n")
 
-      println(s"shortName $shortFileName inRelative $inRelative inRelativePath $inRelativePath aliasedName $aliasedName packageDirectives $packageDirectives")
+      //println(s"shortName $shortFileName inRelative $inRelative inRelativePath $inRelativePath aliasedName $aliasedName packageDirectives $packageDirectives")
 
       val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n$shortFileName\n*/\n\n"
       val outCodeWithPackage = packagePrefix + wrappedOutCode
@@ -220,10 +220,16 @@ object CommandLine {
     val realArgs = argv.drop(2)
     println(s"  args ${realArgs.mkString(",")}")
 
-    if (realArgs.length == 2) {
-      convertFileToFile(realArgs(0), realArgs(1))
-    } else {
-      convertFileToFile("temp/test.js", "temp/out/test.scala")
+    try {
+      if (realArgs.length == 2) {
+        convertFileToFile(realArgs(0), realArgs(1))
+      } else {
+        convertFileToFile("temp/test.js", "temp/out/test.scala")
+      }
+    } catch {
+      case ex: Throwable =>
+        println("Ex " + ex.getMessage)
+        ex.printStackTrace()
     }
 
   }

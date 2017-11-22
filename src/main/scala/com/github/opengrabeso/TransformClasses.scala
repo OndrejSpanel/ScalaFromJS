@@ -968,7 +968,11 @@ object TransformClasses {
 
 
   def applyRules(n: AST_Extended): AST_Extended = {
-    n.config.rules.foldLeft(n)((n, rule) => rule(n))
+    n.config.rules.foldLeft(n){ (n, rule) =>
+      rule(n)
+      n.top.figure_out_scope()
+      n
+    }
 
   }
 
@@ -1224,18 +1228,23 @@ object TransformClasses {
 
   def removeScope(n: AST_Extended, scope: Seq[String]) = {
     val toRemove = scope.toSet
+    println(s"Removing $toRemove")
     val r = n.top.transformAfter {(node, transformer) =>
-      node match {
-        case AST_SymbolName(sym) AST_Dot name if toRemove contains sym =>
-          AST_SymbolRef.apply(node)(name)
-        case AST_SymbolName(sym) =>
-          println(s"Detected symbol $sym, looking for $toRemove")
-          node
-          /*
-        case AST_Call() =>
-          node
-          */
-        case _ =>
+      try {
+        node match {
+          // TODO: remove sequences only
+          case AST_SymbolName(sym) AST_Dot name if toRemove contains sym =>
+            AST_SymbolRef(node)(name)
+          case AST_SymbolName(sym) AST_Dot name =>
+            node
+          case _ =>
+            node
+        }
+      } catch {
+        case ex: Throwable =>
+          println("Ex: " + ex.getMessage)
+          println(s"  in node $node")
+          ex.printStackTrace()
           node
       }
     }
