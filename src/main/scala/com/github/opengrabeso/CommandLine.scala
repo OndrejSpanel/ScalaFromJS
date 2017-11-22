@@ -57,7 +57,7 @@ object CommandLine {
   // replace slash with a platform specific separator
   def separatorAsPlatform(path: String) = path.replace("/", separator)
 
-  def withTempDir(prefix: String)(perform: String => Unit): Unit = {
+  def withTempDir[T](prefix: String)(perform: String => T): T = {
     val dir = os.tmpdir().asInstanceOf[String]
     val tempBase = terminateBySeparator(dir)
     val tempDir = fs.mkdtempSync(tempBase + prefix).asInstanceOf[String]
