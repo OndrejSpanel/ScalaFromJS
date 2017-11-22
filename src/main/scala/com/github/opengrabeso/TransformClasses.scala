@@ -424,9 +424,7 @@ object TransformClasses {
 
                     new AST_Dot {
                       fillTokens(this, node)
-                      expression = new AST_This {
-                        fillTokens(this, node)
-                      }
+                      expression = AST_This().withTokens(node)
                       property = name
                     }
                   } else node
@@ -1228,23 +1226,15 @@ object TransformClasses {
 
   def removeScope(n: AST_Extended, scope: Seq[String]) = {
     val toRemove = scope.toSet
-    println(s"Removing $toRemove")
+    //println(s"Removing $toRemove")
     val r = n.top.transformAfter {(node, transformer) =>
-      try {
-        node match {
-          // TODO: remove sequences only
-          case AST_SymbolName(sym) AST_Dot name if toRemove contains sym =>
-            AST_SymbolRef(node)(name)
-          case AST_SymbolName(sym) AST_Dot name =>
-            node
-          case _ =>
-            node
-        }
-      } catch {
-        case ex: Throwable =>
-          println("Ex: " + ex.getMessage)
-          println(s"  in node $node")
-          ex.printStackTrace()
+      node match {
+        // TODO: remove sequences only
+        case AST_SymbolName(sym) AST_Dot name if toRemove contains sym =>
+          AST_SymbolRef(node)(name)
+        case AST_SymbolName(sym) AST_Dot name =>
+          node
+        case _ =>
           node
       }
     }

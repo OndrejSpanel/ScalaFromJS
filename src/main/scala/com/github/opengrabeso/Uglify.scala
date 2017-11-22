@@ -665,6 +665,11 @@ object UglifyExt {
       node
     }
 
+    def init(f: T => Unit): T = {
+      f(node)
+      node
+    }
+
   }
 
   trait AST_Extractors {
@@ -692,12 +697,7 @@ object UglifyExt {
       def unapply(arg: AST_Symbol) = Some((arg.name, arg.scope, arg.thedef))
     }
     object AST_SymbolName {
-      def unapply(arg: AST_Symbol) = {
-        if (arg.name == js.undefined || arg.name == null) {
-          println("Prevented AST_SymbolName crash")
-          None
-        } else Some(arg.name)
-      }
+      def unapply(arg: AST_Symbol) = Some(arg.name)
     }
 
     object AST_SymbolRef {
@@ -868,6 +868,7 @@ object UglifyExt {
 
     object AST_This {
       def unapply(arg: AST_This): Boolean = true
+      def apply(): AST_This = new AST_This().init(_.name = "this")
     }
     object AST_SymbolDeclaration {
       def unapply(arg: AST_SymbolDeclaration) = Some(arg.thedef, arg.name, arg.init)

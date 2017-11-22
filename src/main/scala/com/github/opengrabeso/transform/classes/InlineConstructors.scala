@@ -183,9 +183,7 @@ object InlineConstructors {
             val locals = allLocals diff constructorParameters
 
             def newThisDotMember(member: String) = new AST_Dot {
-              expression = new AST_This {
-                name = "this"
-              }
+              expression = AST_This()
               property = member
             }
 
@@ -394,9 +392,7 @@ object InlineConstructors {
                 fillTokens(this, constructorProperty)
                 expression = new AST_Dot {
                   fillTokens(this, constructorProperty)
-                  expression = new AST_This() {
-                    fillTokens(this, constructorProperty)
-                  }
+                  expression = AST_This().withTokens(constructorProperty)
                   property = "constructor"
                 }
 

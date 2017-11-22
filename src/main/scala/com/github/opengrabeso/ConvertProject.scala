@@ -181,7 +181,7 @@ object ConvertProject {
         case n =>
           throw new UnsupportedOperationException(s"Unexpected config entry of type ${nodeClassName(n)}")
       }
-      println("Rules " + rules)
+      //println("Rules " + rules)
       ConvertConfig(rules)
     }
   }

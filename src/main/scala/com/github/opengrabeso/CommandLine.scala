@@ -220,16 +220,10 @@ object CommandLine {
     val realArgs = argv.drop(2)
     println(s"  args ${realArgs.mkString(",")}")
 
-    try {
-      if (realArgs.length == 2) {
-        convertFileToFile(realArgs(0), realArgs(1))
-      } else {
-        convertFileToFile("temp/test.js", "temp/out/test.scala")
-      }
-    } catch {
-      case ex: Throwable =>
-        println("Ex " + ex.getMessage)
-        ex.printStackTrace()
+    if (realArgs.length == 2) {
+      convertFileToFile(realArgs(0), realArgs(1))
+    } else {
+      convertFileToFile("temp/test.js", "temp/out/test.scala")
     }
 
   }
