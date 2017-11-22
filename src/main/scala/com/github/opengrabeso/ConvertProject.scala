@@ -118,7 +118,16 @@ object ConvertProject {
         case AST_ObjectKeyVal("packages", a: AST_Array) =>
           a.elements.toSeq.flatMap {
             case o: AST_Object =>
-              Some(AliasPackageRule.load(o))
+              val op = loadStringValue(o, "operation")
+              val folder = loadStringValue(o, "folder")
+              op match {
+                case Some("name") =>
+                  Some(AliasPackageRule.load(o))
+                case Some(opName) =>
+                  throw new UnsupportedOperationException(s"Unknown operation $opName for folder $folder")
+                case _ =>
+                  throw new UnsupportedOperationException(s"Missing operation for folder $folder")
+              }
             case _ =>
               None
           }
