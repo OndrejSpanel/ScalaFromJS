@@ -7,9 +7,9 @@ export * from "test/Some.tests"
 var ScalaFromJS_settings = {
     packages: [
         {
-            folder: "src/test/resources/folderRules/test",
+            folder: "test",
             operation: "name",
-            name: "my.name/test" ,
+            name: "my.name/tst" ,
             template: [
                 "class ${class}Test extends Tests {",
                 "import something.{assert => ok}",
@@ -20,7 +20,7 @@ var ScalaFromJS_settings = {
             ]
         },
         {
-            folder: "src/test/resources/folderRules",
+            folder: "src",
             operation: "name",
             name: "my.base"
         },

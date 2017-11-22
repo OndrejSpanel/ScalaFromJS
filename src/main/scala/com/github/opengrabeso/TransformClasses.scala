@@ -1222,6 +1222,26 @@ object TransformClasses {
 
   }
 
+  def removeScope(n: AST_Extended, scope: Seq[String]) = {
+    val toRemove = scope.toSet
+    val r = n.top.transformAfter {(node, transformer) =>
+      node match {
+        case AST_SymbolName(sym) AST_Dot name if toRemove contains sym =>
+          AST_SymbolRef.apply(node)(name)
+        case AST_SymbolName(sym) =>
+          println(s"Detected symbol $sym, looking for $toRemove")
+          node
+          /*
+        case AST_Call() =>
+          node
+          */
+        case _ =>
+          node
+      }
+    }
+    n.copy(top = r)
+  }
+
   def replaceIsClass(n: AST_Extended, member: ConvertProject.MemberDesc): AST_Extended = {
     // first scan for all symbols matching the rule
     var isClassMembers = Map.empty[String, AST_DefClass]

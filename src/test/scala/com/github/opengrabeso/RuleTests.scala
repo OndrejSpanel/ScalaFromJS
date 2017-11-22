@@ -162,4 +162,36 @@ class RuleTests extends FunSuite with TestUtils {
 
   }
 
+  test("Handle symbol scope removal") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+
+      let bob = new Some.Scope.Person('Bob');
+      let dan = new Other.Scope.Person('Dan');
+      let pete = new Scope.Person('Pete');
+
+      var ScalaFromJS_settings = {
+          symbols: [
+              {
+                  name: "Some/Scope",
+                  operation: "remove"
+              },
+              {
+                  name: "Scope",
+                  operation: "remove"
+              },
+              ]
+      };
+      """).required(
+      """new Person("Bob")""",
+      """new Other.Scope.Person("Dan")""",
+      """new Person("Pete")"""
+    ).forbidden(
+      "new Some.Scope.",
+      "new Scope."
+    )
+
+
+  }
 }

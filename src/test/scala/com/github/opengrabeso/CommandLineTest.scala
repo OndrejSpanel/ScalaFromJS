@@ -69,6 +69,10 @@ class CommandLineTest extends FunSuite with TestUtils {
     execute check ResultCheck(outCode)
       .required(
         "package my.name"
+      ).forbidden(
+        "package a.js",
+        "package src",
+        "package test"
       )
   }
 
@@ -85,6 +89,10 @@ class CommandLineTest extends FunSuite with TestUtils {
         "package my.name",
         "class SomeTest extends Tests",
         "import something."
+      ).forbidden(
+        "package a.js",
+        "package src",
+        "package test"
       )
   }
 }

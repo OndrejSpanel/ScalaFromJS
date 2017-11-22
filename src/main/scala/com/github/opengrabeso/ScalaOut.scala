@@ -1037,7 +1037,7 @@ object ScalaOut {
         out("/* export default: */\n")
         ex.exported_value.foreach(nodeToOut)
       case tn: AST_Export =>
-        out(s"/* export */ def ${tn.exported_definition} name ${tn.module_name} value ${tn.exported_value}\n")
+        //out(s"/* export */ def ${tn.exported_definition} name ${tn.module_name} value ${tn.exported_value}\n")
         out(s"/* $source */")
       case tn: AST_Import =>
         // try to create a package name from the import directive

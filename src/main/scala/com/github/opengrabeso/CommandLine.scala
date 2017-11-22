@@ -158,13 +158,13 @@ object CommandLine {
 
       if (log) println(s"out: $out, in: $in, inFile: $inFile -> $outFileCombined")
 
-      val inFilePathIndex = inFile.lastIndexOf('/')
-      val inFilePath = if (inFilePathIndex < 0) "" else inFile.take(inFilePathIndex)
+      val inRelativePathIndex = inRelative.lastIndexOf('/')
+      val inRelativePath = if (inRelativePathIndex < 0) "" else inRelative.take(inRelativePathIndex)
       val shortFileName = shortName(inFile)
 
       def handleAlias(filePath: String, content: String): (String, String) = {
         // check if we match any alias key
-        val terminated = terminatedPath(filePath)
+        val terminated = terminatedPath(inRelativePath)
         for (alias <- converted.aliases) {
           val named = alias.namePackage(terminated)
           if (named.isDefined) {
@@ -174,7 +174,7 @@ object CommandLine {
         (filePath, content)
       }
 
-      val (aliasedName, wrappedOutCode) = handleAlias(inFilePath, outCode)
+      val (aliasedName, wrappedOutCode) = handleAlias(inRelative, outCode)
 
       val inFilePackage = aliasedName.split('/')
 
@@ -182,7 +182,7 @@ object CommandLine {
       val packageDirectives = inFilePackage.map(item => s"package $item").toSeq
       val packagePrefix = packageDirectives.mkString("", "\n", "\n")
 
-      println(s"shortName $shortFileName inFilePath $inFilePath aliasedName $aliasedName packageDirectives $packageDirectives")
+      println(s"shortName $shortFileName inRelative $inRelative inRelativePath $inRelativePath aliasedName $aliasedName packageDirectives $packageDirectives")
 
       val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n$shortFileName\n*/\n\n"
       val outCodeWithPackage = packagePrefix + wrappedOutCode

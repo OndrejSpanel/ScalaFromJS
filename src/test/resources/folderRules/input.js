@@ -6,12 +6,12 @@ export * from "src/b.js"
 var ScalaFromJS_settings = {
     packages: [
         {
-            folder: "src/test/resources/folderRules/src",
+            folder: "src",
             name: "my.name",
             operation: "name"
         },
         {
-            folder: "src/test/resources/folderRules/test",
+            folder: "test",
             name: "my.name",
             operation: "name"
         },

@@ -28,6 +28,12 @@ object ConvertProject {
     }
   }
 
+  def loadRequiredStringValue(o: AST_Object, name: String): String = {
+    val opt = loadStringValue(o, name)
+    opt.getOrElse {
+      throw new UnsupportedOperationException(s"Missing entry '$name'")
+    }
+  }
   trait Rule {
     def apply(c: AST_Extended): AST_Extended
   }
@@ -36,9 +42,9 @@ object ConvertProject {
 
   object MemberDesc {
     def load(o: AST_Object): MemberDesc = {
-      val cls = loadStringValue(o, "cls").map(RegExp.apply(_))
-      val name = loadStringValue(o, "name").map(RegExp.apply(_))
-      MemberDesc(cls.get, name.get)
+      val cls = RegExp(loadRequiredStringValue(o, "cls"))
+      val name = RegExp(loadRequiredStringValue(o, "name"))
+      MemberDesc(cls, name)
     }
   }
 
@@ -67,12 +73,18 @@ object ConvertProject {
 
   }
 
+  case class RemoveScopeRule(scope: Seq[String]) extends Rule {
+    override def apply(n: AST_Extended) = {
+      TransformClasses.removeScope(n, scope)
+    }
+  }
+
   case class AliasPackageRule(folder: String, name: String, template: Option[String]) extends Rule {
     override def apply(n: AST_Extended) = n
     def namePackage(path: String): Option[String] = {
       if (path startsWith folder) {
         val aliased = name ++ path.drop(folder.length)
-        println(s"aliased $path -> $aliased")
+        //println(s"aliased $path -> $aliased")
         Some(aliased)
       }
       else None
@@ -89,10 +101,10 @@ object ConvertProject {
 
   object AliasPackageRule {
     def load(o: AST_Object): AliasPackageRule = {
-      val folder = loadStringValue(o, "folder")
-      val name = loadStringValue(o, "name")
+      val folder = loadRequiredStringValue(o, "folder")
+      val name = loadRequiredStringValue(o, "name")
       val template = loadStringValue(o, "template")
-      AliasPackageRule(terminatedPath(folder.get), terminatedPath(name.get), template)
+      AliasPackageRule(terminatedPath(folder), terminatedPath(name), template)
     }
   }
 
@@ -117,8 +129,8 @@ object ConvertProject {
                 case Some("instanceof") =>
                   Some(IsClassMemberRule(m))
                 case Some("subst") =>
-                  val template = loadStringValue(o, "template")
-                  Some(ReplicateMemberRule(m, template.get))
+                  val template = loadRequiredStringValue(o, "template")
+                  Some(ReplicateMemberRule(m, template))
                 case Some(opName) =>
                   throw new UnsupportedOperationException(s"Unknown operation $opName for member $m")
                 case _ =>
@@ -139,6 +151,27 @@ object ConvertProject {
                   throw new UnsupportedOperationException(s"Unknown operation $opName for folder $folder")
                 case _ =>
                   throw new UnsupportedOperationException(s"Missing operation for folder $folder")
+              }
+            case _ =>
+              None
+          }
+        case AST_ObjectKeyVal("symbols", a: AST_Array) =>
+          a.elements.toSeq.flatMap {
+            case o: AST_Object =>
+              val op = loadStringValue(o, "operation")
+              //println(s"op $op")
+              val name = loadRequiredStringValue(o, "name")
+              //println(s"name $name")
+              op match {
+                case Some("remove") =>
+                  val symbol = loadRequiredStringValue(o, "name").split("/")
+                  if (symbol.nonEmpty) {
+                    Some(RemoveScopeRule(symbol))
+                  } else {
+                    None
+                  }
+                case _ =>
+                  throw new UnsupportedOperationException(s"Missing operation for symbol $name")
               }
             case _ =>
               None
