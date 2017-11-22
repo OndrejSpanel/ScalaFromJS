@@ -108,7 +108,13 @@ object Classes {
     clazz.`extends`.nonNull match {
       case Some(cls: AST_SymbolRef) =>
         val c = cls.thedef.nonNull.flatMap(id).flatMap(ctx.classes.get)
-        c.fold(ret)(parent => includeParents(parent, parent +: ret)(ctx))
+        c.fold(ret) { parent =>
+          if (ret contains parent) {
+            //println(s"includeParents: Prevented recursion for $parent in $ret")
+            ret
+          }
+          else includeParents(parent, parent +: ret)(ctx)
+        }
       case _ => ret
     }
   }

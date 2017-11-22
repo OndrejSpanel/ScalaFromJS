@@ -171,7 +171,6 @@ object TransformClasses {
       AST_SymbolRefName("Object") AST_Dot "assign",
       AST_Call(AST_SymbolRefName("Object") AST_Dot "create", AST_SymbolRefDef(sym) AST_Dot "prototype"), prototypeDef: AST_Object)
       )) =>
-        // TODO: name extracted, but unused - verify it
         //println(s"ClassParentAndPrototypeDef $name extends ${sym.name}")
         Some(ClassId(name), ClassId(sym), prototypeDef)
 
@@ -183,7 +182,7 @@ object TransformClasses {
       prototypeDef: AST_Object
       )) =>
         //println(s"ClassParentAndPrototypeDef2 $name extends $sym")
-        Some(ClassId(sym), ClassId(sym), prototypeDef)
+        Some(ClassId(name), ClassId(sym), prototypeDef)
       case _ =>
         None
     }
@@ -551,13 +550,14 @@ object TransformClasses {
         true
       case ClassParentAndPrototypeDef(name, sym, prototypeDef) =>
         for (clazz <- classes.get(name)) {
-          //println(s"base $sym")
+          //println(s"ClassParentAndPrototypeDef $name base $sym")
           classes += name -> clazz.copy(base = Some(sym))
         }
         processPrototype(name, prototypeDef)
         true
       case ClassParentDef(name, sym) =>
         for (clazz <- classes.get(name)) {
+          //println(s"ClassParentDef $name base $sym")
           classes += name -> clazz.copy(base = Some(ClassId(sym)))
         }
         true
@@ -778,9 +778,9 @@ object TransformClasses {
         object helper extends Helper(node)
         import helper._
 
-        val baseDef = clazz.base.flatMap(classes.get)
+        //val baseDef = clazz.base.flatMap(classes.get)
 
-        val base = clazz.base.fold(js.undefined: js.UndefOr[AST_Node])(b => AST_SymbolRef(node)(b.name))
+        val base = clazz.base.fold(js.undefined: js.UndefOr[AST_SymbolRef])(b => AST_SymbolRef(node)(b.name))
 
         val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }
         val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
@@ -789,6 +789,8 @@ object TransformClasses {
         val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
 
         val properties = mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues ++ mappedStatic
+
+        //println(s"classDefine ${sym.name} ${sym.thedef.map(SymbolTypes.id)} ${clazz.base} $base ${base.flatMap(_.thedef.map(SymbolTypes.id))}")
         newClass(sym, base, properties)
       }
 
@@ -1207,6 +1209,7 @@ object TransformClasses {
             fillTokens(this, p)
             expressions = js.Array(p, AST_String(p)(value))
           }
+          // special named property which is passed to output as a string, used for insertion of Scala code
           Seq[AST_ObjectProperty](AST_ObjectKeyVal(p)(templatePrefix + name, v))
         } else {
           Seq(p)
