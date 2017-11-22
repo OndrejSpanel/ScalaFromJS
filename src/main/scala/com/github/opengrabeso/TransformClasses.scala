@@ -829,12 +829,6 @@ object TransformClasses {
         }
       }
 
-      def newAST_Super = new AST_Super {
-        fillTokens(this, node)
-        name = "super"
-      }
-
-
       def removeHeadThis(args: Seq[AST_Node]) = {
         if (args.headOption.exists(_.isInstanceOf[AST_This])) args.tail else args
       }
@@ -854,20 +848,20 @@ object TransformClasses {
         AST_Call(AST_SymbolRefName("Array") AST_Dot "prototype" AST_Dot "slice" AST_Dot "call", AST_SymbolRefName("arguments"))
         ) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
-          call.expression = newAST_Super
+          call.expression = AST_Super().withTokens(node)
           call.args = getClassArguments.toJSArray
           call
         // Super.apply(this, arguments)
         case call@AST_Call(AST_SymbolRefDef(IsSuperClass()) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")) =>
           // TODO: check class constructor arguments as pass them
-          call.expression = newAST_Super
+          call.expression = AST_Super().withTokens(node)
           call.args = getClassArguments.toJSArray
           call
 
         // Light.call( this, skyColor, intensity )
         case call@AST_Call(AST_SymbolRefDef(IsSuperClass()) AST_Dot "call", args@_*) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
-          call.expression = newAST_Super
+          call.expression = AST_Super().withTokens(node)
           call.args = removeHeadThis(args).toJSArray
           call
 
@@ -880,7 +874,7 @@ object TransformClasses {
           //println(s"Super call of $func in ${thisClass.map(_.name.get.name)}")
           call.expression = new AST_Dot {
             fillTokens(this, node)
-            expression = newAST_Super
+            expression = AST_Super().withTokens(node)
             property = func
           }
           call.args = removeHeadThis(args).toJSArray

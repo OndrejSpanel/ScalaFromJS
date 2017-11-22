@@ -870,6 +870,11 @@ object UglifyExt {
       def unapply(arg: AST_This): Boolean = true
       def apply(): AST_This = new AST_This().init(_.name = "this")
     }
+    object AST_Super {
+      def unapply(arg: AST_Super): Boolean = true
+      def apply(): AST_Super = new AST_Super().init(_.name = "super")
+    }
+
     object AST_SymbolDeclaration {
       def unapply(arg: AST_SymbolDeclaration) = Some(arg.thedef, arg.name, arg.init)
 
