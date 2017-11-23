@@ -1,0 +1,42 @@
+package com.github.opengrabeso
+
+import org.scalatest.FunSuite
+class PostprocessTests extends FunSuite with TestUtils {
+    test("Delete member variables and functions") {
+      execute check ConversionCheck(
+        //language=JavaScript
+        """
+
+      let bob = new Some.Scope.Person('Bob');
+      let dan = new Other.Scope.Person('Dan');
+      let pete = new Scope.Person('Pete');
+
+      var ScalaFromJS_settings = {
+          symbols: [
+              {
+                  name: "Some/Scope",
+                  operation: "remove"
+              }
+              ],
+              postprocess: [
+              {
+                  operation: "replace",
+                  pattern: "Bob",
+                  replace: "Bill"
+              },
+              {
+                  operation: "replace",
+                  pattern: "val (.*) = new",
+                  replace: "object $1 extends"
+              }
+          ]
+      };
+      """
+      ).required(
+
+      ).forbidden(
+
+      )
+    }
+
+}

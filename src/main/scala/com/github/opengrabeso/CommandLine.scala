@@ -4,6 +4,7 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
 import scala.util.Try
 import PathUtils._
+import ConvertProject.AliasPackageRule
 
 @JSGlobal("$require")
 @js.native
@@ -165,7 +166,7 @@ object CommandLine {
       def handleAlias(filePath: String, content: String): (String, String) = {
         // check if we match any alias key
         val terminated = terminatedPath(inRelativePath)
-        for (alias <- converted.aliases) {
+        for (alias <- converted.config.collectRules[AliasPackageRule]) {
           val named = alias.namePackage(terminated)
           if (named.isDefined) {
             return (named.get, alias.applyTemplate(shortFileName, content))
@@ -174,7 +175,9 @@ object CommandLine {
         (filePath, content)
       }
 
-      val (aliasedName, wrappedOutCode) = handleAlias(inRelative, outCode)
+      val processed = converted.config.postprocess(outCode)
+
+      val (aliasedName, wrappedOutCode) = handleAlias(inRelative, processed)
 
       val inFilePackage = aliasedName.split('/')
 

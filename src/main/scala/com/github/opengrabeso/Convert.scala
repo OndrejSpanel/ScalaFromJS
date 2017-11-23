@@ -18,7 +18,9 @@ object Convert {
       val ext = Transform.AST_Extended(ast).loadConfig
 
       val astOptimized = Transform(ext)
-      prefix(header) + ScalaOut.output(astOptimized, code).mkString
+      val ret = prefix(header) + ScalaOut.output(astOptimized, code).mkString
+
+      ext.config.postprocess(ret)
     } else {
       val fileParts = files.toSeq.filterNot(_.isEmpty).map { file =>
         val (fileName, fileContent) = file.span(!_.isWhitespace)
@@ -32,7 +34,7 @@ object Convert {
       val convertResult = ConvertProject("", fileParts.toMap).convert
 
       val converted = convertResult.files.map { case (name, content) =>
-        s"\n//file:$name\n\n" + content
+        s"\n//file:$name\n\n" + convertResult.config.postprocess(content)
       }.mkString
       prefix(header) + converted
     }

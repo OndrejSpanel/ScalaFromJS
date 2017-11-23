@@ -10,9 +10,10 @@ import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import scala.scalajs.js
 import scala.scalajs.js.{JavaScriptException, RegExp}
-
-import ConvertProject._ // import before the object - see http://stackoverflow.com/a/43298181/16673
+import ConvertProject._
 import PathUtils._
+
+import scala.reflect.ClassTag
 
 object ConvertProject {
 
@@ -108,9 +109,27 @@ object ConvertProject {
     }
   }
 
+  /**
+    * The real functionality of the regex rule is outside of AST processing, as a text only postprocess
+    * */
+  case class RegexPostprocessRule(find: String, replace: String) extends Rule {
+    def apply(c: AST_Extended): AST_Extended = c
+
+    def transformText(src: String): String = {
+      src.replaceAll(find, replace)
+    }
+  }
+
   val configName = "ScalaFromJS_settings"
 
-  case class ConvertConfig(rules: Seq[Rule] = Seq.empty)
+  case class ConvertConfig(rules: Seq[Rule] = Seq.empty) {
+    def collectRules[T: ClassTag]: Seq[T] = rules.collect {case x: T => x}
+
+    def postprocess(src: String): String = {
+      val postRules = collectRules[RegexPostprocessRule]
+      postRules.foldLeft(src)((processed, rule) => rule.transformText(processed))
+    }
+  }
 
   object ConvertConfig {
 
@@ -172,6 +191,21 @@ object ConvertProject {
                   }
                 case _ =>
                   throw new UnsupportedOperationException(s"Missing operation for symbol $name")
+              }
+            case _ =>
+              None
+          }
+        case AST_ObjectKeyVal("postprocess", a: AST_Array) =>
+          a.elements.toSeq.flatMap {
+            case o: AST_Object =>
+              val op = loadStringValue(o, "operation")
+              op match {
+                case Some("replace") =>
+                  val find = loadRequiredStringValue(o, "pattern")
+                  val replace = loadRequiredStringValue(o, "replace")
+                  Some(RegexPostprocessRule(find, replace))
+                case _ =>
+                  None
               }
             case _ =>
               None
@@ -395,7 +429,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     }
   }
 
-  case class Converted(files: Seq[(String, String)], aliases: Seq[AliasPackageRule])
+  case class Converted(files: Seq[(String, String)], config: ConvertConfig)
 
   def convert: Converted = {
     val exportsImports = values.sortBy(!_.included)
@@ -442,8 +476,6 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       inFile -> outCode
     }
 
-    val aliases = ext.config.rules.collect { case x: AliasPackageRule => x }
-
-    Converted(outFiles, aliases)
+    Converted(outFiles, ext.config)
   }
 }
