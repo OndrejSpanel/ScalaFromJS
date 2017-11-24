@@ -33,9 +33,11 @@ class PostprocessTests extends FunSuite with TestUtils {
       };
       """
       ).required(
-
+        "object bob extends Person(\"Bill\")",
+        "object dan extends Other.Scope.Person(\"Dan\")",
+        "object pete extends Person(\"Pete\")"
       ).forbidden(
-
+        "Bob"
       )
     }
 

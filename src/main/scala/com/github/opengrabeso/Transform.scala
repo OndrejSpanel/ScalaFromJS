@@ -114,7 +114,7 @@ object Transform {
                   i.body = js.Array(operation, value)
                 case _ /*: AST_UnaryPostfix*/ =>
                   val tempName = "temp"
-                  val storeValue = AST_Let(node)(AST_VarDef.initialized(node)(tempName, expr.clone()))
+                  val storeValue = AST_Const(node)(AST_VarDef.initialized(node)(tempName, expr.clone()))
                   val loadValue = AST_SimpleStatement(node)(AST_SymbolRef(node)(tempName))
                   i.body = js.Array(storeValue, operation, loadValue)
               }
@@ -797,6 +797,7 @@ object Transform {
       onTopNode(iife), // removes also trailing return within the IIFE construct
       onTopNode(removeDoubleScope), // after iife (often introduced by it)
       onTopNode(Variables.detectForVars),
+      onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
       onTopNode(Variables.detectVals), // before convertConstToFunction
       onTopNode(Variables.detectMethods),
       onTopNode(Variables.convertConstToFunction)

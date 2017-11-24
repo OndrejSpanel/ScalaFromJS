@@ -69,6 +69,89 @@ object Variables {
     }
   }
 
+
+  // detect variable defined twice in a scope, remove the 2nd definition
+  def detectDoubleVars(n: AST_Node): AST_Node = Time("detectDoubleVars") {
+    // walk the tree, check for possible val replacements and perform them
+    def usedAsForVar(varName: AST_SymbolVarOrConst, transformer: TreeTransformer) = {
+      def varIn(node: AST_Node) = {
+        var present = false
+        node walk {
+          case `varName` =>
+            present = true
+            present
+          case _ =>
+            present
+        }
+        present
+      }
+      transformer.parent().exists {
+        case f: AST_For if f.init.exists(varIn) || f.step.exists(varIn) || f.condition.exists(varIn) =>
+          true
+        case _ =>
+          false
+
+      }
+    }
+
+    n.transformAfter {(node, transformer) =>
+      node match {
+        // match only AST_Var, assume AST_Let and AST_Const are already well scoped
+        case AST_Var(AST_VarDef(varName, Defined(value))) if !usedAsForVar(varName, transformer) => // var with init - search for a modification
+          // if the orig is different from this, it is suspicions
+          //println(s"AST_VarDef ${varName.name}")
+          //println(s"${varName.thedef.get.name} $varDef ${varName.thedef.get.orig} ${varName == varName.thedef.get.orig.head}")
+
+          def countDefsInScope(varDef: SymbolDef, scope: AST_Scope) = {
+            var count = 0
+            var list = mutable.ArrayBuffer.empty[AST_Token]
+
+            varDef.scope.walk {
+              case n@AST_Var(AST_VarDef(AST_SymbolDef(`varDef`), _)) =>
+                count += 1
+                list ++= n.start.nonNull
+                false
+              case scope: AST_Block if scope != varDef.scope =>
+                // check only in the same block
+                // this is not exactly what JS does, but better transforms to Scala
+                // e.g. if () {var a = 1} else {var a = 2}
+                true
+              case _ =>
+                false
+            }
+            if (count <= 1) {
+              //println(s"Not multiple definitions for $varName in $scope, $count")
+            } else {
+              //println(s"Multiple definitions for $varName in $scope, $count - ${list.map(_.line).mkString(",")}")
+
+            }
+            count
+          }
+          val replaced = for {
+            varDef <- varName.thedef.nonNull
+            //scope <- varName.scope.nonNull
+            scope = varDef.scope
+            // if the symbol origin is different from this declaration, it is a candidate
+            if varDef.orig.headOption.exists(_ != varName)
+            // verify the suspicion
+            count = countDefsInScope(varDef, scope)
+            if count > 1
+          } yield {
+            //println(s"Multiple definitions for $varName ($count) in $scope - decl $node")
+            new AST_Assign {
+              fillTokens(this, node)
+              left = AST_SymbolRef.sym(node)(varName)
+              operator = "="
+              right = value.clone()
+            }
+          }
+          replaced.getOrElse(node)
+        case _ =>
+          node
+      }
+    }
+  }
+
   // detect function key values which can be declared as concise methods instead
   def detectMethods(n: AST_Node): AST_Node = {
     val refs = buildReferenceStacks(n)
@@ -127,6 +210,7 @@ object Variables {
     }
   }
 
+  // transform a function defined as var x = function() {} into function x(){}
   def convertConstToFunction(n: AST_Node): AST_Node = {
     n.transformAfter { (node, _) =>
       node match {
