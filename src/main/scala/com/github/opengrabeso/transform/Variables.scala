@@ -69,6 +69,49 @@ object Variables {
     }
   }
 
+  // detect variable defined twice in a scope, remove the 2nd definition
+  def detectDoubleVars(n: AST_Node): AST_Node = Time("detectDoubleVars") {
+    // walk the tree, check for possible val replacements and perform them
+
+    n.transformAfter {(node, transformer) =>
+      node match {
+        // match only AST_Var, assume AST_Let and AST_Const are already well scoped
+        case AST_Var(AST_VarDef(varName, Defined(value))) => // var with init - search for a modification
+          // if the orig is different from this, it is suspicions
+          //println(s"AST_VarDef ${varName.name}")
+          //println(s"${varName.thedef.get.name} $varDef ${varName.thedef.get.orig} ${varName == varName.thedef.get.orig.head}")
+
+          if (varName.thedef.nonNull.exists(thedef => thedef.orig.nonEmpty && thedef.orig.head != varName)) {
+            //println(s"Detected potential second definition of $varName in ${varName.thedef.get.scope}")
+
+            val varDef = varName.thedef.get
+            var count = 0
+            varName.thedef.get.scope.walk {
+              case AST_Var(AST_VarDef(AST_SymbolDef(`varDef`), _)) =>
+                count += 1
+                false
+              case _ =>
+                false
+            }
+
+            //println(s"Count $varName $count")
+            if (count > 1) new AST_Assign {
+              fillTokens(this, node)
+              left = AST_SymbolRef.sym(node)(varName)
+              operator = "="
+              right = value.clone()
+            } else {
+              node
+            }
+          } else {
+            node
+          }
+        case _ =>
+          node
+      }
+    }
+  }
+
   // detect function key values which can be declared as concise methods instead
   def detectMethods(n: AST_Node): AST_Node = {
     val refs = buildReferenceStacks(n)
@@ -127,6 +170,7 @@ object Variables {
     }
   }
 
+  // transform a function defined as var x = function() {} into function x(){}
   def convertConstToFunction(n: AST_Node): AST_Node = {
     n.transformAfter { (node, _) =>
       node match {
