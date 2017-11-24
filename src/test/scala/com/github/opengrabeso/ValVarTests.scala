@@ -22,6 +22,24 @@ class ValVarTests extends FunSuite with TestUtils {
     )
   }
 
+  test("Double var merge") {
+    execute check ConversionCheck(
+      // language=JavaScript
+      """
+      function f() {
+        var a = 0;
+        var a = 1;
+      }
+      """).required(
+      "var a = 0",
+      "a = 1"
+    ).forbidden(
+      "val a",
+      "var a = 1"
+    )
+
+  }
+
   test("Detect object instead of variable") {
     execute check ConversionCheck(
       // language=JavaScript
