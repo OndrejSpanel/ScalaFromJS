@@ -30,12 +30,28 @@ class ValVarTests extends FunSuite with TestUtils {
         var a = 0;
         var a = 1;
       }
+      function g() {
+        if (true) {
+          var c = 1;
+        } else {
+          var c = 2;
+        }
+      }
+      for (var i = 0; i < 10; i++ ) {
+      }
+
+      for (var i = 0; i < 10; i++ ) {
+      }
       """).required(
       "var a = 0",
-      "a = 1"
+      "val c = 1",
+      "val c = 2",
+      "a = 1",
+      "for (i <- 0 until 10)"
     ).forbidden(
       "val a",
-      "var a = 1"
+      "var a = 1",
+      "while"
     )
 
   }
