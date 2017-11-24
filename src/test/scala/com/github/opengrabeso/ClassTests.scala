@@ -82,8 +82,8 @@ class ClassTests extends FunSuite with TestUtils {
                   this.x = 0;
               }
               C.prototype.constructor = C;
-              var c = new C();
-              return c.a;
+              var c1 = new C();
+              return c1.a;
       })();
 
       if (true) v2 = (function () {
@@ -92,8 +92,8 @@ class ClassTests extends FunSuite with TestUtils {
                   this.x = ""
               }
               C.prototype.constructor = C;
-              var c = new C();
-              return c.x;
+              var c2 = new C();
+              return c2.x;
       })();
       """).required(
         "class C",
