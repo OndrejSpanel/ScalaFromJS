@@ -1047,6 +1047,53 @@ object TransformClasses {
   }
 
   /**
+    * motivation: handle const pp = Parser.prototype in Acorn
+    * */
+
+  def inlinePrototypeConstants(n: AST_Node): AST_Node = {
+    // convert:
+    // const pp = XXX.prototype
+    // pp.f = ....
+    // to
+    // XXX.prototype.f = ....
+
+    var prototypeSymbols = Map.empty[SymbolDef, SymbolDef]
+
+    object PrototypeConstant {
+      def unapply(arg: AST_Node) = arg match  {
+        case AST_Definitions(AST_VarDef(AST_Symbol(_, _, Defined(protoSym)), AST_SymbolRefDef(clsSym) AST_Dot "prototype")) =>
+          Some(clsSym, protoSym)
+        case _ => None
+      }
+    }
+    n.walk {
+      case PrototypeConstant(clsSym, protoFunSym) =>
+        println(s"Detected prototype constant ${protoFunSym.name} for ${clsSym.name}")
+        prototypeSymbols += protoFunSym -> clsSym
+        false
+      case _ =>
+        false
+    }
+
+    n.transformAfter { (node, _) =>
+      node match {
+        case symRef@AST_SymbolRef(_,_,Defined(symDef)) =>
+          prototypeSymbols.get(symDef).fold[AST_Node](symRef) { clsSymDef =>
+            new AST_Dot {
+              fillTokens(this, symRef)
+              expression = AST_SymbolRef.symDef(symRef)(clsSymDef)
+              property = "prototype"
+            }
+          }
+        case _ =>
+          node
+      }
+    }
+
+  }
+
+
+  /**
     * motivation: handle KeyframeTrack constructor implemented using KeyframeTrackConstructor.apply call
     * */
   def inlineConstructorFunction(n: AST_Node): AST_Node = {
@@ -1304,6 +1351,7 @@ object TransformClasses {
 
   val transforms = Seq[AST_Extended => AST_Extended](
     onTopNode(inlinePrototypeVariables),
+    onTopNode(inlinePrototypeConstants),
     onTopNode(inlineConstructorFunction),
     onTopNode(convertProtoClassesRecursive),
     onTopNode(convertClassMembers),
