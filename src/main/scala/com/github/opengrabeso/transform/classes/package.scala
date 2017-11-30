@@ -1,4 +1,6 @@
 package com.github.opengrabeso
+package transform
+
 import Transform._
 import Classes._
 import Uglify._
@@ -15,7 +17,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
 import scala.scalajs.js.RegExp
 
-object TransformClasses {
+package object classes {
   import Symbols._
 
   type ClassId = SymbolMapId
@@ -261,7 +263,7 @@ object TransformClasses {
           classes += name -> c.copy(values = c.values + (key -> ClassVarMember(value)))
 
         case _ =>
-          //println("Other property " + nodeClassName(p))
+        //println("Other property " + nodeClassName(p))
 
       }
     }
@@ -1159,7 +1161,7 @@ object TransformClasses {
           }
         // inline XXXXX.apply(this, arguments) - was already rewritten from YYYYY (transformAfter transforms children first)
         case defun@AST_Defun(_, _, Seq(AST_SimpleStatement(AST_Call(
-          AST_SymbolRefDef(symDef) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")
+        AST_SymbolRefDef(symDef) AST_Dot "apply", _: AST_This, AST_SymbolRefName("arguments")
         )))) =>
           //println(s"Detect ${symDef.name}.apply")
           constructorToImpl.get(symDef).flatMap(constructorFunctionDefs.get).fold(node) { funDef =>
@@ -1187,7 +1189,7 @@ object TransformClasses {
   }
 
   def makeProperties(n: AST_Extended, member: ConvertProject.MemberDesc) = {
-    TransformClasses.processAllClasses(n, Some(member.cls)) { c =>
+    processAllClasses(n, Some(member.cls)) { c =>
 
       // search constructor for a property definition
       val applied = for (constructor <- Classes.findConstructor(c)) yield {
@@ -1242,7 +1244,7 @@ object TransformClasses {
       template.substitute("class", cls).substitute("name", name)
     }
 
-    TransformClasses.processAllClasses(n, Some(member.cls)) { c =>
+    processAllClasses(n, Some(member.cls)) { c =>
       val cc = c.clone()
       val clsName = cc.name.fold("")(_.name)
       val mappedProps = cc.properties.flatMap { p =>
@@ -1315,13 +1317,13 @@ object TransformClasses {
             case AST_ObjectGetter(AST_SymbolName(name), AST_Function(Seq(), Seq(AST_SimpleStatement(_: AST_True)))) =>
               name
           }.filter { n =>
-            val matched = member.name.exec(n)
-            if (matched == null || matched.length < 2) false
-            else {
-              // only when class name matches the first match group
-              matched.lift(1).exists(_.contains(cName))
-            }
-          }.toSet
+          val matched = member.name.exec(n)
+          if (matched == null || matched.length < 2) false
+          else {
+            // only when class name matches the first match group
+            matched.lift(1).exists(_.contains(cName))
+          }
+        }.toSet
 
         isClassMembers ++= matching.map(_ -> cls)
         true
@@ -1340,7 +1342,7 @@ object TransformClasses {
         case callOn AST_Dot GetClass(AST_DefClass(Defined(AST_SymbolName(prop)), _, _)) =>
           //println(s"Detect call $prop")
           AST_Binary(node) (callOn, instanceof, AST_SymbolRef(node)(prop))
-      case _ =>
+        case _ =>
           node
       }
     }

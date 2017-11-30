@@ -613,7 +613,7 @@ object Variables {
       val castGroups = casts.groupBy(_._1)
       val castSets = castGroups.map { case (id, cg) =>
         id -> cg.map(_._2).map { clsSym =>
-          val clsId = TransformClasses.ClassId(clsSym)
+          val clsId = transform.classes.ClassId(clsSym)
           ClassType(clsId)
         }
       }

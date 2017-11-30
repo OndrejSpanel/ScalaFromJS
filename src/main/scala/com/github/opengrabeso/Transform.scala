@@ -801,7 +801,7 @@ object Transform {
       onTopNode(Variables.detectVals), // before convertConstToFunction
       onTopNode(Variables.detectMethods),
       onTopNode(Variables.convertConstToFunction)
-    ) ++ TransformClasses.transforms ++ Seq(
+    ) ++ transform.classes.transforms ++ Seq(
       onTopNode(Parameters.removeDeprecated),
       onTopNode(Parameters.defaultValues),
       onTopNode(Parameters.modifications),
