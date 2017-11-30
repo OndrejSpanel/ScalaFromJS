@@ -35,14 +35,22 @@ object ClassList {
 
     n.walk {
       // new XXX()
+      case `n` => // the scope itself should never be considered a symbol (can be AST_DefClass)
+        false
       case AST_New(AST_SymbolRefDef(call), _*) =>
+        //println(s"AST_New ${call.name}")
         classNames += ClassId(call)
         false
 
       // any use of XXX.prototype probably marks a class
       case AST_SymbolRefDef(name) AST_Dot "prototype" =>
+        //println(s"AST_SymbolRefDef ${name.name}")
         classNames += ClassId(name)
         false
+      case AST_DefClass(Defined(name), _, _) =>
+        //println(s"AST_DefClass ${name.name}")
+        classNames += ClassId(name)
+        true
 
       /* the rule did more harm than good - functions are sometimes defined externally
       // use of this in a function most likely means the function is a constructor
@@ -62,6 +70,8 @@ object ClassList {
         //println(nodeClassName(x))
         false
     }
+
+    println(s"class names $classNames in $n")
 
 
     def processPrototype(name: ClassId, prototypeDef: AST_Object, isStatic: Boolean = false) = {

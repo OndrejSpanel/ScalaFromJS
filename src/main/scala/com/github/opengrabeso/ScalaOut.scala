@@ -906,54 +906,59 @@ object ScalaOut {
             false
         }
 
-        for {
-          inlineBody <- Classes.findInlineBody(tn)
-          if !isStaticOnly
-        } {
+        if (!isStaticOnly) {
           out.eol(2)
 
           out"class ${tn.name}"
 
+          val inlineBodyOpt = Classes.findInlineBody(tn)
+
           val constructor = Classes.findConstructor(tn).map(_.value)
 
-          outputClassArgNames(inlineBody.value)
+          for (inlineBody <- inlineBodyOpt) {
+            outputClassArgNames(inlineBody.value)
+          }
 
           for (base <- tn.`extends`) {
             out" extends $base"
 
-            // find the super constructor call and use its parameters
-            inlineBody.value.body.foreach {
-              case AST_SimpleStatement(call@AST_Call(_: AST_Super, pars@_*)) =>
-                out("(")
-                outputNodes(pars)(nodeToOut)
-                out(")")
-              case _ =>
+            for (inlineBody <- inlineBodyOpt) {
+              // find the super constructor call and use its parameters
+              inlineBody.value.body.foreach {
+                case AST_SimpleStatement(call@AST_Call(_: AST_Super, pars@_*)) =>
+                  out("(")
+                  outputNodes(pars)(nodeToOut)
+                  out(")")
+                case _ =>
+              }
             }
           }
           out" {\n"
           out.indent()
 
-          //out"/* inlineBody count ${inlineBody.value.body.length} */\n"
-          //out"/* inlineBody ${inlineBody.value.body.mkString(",")} */\n"
-          if (false) {
-            out"/* inlineBody defs ${
-              inlineBody.value.body.collect {
-                case AST_Definitions(AST_VarDef(AST_SymbolName(vn), _)) =>
-                  vn
-              }.mkString(",")
-            } */\n"
-          }
+          for (inlineBody <- inlineBodyOpt) {
+            //out"/* inlineBody count ${inlineBody.value.body.length} */\n"
+            //out"/* inlineBody ${inlineBody.value.body.mkString(",")} */\n"
+            if (false) {
+              out"/* inlineBody defs ${
+                inlineBody.value.body.collect {
+                  case AST_Definitions(AST_VarDef(AST_SymbolName(vn), _)) =>
+                    vn
+                }.mkString(",")
+              } */\n"
+            }
 
-          // class body should be a list of variable declarations, constructor statements may follow
-          inlineBody.value.body.foreach {
-            case df: AST_Const =>
-              outputDefinitions(true, df, true)
-            case df: AST_Definitions =>
-              outputDefinitions(false, df, true)
-            case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
-            case ss =>
-              //out(nodeTreeToString(ss))
-              nodeToOut(ss)
+            // class body should be a list of variable declarations, constructor statements may follow
+            inlineBody.value.body.foreach {
+              case df: AST_Const =>
+                outputDefinitions(true, df, true)
+              case df: AST_Definitions =>
+                outputDefinitions(false, df, true)
+              case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
+              case ss =>
+                //out(nodeTreeToString(ss))
+                nodeToOut(ss)
+            }
           }
 
           //blockToOut(tn.body)
@@ -975,7 +980,7 @@ object ScalaOut {
 
           if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
-          for (pm <- functionMembers if pm != inlineBody) {
+          for (pm <- functionMembers if !inlineBodyOpt.contains(pm)) {
             pm match {
               case p: AST_ConciseMethod =>
                 // check overrides

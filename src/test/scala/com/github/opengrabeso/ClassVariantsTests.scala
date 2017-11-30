@@ -94,8 +94,6 @@ class ClassVariantsTests extends FunSuite with TestUtils {
       });
 
       C.prototype.g = function (){};
-
-      function D() {}
       """).required(
       "class C",
       "def f()",
