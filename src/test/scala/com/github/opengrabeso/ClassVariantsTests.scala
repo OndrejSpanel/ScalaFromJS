@@ -36,4 +36,50 @@ class ClassVariantsTests extends FunSuite with TestUtils {
       "prototype"
     )
   }
+
+  test("Define class using Object.assign ES5 form") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      function C() {}
+
+      Object.assign(C.prototype, {
+        constructor: C,
+        f: function (){}
+      })
+      """).required(
+      "class C",
+      "def f()"
+    ).forbidden(
+      "prototype"
+    )
+  }
+
+  test("Define class using Object.assign ES5 form with inheritance") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      function C() {}
+
+      Object.assign(C.prototype, {
+        constructor: C,
+        f: function (){}
+      });
+
+      function D() {}
+
+      Object.assign(D.prototype, C.prototype, {
+        constructor: D,
+        fd: function (){}
+      });
+
+      """).required(
+      "class C",
+      "class D() extends C",
+      "def f()",
+      "def fd()"
+    ).forbidden(
+      "prototype"
+    )
+  }
 }
