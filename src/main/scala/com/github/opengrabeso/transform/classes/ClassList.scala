@@ -71,7 +71,7 @@ object ClassList {
         false
     }
 
-    println(s"class names $classNames in $n")
+    //println(s"class names $classNames in $n")
 
 
     def processPrototype(name: ClassId, prototypeDef: AST_Object, isStatic: Boolean = false) = {

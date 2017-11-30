@@ -87,7 +87,9 @@ class ClassVariantsTests extends FunSuite with TestUtils {
     execute check ConversionCheck(
       //language=JavaScript
       """
-      class C {}
+      class C {
+        x (){}
+      }
 
       Object.assign(C.prototype, {
         f: function (){}
@@ -95,11 +97,12 @@ class ClassVariantsTests extends FunSuite with TestUtils {
 
       C.prototype.g = function (){};
       """).required(
-      "class C",
-      "def f()",
-      "def g()"
-    ).forbidden(
-      "prototype"
-    )
+        "class C",
+        "def x()",
+        "def f()",
+        "def g()"
+      ).forbidden(
+        "prototype"
+      )
   }
 }

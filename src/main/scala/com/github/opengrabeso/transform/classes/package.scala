@@ -415,6 +415,18 @@ package object classes {
         }
       }
 
+      def classProperties(clazz: ClassDef) = {
+        object helper extends Helper(node)
+        import helper._
+
+        val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }
+        val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
+        val mappedSetters = clazz.setters.map { case (k, v) => newSetter(k, v.args, v.body) }
+        val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value, false) }
+        val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
+
+        mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues ++ mappedStatic
+      }
 
       def classDefine(sym: AST_Symbol) = {
         val clsId = ClassId(sym)
@@ -429,13 +441,7 @@ package object classes {
 
         val base = clazz.base.fold(js.undefined: js.UndefOr[AST_SymbolRef])(b => AST_SymbolRef(node)(b.name))
 
-        val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }
-        val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
-        val mappedSetters = clazz.setters.map { case (k, v) => newSetter(k, v.args, v.body) }
-        val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value, false) }
-        val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
-
-        val properties = mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues ++ mappedStatic
+        val properties = classProperties(clazz)
 
         //println(s"classDefine ${sym.name} ${sym.thedef.map(SymbolTypes.id)} ${clazz.base} $base ${base.flatMap(_.thedef.map(SymbolTypes.id))}")
         newClass(sym, base, properties)
@@ -452,6 +458,14 @@ package object classes {
           emptyNode
         case DefineProperty(name, _, _) if classes.contains(name) =>
           emptyNode
+        case classNode@AST_DefClass(Defined(sym), _, _) if classes contains ClassId(sym) =>
+          // add any prototype member definitions as needed
+
+          val mergeProperties = classProperties(classes(ClassId(sym)))
+
+          classNode.properties ++= mergeProperties
+
+          classNode
         //case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
         //  emptyNode
         case _ =>
