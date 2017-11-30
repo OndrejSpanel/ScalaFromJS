@@ -82,4 +82,26 @@ class ClassVariantsTests extends FunSuite with TestUtils {
       "prototype"
     )
   }
+
+  test("Mix ES6 and prototype class definition") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      class C {}
+
+      Object.assign(C.prototype, {
+        f: function (){}
+      });
+
+      C.prototype.g = function (){};
+
+      function D() {}
+      """).required(
+      "class C",
+      "def f()",
+      "def g()"
+    ).forbidden(
+      "prototype"
+    )
+  }
 }
