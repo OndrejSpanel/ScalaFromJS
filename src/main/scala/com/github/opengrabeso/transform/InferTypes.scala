@@ -426,7 +426,7 @@ object InferTypes {
       //println(s"Infer arg types for class $className")
       for (c <- classes.get(className)) {
         {
-          val value = classInlineBody(c, TransformClasses.classTokenSource(c))
+          val value = classInlineBody(c, transform.classes.classTokenSource(c))
           //println(s"  Constructor inline pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
           inferParsOrArgs(value.argnames, args)(s"Constructor call body $className")
         }

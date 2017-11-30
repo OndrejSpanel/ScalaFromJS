@@ -7,7 +7,6 @@ import UglifyExt._
 import UglifyExt.Import._
 import Classes._
 import Expressions._
-import TransformClasses._
 import Variables._
 import Symbols._
 import SymbolTypes._

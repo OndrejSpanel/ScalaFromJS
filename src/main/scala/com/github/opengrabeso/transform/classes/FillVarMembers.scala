@@ -7,7 +7,6 @@ import UglifyExt._
 import UglifyExt.Import._
 import Classes._
 import Transform._
-import TransformClasses._
 import scala.scalajs.js
 import js.JSConverters._
 
