@@ -815,6 +815,7 @@ object Transform {
       onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
       Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
       onTopNode(Variables.detectVals),
+      onTopNode(BoolComparison.apply), // after inferTypes (boolean comparisons may help to infer type as bool)
       onTopNode(relations)
     )
 

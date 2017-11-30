@@ -276,6 +276,8 @@ object ScalaOut {
           case _ =>
             outInParens(n)
         }
+      case _: AST_If =>
+        outInParens(n)
       case _: AST_Conditional =>
         outInParens(n)
       case _ =>

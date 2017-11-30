@@ -135,4 +135,24 @@ class ExpressionTests extends FunSuite with TestUtils {
       )
   }
 
+  test("Simplify boolean expressions") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      function compare(x, y) {
+        if (x == false) {
+          return 1;
+        } else if (y == true) {
+          return 2;
+        } else {
+          return 0;
+        }
+      }
+      """).required(
+      "if (!x)",
+      "if (y)"
+    ).forbidden(
+      "=="
+    )
+  }
 }
