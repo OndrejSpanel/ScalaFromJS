@@ -24,6 +24,18 @@ object Collections {
     !otherUse
   }
 
+  def transformIndexUse(body: AST_Node, varName: SymbolDef, objName: SymbolDef): AST_Node = {
+    body.transformAfter {(node, _) =>
+      node match {
+        case AST_SymbolRefDef(`objName`) AST_Sub (varRef@AST_SymbolRefDef(`varName`)) =>
+          varRef
+        case _ =>
+          node
+
+      }
+    }
+  }
+
   def apply(n: AST_Node): AST_Node = {
 
     n.transformAfter { (node, _) =>
@@ -39,7 +51,7 @@ object Collections {
             this.init = AST_Let(node)(AST_VarDef.uninitialized(node)(varName.name))
             this.name = AST_SymbolRef.symDef(node)(varName)
             // TODO: transform index access in the body
-            this.body = forStatement.body
+            this.body = transformIndexUse(forStatement.body, varName, objName).asInstanceOf[AST_Statement]
           }
         case _ =>
           node
