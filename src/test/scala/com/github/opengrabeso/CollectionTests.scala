@@ -2,16 +2,31 @@ package com.github.opengrabeso
 
 import org.scalatest.FunSuite
 
-class Collections extends FunSuite with TestUtils {
+class CollectionTests extends FunSuite with TestUtils {
+  test("Detect Array access") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      var indices = [0, 1, 2, 3, 4];
+      var sum = 0;
+
+      for ( v = 0, vl = indices.length; v < vl; v ++ ) {
+
+        sum += indices[ v ];
+
+      }
+      """).required(
+    )
+  }
   test("Detect Array fill") {
     execute check ConversionCheck(
       //language=JavaScript
       """
       var v, vl, vertices;
 
-      vertices = new Array( this.vertices.length );
+      vertices = new Array( vertices.length );
 
-      for ( v = 0, vl = this.vertices.length; v < vl; v ++ ) {
+      for ( v = 0, vl = vertices.length; v < vl; v ++ ) {
 
         vertices[ v ] = new Vector3();
 
