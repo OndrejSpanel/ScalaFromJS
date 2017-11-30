@@ -51,32 +51,32 @@ object ConvertProject {
 
   case class DeleteMemberRule(member: MemberDesc) extends Rule {
     override def apply(n: AST_Extended) = {
-      transform.classes.deleteMembers(n, member)
+      transform.classes.Rules.deleteMembers(n, member)
     }
   }
 
   case class IsClassMemberRule(member: MemberDesc) extends Rule {
     override def apply(n: AST_Extended) = {
-      transform.classes.replaceIsClass(n, member)
+      transform.classes.Rules.replaceIsClass(n, member)
     }
   }
 
   case class MakePropertyRule(member: MemberDesc) extends Rule {
     override def apply(n: AST_Extended) = {
-      transform.classes.makeProperties(n, member)
+      transform.classes.Rules.makeProperties(n, member)
     }
   }
 
   case class ReplicateMemberRule(member: MemberDesc, template: String) extends Rule {
     override def apply(n: AST_Extended) = {
-      transform.classes.substMember(n, member, template)
+      transform.classes.Rules.substMember(n, member, template)
     }
 
   }
 
   case class RemoveScopeRule(scope: List[String]) extends Rule {
     override def apply(n: AST_Extended) = {
-      transform.classes.removeScope(n, scope)
+      transform.classes.Rules.removeScope(n, scope)
     }
   }
 
