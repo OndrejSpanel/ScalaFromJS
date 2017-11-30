@@ -11,6 +11,7 @@ object Collections {
   def usedOnlyAsIndex(body: AST_Node, varName: SymbolDef, objName: SymbolDef): Boolean = {
     var otherUse = false
     body.walk {
+      // TODO: detect use on the left side of assignment - that is not allowed
       case node@AST_SymbolRefDef(`objName`) AST_Sub AST_SymbolRefDef(`varName`) =>
         //println(s"Allowed use $node")
         true
