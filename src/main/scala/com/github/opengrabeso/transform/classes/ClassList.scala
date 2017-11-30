@@ -17,8 +17,21 @@ object ClassList {
 
   private [classes] def apply(n: AST_Node): ClassList = {
     var classes = new ClassList
-
     var classNames = Set.empty[ClassId]
+
+    def createClassAsNeeded(clsId: ClassId, isStatic: Boolean = false): Option[ClassDef] = {
+      val clazz = classes.get(clsId)
+      clazz.orElse {
+        // safety check: check if the class really should exists
+        if (classNames contains clsId) {
+          val c = ClassDef(staticOnly = isStatic)
+          classes += clsId -> c
+          Some(c)
+        } else {
+          None
+        }
+      }
+    }
 
     n.walk {
       // new XXX()
@@ -237,8 +250,8 @@ object ClassList {
 
         true
       case ClassMemberDef(name, funName, args, body) =>
-        //println(s"Assign $name.$funName")
-        for (clazz <- classes.get(name)) {
+        //println(s"Assign member $name.$funName")
+        for (clazz  <- createClassAsNeeded(name)) {
           val member = ClassFunMember(args, body)
           classes += name -> clazz.copy(members = clazz.members + (funName -> member))
         }
@@ -266,23 +279,23 @@ object ClassList {
 
         true
       case ClassPropertyDef(name, propName, value) =>
-        //println(s"Assign $name.$funName")
+        //println(s"Assign property $name.$propName")
         if (propName != "constructor") { // constructor is most often assigned a constructor function
-          for (clazz <- classes.get(name)) {
+          for (clazz <- createClassAsNeeded(name)) {
             val member = ClassVarMember(value)
             classes += name -> clazz.copy(members = clazz.members + (propName -> member))
           }
         }
         true
       case ClassParentAndPrototypeDef(name, sym, prototypeDef) =>
-        for (clazz <- classes.get(name)) {
+        for (clazz <- createClassAsNeeded(name)) {
           //println(s"ClassParentAndPrototypeDef $name base $sym")
           classes += name -> clazz.copy(base = Some(sym))
         }
         processPrototype(name, prototypeDef)
         true
       case ClassParentDef(name, sym) =>
-        for (clazz <- classes.get(name)) {
+        for (clazz <- createClassAsNeeded(name)) {
           //println(s"ClassParentDef $name base $sym")
           classes += name -> clazz.copy(base = Some(ClassId(sym)))
         }
