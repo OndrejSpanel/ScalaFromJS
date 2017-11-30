@@ -41,9 +41,24 @@ class ForLoopTests extends FunSuite with TestUtils {
       //language=JavaScript
       """
       var i,il;
-      for ( i = 0, il = c.length; i < il; i ++ ) {}
+      for ( i = 0, il = c.count; i < il; i ++ ) {}
       """).required(
-        "for (i <- 0 until c.length)"
+        "for (i <- 0 until c.count)"
       )
   }
+
+  test("Detect for loop as indices") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      var i;
+      for ( i = 0; i < c.length; i++ ) {}
+      """).required(
+        "for (i <- c.indices)"
+      ).forbidden(
+        "length"
+      )
+
+  }
+
 }
