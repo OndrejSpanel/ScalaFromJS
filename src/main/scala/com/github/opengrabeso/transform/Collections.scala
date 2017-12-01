@@ -7,11 +7,76 @@ import UglifyExt.Import._
 
 object Collections {
 
+  trait ValuePath {
+    def append(member: String) = MemberValuePath(this, member)
+    def parent: ValuePath
 
-  def usedOnlyAsIndex(body: AST_Node, varName: SymbolDef, objName: SymbolDef): Boolean = {
+    def unapply(arg: AST_Node): Boolean
+  }
+
+  case object ThisValuePath extends ValuePath {
+    def parent: ValuePath = throw new NoSuchFieldException(s"No more parents in $this")
+    def unapply(arg: AST_Node) = arg match {
+      case _: AST_This => // AST_SymbolRefDef does not match against this
+        //println(s"ThisValuePath: match $arg")
+        true
+      case _ =>
+        //println(s"ThisValuePath: no match $arg")
+        false
+    }
+
+  }
+  case class VariableValuePath(name: SymbolDef) extends ValuePath {
+    def parent: ValuePath = throw new NoSuchFieldException(s"No more parents in $this")
+
+    def unapply(arg: AST_Node) = arg match {
+      case AST_SymbolDef(`name`) => // AST_SymbolRefDef does not match against this
+        //println(s"VariableValuePath $this: match $arg against ${name.name}")
+        true
+      case _ =>
+        //println(s"VariableValuePath $this: no match $arg against ${name.name}")
+        false
+    }
+  }
+  case class MemberValuePath(parent: ValuePath, member: String) extends ValuePath {
+
+    def unapply(arg: AST_Node): Boolean = {
+      arg match {
+        case parent() AST_Dot `member` =>
+          //println(s"MemberValuePath $this: match $arg against $parent.$member")
+          true
+        case _ =>
+          //println(s"MemberValuePath $this: nomatch $arg against $parent.$member")
+          false
+      }
+    }
+
+  }
+
+  object ValuePath {
+    def unapply(arg: AST_Node): Option[ValuePath] = {
+      //println(s"ValuePath Unapply $arg")
+      arg match {
+        case AST_SymbolRefDef(refDef) => // AST_SymbolRefDef does not match against this
+          //println(s"ValuePath: Match $arg as ${refDef.name}")
+          Some(VariableValuePath(refDef))
+        case _: AST_This =>
+          Some(ThisValuePath)
+        case ValuePath(parent) AST_Dot name =>
+          //println(s"ValuePath: Match $arg as $parent.$name")
+          Some(parent append name)
+        case _ =>
+          //println(s"ValuePath no match $arg")
+          None
+
+      }
+    }
+  }
+
+  def usedOnlyAsIndex(body: AST_Node, varName: SymbolDef, objName: ValuePath): Boolean = {
     object IndexUsage {
       def unapply(arg: AST_Sub) = arg match {
-        case node@AST_SymbolRefDef(`objName`) AST_Sub AST_SymbolRefDef(`varName`) =>
+        case objName() AST_Sub AST_SymbolRefDef(`varName`) =>
           true
         case _ =>
           false
@@ -37,10 +102,10 @@ object Collections {
     !otherUse
   }
 
-  def transformIndexUse(body: AST_Node, varName: SymbolDef, objName: SymbolDef): AST_Node = {
+  def transformIndexUse(body: AST_Node, varName: SymbolDef, objName: ValuePath): AST_Node = {
     body.transformAfter {(node, _) =>
       node match {
-        case AST_SymbolRefDef(`objName`) AST_Sub (varRef@AST_SymbolRefDef(`varName`)) =>
+        case objName() AST_Sub (varRef@AST_SymbolRefDef(`varName`)) =>
           varRef
         case _ =>
           node
@@ -84,7 +149,7 @@ object Collections {
   }
 
 
-  def transformFor(forStatement: AST_ForIn, varName: SymbolDef, objName: SymbolDef): AST_ForIn = {
+  def transformFor(forStatement: AST_ForIn, varName: SymbolDef, objName: ValuePath): AST_ForIn = {
     transformIndexUse(forStatement.body, varName, objName)
     substituteIndex(forStatement, varName)
     forStatement
@@ -94,8 +159,7 @@ object Collections {
     n.transformAfter { (node, _) =>
       node match {
 
-        // TODO: detect also more complex expressions than object.length, esp. like this.member.object.length
-        case forStatement@ForRange(varName, "until", initVar@AST_Number(0), (obj@AST_SymbolRefDef(objName)) AST_Dot "length", AST_Number(1))
+        case forStatement@ForRange(varName, "until", initVar@AST_Number(0), (obj@ValuePath(objName)) AST_Dot "length", AST_Number(1))
           if usedOnlyAsIndex(forStatement.body, varName, objName) =>
           // note: AST_ForOf would be more appropriate, however it is not present yet in the Uglify AST we use
           //println(s"Detect for ..in $forStatement")

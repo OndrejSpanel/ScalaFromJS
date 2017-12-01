@@ -451,6 +451,19 @@ object ScalaOut {
 
     object CanYield {
       def unapply(forIn: AST_ForIn): Option[(AST_Call, AST_Node, AST_Node)] = {
+        var countPush = 0
+        forIn.body.walk {
+          case _: AST_IterationStatement =>
+            true // do not check inner loops
+          case AST_Call(expr AST_Dot "push", arg) =>
+            countPush += 1
+            false
+          case _ =>
+            false
+        }
+
+        if (countPush > 1) return None
+
         // detect if last statement in the for body is a push
         // if it is, convert the loop to yield
         var push = Option.empty[(AST_Call, AST_Node, AST_Node)]
@@ -720,8 +733,10 @@ object ScalaOut {
           // transform for (a <- array) b.push(f(a)) into b ++= for (a <- array) yield f(a)
           nodeToOut(expr)
           out" ++= "
-          outForHeader(tn)
-          out("yield ")
+
+          out"${tn.`object`}.map { ${tn.name.nonNull.getOrElse(tn.init)} =>\n"
+          out.indent()
+
           val yieldBody = tn.body.transformBefore {(node, descend, walker) =>
             node match {
               case `call` =>
@@ -732,7 +747,17 @@ object ScalaOut {
                 c
             }
           }
-          nodeToOut(yieldBody)
+          def bodyFromStatement(s: AST_Statement): Seq[AST_Statement] = {
+            s match {
+              case b: AST_BlockStatement =>
+                b.body
+              case _ =>
+                Seq(s)
+            }
+          }
+          blockToOut(bodyFromStatement(yieldBody))
+          out.unindent()
+          out("}")
         }
       case tn: AST_For =>
         tn match {
