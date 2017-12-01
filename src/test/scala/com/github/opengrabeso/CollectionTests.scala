@@ -90,11 +90,33 @@ class CollectionTests extends FunSuite with TestUtils {
       """
     ).required(
       "vertices ++= vertices2.map",
-      "colors ++= colors2.map",
-      "yield"
+      "colors ++= colors2.map"
     ).forbidden(
       "vertices.push",
       "colors.push"
+    )
+  }
+
+  test("Detect Array append for members") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      var x = 10;
+      var vertices = new Array(x), colors = new Array(x);
+      for ( var i = 0; i < object.vertices.length; i ++) {
+        var vertex = object.vertices[ i ];
+        vertices.push( vertex );
+      }
+
+      for ( var i = 0; i < this.colors.length; i ++ ) {
+        colors.push( this.colors[ i ].clone() );
+      }
+      """
+    ).required(
+      "vertices ++= object.vertices.map",
+      "colors ++= this.colors.map"
+    ).forbidden(
+      "push"
     )
   }
 
@@ -129,7 +151,5 @@ class CollectionTests extends FunSuite with TestUtils {
       Array.prototype.push.apply(allpoints, h)
   				Array.prototype.push.apply( shapes, paths[ p ].toShapes() );
 
-   something.blabla.push(xxx), like:
-      morphTarget.vertices.push(i.vertices(j).clone())
    */
 }
