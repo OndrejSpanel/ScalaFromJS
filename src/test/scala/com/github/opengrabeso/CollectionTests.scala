@@ -7,16 +7,27 @@ class CollectionTests extends FunSuite with TestUtils {
     execute check ConversionCheck(
       //language=JavaScript
       """
-      var indices = [0, 1, 2, 3, 4];
+      var ar = [0, 1, 2, 3, 4];
       var sum = 0;
 
-      for ( v = 0, vl = indices.length; v < vl; v ++ ) {
+      for ( v = 0, vl = ar.length; v < vl; v ++ ) {
 
-        sum += indices[ v ];
+        sum += ar[ v ];
+
+      }
+      for ( var i = 0; i < ar.length; i++ ) {
+
+        ar[ i ] = 0;
 
       }
       """).required(
-    )
+        "for (v <- ar)",
+        "sum += v",
+        "for (i <- ar.indices)",
+        "ar(i)"
+      ).forbidden(
+        "i = 0"
+      )
   }
   test("Detect Array fill") {
     execute check ConversionCheck(

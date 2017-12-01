@@ -9,18 +9,30 @@ object Collections {
 
 
   def usedOnlyAsIndex(body: AST_Node, varName: SymbolDef, objName: SymbolDef): Boolean = {
+    object IndexUsage {
+      def unapply(arg: AST_Sub) = arg match {
+        case node@AST_SymbolRefDef(`objName`) AST_Sub AST_SymbolRefDef(`varName`) =>
+          true
+        case _ =>
+          false
+      }
+    }
     var otherUse = false
     body.walk {
-      // TODO: detect use on the left side of assignment - that is not allowed
-      case node@AST_SymbolRefDef(`objName`) AST_Sub AST_SymbolRefDef(`varName`) =>
+      case node@AST_Assign(IndexUsage(), _, _) =>
+        // use on the left side of assignment - that is not allowed
+        //println(s"L-value use $node")
+        otherUse = true
+        otherUse
+      case node@IndexUsage() =>
         //println(s"Allowed use $node")
         true
       case node@AST_SymbolRefDef(`varName`) =>
         //println(s"Forbidden use $node")
         otherUse = true
-        false
+        otherUse
       case _ =>
-        false
+        otherUse
     }
     !otherUse
   }
@@ -46,6 +58,7 @@ object Collections {
         case forStatement@ForRange(varName, "until", initVar@AST_Number(0), (obj@AST_SymbolRefDef(objName)) AST_Dot "length", AST_Number(1))
           if usedOnlyAsIndex(forStatement.body, varName, objName) =>
           // note: AST_ForOf would be more appropriate, however it is not present yet in the Uglify AST we use
+          //println(s"Detect for ..in $forStatement")
           new AST_ForIn {
             fillTokens(this, node)
             this.`object` = obj
