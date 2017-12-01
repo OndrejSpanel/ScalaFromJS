@@ -449,6 +449,45 @@ object ScalaOut {
       }
     }
 
+    object CanYield {
+      def unapply(forIn: AST_ForIn): Option[(AST_Call, AST_Node, AST_Node)] = {
+        // detect if last statement in the for body is a push
+        // if it is, convert the loop to yield
+        var push = Option.empty[(AST_Call, AST_Node, AST_Node)]
+        Transform.walkLastNode(forIn.body) {
+          case call@AST_Call(expr AST_Dot "push", arg) =>
+            push = Some(call, expr, arg)
+            false
+          case _ =>
+            false
+        }
+
+        // verify the loop does not contain any construct which would break transformation
+        if (push.isDefined) forIn.body.walk {
+          case _: AST_IterationStatement =>
+            true // ignore break / continue in inner loops
+          case _: AST_Break =>
+            push = None
+            false
+          case _: AST_Continue =>
+            push = None
+            false
+          case _ =>
+            false
+        }
+        push
+      }
+    }
+
+    def outForHeader(forIn: AST_ForIn) = {
+      out("for (")
+      forIn.name.nonNull.fold(nodeToOut(forIn.init))(nodeToOut)
+      out(" <- ")
+      nodeToOut(forIn.`object`)
+      out(") ")
+    }
+
+
     if (false) {
       out"/*${nodeClassName(n)}*/"
     }
@@ -469,6 +508,7 @@ object ScalaOut {
       case tn: AST_Number =>
         // prefer the same representation as in the original source
         val src = source
+
         def decodeInt(s: String) = {
           val prefixes = Seq("0x", "0X", "#")
           for {
@@ -476,11 +516,13 @@ object ScalaOut {
             value <- Try(Integer.parseUnsignedInt(s drop p.length, 16)).toOption
           } yield value
         }
+
         def decodeDouble(s: String) = Try(s.toDouble).toOption
 
         def isSourceOf(s: String, number: Double) = {
           decodeInt(s).contains(number) || decodeDouble(s).contains(number)
         }
+
         if (isSourceOf(src, tn.value)) out(src) else out(tn.value.toString)
       case tn: AST_String => out(quote(tn.value))
       case tn: AST_TemplateString =>
@@ -507,7 +549,7 @@ object ScalaOut {
       //case tn: AST_SymbolRef => identifierToOut(out, tn.name)
       case tn: AST_Symbol =>
         out"$tn"
-        //identifierToOut(out, tn.name)
+      //identifierToOut(out, tn.name)
       case tn: AST_ObjectSetter =>
         accessorToOut(tn, "_=")
       case tn: AST_ObjectGetter =>
@@ -540,7 +582,7 @@ object ScalaOut {
           out"var ${identifier(tn.key)} = ${tn.value}\n"
         }
 
-        //out"/*${nodeClassName(n)}*/"
+      //out"/*${nodeClassName(n)}*/"
       //case tn: AST_ObjectProperty =>
       case tn: AST_ConciseMethod =>
         //out"/*${nodeClassName(n)}*/"
@@ -668,12 +710,30 @@ object ScalaOut {
         out.eol()
       case tn: AST_With => outputUnknownNode(tn, true)
       case tn: AST_ForIn =>
-        out("for (")
-        tn.name.nonNull.fold(nodeToOut(tn.init))(nodeToOut)
-        out(" <- ")
-        nodeToOut(tn.`object`)
-        out(") ")
-        nodeToOut(tn.body)
+
+        val push = CanYield.unapply(tn)
+
+        push.fold {
+          outForHeader(tn)
+          nodeToOut(tn.body)
+        }{ case (call, expr, arg) =>
+          // transform for (a <- array) b.push(f(a)) into b ++= for (a <- array) yield f(a)
+          nodeToOut(expr)
+          out" ++= "
+          outForHeader(tn)
+          out("yield ")
+          val yieldBody = tn.body.transformBefore {(node, descend, walker) =>
+            node match {
+              case `call` =>
+                arg.clone()
+              case _ =>
+                val c = node.clone()
+                descend(c, walker)
+                c
+            }
+          }
+          nodeToOut(yieldBody)
+        }
       case tn: AST_For =>
         tn match {
           case ForRange(name, until, init, end, step) =>

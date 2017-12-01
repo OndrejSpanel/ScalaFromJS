@@ -88,6 +88,13 @@ class CollectionTests extends FunSuite with TestUtils {
 
       }
       """
+    ).required(
+      "vertices ++= for",
+      "colors ++= for",
+      "yield"
+    ).forbidden(
+      "vertices.push",
+      "colors.push"
     )
   }
 
