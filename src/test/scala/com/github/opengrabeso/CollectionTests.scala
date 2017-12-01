@@ -29,6 +29,24 @@ class CollectionTests extends FunSuite with TestUtils {
         "i = 0"
       )
   }
+  test("Detect Array access with substituted variable") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      var ar = [0, 1, 2, 3, 4];
+      var sum = 0;
+
+      for ( var index = 0; index < ar.length; index++ ) {
+        var a = ar[index];
+        sum += a;
+
+      }
+      """).required(
+      "for (a <- ar)"
+    ).forbidden(
+      "index"
+    )
+  }
   test("Detect Array fill") {
     execute check ConversionCheck(
       //language=JavaScript

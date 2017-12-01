@@ -49,6 +49,46 @@ object Collections {
     }
   }
 
+  def substituteIndex(forStatement: AST_ForIn, varName: SymbolDef) = {
+    // if there is a single variable inside of the body as const xx = varName and varName it not used otherwise, substitute it
+    var otherUse = false
+    var subst = Option.empty[SymbolDef]
+    forStatement.body.walk {
+      case AST_Const(AST_VarDef(AST_SymbolDef(name), Defined(AST_SymbolRefDef(`varName`)))) =>
+        subst = Some(name)
+        true
+      case AST_SymbolRefDef(`varName`) =>
+        otherUse = true
+        otherUse
+      case _ =>
+        otherUse
+
+    }
+    for {
+      substName <- subst if !otherUse
+    } {
+      //println(s"Detected substitution of ${varName.name} as ${substName.name}")
+      Variables.renameVariable(forStatement.body, varName, substName.name, substName)
+      // the body now contains "const substName = substName, remove it
+      forStatement.body = forStatement.body.transformAfter {(node, _) =>
+        node match {
+          case AST_Const(AST_VarDef(AST_SymbolDef(`substName`), Defined(AST_SymbolRefDef(`substName`)))) =>
+            AST_EmptyStatement(node)
+          case _ =>
+            node
+        }
+      }
+      Variables.renameVariable(forStatement.init, varName, substName.name, substName)
+      forStatement.name = AST_SymbolRef.symDef(forStatement.init)(substName)
+    }
+  }
+
+
+  def transformFor(forStatement: AST_ForIn, varName: SymbolDef, objName: SymbolDef): AST_ForIn = {
+    transformIndexUse(forStatement.body, varName, objName)
+    substituteIndex(forStatement, varName)
+    forStatement
+  }
   def apply(n: AST_Node): AST_Node = {
 
     n.transformAfter { (node, _) =>
@@ -59,14 +99,14 @@ object Collections {
           if usedOnlyAsIndex(forStatement.body, varName, objName) =>
           // note: AST_ForOf would be more appropriate, however it is not present yet in the Uglify AST we use
           //println(s"Detect for ..in $forStatement")
-          new AST_ForIn {
+          val newFor = new AST_ForIn {
             fillTokens(this, node)
             this.`object` = obj
             this.init = AST_Let(node)(AST_VarDef.uninitialized(node)(varName.name))
             this.name = AST_SymbolRef.symDef(node)(varName)
-            // TODO: transform index access in the body
-            this.body = transformIndexUse(forStatement.body, varName, objName).asInstanceOf[AST_Statement]
+            this.body = forStatement.body
           }
+          transformFor(newFor, varName, objName).asInstanceOf[AST_Statement]
         case _ =>
           node
       }
