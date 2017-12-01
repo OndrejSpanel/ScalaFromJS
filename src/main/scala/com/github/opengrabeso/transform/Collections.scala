@@ -7,11 +7,35 @@ import UglifyExt.Import._
 
 object Collections {
 
+  trait ValuePath {
+    def unapply(arg: AST_Node): Boolean
+  }
 
-  def usedOnlyAsIndex(body: AST_Node, varName: SymbolDef, objName: SymbolDef): Boolean = {
+  case class VariableValuePath(name: SymbolDef) extends ValuePath {
+    def unapply(arg: AST_Node) = arg match {
+      case AST_SymbolRefDef(`name`) =>
+        println(s"VariableValuePath: Match $arg against ${name.name}")
+        true
+      case _ =>
+        false
+    }
+  }
+
+  object ValuePath {
+    def unapply(arg: AST_Node): Option[ValuePath] = arg match {
+      case AST_SymbolRefDef(refDef) =>
+        println(s"VariableValuePath: Match $arg as ${refDef.name}")
+        Some(VariableValuePath(refDef))
+      case _ =>
+        None
+
+    }
+  }
+
+  def usedOnlyAsIndex(body: AST_Node, varName: SymbolDef, objName: ValuePath): Boolean = {
     object IndexUsage {
       def unapply(arg: AST_Sub) = arg match {
-        case node@AST_SymbolRefDef(`objName`) AST_Sub AST_SymbolRefDef(`varName`) =>
+        case objName() AST_Sub AST_SymbolRefDef(`varName`) =>
           true
         case _ =>
           false
@@ -37,10 +61,10 @@ object Collections {
     !otherUse
   }
 
-  def transformIndexUse(body: AST_Node, varName: SymbolDef, objName: SymbolDef): AST_Node = {
+  def transformIndexUse(body: AST_Node, varName: SymbolDef, objName: ValuePath): AST_Node = {
     body.transformAfter {(node, _) =>
       node match {
-        case AST_SymbolRefDef(`objName`) AST_Sub (varRef@AST_SymbolRefDef(`varName`)) =>
+        case objName() AST_Sub (varRef@AST_SymbolRefDef(`varName`)) =>
           varRef
         case _ =>
           node
@@ -84,7 +108,7 @@ object Collections {
   }
 
 
-  def transformFor(forStatement: AST_ForIn, varName: SymbolDef, objName: SymbolDef): AST_ForIn = {
+  def transformFor(forStatement: AST_ForIn, varName: SymbolDef, objName: ValuePath): AST_ForIn = {
     transformIndexUse(forStatement.body, varName, objName)
     substituteIndex(forStatement, varName)
     forStatement
@@ -95,7 +119,7 @@ object Collections {
       node match {
 
         // TODO: detect also more complex expressions than object.length, esp. like this.member.object.length
-        case forStatement@ForRange(varName, "until", initVar@AST_Number(0), (obj@AST_SymbolRefDef(objName)) AST_Dot "length", AST_Number(1))
+        case forStatement@ForRange(varName, "until", initVar@AST_Number(0), (obj@ValuePath(objName)) AST_Dot "length", AST_Number(1))
           if usedOnlyAsIndex(forStatement.body, varName, objName) =>
           // note: AST_ForOf would be more appropriate, however it is not present yet in the Uglify AST we use
           //println(s"Detect for ..in $forStatement")

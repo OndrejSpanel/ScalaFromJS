@@ -720,8 +720,10 @@ object ScalaOut {
           // transform for (a <- array) b.push(f(a)) into b ++= for (a <- array) yield f(a)
           nodeToOut(expr)
           out" ++= "
-          outForHeader(tn)
-          out("yield ")
+
+          out"${tn.`object`}.map { ${tn.name.nonNull.getOrElse(tn.init)} =>\n"
+          out.indent()
+
           val yieldBody = tn.body.transformBefore {(node, descend, walker) =>
             node match {
               case `call` =>
@@ -732,7 +734,17 @@ object ScalaOut {
                 c
             }
           }
-          nodeToOut(yieldBody)
+          def bodyFromStatement(s: AST_Statement): Seq[AST_Statement] = {
+            s match {
+              case b: AST_BlockStatement =>
+                b.body
+              case _ =>
+                Seq(s)
+            }
+          }
+          blockToOut(bodyFromStatement(yieldBody))
+          out.unindent()
+          out("}")
         }
       case tn: AST_For =>
         tn match {

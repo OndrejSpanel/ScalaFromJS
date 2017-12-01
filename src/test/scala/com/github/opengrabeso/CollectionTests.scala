@@ -89,8 +89,8 @@ class CollectionTests extends FunSuite with TestUtils {
       }
       """
     ).required(
-      "vertices ++= for",
-      "colors ++= for",
+      "vertices ++= vertices2.map",
+      "colors ++= colors2.map",
       "yield"
     ).forbidden(
       "vertices.push",
@@ -124,4 +124,12 @@ class CollectionTests extends FunSuite with TestUtils {
     )
   }
 
+  /* TODO:
+  Array.prototype.push, like:
+      Array.prototype.push.apply(allpoints, h)
+  				Array.prototype.push.apply( shapes, paths[ p ].toShapes() );
+
+   something.blabla.push(xxx), like:
+      morphTarget.vertices.push(i.vertices(j).clone())
+   */
 }
