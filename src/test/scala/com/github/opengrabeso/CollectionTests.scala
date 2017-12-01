@@ -103,8 +103,8 @@ class CollectionTests extends FunSuite with TestUtils {
       """
       var x = 10;
       var vertices = new Array(x), colors = new Array(x);
-      for ( var i = 0; i < object.vertices.length; i ++) {
-        var vertex = object.vertices[ i ];
+      for ( var i = 0; i < obj.vertices.length; i ++) {
+        var vertex = obj.vertices[ i ];
         vertices.push( vertex );
       }
 
@@ -113,7 +113,7 @@ class CollectionTests extends FunSuite with TestUtils {
       }
       """
     ).required(
-      "vertices ++= object.vertices.map",
+      "vertices ++= obj.vertices.map",
       "colors ++= this.colors.map"
     ).forbidden(
       "push"

@@ -451,6 +451,19 @@ object ScalaOut {
 
     object CanYield {
       def unapply(forIn: AST_ForIn): Option[(AST_Call, AST_Node, AST_Node)] = {
+        var countPush = 0
+        forIn.body.walk {
+          case _: AST_IterationStatement =>
+            true // do not check inner loops
+          case AST_Call(expr AST_Dot "push", arg) =>
+            countPush += 1
+            false
+          case _ =>
+            false
+        }
+
+        if (countPush > 1) return None
+
         // detect if last statement in the for body is a push
         // if it is, convert the loop to yield
         var push = Option.empty[(AST_Call, AST_Node, AST_Node)]
