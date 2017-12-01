@@ -51,8 +51,8 @@ class ForLoopTests extends FunSuite with TestUtils {
     execute check ConversionCheck(
       //language=JavaScript
       """
-      var i;
-      for ( i = 0; i < c.length; i++ ) {}
+      var i, sum = 0;
+      for ( i = 0; i < c.length; i++ ) { sum += i}
       """).required(
         "for (i <- c.indices)"
       ).forbidden(

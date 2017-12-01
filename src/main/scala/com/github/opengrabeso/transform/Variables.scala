@@ -395,17 +395,15 @@ object Variables {
     }
   }
 
-  def renameVariable[T <: AST_Node](n: T, oldName: SymbolDef, newName: String): T = {
+  def renameVariable[T <: AST_Node](n: T, oldName: SymbolDef, newName: String, newSymbol: js.UndefOr[SymbolDef] = js.undefined): T = {
     val ret = n.transformAfter { (node, _) =>
       node match {
         case sym@AST_SymbolRefDef(`oldName`) =>
           //println(s"  renamed ${oldName.name} to $newName")
           sym.name = newName
-          sym.thedef = js.undefined // scope and definition needs to be filled by the parser
+          sym.thedef = newSymbol // scope and definition needs to be filled by the parser
           sym.scope = js.undefined
           sym
-        // do not inline call, we need this.call form for the inference
-        // on the other hand form without this is better for variable initialization
         case _ =>
           node
       }
