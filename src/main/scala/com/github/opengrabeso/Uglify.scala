@@ -454,6 +454,11 @@ object Uglify extends js.Object {
     var raw: String = js.native
   }
 
+  @js.native class AST_Destructuring extends AST_Node {
+    var names: Array[AST_Node] = js.native // [AST_Node*] Array of properties or elements
+    var is_array: Boolean = js.native // [Boolean] Whether the destructuring represents an object or array"
+  }
+
   @js.native class AST_Number extends AST_Constant {
     // [number] the numeric value
     var value: Double = js.native
@@ -694,7 +699,14 @@ object UglifyExt {
     }
 
     object AST_Symbol {
-      def unapply(arg: AST_Symbol) = Some((arg.name, arg.scope, arg.thedef))
+      def unapply(arg: AST_Symbol) = {
+        arg match {
+          case _: AST_Destructuring =>
+            None // crash hotfix
+          case _ =>
+            Some((arg.name, arg.scope, arg.thedef))
+        }
+      }
     }
     object AST_SymbolName {
       def unapply(arg: AST_Symbol) = Some(arg.name)
