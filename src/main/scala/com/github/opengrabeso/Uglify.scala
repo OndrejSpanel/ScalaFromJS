@@ -459,6 +459,10 @@ object Uglify extends js.Object {
     var is_array: Boolean = js.native // [Boolean] Whether the destructuring represents an object or array"
   }
 
+  @js.native class AST_DefaultAssign extends AST_SymbolFunarg {
+
+  }
+
   @js.native class AST_Number extends AST_Constant {
     // [number] the numeric value
     var value: Double = js.native

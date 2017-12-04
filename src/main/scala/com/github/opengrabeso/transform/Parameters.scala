@@ -12,10 +12,27 @@ import Expressions._
 
 object Parameters {
 
+  /*
+  * AST types are incorrect - function parameters may be of a type other than AST_SymbolFunarg
+  * This allows us to hotfix this.
+  * */
+  def isNormalPar(par: AST_Node): Boolean = {
+    //
+    par match {
+      case _: AST_Destructuring =>
+        false
+      case _: AST_DefaultAssign =>
+        false
+      case _ =>
+        true
+    }
+  }
+
   /**
     * Scan all parameters in all functions, parameters are scaned from last to first (right to left)
     * @param process process the function - once this returns None, scan is aborted
     * */
+
   def processAllFunctions(n: AST_Node, process: (AST_Lambda, AST_SymbolFunarg) => Option[AST_Lambda]): AST_Node = {
 
     def processOneFunction(f: AST_Lambda): AST_Lambda = {
@@ -61,6 +78,7 @@ object Parameters {
 
     // the only use of a parameter is in a `x_par || value` form
     def introduceDefaultValue(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+      if (!isNormalPar(par)) return None
       val parName = par.name
       //println(s"introduceDefaultValue $parName")
 
@@ -273,8 +291,8 @@ object Parameters {
 
   def removeDeprecated(n: AST_Node): AST_Node = {
     def removeOneDeprecated(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+      if (!isNormalPar(par)) return None
       val parName = par.name
-      //println(s"removeOneDeprecated $parName")
 
       def containsDeprecation(body: Seq[AST_Statement]) = {
         body.exists {
