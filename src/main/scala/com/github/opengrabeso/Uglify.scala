@@ -459,9 +459,7 @@ object Uglify extends js.Object {
     var is_array: Boolean = js.native // [Boolean] Whether the destructuring represents an object or array"
   }
 
-  @js.native class AST_DefaultAssign extends AST_SymbolFunarg {
-
-  }
+  @js.native class AST_DefaultAssign extends AST_Binary
 
   @js.native class AST_Number extends AST_Constant {
     // [number] the numeric value
@@ -711,7 +709,7 @@ object UglifyExt {
 
     object AST_Symbol {
       def unapply(arg: AST_Symbol) = {
-        arg match {
+        arg.asInstanceOf[AST_Node] match {
           case _: AST_Destructuring =>
             None // crash hotfix
           case _ =>

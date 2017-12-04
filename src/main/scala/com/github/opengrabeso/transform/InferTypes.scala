@@ -209,7 +209,9 @@ object InferTypes {
 
     def inferParsOrArgs(pars: Seq[AST_SymbolFunarg], args: Seq[AST_Node])(debug: String*) = {
 
-      val parIds = pars.map(_.thedef.nonNull).flatMap(_.map(id))
+      //println(s"inferParsOrArgs $pars")
+      val parIds = pars.map(symbolFromPar).flatMap(_.map(id))
+      //println(s"  parIds $parIds")
 
       for ((Some(par), arg) <- parIds zip args) {
         val tp = expressionType(arg)(ctx)
@@ -247,7 +249,7 @@ object InferTypes {
               for {
                 (a, tp) <- args zip fType.args
                 //_ = println(s"${a.thedef.nonNull.map(_.name)} $tp")
-                sym <- a.thedef.nonNull
+                sym <- symbolFromPar(a)
               } {
                 val sid = id(sym)
                 if (n.types.get(sid).isEmpty) {
@@ -586,7 +588,7 @@ object InferTypes {
 
           for {
             arg <- fun.argnames.headOption
-            retType <- allTypes.get(arg.thedef.nonNull.flatMap(id))
+            retType <- allTypes.get(symbolFromPar(arg).flatMap(id))
             AST_DefClass(Defined(AST_SymbolDef(cls)), _, _) <- scope
             clsId <- id(cls)
           } {

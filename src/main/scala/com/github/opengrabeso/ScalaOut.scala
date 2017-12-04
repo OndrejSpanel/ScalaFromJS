@@ -333,11 +333,11 @@ object ScalaOut {
       }
     }
 
-    def outputArgType(n: AST_SymbolFunarg) = {
-      val typeString = n.thedef.nonNull.fold(SymbolTypes.any.toOut)(input.types.getAsScala(_))
+    def outputArgType(n: AST_SymbolFunarg, init: Option[AST_Node]) = {
+      val typeString = Transform.symbolFromPar(n).fold(SymbolTypes.any.toOut)(input.types.getAsScala(_))
       //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeString")
       out": $typeString"
-      for (init <- n.init.nonNull.flatMap(_.headOption)) {
+      for (init <- init) {
         out" = $init"
       }
     }
@@ -350,7 +350,7 @@ object ScalaOut {
           out("var ")
         }
         out"$n"
-        outputArgType(n)
+        outputArgType(n, n.init.nonNull.flatMap(_.headOption))
       }
       out(")")
     }
@@ -358,9 +358,15 @@ object ScalaOut {
     def outputArgNames(tn: AST_Lambda, types: Boolean = false) = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        out"$n"
+        val (sym, init: Option[AST_Node]) = n.asInstanceOf[AST_Node] match {
+          case d: AST_DefaultAssign =>
+            d.left.asInstanceOf[AST_SymbolFunarg] -> Some(d.right)
+          case _ =>
+            n -> n.init.nonNull.flatMap(_.headOption)
+        }
+        out"$sym"
         if (types) {
-          outputArgType(n)
+          outputArgType(sym, init)
         } else {
           val sid = n.thedef.nonNull.flatMap(SymbolTypes.id)
           for (t <- input.types.get(sid)) {

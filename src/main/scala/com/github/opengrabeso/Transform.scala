@@ -28,6 +28,21 @@ object Transform {
     symbol.thedef.nonNull.flatMap(id)
   }
 
+  def symbolFromPar(p: AST_Node): Option[SymbolDef] = p match {
+    case p: AST_SymbolFunarg =>
+      p.thedef.nonNull
+    case p: AST_DefaultAssign =>
+      p.left match {
+        case a: AST_SymbolFunarg =>
+          a.thedef.nonNull
+        case _ =>
+          None
+      }
+    case _ =>
+      None
+  }
+
+
 
   object AST_Extended {
     def noTypes = SymbolTypes()

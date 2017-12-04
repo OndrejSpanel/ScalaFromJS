@@ -351,7 +351,7 @@ package object classes {
         }
 
         def newValue(k: String, v: AST_Node, isStatic: Boolean) = {
-          println(s"newValue $k $v $isStatic")
+          //println(s"newValue $k $v $isStatic")
           new AST_ObjectKeyVal {
             fillTokens(this, v)
             key = k
