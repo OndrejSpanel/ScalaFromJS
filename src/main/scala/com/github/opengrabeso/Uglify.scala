@@ -635,6 +635,13 @@ object UglifyExt {
       case ba: js.Array[AST_Statement@unchecked] => ba
       case bn: AST_Statement => js.Array(bn)
       case x if js.isUndefined(x) => js.Array()
+      case x: AST_Node =>
+        //println(s"AST_Node block body $x in ${nodeClassName(block)}")
+        val st = new AST_SimpleStatement {
+          fillTokens(this, block)
+          body = x
+        }
+        js.Array(st)
       case x =>
         println(s"Unexpected block body $x in ${nodeClassName(block)}")
         js.Array()
