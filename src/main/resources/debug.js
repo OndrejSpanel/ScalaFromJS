@@ -33,6 +33,14 @@ UglifyJS.AST_VarDef.prototype.toDebug = function() {
     return this.name.toString();
 };
 
+UglifyJS.AST_Call.prototype.toDebug = function() {
+    return this.expression.toString() + "(...)";
+};
+
+UglifyJS.AST_Binary.prototype.toDebug = function() {
+    return this.left.toString() + this.operator + this.right.toString();
+};
+
 UglifyJS.AST_ConciseMethod.prototype.toDebug = function() {
     return this.key.name;
 };
