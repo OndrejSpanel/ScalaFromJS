@@ -255,6 +255,9 @@ package object classes {
 
     val classes = ClassList(n)
 
+    // optimization: avoid traversal when there are no classes detected
+    // this is common for inner scopes
+    if (classes.isEmpty) return n
 
     //println(s"Classes ${classes.classes.keys}")
 
@@ -348,7 +351,7 @@ package object classes {
         }
 
         def newValue(k: String, v: AST_Node, isStatic: Boolean) = {
-          //println(s"newValue $k $v $isStatic")
+          println(s"newValue $k $v $isStatic")
           new AST_ObjectKeyVal {
             fillTokens(this, v)
             key = k
@@ -447,6 +450,13 @@ package object classes {
         newClass(sym, base, properties)
       }
 
+      if (false) node match {
+        case ex: AST_Export =>
+          println(s"walk AST_Export $node ${ex.exported_value.nonNull} ${ex.exported_definition.nonNull}")
+        case _: AST_Block =>
+          println(s"walk AST_Block $node")
+        case _ =>
+      }
       node match {
         case ClassDefineValue(sym, _, _, _) if classes contains ClassId(sym) =>
           classDefine(sym)
@@ -464,10 +474,15 @@ package object classes {
           val mergeProperties = classProperties(classes(ClassId(sym)))
 
           classNode.properties ++= mergeProperties
+          //println(s"AST_DefClass $classNode - merge members (${mergeProperties.size})")
 
           classNode
         //case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
         //  emptyNode
+        case classNode@AST_DefClass(_, _, _)  =>
+          //println(s"AST_DefClass $classNode - not in ${classes.keys}")
+
+          node
         case _ =>
           node
       }
@@ -731,7 +746,7 @@ package object classes {
     }
     n.walk {
       case PrototypeConstant(clsSym, protoFunSym) =>
-        println(s"Detected prototype constant ${protoFunSym.name} for ${clsSym.name}")
+        //println(s"Detected prototype constant ${protoFunSym.name} for ${clsSym.name}")
         prototypeSymbols += protoFunSym -> clsSym
         false
       case _ =>

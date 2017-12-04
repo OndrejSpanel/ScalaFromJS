@@ -71,7 +71,9 @@ object ClassList {
         false
     }
 
-    //println(s"class names $classNames in $n")
+    if (false) if (classNames.nonEmpty) {
+      println(s"class names $classNames in $n")
+    }
 
 
     def processPrototype(name: ClassId, prototypeDef: AST_Object, isStatic: Boolean = false) = {
@@ -322,6 +324,9 @@ object ClassList {
           //println(s"Define static member $clsName.$member as ${nodeClassName(value)}")
           classes.defineStaticMember(clsName, member, value)
         }
+        true
+      case AST_DefClass(Defined(clsSym), _, _) =>
+        createClassAsNeeded(ClassId(clsSym))
         true
       case _: AST_Scope =>
         // do not enter any other scopes, they will be handled by recursion
