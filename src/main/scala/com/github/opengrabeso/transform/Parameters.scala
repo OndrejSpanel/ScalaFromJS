@@ -23,8 +23,10 @@ object Parameters {
         false
       case _: AST_DefaultAssign =>
         false
-      case _ =>
+      case _: AST_SymbolFunarg =>
         true
+      case _ =>
+        false
     }
   }
 

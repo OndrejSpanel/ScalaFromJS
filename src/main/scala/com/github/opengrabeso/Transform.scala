@@ -28,6 +28,18 @@ object Transform {
     symbol.thedef.nonNull.flatMap(id)
   }
 
+  def funArg(p: AST_Node): AST_SymbolFunarg = (p: @unchecked) match {
+    case p: AST_SymbolFunarg =>
+      p
+    case p: AST_DefaultAssign =>
+      p.left match {
+        case a: AST_SymbolFunarg =>
+          a
+        case _ =>
+          throw new UnsupportedOperationException(s"Unexpected argument node ${p.left} in AST_DefaultAssign")
+      }
+  }
+
   def symbolFromPar(p: AST_Node): Option[SymbolDef] = p match {
     case p: AST_SymbolFunarg =>
       p.thedef.nonNull
@@ -638,7 +650,7 @@ object Transform {
 
           // TODO: maybe parMembersInline is enough?
 
-          def listParameters(method: Option[AST_ConciseMethod]) = method.toSeq.flatMap(_.value.argnames)
+          def listParameters(method: Option[AST_ConciseMethod]) = method.toSeq.flatMap(_.value.argnames.flatMap(Transform.symbolFromPar))
 
           val parMembers = listParameters(findConstructor(cls)).map(_.name)
           val parMembersInline = for {

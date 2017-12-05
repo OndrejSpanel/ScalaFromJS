@@ -350,7 +350,7 @@ object InlineConstructors {
             //println(s"inlined ${inlined.map(nodeClassName)}")
             //println(s"rest ${rest.map(nodeClassName)}")
             // transform parameter names while inlining (we need to use parSuffix names)
-            val parNames = constructor.argnames.map(_.name)
+            val parNames = constructor.argnames.map(Transform.funArg).map(_.name)
             val parNamesSet = parNames.toSet
             object IsParameter {
               def unapply(arg: String): Boolean = parNamesSet contains arg
@@ -373,7 +373,7 @@ object InlineConstructors {
             }
             // add adjusted constructor argument names so that parser correctly resolves them inside of the function
             val accessor = classInlineBody(cls, clsTokenDef)
-            accessor.argnames = constructor.argnames.map { p =>
+            accessor.argnames = constructor.argnames.map(Transform.funArg).map { p =>
               val a = p.clone()
               a.name = p.name + parSuffix
               val classSymbolId = cls.name.nonNull.flatMap(_.thedef.nonNull).flatMap(id)
