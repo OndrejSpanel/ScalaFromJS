@@ -116,6 +116,43 @@ class RuleTests extends FunSuite with TestUtils {
 
   }
 
+  test("Handle getClass") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      class Node {
+        type () {return "Node"}
+      }
+
+      class Identifier extends Node {
+        type () {return Syntax.Identifier}
+      }
+
+      Syntax = {
+          Identifier : 'Identifier'
+      };
+
+      function useExpr(key) {
+        return key.type === Syntax.Identifier && key.name === value
+      }
+
+      function useIf(key) {
+        if (key.type === Syntax.Identifier) {
+          return key.name
+        } else {
+          return ""
+        }
+
+      }
+      """).required(
+        ""
+      ).forbidden(
+        "isInstanceOf[A]",
+        "isInstanceOf[D]"
+      )
+
+  }
+
   test("Handle method extending") {
     execute check ConversionCheck(
       // language=JavaScript
