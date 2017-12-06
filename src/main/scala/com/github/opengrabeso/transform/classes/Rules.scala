@@ -198,27 +198,39 @@ object Rules {
     }
     val symbolMap = symbols.toMap
 
-    val ret = n.top.transformAfter { (node, _) =>
-      node match {
+
+    object DetectClassCompare {
+      def unapply(arg: AST_Binary)(implicit tokensFrom: AST_Node)= arg match {
         case AST_Binary(callOn AST_Dot prop, "=="|"===", expr) if member.name.test(prop) =>
-          println(s"Detect call $prop")
-          // guess which class it could be
           val className = expr match {
             case s: AST_String =>
               Some(s.value)
             case _ AST_Dot s =>
               Some(s)
+            case AST_SymbolRefName(s) =>
+              Some(s)
             case _ =>
               None
           }
-
           // find any symbol matching the name
           // TODO: try even a similar symbol
           val sym = className.flatMap(symbolMap.get)
-          println(s"Found $className sym ${sym.map(_.name)}")
-          sym.fold (node) { sym =>
-            AST_Binary(node) (callOn, instanceof, AST_SymbolRef.symDef(node)(sym))
+
+          //className.foreach(c => println(s"Found $c sym ${sym.map(_.name).getOrElse(expr)}"))
+          // TODO: even when there is no class, consider passing the name if it looks reasonable
+          sym.map {
+            sym => (callOn, AST_SymbolRef.symDef(tokensFrom)(sym))
           }
+        case _ =>
+          None
+
+      }
+    }
+    val ret = n.top.transformAfter { (node, _) =>
+      implicit val tokensFrom = node
+      node match {
+        case DetectClassCompare(callOn, symRef) =>
+          AST_Binary(node)(callOn, instanceof, symRef)
         case _ =>
           node
       }

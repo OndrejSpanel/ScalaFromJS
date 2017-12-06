@@ -137,27 +137,30 @@ class RuleTests extends FunSuite with TestUtils {
         Literal: 'Literal'
       };
 
-      function useIfSimple(key) {
-        if (key.type === Syntax.Identifier) {
-          return key.name
+      function useIfSimple(a) {
+        if (a.type === Syntax.Identifier) {
+          return a.name
         }
         return ""
       }
 
-      function useExpr(key) {
-        return key.type === Syntax.Identifier && key.name === value
+      function useExpr(b) {
+        return b.type === Syntax.Identifier && b.name === value
       }
 
-      function useIf(key) {
-        if (key.type === Syntax.Identifier && key.name.lenght > 0) {
-          return key.name
+      function useIf(c) {
+        if (c.type === Syntax.Identifier && c.name.lenght > 0) {
+          return c.name
         }
         return ""
       }
 
-      function useExprComplex(key, value) {
+      function useExprComplex(d) {
+        return (
+          d.type === Syntax.Identifier && d.name === value ||
+          d.type === Syntax.Literal && d.value === value
+        );
       }
-
       var ScalaFromJS_settings = {
         members: [
           {
@@ -168,9 +171,13 @@ class RuleTests extends FunSuite with TestUtils {
         ]
       }
       """).required(
-        ""
+        "case a_cast: Identifier",
+        "b.isInstanceOf[Identifier] && b.asInstanceOf[Identifier].name",
+        "c.isInstanceOf[Identifier] && c.asInstanceOf[Identifier].name",
+        "d.isInstanceOf[Identifier] && d.asInstanceOf[Identifier].name",
+        "d.isInstanceOf[Literal] && d.asInstanceOf[Literal].value"
       ).forbidden(
-        ""
+        "Syntax."
       )
 
   }

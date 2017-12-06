@@ -679,7 +679,22 @@ object Variables {
 
       }
     }
-    n.copy(top = ret)
+
+    val inConditionCast = ret.transformAfter { (node, _) =>
+      implicit val tokensFrom = node
+      node match {
+        // TODO: allow other forms of callOn, not only AST_SymbolRef
+        case AST_Binary(right@AST_Binary(callExpr@AST_SymbolRefDef(callOn), "instanceof", classExpr), "&&", expr) =>
+          println(s"Detected cast && on $callExpr")
+          val instancedExpr = AST_Binary(node)(callExpr, asinstanceof, classExpr)
+          Variables.replaceVariable(expr, callOn, instancedExpr)
+          AST_Binary(node)(right, "&&", expr)
+        case _ =>
+          node
+      }
+    }
+
+    n.copy(top = inConditionCast)
   }
 
 }
