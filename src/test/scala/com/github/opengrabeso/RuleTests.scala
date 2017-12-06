@@ -116,6 +116,71 @@ class RuleTests extends FunSuite with TestUtils {
 
   }
 
+  test("Handle getClass") {
+    execute check ConversionCheck(
+      //language=JavaScript
+      """
+      class Node {
+        type () {return "Node"}
+      }
+
+      class Identifier extends Node {
+        type () {return Syntax.Identifier}
+      }
+
+      class Literal extends Node {
+        type () {return Syntax.Literal}
+      }
+
+      Syntax = {
+        Identifier : 'Identifier',
+        Literal: 'Literal'
+      };
+
+      function useIfSimple(a) {
+        if (a.type === Syntax.Identifier) {
+          return a.name
+        }
+        return ""
+      }
+
+      function useExpr(b) {
+        return b.type === Syntax.Identifier && b.name === value
+      }
+
+      function useIf(c) {
+        if (c.type === Syntax.Identifier && c.name.lenght > 0) {
+          return c.name
+        }
+        return ""
+      }
+
+      function useExprComplex(d) {
+        return (
+          d.type === Syntax.Identifier && d.name === value ||
+          d.type === Syntax.Literal && d.value === value
+        );
+      }
+      var ScalaFromJS_settings = {
+        members: [
+          {
+            cls: ".*",
+            name: "type",
+            operation: "getClass"
+          }
+        ]
+      }
+      """).required(
+        "case a_cast: Identifier",
+        "b.isInstanceOf[Identifier] && b.asInstanceOf[Identifier].name",
+        "c.isInstanceOf[Identifier] && c.asInstanceOf[Identifier].name",
+        "d.isInstanceOf[Identifier] && d.asInstanceOf[Identifier].name",
+        "d.isInstanceOf[Literal] && d.asInstanceOf[Literal].value"
+      ).forbidden(
+      )
+
+  }
+
   test("Handle method extending") {
     execute check ConversionCheck(
       // language=JavaScript
