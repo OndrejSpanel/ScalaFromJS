@@ -177,7 +177,6 @@ class RuleTests extends FunSuite with TestUtils {
         "d.isInstanceOf[Identifier] && d.asInstanceOf[Identifier].name",
         "d.isInstanceOf[Literal] && d.asInstanceOf[Literal].value"
       ).forbidden(
-        "Syntax."
       )
 
   }

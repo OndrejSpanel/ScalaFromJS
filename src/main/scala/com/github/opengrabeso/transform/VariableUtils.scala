@@ -35,6 +35,18 @@ object VariableUtils {
     }
   }
 
+  def listSymbols(n: AST_Node): Set[SymbolDef] = {
+    val symbols = Set.newBuilder[SymbolDef]
+    n walk {
+      case AST_SymbolDef(symDef) =>
+        symbols += symDef
+        false
+      case _ =>
+        false
+    }
+    symbols.result()
+  }
+
   class VarIsModified(sym: SymbolDef) extends IsModified(new IsSym(sym))
 
   case class ReferenceScopes(refs: Map[SymbolDef, Set[AST_Scope]]) {

@@ -223,16 +223,21 @@ class TypeTests extends FunSuite with TestUtils {
 
       function f(x, y, z, u, v, w) {
         console.log(x.c);
-        if (x instanceof D && y instanceof C) {}
+        if (x instanceof D && y instanceof C) {
+          console.log(x);
+          console.log(y)
+        }
 
         if (z instanceof D || false) {
           console.log(z.d)
         }
         else if (u instanceof D || v instanceof C || false) {
-          console.log(v.d)
+          console.log(u.d);
+          console.log(v.c)
         }
 
         if (w instanceof D && w instanceof C) {
+          console.log(w)
         }
       }
       """).required(

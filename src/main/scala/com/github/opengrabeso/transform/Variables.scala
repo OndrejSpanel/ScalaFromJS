@@ -652,7 +652,13 @@ object Variables {
             }.withTokens(node)
           }.withTokens(node)
         case ifs@AST_If(ex@ExpressionWithCasts(extractedCasts@_*), ifStatement, elseStatement) =>
-          val casts = consolidateCasts(extractedCasts)
+          // check which cast variables are used in the ifStatement
+          val used = listSymbols(ifStatement)
+          val usedCasts = extractedCasts.filter { case (sym, _) =>
+            used contains sym
+          }
+
+          val casts = consolidateCasts(usedCasts)
           //println(s"Detected casts ${casts.map(p => SymbolTypes.id(p._1) + " " + SymbolTypes.id(p._2))}")
           val n = new AST_If {
             fillTokens(this, ifs)
@@ -685,7 +691,7 @@ object Variables {
       node match {
         // TODO: allow other forms of callOn, not only AST_SymbolRef
         case AST_Binary(right@AST_Binary(callExpr@AST_SymbolRefDef(callOn), "instanceof", classExpr), "&&", expr) =>
-          println(s"Detected cast && on $callExpr")
+          //println(s"Detected cast && on $callExpr")
           val instancedExpr = AST_Binary(node)(callExpr, asinstanceof, classExpr)
           Variables.replaceVariable(expr, callOn, instancedExpr)
           AST_Binary(node)(right, "&&", expr)

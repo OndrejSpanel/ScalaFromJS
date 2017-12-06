@@ -188,16 +188,7 @@ object Rules {
 
   def replaceGetClass(n: AST_Extended, member: ConvertProject.MemberDesc): AST_Extended = {
     // first scan for all symbols matching the rule
-    val symbols = mutable.ArrayBuffer.empty[(String, SymbolDef)]
-    n.top walk {
-      case AST_SymbolDef(symDef) =>
-        symbols += symDef.name -> symDef
-        false
-      case _ =>
-        false
-    }
-    val symbolMap = symbols.toMap
-
+    val symbols = VariableUtils.listSymbols(n.top).toSeq.map(s => s.name -> s).toMap
 
     object DetectClassCompare {
       def unapply(arg: AST_Binary)(implicit tokensFrom: AST_Node)= arg match {
@@ -214,7 +205,7 @@ object Rules {
           }
           // find any symbol matching the name
           // TODO: try even a similar symbol
-          val sym = className.flatMap(symbolMap.get)
+          val sym = className.flatMap(symbols.get)
 
           //className.foreach(c => println(s"Found $c sym ${sym.map(_.name).getOrElse(expr)}"))
           // TODO: even when there is no class, consider passing the name if it looks reasonable
