@@ -128,27 +128,49 @@ class RuleTests extends FunSuite with TestUtils {
         type () {return Syntax.Identifier}
       }
 
+      class Literal extends Node {
+        type () {return Syntax.Literal}
+      }
+
       Syntax = {
-          Identifier : 'Identifier'
+        Identifier : 'Identifier',
+        Literal: 'Literal'
       };
+
+      function useIfSimple(key) {
+        if (key.type === Syntax.Identifier) {
+          return key.name
+        }
+        return ""
+      }
 
       function useExpr(key) {
         return key.type === Syntax.Identifier && key.name === value
       }
 
       function useIf(key) {
-        if (key.type === Syntax.Identifier) {
+        if (key.type === Syntax.Identifier && key.name.lenght > 0) {
           return key.name
-        } else {
-          return ""
         }
+        return ""
+      }
 
+      function useExprComplex(key, value) {
+      }
+
+      var ScalaFromJS_settings = {
+        members: [
+          {
+            cls: ".*",
+            name: "type",
+            operation: "getClass"
+          }
+        ]
       }
       """).required(
         ""
       ).forbidden(
-        "isInstanceOf[A]",
-        "isInstanceOf[D]"
+        ""
       )
 
   }

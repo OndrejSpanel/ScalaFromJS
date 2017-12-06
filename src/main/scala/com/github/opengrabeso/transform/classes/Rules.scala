@@ -9,6 +9,7 @@ import UglifyExt._
 import UglifyExt.Import._
 import Symbols._
 
+import scala.collection.mutable
 import scala.scalajs.js
 
 object Rules {
@@ -185,5 +186,45 @@ object Rules {
     n.copy(top = ret)
   }
 
+  def replaceGetClass(n: AST_Extended, member: ConvertProject.MemberDesc): AST_Extended = {
+    // first scan for all symbols matching the rule
+    val symbols = mutable.ArrayBuffer.empty[(String, SymbolDef)]
+    n.top walk {
+      case AST_SymbolDef(symDef) =>
+        symbols += symDef.name -> symDef
+        false
+      case _ =>
+        false
+    }
+    val symbolMap = symbols.toMap
+
+    val ret = n.top.transformAfter { (node, _) =>
+      node match {
+        case AST_Binary(callOn AST_Dot prop, "=="|"===", expr) if member.name.test(prop) =>
+          println(s"Detect call $prop")
+          // guess which class it could be
+          val className = expr match {
+            case s: AST_String =>
+              Some(s.value)
+            case _ AST_Dot s =>
+              Some(s)
+            case _ =>
+              None
+          }
+
+          // find any symbol matching the name
+          // TODO: try even a similar symbol
+          val sym = className.flatMap(symbolMap.get)
+          println(s"Found $className sym ${sym.map(_.name)}")
+          sym.fold (node) { sym =>
+            AST_Binary(node) (callOn, instanceof, AST_SymbolRef.symDef(node)(sym))
+          }
+        case _ =>
+          node
+      }
+    }
+
+    n.copy(top = ret)
+  }
 
 }

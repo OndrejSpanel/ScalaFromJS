@@ -32,7 +32,7 @@ object Casting {
         //println(s"$op InstanceOf")
         Some(symDef, Seq(cs))
       case _ =>
-        //println(s"$op None")
+        //println(s"$op None $arg")
         None
     }
   }

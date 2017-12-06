@@ -61,6 +61,12 @@ object ConvertProject {
     }
   }
 
+  case class GetClassMemberRule(member: MemberDesc) extends Rule {
+    override def apply(n: AST_Extended) = {
+      transform.classes.Rules.replaceGetClass(n, member)
+    }
+  }
+
   case class MakePropertyRule(member: MemberDesc) extends Rule {
     override def apply(n: AST_Extended) = {
       transform.classes.Rules.makeProperties(n, member)
@@ -147,6 +153,8 @@ object ConvertProject {
                   Some(MakePropertyRule(m))
                 case Some("instanceof") =>
                   Some(IsClassMemberRule(m))
+                case Some("getClass") =>
+                  Some(GetClassMemberRule(m))
                 case Some("subst") =>
                   val template = loadRequiredStringValue(o, "template")
                   Some(ReplicateMemberRule(m, template))
