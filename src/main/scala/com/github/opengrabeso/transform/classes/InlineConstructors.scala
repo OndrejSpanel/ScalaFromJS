@@ -347,8 +347,9 @@ object InlineConstructors {
               case _ =>
                 false
             }
-            //println(s"inlined ${inlined.map(nodeClassName)}")
-            //println(s"rest ${rest.map(nodeClassName)}")
+            //println(s"inlining $cls")
+            //println(s"  inlined $inlined")
+            //println(s"  rest $rest")
             // transform parameter names while inlining (we need to use parSuffix names)
             val parNames = constructor.argnames.map(Transform.funArg).map(_.name)
             val parNamesSet = parNames.toSet

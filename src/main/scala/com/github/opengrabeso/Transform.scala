@@ -835,7 +835,8 @@ object Transform {
     import transform._
 
     val transforms = Seq[AST_Extended => AST_Extended](
-      onTopNode(CleanupExports.apply),
+      onTopNode(Modules.cleanupExports),
+      onTopNode(Modules.inlineImports),
       onTopNode(handleIncrement),
       onTopNode(Variables.splitMultipleDefinitions),
       onTopNode(Variables.varInitialization),

@@ -1004,6 +1004,9 @@ object UglifyExt {
       def unapply(arg: AST_Export) = Some(arg.module_name, arg.exported_value, arg.exported_definition)
     }
 
+    object AST_Import {
+      def unapply(arg: AST_Import) = Some(arg.imported_name, arg.imported_names, arg.module_name)
+    }
 
     // helpers, composite extractors
     object Defined {
