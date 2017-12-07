@@ -674,6 +674,12 @@ object UglifyExt {
       node.transform_js(tr).asInstanceOf[T]
     }
 
+    def transformAfterSimple(after: AST_Node => AST_Node): T = {
+      var tr: TreeTransformer = null
+      tr = new TreeTransformer(null, node => after(node))
+      node.transform_js(tr).asInstanceOf[T]
+    }
+
     def withTokens(from: AST_Node): T = {
       fillTokens(node, from)
       node
@@ -994,10 +1000,18 @@ object UglifyExt {
       }
     }
 
+    object AST_Export {
+      def unapply(arg: AST_Export) = Some(arg.module_name, arg.exported_value, arg.exported_definition)
+    }
+
 
     // helpers, composite extractors
     object Defined {
       def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
+    }
+
+    object Undefined {
+      def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Boolean = arg.nonNull.isEmpty
     }
 
     object JsArray {
