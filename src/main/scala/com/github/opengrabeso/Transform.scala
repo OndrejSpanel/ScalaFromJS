@@ -736,6 +736,24 @@ object Transform {
     }
   }
 
+  /**
+    * Process xxxx.call(this, a, b, c)
+    * */
+  def processCall(n: AST_Node): AST_Node = {
+    n.transformAfterSimple {
+      case call@AST_Call(expr AST_Dot "call", _: AST_This, a@_* ) =>
+        new AST_Call {
+          fillTokens(this, call)
+          this.expression = expr
+          this.args = a.toJSArray
+        }
+      case node =>
+        node
+
+    }
+
+  }
+
   // IIFE removal sometimes leaves two scopes directly in one another
   def removeDoubleScope(n: AST_Node): AST_Node = {
     n.transformAfter { (node, transformer) =>
@@ -824,6 +842,7 @@ object Transform {
       readJSDoc,
       onTopNode(iife), // removes also trailing return within the IIFE construct
       onTopNode(removeDoubleScope), // after iife (often introduced by it)
+      onTopNode(processCall),
       onTopNode(Variables.detectForVars),
       onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
       onTopNode(Variables.detectVals), // before convertConstToFunction
