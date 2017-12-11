@@ -55,8 +55,6 @@ trait TestUtils extends Assertions {
   def rscPath(path: String): String = "src/test/resources/" + path
 
   def rsc(path: String) = {
-    import scalajs.js.Dynamic.{global => g}
-    val fs = g.require("fs")
 
     // TODO: facade instead of Dynamic
     def readFile(name: String): String = {

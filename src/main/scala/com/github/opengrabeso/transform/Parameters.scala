@@ -5,7 +5,6 @@ import JsUtils._
 import Uglify._
 import UglifyExt._
 import UglifyExt.Import._
-import scalajs.js
 import Transform._
 import Symbols._
 import Expressions._

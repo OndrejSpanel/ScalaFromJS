@@ -7,8 +7,6 @@ import UglifyExt._
 import UglifyExt.Import._
 import Classes._
 import Transform._
-import scala.scalajs.js
-import js.JSConverters._
 
 object FillVarMembers {
   def apply(n: AST_Extended): AST_Extended = {

@@ -10,7 +10,6 @@ import UglifyExt.Import._
 import Symbols._
 
 import scala.collection.mutable
-import scala.scalajs.js
 
 object Rules {
   def deleteMembers(n: AST_Extended, member: ConvertProject.MemberDesc) = {

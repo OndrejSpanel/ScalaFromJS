@@ -8,8 +8,6 @@ import Classes._
 import Expressions._
 
 import scala.collection.mutable
-import scala.scalajs.js
-import js.JSConverters._
 import scala.language.implicitConversions
 
 /**

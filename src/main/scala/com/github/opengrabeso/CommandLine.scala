@@ -1,14 +1,8 @@
 package com.github.opengrabeso
 
-import scala.scalajs.js
-import scala.scalajs.js.annotation.JSGlobal
 import scala.util.Try
 import PathUtils._
 import ConvertProject.AliasPackageRule
-
-@JSGlobal("$require")
-@js.native
-object Require extends js.Any
 
 object CommandLine {
   def getRequire: js.Dynamic = {

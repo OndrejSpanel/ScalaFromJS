@@ -8,8 +8,6 @@ import com.github.opengrabeso.Transform.AST_Extended
 
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
-import scala.scalajs.js
-import scala.scalajs.js.{JavaScriptException, RegExp}
 import ConvertProject._
 import PathUtils._
 

@@ -7,8 +7,6 @@ import UglifyExt.Import._
 import JsUtils._
 import SymbolTypes._
 
-import scala.scalajs.js.RegExp
-
 object Classes {
 
 

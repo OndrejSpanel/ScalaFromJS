@@ -14,9 +14,6 @@ import VariableUtils._
 import JsUtils._
 import Transform._
 
-import scala.scalajs.js
-import js.JSConverters._
-
 object InlineConstructors {
   private case class PrivateMember(sym: SymbolDef, isVal: Boolean)
 

@@ -6,7 +6,6 @@ import UglifyExt.Import._
 import JsUtils._
 import Classes._
 
-import scala.scalajs.js
 import scala.util.Try
 
 object ScalaOut {

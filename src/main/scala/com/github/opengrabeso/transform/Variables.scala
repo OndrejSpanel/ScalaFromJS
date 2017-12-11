@@ -10,8 +10,6 @@ import SymbolTypes._
 import Expressions._
 import Transform._
 
-import scala.scalajs.js
-import js.JSConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions

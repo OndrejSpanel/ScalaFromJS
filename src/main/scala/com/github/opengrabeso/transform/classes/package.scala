@@ -9,12 +9,9 @@ import JsUtils._
 import UglifyExt.Import._
 import SymbolTypes.SymbolMapId
 
-import scala.scalajs.js
-import js.JSConverters._
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import scala.language.implicitConversions
-import scala.scalajs.js.RegExp
 
 package object classes {
 
