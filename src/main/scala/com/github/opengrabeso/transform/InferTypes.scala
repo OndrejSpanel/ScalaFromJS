@@ -395,8 +395,8 @@ object InferTypes {
             }
           }
 
-        case expr Node.Dot name Node.Sub property =>
-          //println(s"Node.Dot Node.Sub - $name $property")
+        case expr Node.StaticMemberExpression name Node.Sub property =>
+          //println(s"Node.StaticMemberExpression Node.Sub - $name $property")
           // consider DRY with the case above
           expressionType(property)(ctx).flatMap {
             _.declType match {
@@ -415,7 +415,7 @@ object InferTypes {
 
 
 
-        case expr Node.Dot name =>
+        case expr Node.StaticMemberExpression name =>
           val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
           clsId.map(SymbolAccessDot)
 
@@ -513,19 +513,19 @@ object InferTypes {
             }
           }
 
-        case Node.Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
+        case Node.BinaryExpression(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
           if symLeft.unknownType(n.types) && symRight.unknownType(n.types) =>
           //println(s"Infer arithmetic: both unknown $symLeft $symRight")
           val numType = Some(TypeInfo.both(number))
           symLeft.addSymbolInferredType(numType)(s"Infer arithmetic: both unknown $symLeft $symRight")
           symRight.addSymbolInferredType(numType)(s"Infer arithmetic: both unknown $symLeft $symRight")
 
-        case Node.Binary(SymbolInfo(symInfo), op, expr) if symInfo.unknownType(n.types) =>
+        case Node.BinaryExpression(SymbolInfo(symInfo), op, expr) if symInfo.unknownType(n.types) =>
           val tpe = typeFromOperation(op, expr)
           //println(s"Infer binary: left unknown $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)(s"Infer binary: left unknown $symInfo $tpe")
 
-        case Node.Binary(expr, op, SymbolInfo(symInfo)) if symInfo.unknownType(n.types) =>
+        case Node.BinaryExpression(expr, op, SymbolInfo(symInfo)) if symInfo.unknownType(n.types) =>
           val tpe = typeFromOperation(op, expr)
           //println(s"Infer binary: right unknown $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)(s"Infer binary: right unknown $symInfo $tpe")
@@ -646,7 +646,7 @@ object InferTypes {
             inferConstructorCall(args, sup)
           }
 
-        case Node.Call(expr Node.Dot call, args@_*) =>
+        case Node.Call(expr Node.StaticMemberExpression call, args@_*) =>
           val exprType = expressionType(expr)(ctx)
 
           (exprType.map(_.declType),call,expr) match {

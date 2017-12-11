@@ -28,7 +28,7 @@ object Expressions {
         Some(arg)
       case Node.Object(props) if props.map(_.value).forall(check) =>
         Some(arg)
-      case Node.Binary(a, _, b) if check(a) && check(b) =>
+      case Node.BinaryExpression(a, _, b) if check(a) && check(b) =>
         Some(arg)
       case Node.Unary(UnaryModification(), _) =>
         None
@@ -56,7 +56,7 @@ object Expressions {
       case c@Node.Object(Seq()) => Some(c)
       // TODO: check for dependent expressions
       case c: Node.SymbolRef => Some(c)
-      case c@((x: Node.SymbolRef) Node.Dot _) => Some(c)
+      case c@((x: Node.SymbolRef) Node.StaticMemberExpression _) => Some(c)
       case _ =>
         //println(s"not InitStatement $arg")
         None

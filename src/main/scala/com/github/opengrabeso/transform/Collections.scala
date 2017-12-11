@@ -41,7 +41,7 @@ object Collections {
 
     def unapply(arg: Node.Node): Boolean = {
       arg match {
-        case parent() Node.Dot `member` =>
+        case parent() Node.StaticMemberExpression `member` =>
           //println(s"MemberValuePath $this: match $arg against $parent.$member")
           true
         case _ =>
@@ -61,7 +61,7 @@ object Collections {
           Some(VariableValuePath(refDef))
         case _: Node.This =>
           Some(ThisValuePath)
-        case ValuePath(parent) Node.Dot name =>
+        case ValuePath(parent) Node.StaticMemberExpression name =>
           //println(s"ValuePath: Match $arg as $parent.$name")
           Some(parent append name)
         case _ =>
@@ -158,7 +158,7 @@ object Collections {
     n.transformAfter { (node, _) =>
       node match {
 
-        case forStatement@ForRange(varName, "until", initVar@Node.Number(0), (obj@ValuePath(objName)) Node.Dot "length", Node.Number(1))
+        case forStatement@ForRange(varName, "until", initVar@Node.Number(0), (obj@ValuePath(objName)) Node.StaticMemberExpression "length", Node.Number(1))
           if usedOnlyAsIndex(forStatement.body, varName, objName) =>
           // note: Node.ForOf would be more appropriate, however it is not present yet in the Uglify AST we use
           //println(s"Detect for ..in $forStatement")

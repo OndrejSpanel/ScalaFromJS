@@ -167,7 +167,7 @@ object Variables {
 
               object IsDfMember extends Extractor[String] {
                 def unapply(arg: Node.Node) = arg match {
-                  case Node.SymbolRefDef(`df`) Node.Dot key => Some(key)
+                  case Node.SymbolRefDef(`df`) Node.StaticMemberExpression key => Some(key)
                   case _ => None
                 }
               }
@@ -299,8 +299,8 @@ object Variables {
         case Node.SimpleStatement(Node.Assign(sr@Node.SymbolRef(name, scope, thedef), "=", right)) if refs contains sr =>
           Some(sr, name, scope, thedef, right)
         // if (m1 == undefined) m1 = xxx
-        case Node.If(
-        Node.Binary(sr@Node.SymbolRef(name, scope, thedef), "==" | "===", Node.SymbolRefName("undefined")),
+        case Node.IfStatement(
+        Node.BinaryExpression(sr@Node.SymbolRef(name, scope, thedef), "==" | "===", Node.SymbolRefName("undefined")),
         SingleStatement(Node.Assign(sr2@Node.SymbolRef(_, _, thedef2), "=", right)),
         None
         ) if thedef == thedef2 && (refs contains sr) =>
@@ -523,10 +523,10 @@ object Variables {
     import Casting._
 
     object SingleCast {
-      def unapply(arg: Node.If): Option[(SymbolDef, Seq[Node.SymbolRef], Node.Statement, Option[Node.Statement])] = arg match {
+      def unapply(arg: Node.IfStatement): Option[(SymbolDef, Seq[Node.SymbolRef], Node.Statement, Option[Node.Statement])] = arg match {
         // if (symDef instanceof cs)
         // if (symDef instanceof cs || symDef instanceof ds)
-        case Node.If(InstanceOfCondition(symDef, cs), ifStatement, elseStatement) =>
+        case Node.IfStatement(InstanceOfCondition(symDef, cs), ifStatement, elseStatement) =>
           Some(symDef, cs, ifStatement, elseStatement)
 
         case _ =>
@@ -535,7 +535,7 @@ object Variables {
     }
 
     object SequenceOfCasts {
-      def unapply(arg: Node.If): Option[(SymbolDef, Seq[(Seq[Node.SymbolRef], Node.Statement)], Option[Node.Statement])] = arg match {
+      def unapply(arg: Node.IfStatement): Option[(SymbolDef, Seq[(Seq[Node.SymbolRef], Node.Statement)], Option[Node.Statement])] = arg match {
         case SingleCast(symDef, cs, ifStatement, Some(SequenceOfCasts(symDef2, casts, elseStatement))) if symDef == symDef2 =>
           //println(s"Match ex ${symDef.name}")
           Some(symDef, (cs, ifStatement) +: casts, elseStatement)
@@ -551,7 +551,7 @@ object Variables {
       def unapplySeq(arg: Node.Node): Option[Seq[(SymbolDef, SymbolDef)]] = {
         val buffer = ArrayBuffer.empty[(SymbolDef, SymbolDef)]
         arg.walk {
-          case Node.Binary(Node.SymbolRefDef(symDef), `instanceof`, Node.SymbolRefDef(cs)) =>
+          case Node.BinaryExpression(Node.SymbolRefDef(symDef), `instanceof`, Node.SymbolRefDef(cs)) =>
             buffer.append((symDef, cs))
             false
           case _ =>
@@ -562,13 +562,13 @@ object Variables {
       }
     }
 
-    def condition(sym: Node.SymbolRef, cs: Seq[String])(from: Node.Node): Node.Binary = {
+    def condition(sym: Node.SymbolRef, cs: Seq[String])(from: Node.Node): Node.BinaryExpression = {
       cs match {
         case Seq(head) =>
-          Node.Binary(from) (sym, asinstanceof, Node.SymbolRef(from)(head))
+          Node.BinaryExpression(from) (sym, asinstanceof, Node.SymbolRef(from)(head))
         case head +: tail =>
-          Node.Binary(from) (
-            Node.Binary(from) (sym, asinstanceof, Node.SymbolRef(from)(head)),
+          Node.BinaryExpression(from) (
+            Node.BinaryExpression(from) (sym, asinstanceof, Node.SymbolRef(from)(head)),
             "||",
             condition(sym, tail)(from)
           )
@@ -649,7 +649,7 @@ object Variables {
               }.getOrElse(js.Array())
             }.withTokens(node)
           }.withTokens(node)
-        case ifs@Node.If(ex@ExpressionWithCasts(extractedCasts@_*), ifStatement, elseStatement) =>
+        case ifs@Node.IfStatement(ex@ExpressionWithCasts(extractedCasts@_*), ifStatement, elseStatement) =>
           // check which cast variables are used in the ifStatement
           val used = listSymbols(ifStatement)
           val usedCasts = extractedCasts.filter { case (sym, _) =>
@@ -658,7 +658,7 @@ object Variables {
 
           val casts = consolidateCasts(usedCasts)
           //println(s"Detected casts ${casts.map(p => SymbolTypes.id(p._1) + " " + SymbolTypes.id(p._2))}")
-          val n = new Node.If {
+          val n = new Node.IfStatement {
             fillTokens(this, ifs)
             condition = ex
             body = new Node.BlockStatement {
@@ -688,11 +688,11 @@ object Variables {
       implicit val tokensFrom = node
       node match {
         // TODO: allow other forms of callOn, not only Node.SymbolRef
-        case Node.Binary(right@Node.Binary(callExpr@Node.SymbolRefDef(callOn), "instanceof", classExpr), "&&", expr) =>
+        case Node.BinaryExpression(right@Node.BinaryExpression(callExpr@Node.SymbolRefDef(callOn), "instanceof", classExpr), "&&", expr) =>
           //println(s"Detected cast && on $callExpr")
-          val instancedExpr = Node.Binary(node)(callExpr, asinstanceof, classExpr)
+          val instancedExpr = Node.BinaryExpression(node)(callExpr, asinstanceof, classExpr)
           Variables.replaceVariable(expr, callOn, instancedExpr)
-          Node.Binary(node)(right, "&&", expr)
+          Node.BinaryExpression(node)(right, "&&", expr)
         case _ =>
           node
       }

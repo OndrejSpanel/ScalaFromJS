@@ -38,7 +38,7 @@ object FillVarMembers {
           //println(s"  existingParameters ${existingParameters.mkString(",")}")
 
           cls.walk {
-            case Node.Assign(IsThis() Node.Dot mem, _, _) =>
+            case Node.Assign(IsThis() Node.StaticMemberExpression mem, _, _) =>
               //println(s"Detect this.$mem = ...")
               if (!existingMembers.contains(mem)) {
                 newMembers += mem -> None
@@ -48,7 +48,7 @@ object FillVarMembers {
                 newMembers += mem -> Some(prop)
               }
               false
-            case IsThis() Node.Dot mem =>
+            case IsThis() Node.StaticMemberExpression mem =>
               //println(s"Detect this.$mem")
               if (!existingMembers.contains(mem)) {
                 newMembers += mem -> None

@@ -7,12 +7,12 @@ import Symbols._
 
 object Casting {
   class InstanceOf(op: String) {
-    def unapply(arg: Node.Binary) = arg match {
+    def unapply(arg: Node.BinaryExpression) = arg match {
       // a && (a op b)
-      case Node.Binary(Node.SymbolRefDef(sym), "&&",Node.Binary(Node.SymbolRefDef(symDef), `op`, cs: Node.SymbolRef)) if sym == symDef =>
+      case Node.BinaryExpression(Node.SymbolRefDef(sym), "&&",Node.BinaryExpression(Node.SymbolRefDef(symDef), `op`, cs: Node.SymbolRef)) if sym == symDef =>
         Some(symDef, cs)
       // a op b
-      case Node.Binary(Node.SymbolRefDef(symDef), `op`, cs: Node.SymbolRef) =>
+      case Node.BinaryExpression(Node.SymbolRefDef(symDef), `op`, cs: Node.SymbolRef) =>
         Some(symDef, cs)
       case _ =>
         None
@@ -24,9 +24,9 @@ object Casting {
 
     object InstanceOf extends InstanceOf(op)
 
-    def unapply(arg: Node.Binary): Option[(SymbolDef, Seq[Node.SymbolRef])] = arg match {
-      case Node.Binary(InstanceOf(symDef, cs), "||", self(symDef2, cond)) if symDef == symDef2 =>
-        //println(s"$op Node.Binary")
+    def unapply(arg: Node.BinaryExpression): Option[(SymbolDef, Seq[Node.SymbolRef])] = arg match {
+      case Node.BinaryExpression(InstanceOf(symDef, cs), "||", self(symDef2, cond)) if symDef == symDef2 =>
+        //println(s"$op Node.BinaryExpression")
         Some(symDef, cs +: cond)
       case InstanceOf(symDef, cs) =>
         //println(s"$op InstanceOf")

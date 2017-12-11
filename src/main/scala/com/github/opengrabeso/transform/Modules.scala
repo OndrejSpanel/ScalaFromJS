@@ -52,7 +52,7 @@ object Modules {
     //println(s"namespacesToRemove $namespacesToRemove")
 
     n.transformAfterSimple {
-      case node@Node.SymbolName(x) Node.Dot name if namespacesToRemove contains x =>
+      case node@Node.SymbolName(x) Node.StaticMemberExpression name if namespacesToRemove contains x =>
         Node.SymbolRef(node)(name)
       case node =>
         node

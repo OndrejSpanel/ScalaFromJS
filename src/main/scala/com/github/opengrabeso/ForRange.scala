@@ -44,15 +44,15 @@ object ForRange {
       // for ( var i = 0; i < xxxx; i += step )
       case (
         Some(VarOrLet(Node.Definitions(Node.VarDef(Node.SymbolDef(vName), Defined(vValue))))),
-        Some(Node.Binary(Node.SymbolRefName(cLeftName), rel, cRight)),
-        Some(Node.Binary(Node.SymbolRefName(exprName), assign, step))
+        Some(Node.BinaryExpression(Node.SymbolRefName(cLeftName), rel, cRight)),
+        Some(Node.BinaryExpression(Node.SymbolRefName(exprName), assign, step))
         ) if cLeftName == vName.name && exprName == vName.name =>
         createRange(vName, vValue, rel, cRight, assign, step)
       // for ( var i = 0, limit = xxxx; i < limit; i += step )
       case (
         Some(VarOrLet(Node.Definitions(Node.VarDef(Node.SymbolDef(vName), Defined(vValue)), Node.VarDef(Node.SymbolName(limitName), Defined(limitValue))))),
-        Some(Node.Binary(Node.SymbolRefName(cLeftName), rel, Node.SymbolRefName(cRightName))),
-        Some(Node.Binary(Node.SymbolRefName(exprName), assign, step))
+        Some(Node.BinaryExpression(Node.SymbolRefName(cLeftName), rel, Node.SymbolRefName(cRightName))),
+        Some(Node.BinaryExpression(Node.SymbolRefName(exprName), assign, step))
         ) if cRightName == limitName && cLeftName == vName.name && exprName == vName.name =>
         createRange(vName, vValue, rel, limitValue, assign, step)
 

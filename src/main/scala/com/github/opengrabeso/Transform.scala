@@ -72,10 +72,10 @@ object Transform {
   def relations(n: Node.Node): Node.Node = {
     n.transformAfter { (node, _) =>
       node match {
-        case bin@Node.Binary(_, "===", _) =>
+        case bin@Node.BinaryExpression(_, "===", _) =>
           bin.operator = "=="
           node
-        case bin@Node.Binary(_, "!==", _) =>
+        case bin@Node.BinaryExpression(_, "!==", _) =>
           bin.operator = "!="
           node
         case _ =>
@@ -187,7 +187,7 @@ object Transform {
         fun.body.lastOption contains n
       case Some(block: Node.Block) =>
         (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1, transformer)
-      case Some(ii: Node.If) =>
+      case Some(ii: Node.IfStatement) =>
         (ii.body == n || ii.alternative.contains(n)) && nodeLast(ii, parentLevel + 1, transformer)
       case None =>
         true
@@ -259,7 +259,7 @@ object Transform {
                 assert(c1.body.isEmpty)
                 (c1, c2) match {
                   case (case1: Node.Case, case2: Node.Case) =>
-                    case2.expression = Node.Binary(case1.expression) (case1.expression, "|", case2.expression)
+                    case2.expression = Node.BinaryExpression(case1.expression) (case1.expression, "|", case2.expression)
                     case2
                   case (case1: Node.Default, case2: Node.Case) =>
                     case1.body = case2.body
@@ -450,7 +450,7 @@ object Transform {
         //println(s"    Sym ${symDef.name} type $rt")
         rt
 
-      case expr Node.Dot name =>
+      case expr Node.StaticMemberExpression name =>
         val exprType = expressionType(expr, log)(ctx)
         if (log) println(s"type of member $expr.$name, class $exprType")
         for {
@@ -494,7 +494,7 @@ object Transform {
         Some(TypeInfo.target(boolean))
 
       // Array.isArray( name ) ? name : [name]
-      case Node.Conditional(Node.Call(Node.SymbolRefName("Array") Node.Dot "isArray", isArrayArg), exprTrue, exprFalse) =>
+      case Node.Conditional(Node.Call(Node.SymbolRefName("Array") Node.StaticMemberExpression "isArray", isArrayArg), exprTrue, exprFalse) =>
         val exprType = expressionType(isArrayArg, log)
         //println(s"ExprType $exprType of Array.isArray( name ) ? name : [name] for $n1")
         if(exprType.exists(_.declType.isInstanceOf[ArrayType])) {
@@ -509,10 +509,10 @@ object Transform {
         if (log) println(s"Node.Conditional $te:$t / $fe:$f = $ret")
         ret
 
-      case Node.Binary(expr, `asinstanceof`, Node.SymbolRefDef(cls)) =>
+      case Node.BinaryExpression(expr, `asinstanceof`, Node.SymbolRefDef(cls)) =>
         typeInfoFromClassSym(cls, true)
 
-      case Node.Binary(left, op, right) =>
+      case Node.BinaryExpression(left, op, right) =>
         // sometimes operation is enough to guess an expression type
         // result of any arithmetic op is a number
         op match {
@@ -536,7 +536,7 @@ object Transform {
         }
       case Node.New(Node.SymbolRefDef(call), _*) =>
         typeInfoFromClassSym(call, true)
-      case Node.New(Node.SymbolRefDef(pack) Node.Dot call, _*) =>
+      case Node.New(Node.SymbolRefDef(pack) Node.StaticMemberExpression call, _*) =>
         // TODO: check if call is a known symbol and use it
         // TODO: handle package names properly
         Some(TypeInfo.both(ClassType(SymbolMapId(call, 0))))
@@ -545,7 +545,7 @@ object Transform {
         if (log)  println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
         types.get(tid).map(callReturn)
 
-      case Node.Call(cls Node.Dot name, _*) =>
+      case Node.Call(cls Node.StaticMemberExpression name, _*) =>
         val exprType = expressionType(cls, log)(ctx)
         if (log) println(s"Infer type of member call $cls.$name class $exprType")
         for {
@@ -739,7 +739,7 @@ object Transform {
     * */
   def processCall(n: Node.Node): Node.Node = {
     n.transformAfterSimple {
-      case call@Node.Call(expr Node.Dot "call", _: Node.This, a@_* ) =>
+      case call@Node.Call(expr Node.StaticMemberExpression "call", _: Node.This, a@_* ) =>
         new Node.Call {
           fillTokens(this, call)
           this.expression = expr
@@ -789,7 +789,7 @@ object Transform {
       node match {
         case t: Node.Program =>
           val newBody = t.body.flatMap {
-            case s@Node.SimpleStatement(Node.Call(Node.SymbolRefName("Object") Node.Dot "assign", ts@Node.SymbolRefDef(sym), x: Node.Object)) =>
+            case s@Node.SimpleStatement(Node.Call(Node.SymbolRefName("Object") Node.StaticMemberExpression "assign", ts@Node.SymbolRefDef(sym), x: Node.Object)) =>
               //println(s"Assign to ${sym.name}")
               // iterate through the object defintion
               // each property replace with an individual assignment statement
@@ -799,7 +799,7 @@ object Transform {
                   Node.SimpleStatement(p) {
                     new Node.Assign {
                       fillTokens(this, p)
-                      left = new Node.Dot {
+                      left = new Node.StaticMemberExpression {
                         expression = ts
                         property = p.key
                         fillTokens(this, p)

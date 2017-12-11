@@ -8,20 +8,20 @@ object BoolComparison {
   def apply(n: Node.Node): Node.Node = {
 
     object IsTrue {
-      def unapply(op: Node.Binary) = op match {
-        case Node.Binary(expr, "!="|"!==", _: Node.False) =>
+      def unapply(op: Node.BinaryExpression) = op match {
+        case Node.BinaryExpression(expr, "!="|"!==", _: Node.False) =>
           Some(expr)
-        case Node.Binary(expr, "=="|"===", _: Node.True) =>
+        case Node.BinaryExpression(expr, "=="|"===", _: Node.True) =>
           Some(expr)
         case _ =>
           None
       }
     }
     object IsFalse {
-      def unapply(op: Node.Binary) = op match {
-        case Node.Binary(expr, "=="|"===", _: Node.False) =>
+      def unapply(op: Node.BinaryExpression) = op match {
+        case Node.BinaryExpression(expr, "=="|"===", _: Node.False) =>
           Some(expr)
-        case Node.Binary(expr, "!="|"!==", _: Node.True) =>
+        case Node.BinaryExpression(expr, "!="|"!==", _: Node.True) =>
           Some(expr)
         case _ =>
           None

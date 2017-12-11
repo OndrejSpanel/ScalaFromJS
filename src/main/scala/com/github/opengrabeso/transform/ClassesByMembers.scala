@@ -205,7 +205,7 @@ object ClassesByMembers {
         descend(node, walker)
 
         node match {
-          case Node.SymbolRefDef(sym) Node.Dot member =>
+          case Node.SymbolRefDef(sym) Node.StaticMemberExpression member =>
             //println(s"Symbol ${sym.name}")
             val tpe = ctx.types.get(sym)
             if (tpe.isEmpty) {

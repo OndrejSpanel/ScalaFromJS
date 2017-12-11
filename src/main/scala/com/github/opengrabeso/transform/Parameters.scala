@@ -68,7 +68,7 @@ object Parameters {
 
   class CompareWithUndefined(parName: String) {
     def unapply(arg: Node.Node) = arg match {
-      case Node.Binary(Node.SymbolRefName(`parName`), op, Node.SymbolRefName("undefined")) =>
+      case Node.BinaryExpression(Node.SymbolRefName(`parName`), op, Node.SymbolRefName("undefined")) =>
         Some(op)
       case _ =>
         None
@@ -114,7 +114,7 @@ object Parameters {
 
       object IsParDefaultHandling {
         def unapply(arg: Node.Node) = arg match {
-          case Node.Binary(symRef@Node.SymbolRefName(`parName`), "||", InitStatement(init)) =>
+          case Node.BinaryExpression(symRef@Node.SymbolRefName(`parName`), "||", InitStatement(init)) =>
             Some(symRef, init)
           case Node.Conditional(CheckParNotUndefined(), symRef@Node.SymbolRefName(`parName`), InitStatement(init)) =>
             Some(symRef, init)
@@ -130,7 +130,7 @@ object Parameters {
           case Node.SimpleStatement(Node.Assign(Node.SymbolRefName(`parName`), "=", IsParDefaultHandling(_, init))) =>
             Some(init)
 
-          case Node.If(CheckParIsUndefined(), SingleStatement(Node.Assign(Node.SymbolRefName(`parName`), "=", init)), None) =>
+          case Node.IfStatement(CheckParIsUndefined(), SingleStatement(Node.Assign(Node.SymbolRefName(`parName`), "=", init)), None) =>
             Some(init)
 
           case _ => None
@@ -297,7 +297,7 @@ object Parameters {
 
       def containsDeprecation(body: Seq[Node.Statement]) = {
         body.exists {
-          case Node.SimpleStatement(Node.Call(Node.SymbolRefName("console") Node.Dot "warn", _)) =>
+          case Node.SimpleStatement(Node.Call(Node.SymbolRefName("console") Node.StaticMemberExpression "warn", _)) =>
             true
           case _: Node.Throw =>
             true
@@ -311,7 +311,7 @@ object Parameters {
         object CompareParWithUndefined extends CompareWithUndefined(parName)
 
         def unapply(arg: Node.Node) = arg match {
-          case Node.If(CompareParWithUndefined("!=" | "!=="), Statements(body), None) if containsDeprecation(body) =>
+          case Node.IfStatement(CompareParWithUndefined("!=" | "!=="), Statements(body), None) if containsDeprecation(body) =>
             //println("IsParDeprecated")
             true
           case _ =>
@@ -406,7 +406,7 @@ object Parameters {
                 otherUse = true
               }
               true // use inside of the current pattern must not set otherUse
-            case Node.Call(Node.This() Node.Dot "constructor", args@_*) if args.exists(isParRef) =>
+            case Node.Call(Node.This() Node.StaticMemberExpression "constructor", args@_*) if args.exists(isParRef) =>
               // passed to the constructor - this is always allowed
               // should we check what the constructor does with the value?
               //println(s"Detected constructor call for $parName")

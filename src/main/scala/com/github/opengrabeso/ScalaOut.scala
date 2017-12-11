@@ -212,14 +212,14 @@ object ScalaOut {
     }
 
     n match {
-      case Node.Binary(_, op, _) =>
+      case Node.BinaryExpression(_, op, _) =>
         op match {
           case `instanceof` | `asinstanceof` =>
             outNode(n)
           case _ =>
             outInParens(n)
         }
-      case _: Node.If =>
+      case _: Node.IfStatement =>
         outInParens(n)
       case _: Node.Conditional =>
         outInParens(n)
@@ -389,7 +389,7 @@ object ScalaOut {
       // non-associative need to be parenthesed when used on the right side
 
       arg match {
-        case a@Node.Binary(_, op, _) if OperatorPriorities.useParens(op, outer, right) =>
+        case a@Node.BinaryExpression(_, op, _) if OperatorPriorities.useParens(op, outer, right) =>
           // TODO: compare priorities
           out"($arg)"
         case _ =>
@@ -460,7 +460,7 @@ object ScalaOut {
         forIn.body.walk {
           case _: Node.IterationStatement =>
             true // do not check inner loops
-          case Node.Call(expr Node.Dot "push", arg) =>
+          case Node.Call(expr Node.StaticMemberExpression "push", arg) =>
             countPush += 1
             false
           case _ =>
@@ -473,7 +473,7 @@ object ScalaOut {
         // if it is, convert the loop to yield
         var push = Option.empty[(Node.Call, Node.Node, Node.Node)]
         Transform.walkLastNode(forIn.body) {
-          case call@Node.Call(expr Node.Dot "push", arg) =>
+          case call@Node.Call(expr Node.StaticMemberExpression "push", arg) =>
             push = Some(call, expr, arg)
             false
           case _ =>
@@ -627,7 +627,7 @@ object ScalaOut {
       case tn: Node.Conditional =>
         out"if (${tn.condition}) ${tn.consequent} else ${tn.alternative}"
       //case tn: Node.Assign => outputUnknownNode(tn)
-      case Node.Binary(left, op, right) =>
+      case Node.BinaryExpression(left, op, right) =>
         op match {
           case `instanceof` =>
             termToOut(left)
@@ -667,7 +667,7 @@ object ScalaOut {
         out("(")
         nodeToOut(tn.property)
         out(")")
-      case tn: Node.Dot =>
+      case tn: Node.StaticMemberExpression =>
         termToOut(tn.expression)
         out(".")
         identifierToOut(out, tn.property)
@@ -718,7 +718,7 @@ object ScalaOut {
         }
       //case tn: Node.Exit => outputUnknownNode(tn)
       //case tn: Node.Jump => outputUnknownNode(tn)
-      case tn: Node.If =>
+      case tn: Node.IfStatement =>
         out"if (${tn.condition}) "
         nodeToOut(tn.body)
         tn.alternative.nonNull.foreach { a =>
@@ -768,7 +768,7 @@ object ScalaOut {
         tn match {
           case ForRange(name, until, init, end, step) =>
             (init, until, end, step) match {
-              case (Node.Number(0), "until", expr Node.Dot "length", Node.Number(1)) =>
+              case (Node.Number(0), "until", expr Node.StaticMemberExpression "length", Node.Number(1)) =>
                 out"for (${name.name} <- $expr.indices) ${tn.body}"
 
               case _ =>
