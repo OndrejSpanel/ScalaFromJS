@@ -3,6 +3,8 @@ package transform
 
 import JsUtils._
 import net.gamatron.esprima._
+import esprima._
+
 import Classes._
 import SymbolTypes._
 import Expressions._
@@ -17,13 +19,13 @@ object Variables {
   import Symbols._
 
   // detect variables which can be declared as val instead of var
-  def detectVals(n: AST_Node): AST_Node = Time("detectVals") {
+  def detectVals(n: Node.Node): Node.Node = Time("detectVals") {
     // walk the tree, check for possible val replacements and perform them
     val refs = buildReferenceStacks(n)
 
     n.transformBefore {(node, descend, transformer) =>
       node match {
-        case cm: AST_ConciseMethod =>
+        case cm: Node.ConciseMethod =>
           if (cm.key.name != inlineBodyName) {
             // no var detection inside of inline class body (its variables are actually class members)
             val n = cm.clone()
@@ -31,8 +33,8 @@ object Variables {
             n
           } else cm.clone()
 
-        case AST_Definitions(varDef@AST_VarDef(varName, value)) if value.nonNull.nonEmpty => // var with init - search for a modification
-          //println(s"AST_VarDef ${varName.name}")
+        case Node.Definitions(varDef@Node.VarDef(varName, value)) if value.nonNull.nonEmpty => // var with init - search for a modification
+          //println(s"Node.VarDef ${varName.name}")
           varName.thedef.fold(node) { df =>
             assert(df.name == varName.name)
             // check if any reference is assignment target
@@ -40,14 +42,14 @@ object Variables {
             val assignedInto = refs.isModified(df)
             val n = if (!assignedInto) {
               val c = varDef.clone()
-              c.name = new AST_SymbolConst {
+              c.name = new Node.SymbolConst {
                 fillTokens(this, varName)
                 init = varName.init
                 name = varName.name
                 scope = varName.scope
                 thedef = varName.thedef
               }
-              new AST_Const {
+              new Node.Const {
                 fillTokens(this, node)
                 definitions = js.Array(c)
               }
@@ -67,10 +69,10 @@ object Variables {
 
 
   // detect variable defined twice in a scope, remove the 2nd definition
-  def detectDoubleVars(n: AST_Node): AST_Node = Time("detectDoubleVars") {
+  def detectDoubleVars(n: Node.Node): Node.Node = Time("detectDoubleVars") {
     // walk the tree, check for possible val replacements and perform them
-    def usedAsForVar(varName: AST_SymbolVarOrConst, transformer: TreeTransformer) = {
-      def varIn(node: AST_Node) = {
+    def usedAsForVar(varName: Node.SymbolVarOrConst, transformer: TreeTransformer) = {
+      def varIn(node: Node.Node) = {
         var present = false
         node walk {
           case `varName` =>
@@ -82,7 +84,7 @@ object Variables {
         present
       }
       transformer.parent().exists {
-        case f: AST_For if f.init.exists(varIn) || f.step.exists(varIn) || f.condition.exists(varIn) =>
+        case f: Node.For if f.init.exists(varIn) || f.step.exists(varIn) || f.condition.exists(varIn) =>
           true
         case _ =>
           false
@@ -92,22 +94,22 @@ object Variables {
 
     n.transformAfter {(node, transformer) =>
       node match {
-        // match only AST_Var, assume AST_Let and AST_Const are already well scoped
-        case AST_Var(AST_VarDef(varName, Defined(value))) if !usedAsForVar(varName, transformer) => // var with init - search for a modification
+        // match only Node.Var, assume Node.Let and Node.Const are already well scoped
+        case Node.Var(Node.VarDef(varName, Defined(value))) if !usedAsForVar(varName, transformer) => // var with init - search for a modification
           // if the orig is different from this, it is suspicions
-          //println(s"AST_VarDef ${varName.name}")
+          //println(s"Node.VarDef ${varName.name}")
           //println(s"${varName.thedef.get.name} $varDef ${varName.thedef.get.orig} ${varName == varName.thedef.get.orig.head}")
 
-          def countDefsInScope(varDef: SymbolDef, scope: AST_Scope) = {
+          def countDefsInScope(varDef: SymbolDef, scope: Node.Scope) = {
             var count = 0
-            var list = mutable.ArrayBuffer.empty[AST_Token]
+            var list = mutable.ArrayBuffer.empty[Node.Token]
 
             varDef.scope.walk {
-              case n@AST_Var(AST_VarDef(AST_SymbolDef(`varDef`), _)) =>
+              case n@Node.Var(Node.VarDef(Node.SymbolDef(`varDef`), _)) =>
                 count += 1
                 list ++= n.start.nonNull
                 false
-              case scope: AST_Block if scope != varDef.scope =>
+              case scope: Node.Block if scope != varDef.scope =>
                 // check only in the same block
                 // this is not exactly what JS does, but better transforms to Scala
                 // e.g. if () {var a = 1} else {var a = 2}
@@ -134,9 +136,9 @@ object Variables {
             if count > 1
           } yield {
             //println(s"Multiple definitions for $varName ($count) in $scope - decl $node")
-            new AST_Assign {
+            new Node.Assign {
               fillTokens(this, node)
-              left = AST_SymbolRef.sym(node)(varName)
+              left = Node.SymbolRef.sym(node)(varName)
               operator = "="
               right = value.clone()
             }
@@ -149,23 +151,23 @@ object Variables {
   }
 
   // detect function key values which can be declared as concise methods instead
-  def detectMethods(n: AST_Node): AST_Node = {
+  def detectMethods(n: Node.Node): Node.Node = {
     val refs = buildReferenceStacks(n)
 
     n.transformBefore {(node, descend, transformer) =>
       node match {
-        case obj@AST_Object(props) =>
-        //case AST_Definitions(AST_VarDef(AST_SymbolDef(df), Defined(obj@AST_Object(props)))) =>
+        case obj@Node.Object(props) =>
+        //case Node.Definitions(Node.VarDef(Node.SymbolDef(df), Defined(obj@Node.Object(props)))) =>
 
           // check if the object is part of variable / const initialization, like: var df = {}
           transformer.parent(1).nonNull match {
-            case Some(AST_Definitions(AST_VarDef(AST_SymbolDef(df), Defined(o: AST_Object)))) =>
+            case Some(Node.Definitions(Node.VarDef(Node.SymbolDef(df), Defined(o: Node.Object)))) =>
               //println(s"Scan object ${df.name} for methods ${o.properties}")
               assert(o == obj)
 
               object IsDfMember extends Extractor[String] {
-                def unapply(arg: AST_Node) = arg match {
-                  case AST_SymbolRefDef(`df`) AST_Dot key => Some(key)
+                def unapply(arg: Node.Node) = arg match {
+                  case Node.SymbolRefDef(`df`) Node.Dot key => Some(key)
                   case _ => None
                 }
               }
@@ -180,7 +182,7 @@ object Variables {
               //println(s"Detected modified members $modifiedMembers")
 
               val newProps = props.map {
-                case kv@AST_ObjectKeyVal(k, f@AST_Function(args, body)) =>
+                case kv@Node.ObjectKeyVal(k, f@Node.Function(args, body)) =>
                   if (modifiedMembers contains k) {
                     //println(s"Modified member $k")
                     kv
@@ -207,17 +209,17 @@ object Variables {
   }
 
   // transform a function defined as var x = function() {} into function x(){}
-  def convertConstToFunction(n: AST_Node): AST_Node = {
+  def convertConstToFunction(n: Node.Node): Node.Node = {
     n.transformAfter { (node, _) =>
       node match {
-        case AST_Const(AST_VarDef(sym, Defined(AST_Function(args, body)))) =>
-          new AST_Defun {
+        case Node.Const(Node.VarDef(sym, Defined(Node.Function(args, body)))) =>
+          new Node.Defun {
             defun =>
-            name = new AST_SymbolDefun {
+            name = new Node.SymbolDefun {
               name = sym.name
               thedef = sym.thedef
               scope = sym.scope
-              init = js.Array[AST_Node](defun)
+              init = js.Array[Node.Node](defun)
               /*_*/
               fillTokens(this, node)
               /*_*/
@@ -232,17 +234,17 @@ object Variables {
   }
 
   /*
-  * many transformations assume each AST_Definitions contains at most one AST_VarDef
+  * many transformations assume each Node.Definitions contains at most one Node.VarDef
   * Split multiple definitions (comma separated definitiob lists)
   * */
-  def splitMultipleDefinitions(n: AST_Node): AST_Node = {
+  def splitMultipleDefinitions(n: Node.Node): Node.Node = {
     n.transformAfter { (node, transformer) =>
       node match {
-        case block: AST_Block =>
+        case block: Node.Block =>
           block.body = block.body.flatMap {
-            case defs: AST_Definitions =>
+            case defs: Node.Definitions =>
               defs.definitions.map { d =>
-                val clone = defs.clone() // keeps AST_Definitions type (AST_Var or whatever it is)
+                val clone = defs.clone() // keeps Node.Definitions type (Node.Var or whatever it is)
                 clone.definitions = js.Array(d)
                 clone
               }
@@ -258,14 +260,14 @@ object Variables {
 
   }
   // merge variable declaration and first assignment if possible
-  def varInitialization(n: AST_Node): AST_Node = {
+  def varInitialization(n: Node.Node): Node.Node = {
 
     // walk the tree, check for first reference of each var
-    var pairs = Map.empty[SymbolDef, (AST_SymbolRef, Boolean)] // symbol definition -> first reference
+    var pairs = Map.empty[SymbolDef, (Node.SymbolRef, Boolean)] // symbol definition -> first reference
     n.walk { node =>
       node match {
-        case defs@AST_Definitions(AST_VarDef(name, value)) if value.nonNull.isEmpty =>
-          //println(s"varInitialization AST_VarDef $name")
+        case defs@Node.Definitions(Node.VarDef(name, value)) if value.nonNull.isEmpty =>
+          //println(s"varInitialization Node.VarDef $name")
           for (df <- name.thedef) {
             assert(df.name == name.name)
             //println(s"  refs ${df.references}")
@@ -277,7 +279,7 @@ object Variables {
               }
               // if the first ref is in the current scope, we might merge it with the declaration
               if (firstRef.scope == name.scope) {
-                pairs += df -> (firstRef, defs.isInstanceOf[AST_Const])
+                pairs += df -> (firstRef, defs.isInstanceOf[Node.Const])
               }
             }
           }
@@ -292,14 +294,14 @@ object Variables {
     //println(s"transform, vars ${pairs.keys.map(SymbolTypes.id).mkString(",")}")
 
     object MatchInitWithAssign {
-      def unapply(arg: AST_Node) = arg match {
+      def unapply(arg: Node.Node) = arg match {
         // sr = xxx
-        case AST_SimpleStatement(AST_Assign(sr@AST_SymbolRef(name, scope, thedef), "=", right)) if refs contains sr =>
+        case Node.SimpleStatement(Node.Assign(sr@Node.SymbolRef(name, scope, thedef), "=", right)) if refs contains sr =>
           Some(sr, name, scope, thedef, right)
         // if (m1 == undefined) m1 = xxx
-        case AST_If(
-        AST_Binary(sr@AST_SymbolRef(name, scope, thedef), "==" | "===", AST_SymbolRefName("undefined")),
-        SingleStatement(AST_Assign(sr2@AST_SymbolRef(_, _, thedef2), "=", right)),
+        case Node.If(
+        Node.Binary(sr@Node.SymbolRef(name, scope, thedef), "==" | "===", Node.SymbolRefName("undefined")),
+        SingleStatement(Node.Assign(sr2@Node.SymbolRef(_, _, thedef2), "=", right)),
         None
         ) if thedef == thedef2 && (refs contains sr) =>
           Some(sr, name, scope, thedef, right)
@@ -318,15 +320,15 @@ object Variables {
           // checking if inside of a block statement, to prevent replacing inside of a compound statement
           val stackTail = transformer.stack.takeRight(2).dropRight(1).toSeq
           stackTail match {
-            case Seq(_: AST_Block) =>
+            case Seq(_: Node.Block) =>
               replaced += td
               val isVal = pairs(td)._2
-              val r = if (isVal) new AST_Const else new AST_Var
+              val r = if (isVal) new Node.Const else new Node.Var
               // use td.orig if possible to keep original initialization tokens
               val origNode = td.orig.headOption.getOrElse(node)
               fillTokens(r, origNode)
-              r.definitions = js.Array(AST_VarDef.initializedSym(origNode)(td, right))
-              //println(s"  Replaced $sr AST_SymbolRef with $r, init ${nodeClassName(right)}")
+              r.definitions = js.Array(Node.VarDef.initializedSym(origNode)(td, right))
+              //println(s"  Replaced $sr Node.SymbolRef with $r, init ${nodeClassName(right)}")
               r
             case _ =>
               node
@@ -345,7 +347,7 @@ object Variables {
     changeAssignToVar.transformAfter{ (node, _) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
-        case v: AST_Definitions =>
+        case v: Node.Definitions =>
           // remove only the original declaration, not the one introduced by us
           // original declaration has no init value
           val af = v.definitions.filterNot { d =>
@@ -360,10 +362,10 @@ object Variables {
     }
   }
 
-  def nodeContainsRef(init: AST_Node, sym: SymbolDef) = {
+  def nodeContainsRef(init: Node.Node, sym: SymbolDef) = {
     var found = false
     init.walk {
-      case AST_SymbolRefDef(`sym`) =>
+      case Node.SymbolRefDef(`sym`) =>
         found = true
         found
       case _ =>
@@ -373,13 +375,13 @@ object Variables {
   }
 
   object ExtractVariables {
-    def unapply(n: AST_Node): Option[Seq[(SymbolDef, AST_Node)]] = {
-      val b = mutable.ArrayBuilder.make[(SymbolDef, AST_Node)]
+    def unapply(n: Node.Node): Option[Seq[(SymbolDef, Node.Node)]] = {
+      val b = mutable.ArrayBuilder.make[(SymbolDef, Node.Node)]
       var assignsOnly = true
       n.walk {
-        case _ : AST_Sequence =>
+        case _ : Node.Sequence =>
           false
-        case AST_Assign(AST_SymbolRefDef(sym), "=", init) if !nodeContainsRef(init, sym) =>
+        case Node.Assign(Node.SymbolRefDef(sym), "=", init) if !nodeContainsRef(init, sym) =>
           b += sym -> init
           true
         case nn =>
@@ -391,10 +393,10 @@ object Variables {
     }
   }
 
-  def renameVariable[T <: AST_Node](n: T, oldName: SymbolDef, newName: String, newSymbol: js.UndefOr[SymbolDef] = js.undefined): T = {
+  def renameVariable[T <: Node.Node](n: T, oldName: SymbolDef, newName: String, newSymbol: js.UndefOr[SymbolDef] = js.undefined): T = {
     val ret = n.transformAfter { (node, _) =>
       node match {
-        case sym@AST_SymbolRefDef(`oldName`) =>
+        case sym@Node.SymbolRefDef(`oldName`) =>
           //println(s"  renamed ${oldName.name} to $newName")
           sym.name = newName
           sym.thedef = newSymbol // scope and definition needs to be filled by the parser
@@ -407,10 +409,10 @@ object Variables {
     ret.asInstanceOf[T]
   }
 
-  def replaceVariable[T <: AST_Node](n: T, oldName: SymbolDef, newExpr: AST_Node): T = {
+  def replaceVariable[T <: Node.Node](n: T, oldName: SymbolDef, newExpr: Node.Node): T = {
     val ret = n.transformAfter { (node, _) =>
       node match {
-        case AST_SymbolRefDef(`oldName`) =>
+        case Node.SymbolRefDef(`oldName`) =>
           val r = newExpr.clone()
           fillTokensRecursively(r, node)
           //println(s"replaceVariable ${oldName.name} $newExpr")
@@ -422,16 +424,16 @@ object Variables {
     ret.asInstanceOf[T]
   }
 
-  def replaceVariableInit[T <: AST_Node](n: T, oldName: SymbolDef)(transform: (AST_Symbol, AST_Node) => AST_Node): T = {
+  def replaceVariableInit[T <: Node.Node](n: T, oldName: SymbolDef)(transform: (Node.Symbol, Node.Node) => Node.Node): T = {
     val ret = n.transformAfter { (node, _) =>
       node match {
-        case AST_Definitions(varDef@AST_VarDef(AST_SymbolDef(`oldName`), init)) =>
+        case Node.Definitions(varDef@Node.VarDef(Node.SymbolDef(`oldName`), init)) =>
           init.nonNull.map { init =>
             val r = transform(varDef.name, init)
             fillTokensRecursively(r, node)
             r
           }.getOrElse {
-            AST_EmptyStatement(node)
+            Node.EmptyStatement(node)
           }
         case _ =>
           node
@@ -445,12 +447,12 @@ object Variables {
     * when possible, introduce a var into the for loop
     * i.e. transform for (i = 0; ..) {} into for (var i = 0; ..)
     */
-  def detectForVars(n: AST_Node): AST_Node = {
+  def detectForVars(n: Node.Node): Node.Node = {
     n.transformAfter { (node, _) =>
       node match {
-        case f: AST_For =>
-          val forOK: Seq[(SymbolDef, AST_Node, AST_Scope)] = f.init.nonNull.toSeq.flatMap {
-            case _: AST_Definitions => // if init already is a definition, no need to process anything
+        case f: Node.For =>
+          val forOK: Seq[(SymbolDef, Node.Node, Node.Scope)] = f.init.nonNull.toSeq.flatMap {
+            case _: Node.Definitions => // if init already is a definition, no need to process anything
               Seq()
             case ExtractVariables(vars) =>
               // we expect a sequence of variable initializations
@@ -461,7 +463,7 @@ object Variables {
               // note: the assignment will often be in the init of another for loop
               val vScopes = for {
                 (v, init) <- vars
-                AST_Symbol(_, Defined(scope), _ ) <- v.orig.headOption
+                Node.Symbol(_, Defined(scope), _ ) <- v.orig.headOption
               } yield {
                 (v, init, scope)
               }
@@ -475,12 +477,12 @@ object Variables {
                   case `f` =>
                     seenFor = true
                     true // no need to dive into the for
-                  case AST_Assign(AST_SymbolRefDef(`v`), "=", init) if seenFor && !seenAfterFor && !nodeContainsRef(init, v) =>
+                  case Node.Assign(Node.SymbolRefDef(`v`), "=", init) if seenFor && !seenAfterFor && !nodeContainsRef(init, v) =>
                     //println(s"Seen ${v.name} after the for - in assignment")
                     seenAfterForInAssignment = true
                     seenAfterFor = true
                     true
-                  case AST_SymbolRefDef(`v`) if seenFor =>
+                  case Node.SymbolRefDef(`v`) if seenFor =>
                     //println(s"Seen ${v.name} after the for - in use")
                     seenAfterFor = true
                     true
@@ -500,10 +502,10 @@ object Variables {
             //println("Transform for")
 
             val vars = forOK.map { case (v, initV, _) =>
-              AST_VarDef.initialized(initV)(v.name, initV)
+              Node.VarDef.initialized(initV)(v.name, initV)
             }
 
-            f.init = AST_Let(f)(vars:_*)
+            f.init = Node.Let(f)(vars:_*)
             f
           } else {
             f
@@ -516,15 +518,15 @@ object Variables {
 
   }
 
-  def instanceofImpliedCast(n: AST_Extended): AST_Extended = {
+  def instanceofImpliedCast(n: NodeExtended): NodeExtended = {
 
     import Casting._
 
     object SingleCast {
-      def unapply(arg: AST_If): Option[(SymbolDef, Seq[AST_SymbolRef], AST_Statement, Option[AST_Statement])] = arg match {
+      def unapply(arg: Node.If): Option[(SymbolDef, Seq[Node.SymbolRef], Node.Statement, Option[Node.Statement])] = arg match {
         // if (symDef instanceof cs)
         // if (symDef instanceof cs || symDef instanceof ds)
-        case AST_If(InstanceOfCondition(symDef, cs), ifStatement, elseStatement) =>
+        case Node.If(InstanceOfCondition(symDef, cs), ifStatement, elseStatement) =>
           Some(symDef, cs, ifStatement, elseStatement)
 
         case _ =>
@@ -533,7 +535,7 @@ object Variables {
     }
 
     object SequenceOfCasts {
-      def unapply(arg: AST_If): Option[(SymbolDef, Seq[(Seq[AST_SymbolRef], AST_Statement)], Option[AST_Statement])] = arg match {
+      def unapply(arg: Node.If): Option[(SymbolDef, Seq[(Seq[Node.SymbolRef], Node.Statement)], Option[Node.Statement])] = arg match {
         case SingleCast(symDef, cs, ifStatement, Some(SequenceOfCasts(symDef2, casts, elseStatement))) if symDef == symDef2 =>
           //println(s"Match ex ${symDef.name}")
           Some(symDef, (cs, ifStatement) +: casts, elseStatement)
@@ -546,10 +548,10 @@ object Variables {
     }
 
     object ExpressionWithCasts {
-      def unapplySeq(arg: AST_Node): Option[Seq[(SymbolDef, SymbolDef)]] = {
+      def unapplySeq(arg: Node.Node): Option[Seq[(SymbolDef, SymbolDef)]] = {
         val buffer = ArrayBuffer.empty[(SymbolDef, SymbolDef)]
         arg.walk {
-          case AST_Binary(AST_SymbolRefDef(symDef), `instanceof`, AST_SymbolRefDef(cs)) =>
+          case Node.Binary(Node.SymbolRefDef(symDef), `instanceof`, Node.SymbolRefDef(cs)) =>
             buffer.append((symDef, cs))
             false
           case _ =>
@@ -560,32 +562,32 @@ object Variables {
       }
     }
 
-    def condition(sym: AST_SymbolRef, cs: Seq[String])(from: AST_Node): AST_Binary = {
+    def condition(sym: Node.SymbolRef, cs: Seq[String])(from: Node.Node): Node.Binary = {
       cs match {
         case Seq(head) =>
-          AST_Binary(from) (sym, asinstanceof, AST_SymbolRef(from)(head))
+          Node.Binary(from) (sym, asinstanceof, Node.SymbolRef(from)(head))
         case head +: tail =>
-          AST_Binary(from) (
-            AST_Binary(from) (sym, asinstanceof, AST_SymbolRef(from)(head)),
+          Node.Binary(from) (
+            Node.Binary(from) (sym, asinstanceof, Node.SymbolRef(from)(head)),
             "||",
             condition(sym, tail)(from)
           )
       }
     }
 
-    def makeBlock(s: AST_Statement): js.Array[AST_Statement] = {
+    def makeBlock(s: Node.Statement): js.Array[Node.Statement] = {
       s match {
-        case b: AST_BlockStatement =>
+        case b: Node.BlockStatement =>
           b.body
         case _ =>
           js.Array(s)
       }
     }
 
-    def createCaseVariable(from: AST_Node, name: String, castTo: Seq[String]) = {
+    def createCaseVariable(from: Node.Node, name: String, castTo: Seq[String]) = {
       //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
-      val symRef = AST_SymbolRef(from)(name)
-      AST_Let(from)(AST_VarDef.initialized(from)(name + castSuffix, condition(symRef, castTo)(from)))
+      val symRef = Node.SymbolRef(from)(name)
+      Node.Let(from)(Node.VarDef.initialized(from)(name + castSuffix, condition(symRef, castTo)(from)))
     }
 
     lazy val classInfo = Transform.listClassMembers(n)
@@ -620,34 +622,34 @@ object Variables {
       node match {
         // note: handles one or multiple casts
         case s@SequenceOfCasts(symDef, casts, elseStatement) /*if casts.lengthCompare(1) > 0*/ =>
-          val castVar = AST_SymbolRef.symDef(s)(symDef)
-          new AST_Switch {
+          val castVar = Node.SymbolRef.symDef(s)(symDef)
+          new Node.Switch {
             expression = castVar
             this.body = casts.map { cast =>
-              new AST_Case {
+              new Node.Case {
                 // we handle this in the ScalaOut as a special case, see CASE_CAST
-                expression = new AST_Call() {
+                expression = new Node.Call() {
                   fillTokens(this, s)
-                  expression = AST_SymbolRef(s)("cast_^")
+                  expression = Node.SymbolRef(s)("cast_^")
                   val castExpr = condition(castVar, cast._1.map(_.name))(s)
-                  //args = js.Array(AST_SymbolRef.symDef(s)(symDef), castExpr)
+                  //args = js.Array(Node.SymbolRef.symDef(s)(symDef), castExpr)
                   args = js.Array(castExpr)
                 }
-                this.body = js.Array(new AST_BlockStatement {
+                this.body = js.Array(new Node.BlockStatement {
                   fillTokens(this, s)
                   // without renaming I was unable to convince Uglify scoper (figure_out_scope) this is a new variable
                   val transformedBlock = makeBlock(cast._2).map(renameVariable(_, symDef, symDef.name + castSuffix))
                   this.body = createCaseVariable(s, symDef.name, cast._1.map(_.name)) +: transformedBlock
-                }, new AST_Break().withTokens(s))
+                }, new Node.Break().withTokens(s))
 
-              }.withTokens(s):AST_Statement
-            }.toJSArray :+ new AST_Default {
+              }.withTokens(s):Node.Statement
+            }.toJSArray :+ new Node.Default {
               this.body = elseStatement.map { e =>
-                makeBlock(e.transform_js(transformer).asInstanceOf[AST_Statement])
+                makeBlock(e.transform_js(transformer).asInstanceOf[Node.Statement])
               }.getOrElse(js.Array())
             }.withTokens(node)
           }.withTokens(node)
-        case ifs@AST_If(ex@ExpressionWithCasts(extractedCasts@_*), ifStatement, elseStatement) =>
+        case ifs@Node.If(ex@ExpressionWithCasts(extractedCasts@_*), ifStatement, elseStatement) =>
           // check which cast variables are used in the ifStatement
           val used = listSymbols(ifStatement)
           val usedCasts = extractedCasts.filter { case (sym, _) =>
@@ -656,10 +658,10 @@ object Variables {
 
           val casts = consolidateCasts(usedCasts)
           //println(s"Detected casts ${casts.map(p => SymbolTypes.id(p._1) + " " + SymbolTypes.id(p._2))}")
-          val n = new AST_If {
+          val n = new Node.If {
             fillTokens(this, ifs)
             condition = ex
-            body = new AST_BlockStatement {
+            body = new Node.BlockStatement {
               fillTokens(this, ifStatement)
               this.body = (casts.map { c =>
                 createCaseVariable(ex, c._1.name, Seq(c._2))
@@ -685,12 +687,12 @@ object Variables {
     val inConditionCast = ret.transformAfter { (node, _) =>
       implicit val tokensFrom = node
       node match {
-        // TODO: allow other forms of callOn, not only AST_SymbolRef
-        case AST_Binary(right@AST_Binary(callExpr@AST_SymbolRefDef(callOn), "instanceof", classExpr), "&&", expr) =>
+        // TODO: allow other forms of callOn, not only Node.SymbolRef
+        case Node.Binary(right@Node.Binary(callExpr@Node.SymbolRefDef(callOn), "instanceof", classExpr), "&&", expr) =>
           //println(s"Detected cast && on $callExpr")
-          val instancedExpr = AST_Binary(node)(callExpr, asinstanceof, classExpr)
+          val instancedExpr = Node.Binary(node)(callExpr, asinstanceof, classExpr)
           Variables.replaceVariable(expr, callOn, instancedExpr)
-          AST_Binary(node)(right, "&&", expr)
+          Node.Binary(node)(right, "&&", expr)
         case _ =>
           node
       }

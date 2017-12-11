@@ -3,31 +3,31 @@ package transform
 package classes
 
 import net.gamatron.esprima._
-
+import esprima._
 
 import Classes._
 import Transform._
 
 object FillVarMembers {
-  def apply(n: AST_Extended): AST_Extended = {
+  def apply(n: NodeExtended): NodeExtended = {
     object IsThis {
-      def unapply(arg: AST_Node) = arg match {
-        case _: AST_This => true
-        case AST_SymbolRef("this", _, _) => true // not used in practice, AST_This seems to catch all
+      def unapply(arg: Node.Node) = arg match {
+        case _: Node.This => true
+        case Node.SymbolRef("this", _, _) => true // not used in practice, Node.This seems to catch all
         case _ => false
       }
     }
 
-    // TODO: detect access other than this (see AST_This in expressionType to check general this handling)
+    // TODO: detect access other than this (see Node.This in expressionType to check general this handling)
     val retTop = n.top.transformAfter { (node, _) =>
       node match {
-        case cls: AST_DefClass =>
+        case cls: Node.DefClass =>
           val accessor = findInlineBody(cls)
-          //println(s"AST_DefClass ${cls.name.get.name} ${cls.start.get.pos}")
-          var newMembers = collection.immutable.ListMap.empty[String, Option[AST_Node]]
+          //println(s"Node.DefClass ${cls.name.get.name} ${cls.start.get.pos}")
+          var newMembers = collection.immutable.ListMap.empty[String, Option[Node.Node]]
           // scan known prototype members (both function and var) first
           val existingInlineMembers = accessor.map { _.value.body.toSeq.collect {
-            case AST_Definitions(AST_VarDef(AST_SymbolName(name), _)) =>
+            case Node.Definitions(Node.VarDef(Node.SymbolName(name), _)) =>
               name
           }}.getOrElse(Seq())
           val existingParameters = accessor.map(_.value.argnames.toSeq.map(_.name)).getOrElse(Seq())
@@ -38,7 +38,7 @@ object FillVarMembers {
           //println(s"  existingParameters ${existingParameters.mkString(",")}")
 
           cls.walk {
-            case AST_Assign(IsThis() AST_Dot mem, _, _) =>
+            case Node.Assign(IsThis() Node.Dot mem, _, _) =>
               //println(s"Detect this.$mem = ...")
               if (!existingMembers.contains(mem)) {
                 newMembers += mem -> None
@@ -48,7 +48,7 @@ object FillVarMembers {
                 newMembers += mem -> Some(prop)
               }
               false
-            case IsThis() AST_Dot mem =>
+            case IsThis() Node.Dot mem =>
               //println(s"Detect this.$mem")
               if (!existingMembers.contains(mem)) {
                 newMembers += mem -> None
@@ -62,9 +62,9 @@ object FillVarMembers {
 
           val clsTokenDef = classTokenSource(cls)
           val vars = newMembers.map { case (memberName, init) =>
-            new AST_Var {
+            new Node.Var {
               fillTokens(this, clsTokenDef)
-              val varDef = init.fold(AST_VarDef.uninitialized(clsTokenDef)(memberName))(AST_VarDef.initialized(clsTokenDef) (memberName, _))
+              val varDef = init.fold(Node.VarDef.uninitialized(clsTokenDef)(memberName))(Node.VarDef.initialized(clsTokenDef) (memberName, _))
               //println(s"fillVarMembers $memberName $varDef ${cls.start.get.pos} init $init")
               definitions = js.Array(varDef)
             }
@@ -73,7 +73,7 @@ object FillVarMembers {
           if (vars.nonEmpty) {
             val accessor = classInlineBody(cls, clsTokenDef)
 
-            accessor.body ++= (vars: Iterable[AST_Statement]).toJSArray
+            accessor.body ++= (vars: Iterable[Node.Statement]).toJSArray
             //println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
 
             // remove overwritten members
@@ -94,9 +94,9 @@ object FillVarMembers {
     // remove members already present in a parent from a derived class
     val cleanup = ret.top.transformAfter { (node, _) =>
       node match {
-        case cls: AST_DefClass =>
+        case cls: Node.DefClass =>
           for {
-            AST_SymbolDef(base) <- cls.`extends`
+            Node.SymbolDef(base) <- cls.`extends`
             baseId <- SymbolTypes.id(base)
             inlineBody <- findInlineBody(cls)
           } {

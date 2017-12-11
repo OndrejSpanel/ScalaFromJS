@@ -1,23 +1,23 @@
 package com.github.opengrabeso
 
 import net.gamatron.esprima._
-
+import esprima._
 
 import JsUtils._
 
 // extractor for special cases of the for loop
 object ForRange {
   object VarOrLet {
-    def unapply(arg: AST_Definitions): Option[AST_Definitions] = arg match {
-      case _: AST_Var => Some(arg)
-      case _: AST_Let => Some(arg)
+    def unapply(arg: Node.Definitions): Option[Node.Definitions] = arg match {
+      case _: Node.Var => Some(arg)
+      case _: Node.Let => Some(arg)
       case _ => None
     }
   }
 
-  def unapply(arg: AST_For): Option[(SymbolDef, String, AST_Node, AST_Node, AST_Node)] = {
-    def negateStep(step: AST_Node): AST_Node = {
-      new AST_UnaryPrefix {
+  def unapply(arg: Node.For): Option[(SymbolDef, String, Node.Node, Node.Node, Node.Node)] = {
+    def negateStep(step: Node.Node): Node.Node = {
+      new Node.UnaryPrefix {
         fillTokens(this, step)
         operator = "-"
         expression = step.clone()
@@ -25,7 +25,7 @@ object ForRange {
 
     }
 
-    def createRange(vName: SymbolDef, vValue: AST_Node, rel: String, cRight: AST_Node, assign: String, step: AST_Node) = {
+    def createRange(vName: SymbolDef, vValue: Node.Node, rel: String, cRight: Node.Node, assign: String, step: Node.Node) = {
       (rel, assign) match {
         case ("<", "+=") =>
           Some((vName, "until", vValue, cRight, step))
@@ -43,16 +43,16 @@ object ForRange {
     (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
       // for ( var i = 0; i < xxxx; i += step )
       case (
-        Some(VarOrLet(AST_Definitions(AST_VarDef(AST_SymbolDef(vName), Defined(vValue))))),
-        Some(AST_Binary(AST_SymbolRefName(cLeftName), rel, cRight)),
-        Some(AST_Binary(AST_SymbolRefName(exprName), assign, step))
+        Some(VarOrLet(Node.Definitions(Node.VarDef(Node.SymbolDef(vName), Defined(vValue))))),
+        Some(Node.Binary(Node.SymbolRefName(cLeftName), rel, cRight)),
+        Some(Node.Binary(Node.SymbolRefName(exprName), assign, step))
         ) if cLeftName == vName.name && exprName == vName.name =>
         createRange(vName, vValue, rel, cRight, assign, step)
       // for ( var i = 0, limit = xxxx; i < limit; i += step )
       case (
-        Some(VarOrLet(AST_Definitions(AST_VarDef(AST_SymbolDef(vName), Defined(vValue)), AST_VarDef(AST_SymbolName(limitName), Defined(limitValue))))),
-        Some(AST_Binary(AST_SymbolRefName(cLeftName), rel, AST_SymbolRefName(cRightName))),
-        Some(AST_Binary(AST_SymbolRefName(exprName), assign, step))
+        Some(VarOrLet(Node.Definitions(Node.VarDef(Node.SymbolDef(vName), Defined(vValue)), Node.VarDef(Node.SymbolName(limitName), Defined(limitValue))))),
+        Some(Node.Binary(Node.SymbolRefName(cLeftName), rel, Node.SymbolRefName(cRightName))),
+        Some(Node.Binary(Node.SymbolRefName(exprName), assign, step))
         ) if cRightName == limitName && cLeftName == vName.name && exprName == vName.name =>
         createRange(vName, vValue, rel, limitValue, assign, step)
 

@@ -1,18 +1,18 @@
 package com.github.opengrabeso
 
 import net.gamatron.esprima._
-
+import esprima._
 
 import Symbols._
 
 object Casting {
   class InstanceOf(op: String) {
-    def unapply(arg: AST_Binary) = arg match {
+    def unapply(arg: Node.Binary) = arg match {
       // a && (a op b)
-      case AST_Binary(AST_SymbolRefDef(sym), "&&",AST_Binary(AST_SymbolRefDef(symDef), `op`, cs: AST_SymbolRef)) if sym == symDef =>
+      case Node.Binary(Node.SymbolRefDef(sym), "&&",Node.Binary(Node.SymbolRefDef(symDef), `op`, cs: Node.SymbolRef)) if sym == symDef =>
         Some(symDef, cs)
       // a op b
-      case AST_Binary(AST_SymbolRefDef(symDef), `op`, cs: AST_SymbolRef) =>
+      case Node.Binary(Node.SymbolRefDef(symDef), `op`, cs: Node.SymbolRef) =>
         Some(symDef, cs)
       case _ =>
         None
@@ -24,9 +24,9 @@ object Casting {
 
     object InstanceOf extends InstanceOf(op)
 
-    def unapply(arg: AST_Binary): Option[(SymbolDef, Seq[AST_SymbolRef])] = arg match {
-      case AST_Binary(InstanceOf(symDef, cs), "||", self(symDef2, cond)) if symDef == symDef2 =>
-        //println(s"$op AST_Binary")
+    def unapply(arg: Node.Binary): Option[(SymbolDef, Seq[Node.SymbolRef])] = arg match {
+      case Node.Binary(InstanceOf(symDef, cs), "||", self(symDef2, cond)) if symDef == symDef2 =>
+        //println(s"$op Node.Binary")
         Some(symDef, cs +: cond)
       case InstanceOf(symDef, cs) =>
         //println(s"$op InstanceOf")

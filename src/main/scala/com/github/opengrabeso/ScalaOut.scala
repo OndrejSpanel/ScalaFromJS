@@ -1,7 +1,7 @@
 package com.github.opengrabeso
 
 import net.gamatron.esprima._
-
+import esprima._
 
 import JsUtils._
 import Classes._
@@ -115,7 +115,7 @@ object ScalaOut {
         case s: String =>
           //println("symbol")
           output(s)
-        case s: AST_Symbol =>
+        case s: Node.Symbol =>
           //println("symbol")
           identifierToOut(output, s.name)
 
@@ -128,7 +128,7 @@ object ScalaOut {
               out"/*${input.types.get(symId)}*/"
             }
           }
-        case n: AST_Node =>
+        case n: Node.Node =>
           nodeToOut(n)
         case x if js.isUndefined(x) =>
         case any =>
@@ -157,7 +157,7 @@ object ScalaOut {
 
 
   //noinspection ScalaUnusedSymbol
-  private def printlnNode(n: js.UndefOr[AST_Node])(implicit outConfig: Config, input: InputContext) = {
+  private def printlnNode(n: js.UndefOr[Node.Node])(implicit outConfig: Config, input: InputContext) = {
     println(n.nonNull.map(n => nodeClassName(n) + ":" + nodeToString(n)).getOrElse(""))
   }
 
@@ -170,13 +170,13 @@ object ScalaOut {
     override def apply(x: String) = out(x)
     def result = b.toString
   }
-  def nodeToString(n: AST_Node)(implicit outConfig: Config, input: InputContext): String = {
+  def nodeToString(n: Node.Node)(implicit outConfig: Config, input: InputContext): String = {
     val b = new OutToString
     nodeToOut(n)(outConfig, input, b)
     b.result
   }
 
-  def dumpComments(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output) = {
+  def dumpComments(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output) = {
     // start is mostly defined, but not for accessor
     for {
       start <- n.start.nonNull
@@ -202,33 +202,33 @@ object ScalaOut {
   }
 
 
-  def termToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
+  def termToOut(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
 
-    def outNode(n: AST_Node) = nodeToOut(n)(outConfig, input, out)
-    def outInParens(n: AST_Node) = {
+    def outNode(n: Node.Node) = nodeToOut(n)(outConfig, input, out)
+    def outInParens(n: Node.Node) = {
       out("(")
       outNode(n)
       out(")")
     }
 
     n match {
-      case AST_Binary(_, op, _) =>
+      case Node.Binary(_, op, _) =>
         op match {
           case `instanceof` | `asinstanceof` =>
             outNode(n)
           case _ =>
             outInParens(n)
         }
-      case _: AST_If =>
+      case _: Node.If =>
         outInParens(n)
-      case _: AST_Conditional =>
+      case _: Node.Conditional =>
         outInParens(n)
       case _ =>
         outNode(n)
     }
   }
 
-  def nodeToOut(n: AST_Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
+  def nodeToOut(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
 
     def source = nodeSource(n, input.input)
     // http://lisperator.net/uglifyjs/ast
@@ -236,11 +236,11 @@ object ScalaOut {
       out.submitLocation(s.pos, source.lines.next)
     }
 
-    def outputVarDef(name: AST_Symbol, initInput: js.UndefOr[AST_Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
+    def outputVarDef(name: Node.Symbol, initInput: js.UndefOr[Node.Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
       out"$name"
 
-      // handle a hack: uninitialized variable using AST_EmptyStatement
-      val init = if (initInput.nonNull.exists(_.isInstanceOf[AST_EmptyStatement])) None else initInput.nonNull
+      // handle a hack: uninitialized variable using Node.EmptyStatement
+      val init = if (initInput.nonNull.exists(_.isInstanceOf[Node.EmptyStatement])) None else initInput.nonNull
 
       //out(s"/*outputVarDef ${name.name} type: $sType init: ${init.map(_.toString)}*/")
       if (types || init.isEmpty) {
@@ -249,10 +249,10 @@ object ScalaOut {
         }
       }
 
-      def trivialInit(i: AST_Node): Option[AST_Node] = {
+      def trivialInit(i: Node.Node): Option[Node.Node] = {
         i match {
-          case a: AST_Array if a.elements.isEmpty => None
-          case o: AST_Object if o.properties.isEmpty => None
+          case a: Node.Array if a.elements.isEmpty => None
+          case o: Node.Object if o.properties.isEmpty => None
           case _ => Some(i)
         }
       }
@@ -270,7 +270,7 @@ object ScalaOut {
       input.types.get(symDef).map(_.declType)
     }
 
-    def outputDefinitions(isVal: Boolean, tn: AST_Definitions, types: Boolean = false) = {
+    def outputDefinitions(isVal: Boolean, tn: Node.Definitions, types: Boolean = false) = {
       //out"/*outputDefinitions ${tn.definitions}*/"
       //println("outputDefinitions -")
       def outValVar(isInitialized: Boolean) = {
@@ -279,7 +279,7 @@ object ScalaOut {
 
       tn.definitions.foreach {
 
-        case AST_VarDef(name, Defined(AST_Object(props))) if props.nonEmpty && isVal =>
+        case Node.VarDef(name, Defined(Node.Object(props))) if props.nonEmpty && isVal =>
           // special case handling for isResource marked object (see readFileAsJs)
           val propNames = props.map(propertyName)
           //println(s"propNames $propNames")
@@ -298,7 +298,7 @@ object ScalaOut {
             out("}\n")
           }
         // empty object - might be a map instead
-        case v@AST_VarDef(s@AST_Symbol(name, _, Defined(symDef)), Defined(AST_Object(Seq()))) =>
+        case v@Node.VarDef(s@Node.Symbol(name, _, Defined(symDef)), Defined(Node.Object(Seq()))) =>
           val symId = SymbolTypes.id(symDef)
           val tpe = input.types.get(symId).map(_.declType)
           //println(s"Var $name ($symId) type $tpe empty object")
@@ -314,12 +314,12 @@ object ScalaOut {
               outputVarDef(s, js.undefined, tpe, false)
           }
 
-        case AST_VarDef(s@AST_Symbol(name, _, Defined(sym)), init) =>
+        case Node.VarDef(s@Node.Symbol(name, _, Defined(sym)), init) =>
           outValVar(init.isDefined)
           //out("/*outputDefinitions 1*/")
           val sType = getSymbolType(sym)
-          //out"/*AST_VarDef sym ${SymbolTypes.id(sym)} $sType*/"
-          //println(s"AST_VarDef sym ${SymbolTypes.id(sym)} $sType")
+          //out"/*Node.VarDef sym ${SymbolTypes.id(sym)} $sType*/"
+          //println(s"Node.VarDef sym ${SymbolTypes.id(sym)} $sType")
           //println(getType(sym))
           outputVarDef(s, init, sType, types)
       }
@@ -332,7 +332,7 @@ object ScalaOut {
       }
     }
 
-    def outputArgType(n: AST_SymbolFunarg, init: Option[AST_Node]) = {
+    def outputArgType(n: Node.SymbolFunarg, init: Option[Node.Node]) = {
       val typeString = Transform.symbolFromPar(n).fold(SymbolTypes.any.toOut)(input.types.getAsScala(_))
       //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeString")
       out": $typeString"
@@ -341,7 +341,7 @@ object ScalaOut {
       }
     }
 
-    def outputClassArgNames(tn: AST_Lambda) = {
+    def outputClassArgNames(tn: Node.Lambda) = {
       out("(")
       outputNodes(tn.argnames) { n =>
         // parSuffix is still used for parameters which are modified
@@ -354,12 +354,12 @@ object ScalaOut {
       out(")")
     }
 
-    def outputArgNames(tn: AST_Lambda, types: Boolean = false) = {
+    def outputArgNames(tn: Node.Lambda, types: Boolean = false) = {
       out("(")
       outputNodes(tn.argnames) { n =>
-        val (sym, init: Option[AST_Node]) = n.asInstanceOf[AST_Node] match {
-          case d: AST_DefaultAssign =>
-            d.left.asInstanceOf[AST_SymbolFunarg] -> Some(d.right)
+        val (sym, init: Option[Node.Node]) = n.asInstanceOf[Node.Node] match {
+          case d: Node.DefaultAssign =>
+            d.left.asInstanceOf[Node.SymbolFunarg] -> Some(d.right)
           case _ =>
             n -> n.init.nonNull.flatMap(_.headOption)
         }
@@ -376,20 +376,20 @@ object ScalaOut {
       out(")")
     }
 
-    def outputCall(tn: AST_Call) = {
+    def outputCall(tn: Node.Call) = {
       nodeToOut(tn.expression)
       out("(")
       outputNodes(tn.args)(nodeToOut)
       out(")")
     }
 
-    def outputBinaryArgument(arg: AST_Node, outer: String, right: Boolean = false) = {
+    def outputBinaryArgument(arg: Node.Node, outer: String, right: Boolean = false) = {
 
 
       // non-associative need to be parenthesed when used on the right side
 
       arg match {
-        case a@AST_Binary(_, op, _) if OperatorPriorities.useParens(op, outer, right) =>
+        case a@Node.Binary(_, op, _) if OperatorPriorities.useParens(op, outer, right) =>
           // TODO: compare priorities
           out"($arg)"
         case _ =>
@@ -420,9 +420,9 @@ object ScalaOut {
       else              String.valueOf(ch)
     }
 
-    def outputUnknownNode(tn: AST_Node, statement: Boolean = false) = {
+    def outputUnknownNode(tn: Node.Node, statement: Boolean = false) = {
       def shortNodeClassName(n: String) = {
-        val prefix = "AST_"
+        val prefix = "Node."
         if (n startsWith prefix) n.drop(prefix.length)
         else n
       }
@@ -438,7 +438,7 @@ object ScalaOut {
     dumpComments(n)
 
     //noinspection ScalaUnusedSymbol
-    def accessorToOut(tn: AST_ObjectSetterOrGetter, postfix: String) = {
+    def accessorToOut(tn: Node.ObjectSetterOrGetter, postfix: String) = {
       out.eol()
       // getter argument list should be empty, setter not
       if (tn.value.argnames.isEmpty) {
@@ -455,12 +455,12 @@ object ScalaOut {
     }
 
     object CanYield {
-      def unapply(forIn: AST_ForIn): Option[(AST_Call, AST_Node, AST_Node)] = {
+      def unapply(forIn: Node.ForIn): Option[(Node.Call, Node.Node, Node.Node)] = {
         var countPush = 0
         forIn.body.walk {
-          case _: AST_IterationStatement =>
+          case _: Node.IterationStatement =>
             true // do not check inner loops
-          case AST_Call(expr AST_Dot "push", arg) =>
+          case Node.Call(expr Node.Dot "push", arg) =>
             countPush += 1
             false
           case _ =>
@@ -471,9 +471,9 @@ object ScalaOut {
 
         // detect if last statement in the for body is a push
         // if it is, convert the loop to yield
-        var push = Option.empty[(AST_Call, AST_Node, AST_Node)]
+        var push = Option.empty[(Node.Call, Node.Node, Node.Node)]
         Transform.walkLastNode(forIn.body) {
-          case call@AST_Call(expr AST_Dot "push", arg) =>
+          case call@Node.Call(expr Node.Dot "push", arg) =>
             push = Some(call, expr, arg)
             false
           case _ =>
@@ -482,12 +482,12 @@ object ScalaOut {
 
         // verify the loop does not contain any construct which would break transformation
         if (push.isDefined) forIn.body.walk {
-          case _: AST_IterationStatement =>
+          case _: Node.IterationStatement =>
             true // ignore break / continue in inner loops
-          case _: AST_Break =>
+          case _: Node.Break =>
             push = None
             false
-          case _: AST_Continue =>
+          case _: Node.Continue =>
             push = None
             false
           case _ =>
@@ -497,7 +497,7 @@ object ScalaOut {
       }
     }
 
-    def outForHeader(forIn: AST_ForIn) = {
+    def outForHeader(forIn: Node.ForIn) = {
       out("for (")
       forIn.name.nonNull.fold(nodeToOut(forIn.init))(nodeToOut)
       out(" <- ")
@@ -513,17 +513,17 @@ object ScalaOut {
     // listed in reverse order, so that most specific classes match first
     //noinspection ScalaUnusedSymbol
     n match {
-      case tn: AST_True => out("true")
-      case tn: AST_False => out("false")
-      //case tn: AST_Boolean => "AST_Boolean"
-      case tn: AST_Infinity => out("Double.PositiveInfinity")
-      case tn: AST_Hole => out("null")
-      case tn: AST_Undefined => out("null")
-      case tn: AST_NaN => out("Double.NaN")
-      case tn: AST_Null => out("null")
-      //case tn: AST_Atom => "AST_Atom"
-      case tn: AST_RegExp => out""""${tn.value}".r"""
-      case tn: AST_Number =>
+      case tn: Node.True => out("true")
+      case tn: Node.False => out("false")
+      //case tn: Node.Boolean => "Node.Boolean"
+      case tn: Node.Infinity => out("Double.PositiveInfinity")
+      case tn: Node.Hole => out("null")
+      case tn: Node.Undefined => out("null")
+      case tn: Node.NaN => out("Double.NaN")
+      case tn: Node.Null => out("null")
+      //case tn: Node.Atom => "Node.Atom"
+      case tn: Node.RegExp => out""""${tn.value}".r"""
+      case tn: Node.Number =>
         // prefer the same representation as in the original source
         val src = source
 
@@ -542,40 +542,40 @@ object ScalaOut {
         }
 
         if (isSourceOf(src, tn.value)) out(src) else out(tn.value.toString)
-      case tn: AST_String => out(quote(tn.value))
-      case tn: AST_TemplateString =>
+      case tn: Node.String => out(quote(tn.value))
+      case tn: Node.TemplateString =>
         // TODO: handle expression interpolation
         val value = tn.segments.collect {
-          case s: AST_TemplateSegment => s.value
+          case s: Node.TemplateSegment => s.value
         }.mkString
         out(tripleQuote(value))
 
-      //case tn: AST_Constant => "AST_Constant"
-      case tn: AST_This => out("this") // TODO: handle differences between Scala and JS this
-      case tn: AST_Super => out("super")
-      //case tn: AST_LabelRef => out("AST_LabelRef")
-      //case tn: AST_SymbolRef => out("AST_SymbolRef")
-      //case tn: AST_Label => out("AST_Label")
-      //case tn: AST_SymbolCatch => out("AST_SymbolCatch")
-      //case tn: AST_SymbolLambda => out("AST_SymbolLambda")
-      //case tn: AST_SymbolDefun => out("AST_SymbolDefun")
-      //case tn: AST_SymbolConst => out("AST_SymbolConst")
-      //case tn: AST_SymbolFunarg => out(tn.name)
-      //case tn: AST_SymbolVar => out("AST_SymbolVar")
-      //case tn: AST_SymbolDeclaration => out(tn.name)
-      //case tn: AST_SymbolAccessor => out("AST_SymbolAccessor")
-      //case tn: AST_SymbolRef => identifierToOut(out, tn.name)
-      case tn: AST_Symbol =>
+      //case tn: Node.Constant => "Node.Constant"
+      case tn: Node.This => out("this") // TODO: handle differences between Scala and JS this
+      case tn: Node.Super => out("super")
+      //case tn: Node.LabelRef => out("Node.LabelRef")
+      //case tn: Node.SymbolRef => out("Node.SymbolRef")
+      //case tn: Node.Label => out("Node.Label")
+      //case tn: Node.SymbolCatch => out("Node.SymbolCatch")
+      //case tn: Node.SymbolLambda => out("Node.SymbolLambda")
+      //case tn: Node.SymbolDefun => out("Node.SymbolDefun")
+      //case tn: Node.SymbolConst => out("Node.SymbolConst")
+      //case tn: Node.SymbolFunarg => out(tn.name)
+      //case tn: Node.SymbolVar => out("Node.SymbolVar")
+      //case tn: Node.SymbolDeclaration => out(tn.name)
+      //case tn: Node.SymbolAccessor => out("Node.SymbolAccessor")
+      //case tn: Node.SymbolRef => identifierToOut(out, tn.name)
+      case tn: Node.Symbol =>
         out"$tn"
       //identifierToOut(out, tn.name)
-      case tn: AST_ObjectSetter =>
+      case tn: Node.ObjectSetter =>
         accessorToOut(tn, "_=")
-      case tn: AST_ObjectGetter =>
+      case tn: Node.ObjectGetter =>
         accessorToOut(tn, "")
-      case tn: AST_ObjectKeyVal =>
+      case tn: Node.ObjectKeyVal =>
         if (keyValIsTemplate(tn)) {
           tn.value match {
-            case AST_Sequence(node: AST_ObjectProperty, AST_String(template)) =>
+            case Node.Sequence(node: Node.ObjectProperty, Node.String(template)) =>
 
               val thisPattern = """(\$this|\${this})""".r.unanchored
               val split = thisPattern.pattern.split(template, -1) // -1: do not discard trailing empty match
@@ -601,12 +601,12 @@ object ScalaOut {
         }
 
       //out"/*${nodeClassName(n)}*/"
-      //case tn: AST_ObjectProperty =>
-      case tn: AST_ConciseMethod =>
+      //case tn: Node.ObjectProperty =>
+      case tn: Node.ConciseMethod =>
         //out"/*${nodeClassName(n)}*/"
         out.eol()
         out"def ${tn.key}${tn.value}\n"
-      case tn: AST_Object =>
+      case tn: Node.Object =>
         if (tn.properties.isEmpty) {
           out("new {}")
         } else {
@@ -620,14 +620,14 @@ object ScalaOut {
           out.eol()
           out("}")
         }
-      case tn: AST_Array =>
+      case tn: Node.Array =>
         out("Array(")
         outputNodes(tn.elements)(nodeToOut)
         out(")")
-      case tn: AST_Conditional =>
+      case tn: Node.Conditional =>
         out"if (${tn.condition}) ${tn.consequent} else ${tn.alternative}"
-      //case tn: AST_Assign => outputUnknownNode(tn)
-      case AST_Binary(left, op, right) =>
+      //case tn: Node.Assign => outputUnknownNode(tn)
+      case Node.Binary(left, op, right) =>
         op match {
           case `instanceof` =>
             termToOut(left)
@@ -640,39 +640,39 @@ object ScalaOut {
             out" $op "
             outputBinaryArgument(right, op, true)
         }
-      case tn: AST_Unary =>
+      case tn: Node.Unary =>
         tn.operator match {
           case "typeof" =>
             termToOut(tn.expression)
             out(".getClass")
           case _ =>
             tn match {
-              case _: AST_UnaryPrefix =>
+              case _: Node.UnaryPrefix =>
                 (tn.operator, tn.expression) match {
-                  case ("delete", sym AST_Sub prop) =>
+                  case ("delete", sym Node.Sub prop) =>
                     out"$sym -= $prop"
                   case _ =>
                     out(tn.operator)
                     if (tn.operator.last.isLetterOrDigit) out(" ")
                     termToOut(tn.expression)
                 }
-              case _: AST_UnaryPostfix =>
+              case _: Node.UnaryPostfix =>
                 termToOut(tn.expression)
                 if (tn.operator.head.isLetterOrDigit) out(" ")
                 out(tn.operator)
             }
         }
-      case tn: AST_Sub =>
+      case tn: Node.Sub =>
         termToOut(tn.expression)
         out("(")
         nodeToOut(tn.property)
         out(")")
-      case tn: AST_Dot =>
+      case tn: Node.Dot =>
         termToOut(tn.expression)
         out(".")
         identifierToOut(out, tn.property)
-      //case tn: AST_PropAccess => outputUnknownNode(tn)
-      case tn: AST_Sequence =>
+      //case tn: Node.PropAccess => outputUnknownNode(tn)
+      case tn: Node.Sequence =>
         out("{\n")
         out.indent()
         for (item <- tn.expressions) {
@@ -681,44 +681,44 @@ object ScalaOut {
         }
         out.unindent()
         out("}")
-      case tn: AST_New =>
+      case tn: Node.New =>
         out("new ")
         outputCall(tn)
-      case tn: AST_Call =>
+      case tn: Node.Call =>
         outputCall(tn)
 
-      case AST_VarDef(s@AST_Symbol(name, _, Defined(sym)), init) =>
-        out("/*AST_VarDef*/")
+      case Node.VarDef(s@Node.Symbol(name, _, Defined(sym)), init) =>
+        out("/*Node.VarDef*/")
         val sType = getSymbolType(sym)
         outputVarDef(s, init, sType, false)
 
-      case tn: AST_Const =>
+      case tn: Node.Const =>
         outputDefinitions(true, tn)
-      case tn: AST_Var =>
+      case tn: Node.Var =>
         outputDefinitions(false, tn) // we assume scoping is reasonable, we do not try to handle hoisting
-      case tn: AST_Let =>
+      case tn: Node.Let =>
         outputDefinitions(false, tn)
-      //case tn: AST_Definitions => outputUnknownNode(tn)
-      case tn: AST_Continue => outputUnknownNode(tn, true)
-      case tn: AST_Break => outputUnknownNode(tn, true)
-      //case tn: AST_LoopControl => outputUnknownNode(tn)
-      case tn: AST_Throw =>
+      //case tn: Node.Definitions => outputUnknownNode(tn)
+      case tn: Node.Continue => outputUnknownNode(tn, true)
+      case tn: Node.Break => outputUnknownNode(tn, true)
+      //case tn: Node.LoopControl => outputUnknownNode(tn)
+      case tn: Node.Throw =>
         out("throw")
         tn.value.nonNull.foreach { v =>
           out(" ")
           nodeToOut(v)
           out.eol()
         }
-      case tn: AST_Return =>
+      case tn: Node.Return =>
         out("return")
         tn.value.nonNull.foreach { v =>
           out(" ")
           nodeToOut(v)
           out.eol()
         }
-      //case tn: AST_Exit => outputUnknownNode(tn)
-      //case tn: AST_Jump => outputUnknownNode(tn)
-      case tn: AST_If =>
+      //case tn: Node.Exit => outputUnknownNode(tn)
+      //case tn: Node.Jump => outputUnknownNode(tn)
+      case tn: Node.If =>
         out"if (${tn.condition}) "
         nodeToOut(tn.body)
         tn.alternative.nonNull.foreach { a =>
@@ -726,8 +726,8 @@ object ScalaOut {
           nodeToOut(a)
         }
         out.eol()
-      case tn: AST_With => outputUnknownNode(tn, true)
-      case tn: AST_ForIn =>
+      case tn: Node.With => outputUnknownNode(tn, true)
+      case tn: Node.ForIn =>
 
         val push = CanYield.unapply(tn)
 
@@ -752,9 +752,9 @@ object ScalaOut {
                 c
             }
           }
-          def bodyFromStatement(s: AST_Statement): Seq[AST_Statement] = {
+          def bodyFromStatement(s: Node.Statement): Seq[Node.Statement] = {
             s match {
-              case b: AST_BlockStatement =>
+              case b: Node.BlockStatement =>
                 b.body
               case _ =>
                 Seq(s)
@@ -764,17 +764,17 @@ object ScalaOut {
           out.unindent()
           out("}")
         }
-      case tn: AST_For =>
+      case tn: Node.For =>
         tn match {
           case ForRange(name, until, init, end, step) =>
             (init, until, end, step) match {
-              case (AST_Number(0), "until", expr AST_Dot "length", AST_Number(1)) =>
+              case (Node.Number(0), "until", expr Node.Dot "length", Node.Number(1)) =>
                 out"for (${name.name} <- $expr.indices) ${tn.body}"
 
               case _ =>
                 out"for (${name.name} <- $init $until $end"
                 step match {
-                  case AST_Number(1) =>
+                  case Node.Number(1) =>
                   case _ => out" by $step"
                 }
                 out") ${tn.body}"
@@ -783,7 +783,7 @@ object ScalaOut {
           case _ => // generic solution using while - reliable, but ugly
             // new scope never needed in classical JS, all variables exists on a function scope
             val isScoped = tn.init.nonNull match {
-              case Some(AST_Let(_*)) => true
+              case Some(Node.Let(_*)) => true
               case _ => false
             }
             if (isScoped) {
@@ -813,28 +813,28 @@ object ScalaOut {
             //out("}\n")
         }
 
-      case tn: AST_While =>
+      case tn: Node.While =>
         out("while (")
         nodeToOut(tn.condition)
         out(") ")
         nodeToOut(tn.body)
-      case tn: AST_Do =>
+      case tn: Node.Do =>
         out("do ")
         nodeToOut(tn.body)
         out(" while (")
         nodeToOut(tn.condition)
         out(")\n")
-      //case tn: AST_DWLoop => outputUnknownNode(tn)
-      //case tn: AST_IterationStatement => outputUnknownNode(tn)
-      case tn: AST_LabeledStatement =>
+      //case tn: Node.DWLoop => outputUnknownNode(tn)
+      //case tn: Node.IterationStatement => outputUnknownNode(tn)
+      case tn: Node.LabeledStatement =>
         out(s"/* label ${nodeToString(tn.label)} */")
         nodeToOut(tn.body)
-      //case tn: AST_StatementWithBody => outputUnknownNode(tn)
-      case tn: AST_EmptyStatement =>
-      case tn: AST_Finally =>
+      //case tn: Node.StatementWithBody => outputUnknownNode(tn)
+      case tn: Node.EmptyStatement =>
+      case tn: Node.Finally =>
         out(" finally ")
         blockBracedToOut(tn.body)
-      case tn: AST_Catch =>
+      case tn: Node.Catch =>
         out(" catch {\n")
         out.indent()
         out("case ")
@@ -845,18 +845,18 @@ object ScalaOut {
         out.unindent()
         out.unindent()
         out("}\n")
-      case tn: AST_Try =>
+      case tn: Node.Try =>
         out("try ")
         blockBracedToOut(tn.body)
         tn.bcatch.nonNull.foreach(nodeToOut)
         tn.bfinally.nonNull.foreach(nodeToOut)
-      case tn: AST_Case =>
+      case tn: Node.Case =>
         out("case ")
 
         import Casting._
         object AsInstanceOfCondition extends InstanceOfCondition(asinstanceof)
 
-        def outputCaseBody(body: Seq[AST_Statement]) = {
+        def outputCaseBody(body: Seq[Node.Statement]) = {
           out(" =>\n")
           out.indent()
           blockToOut(body)
@@ -866,7 +866,7 @@ object ScalaOut {
 
         tn.expression match {
           // CASE_CAST
-          case AST_Call(AST_SymbolRefName("cast_^"),AsInstanceOfCondition(name, classes)) =>
+          case Node.Call(Node.SymbolRefName("cast_^"),AsInstanceOfCondition(name, classes)) =>
             classes match {
               case Seq(cls) =>
                 out"${identifier(name.name + castSuffix)}: $cls"
@@ -876,7 +876,7 @@ object ScalaOut {
             }
 
             tn.body.toSeq match {
-              case Seq(AST_BlockStatement(AST_Definitions(AST_VarDef(sv, AsInstanceOfCondition(_, _))) +: body)) =>
+              case Seq(Node.BlockStatement(Node.Definitions(Node.VarDef(sv, AsInstanceOfCondition(_, _))) +: body)) =>
                 // we might check sv - variable name correspondence
                 outputCaseBody(body)
               case _ =>
@@ -887,18 +887,18 @@ object ScalaOut {
             outputCaseBody(tn.body)
         }
 
-      case tn: AST_Default =>
+      case tn: Node.Default =>
         out("case _ =>\n")
         out.indent()
         blockToOut(tn.body)
         out.eol()
         out.unindent()
-      //case tn: AST_SwitchBranch => outputUnknownNode(tn)
-      case tn: AST_Switch =>
+      //case tn: Node.SwitchBranch => outputUnknownNode(tn)
+      case tn: Node.Switch =>
         nodeToOut(tn.expression)
         out(" match ")
         blockBracedToOut(tn.body, true)
-      case tn: AST_Defun =>
+      case tn: Node.Defun =>
         out.eol(2)
         out("def ")
         tn.name.nonNull.foreach(n => nodeToOut(n))
@@ -906,26 +906,26 @@ object ScalaOut {
         out(" = ")
         blockBracedToOut(tn.body)
         out.eol()
-      case tn: AST_Accessor =>
+      case tn: Node.Accessor =>
         outputArgNames(tn, true)
         out(" = ")
         //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
         blockBracedToOut(tn.body)
         out.eol()
-      case tn: AST_Function =>
+      case tn: Node.Function =>
         outputArgNames(tn)
         out(" => ")
         //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
         blockBracedToOut(tn.body)
-      case tn: AST_Arrow =>
+      case tn: Node.Arrow =>
         outputArgNames(tn)
         out(" => ")
         blockBracedToOut(tn.body)
         out.eol()
-      case tn: AST_Lambda => outputUnknownNode(tn)
-      //case tn: AST_Toplevel => outputUnknownNode(tn)
-      //case tn: AST_Scope => outputUnknownNode(tn)
-      case tn: AST_DefClass =>
+      case tn: Node.Lambda => outputUnknownNode(tn)
+      //case tn: Node.Program => outputUnknownNode(tn)
+      //case tn: Node.Scope => outputUnknownNode(tn)
+      case tn: Node.DefClass =>
 
         val (staticProperties, nonStaticProperties) = tn.properties.partition(propertyIsStatic)
 
@@ -943,7 +943,7 @@ object ScalaOut {
         // find a constructor and output it
 
         val isStaticOnly = tn.`extends` match {
-          case Defined(AST_SymbolName(`staticClassName`)) =>
+          case Defined(Node.SymbolName(`staticClassName`)) =>
             true
           case _ =>
             false
@@ -968,7 +968,7 @@ object ScalaOut {
             for (inlineBody <- inlineBodyOpt) {
               // find the super constructor call and use its parameters
               inlineBody.value.body.foreach {
-                case AST_SimpleStatement(call@AST_Call(_: AST_Super, pars@_*)) =>
+                case Node.SimpleStatement(call@Node.Call(_: Node.Super, pars@_*)) =>
                   out("(")
                   outputNodes(pars)(nodeToOut)
                   out(")")
@@ -985,7 +985,7 @@ object ScalaOut {
             if (false) {
               out"/* inlineBody defs ${
                 inlineBody.value.body.collect {
-                  case AST_Definitions(AST_VarDef(AST_SymbolName(vn), _)) =>
+                  case Node.Definitions(Node.VarDef(Node.SymbolName(vn), _)) =>
                     vn
                 }.mkString(",")
               } */\n"
@@ -993,11 +993,11 @@ object ScalaOut {
 
             // class body should be a list of variable declarations, constructor statements may follow
             inlineBody.value.body.foreach {
-              case df: AST_Const =>
+              case df: Node.Const =>
                 outputDefinitions(true, df, true)
-              case df: AST_Definitions =>
+              case df: Node.Definitions =>
                 outputDefinitions(false, df, true)
-              case AST_SimpleStatement(AST_Call(_: AST_Super, _*)) =>
+              case Node.SimpleStatement(Node.Call(_: Node.Super, _*)) =>
               case ss =>
                 //out(nodeTreeToString(ss))
                 nodeToOut(ss)
@@ -1007,8 +1007,8 @@ object ScalaOut {
           //blockToOut(tn.body)
 
           val (functionMembers, varMembers) = nonStaticProperties.partition {
-            case _: AST_ConciseMethod => true
-            case kv: AST_ObjectKeyVal if keyValIsTemplate(kv) => true
+            case _: Node.ConciseMethod => true
+            case kv: Node.ObjectKeyVal if keyValIsTemplate(kv) => true
             case _ => false
           }
 
@@ -1025,7 +1025,7 @@ object ScalaOut {
 
           for (pm <- functionMembers if !inlineBodyOpt.contains(pm)) {
             pm match {
-              case p: AST_ConciseMethod =>
+              case p: Node.ConciseMethod =>
                 // check overrides
                 def isObjectOverride = {
                   // special case: override AnyRef (java.lang.Object) methods:
@@ -1040,7 +1040,7 @@ object ScalaOut {
                     parentMethod <- Classes.findMethod(parentCls, p.key.name)
                   } yield {
                     // check method signature
-                    def getArgTypes(m: AST_ConciseMethod) = {
+                    def getArgTypes(m: Node.ConciseMethod) = {
                       m.value.argnames.flatMap(_.thedef.nonNull).map(SymbolTypes.id).map(input.types.get)
                     }
 
@@ -1064,30 +1064,30 @@ object ScalaOut {
           // classes have no body
           //blockBracedToOut(tn.body)
         }
-      case tn: AST_Block =>
+      case tn: Node.Block =>
         blockBracedToOut(tn.body)
-      //case tn: AST_BlockStatement =>
-      case tn: AST_SimpleStatement =>
+      //case tn: Node.BlockStatement =>
+      case tn: Node.SimpleStatement =>
         nodeToOut(tn.body)
         out.eol()
-      case tn: AST_Directive =>
+      case tn: Node.Directive =>
         if (source != """"use strict";""" && source != "'use strict';") { // east use strict silently
           outputUnknownNode(tn)
           out.eol()
         }
-      case tn: AST_Debugger =>
+      case tn: Node.Debugger =>
         outputUnknownNode(tn)
         out.eol()
-      case ex: AST_Export if ex.module_name.isEmpty && ex.exported_definition.nonEmpty =>
+      case ex: Node.Export if ex.module_name.isEmpty && ex.exported_definition.nonEmpty =>
         out("/* export */ ")
         ex.exported_definition.foreach(nodeToOut)
-      case ex: AST_Export if ex.module_name.isEmpty && ex.exported_definition.isEmpty && ex.exported_value.nonNull.nonEmpty =>
+      case ex: Node.Export if ex.module_name.isEmpty && ex.exported_definition.isEmpty && ex.exported_value.nonNull.nonEmpty =>
         out("/* export default: */\n")
         ex.exported_value.foreach(nodeToOut)
-      case tn: AST_Export =>
+      case tn: Node.Export =>
         //out(s"/* export */ def ${tn.exported_definition} name ${tn.module_name} value ${tn.exported_value}\n")
         out(s"/* $source */")
-      case tn: AST_Import =>
+      case tn: Node.Import =>
         // try to create a package name from the import directive
         // start from the root
         val imported_names = tn.imported_names.nonNull.toSeq.flatMap(_.map(_.foreign_name.name))
@@ -1110,7 +1110,7 @@ object ScalaOut {
     out(identifier(name))
   }
 
-  private def blockBracedToOut(body: js.Array[AST_Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
+  private def blockBracedToOut(body: js.Array[Node.Statement], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output) = {
     if (!js.isUndefined(body)) { // harmony class may have undefined body
       // TODO: single statement without braces
       out("{\n")
@@ -1124,14 +1124,14 @@ object ScalaOut {
     }
   }
 
-  private def blockToOut(body: Seq[AST_Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
+  private def blockToOut(body: Seq[Node.Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
     for ((s, notLast) <- markEnd(body)) {
       nodeToOut(s)
       if (notLast) out.eol()
     }
   }
 
-  def output(ast: Transform.AST_Extended, input: String, outConfig: Config = Config.default): Seq[String] = {
+  def output(ast: Transform.NodeExtended, input: String, outConfig: Config = Config.default): Seq[String] = {
     val sb = Array.fill(outConfig.parts.size max 1)(new StringBuilder)
     var currentSb = 0
     val ret = new NiceOutput {
@@ -1160,14 +1160,14 @@ object ScalaOut {
     sb.map(_.result)
   }
 
-  def nodeSource(n: AST_Node, input: String): String = {
+  def nodeSource(n: Node.Node, input: String): String = {
     (for {
       s <- n.start
       e <- n.end
     } yield input.slice(s.pos, e.endpos)).getOrElse("")
   }
 
-  def outputNode(ast: AST_Node, input: String = "", outConfig: Config = Config.default): String = {
+  def outputNode(ast: Node.Node, input: String = "", outConfig: Config = Config.default): String = {
     val sb = new StringBuilder
     val ret = new NiceOutput {
       def out(x: String) = sb append x

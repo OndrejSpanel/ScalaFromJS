@@ -2,7 +2,7 @@ package com.github.opengrabeso
 
 import JsUtils._
 import net.gamatron.esprima._
-
+import esprima._
 
 import Classes._
 import Expressions._
@@ -18,32 +18,32 @@ object Transform {
   import SymbolTypes._
   import Symbols._
 
-  def symbolType(types: SymbolTypes, symbol: AST_Symbol): Option[TypeInfo] = {
+  def symbolType(types: SymbolTypes, symbol: Node.Symbol): Option[TypeInfo] = {
     types.get(symbolId(symbol))
   }
 
-  def symbolId(symbol: AST_Symbol): Option[SymbolMapId] = {
+  def symbolId(symbol: Node.Symbol): Option[SymbolMapId] = {
     symbol.thedef.nonNull.flatMap(id)
   }
 
-  def funArg(p: AST_Node): AST_SymbolFunarg = (p: @unchecked) match {
-    case p: AST_SymbolFunarg =>
+  def funArg(p: Node.Node): Node.SymbolFunarg = (p: @unchecked) match {
+    case p: Node.SymbolFunarg =>
       p
-    case p: AST_DefaultAssign =>
+    case p: Node.DefaultAssign =>
       p.left match {
-        case a: AST_SymbolFunarg =>
+        case a: Node.SymbolFunarg =>
           a
         case _ =>
-          throw new UnsupportedOperationException(s"Unexpected argument node ${p.left} in AST_DefaultAssign")
+          throw new UnsupportedOperationException(s"Unexpected argument node ${p.left} in Node.DefaultAssign")
       }
   }
 
-  def symbolFromPar(p: AST_Node): Option[SymbolDef] = p match {
-    case p: AST_SymbolFunarg =>
+  def symbolFromPar(p: Node.Node): Option[SymbolDef] = p match {
+    case p: Node.SymbolFunarg =>
       p.thedef.nonNull
-    case p: AST_DefaultAssign =>
+    case p: Node.DefaultAssign =>
       p.left match {
-        case a: AST_SymbolFunarg =>
+        case a: Node.SymbolFunarg =>
           a.thedef.nonNull
         case _ =>
           None
@@ -54,11 +54,11 @@ object Transform {
 
 
 
-  object AST_Extended {
+  object NodeExtended {
     def noTypes = SymbolTypes()
   }
-  case class AST_Extended(top: AST_Toplevel, types: SymbolTypes = SymbolTypes(), config: ConvertProject.ConvertConfig = ConvertProject.ConvertConfig()) {
-    def loadConfig: AST_Extended = {
+  case class NodeExtended(top: Node.Program, types: SymbolTypes = SymbolTypes(), config: ConvertProject.ConvertConfig = ConvertProject.ConvertConfig()) {
+    def loadConfig: NodeExtended = {
       val (config,ast) = ConvertProject.loadConfig(top)
 
       copy(top = ast, config = config)
@@ -69,13 +69,13 @@ object Transform {
   // individual sensible transformations
 
   // convert === to ==
-  def relations(n: AST_Node): AST_Node = {
+  def relations(n: Node.Node): Node.Node = {
     n.transformAfter { (node, _) =>
       node match {
-        case bin@AST_Binary(_, "===", _) =>
+        case bin@Node.Binary(_, "===", _) =>
           bin.operator = "=="
           node
-        case bin@AST_Binary(_, "!==", _) =>
+        case bin@Node.Binary(_, "!==", _) =>
           bin.operator = "!="
           node
         case _ =>
@@ -86,17 +86,17 @@ object Transform {
 
 
 
-  def handleIncrement(n: AST_Node): AST_Node = {
+  def handleIncrement(n: Node.Node): Node.Node = {
 
-    def substitute(node: AST_Node, expr: AST_Node, op: String) = {
-      new AST_Assign {
+    def substitute(node: Node.Node, expr: Node.Node, op: String) = {
+      new Node.Assign {
         fillTokens(this, node)
         left = expr
         operator = op match {
           case "++" => "+="
           case "--" => "-="
         }
-        right = new AST_Number {
+        right = new Node.Number {
           fillTokens(this, node)
           value = 1
         }
@@ -105,14 +105,14 @@ object Transform {
 
     // walk the tree, check for increment / decrement
     n.transformAfter { (node, transformer) =>
-      def nodeResultDiscarded(n: AST_Node, parentLevel: Int): Boolean = {
+      def nodeResultDiscarded(n: Node.Node, parentLevel: Int): Boolean = {
         transformer.parent(parentLevel).nonNull match {
-          case Some(_: AST_SimpleStatement) =>
+          case Some(_: Node.SimpleStatement) =>
             true
-          case Some(f: AST_For) =>
+          case Some(f: Node.For) =>
             // can be substituted inside of for unless used as a condition
             f.init.contains(n) || f.step.contains(n)
-          case Some(s: AST_Sequence) =>
+          case Some(s: Node.Sequence) =>
             if (s.expressions.last !=n) true
             else if (parentLevel < transformer.stack.length - 2) {
               // even last item of seq can be substituted when the seq result is discarded
@@ -126,21 +126,21 @@ object Transform {
       }
 
       node match {
-        case AST_Unary(op@UnaryModification(), expr) =>
+        case Node.Unary(op@UnaryModification(), expr) =>
           if (nodeResultDiscarded(node, 0)) {
             substitute(node, expr, op)
           } else {
-            init(new AST_BlockStatement) { i =>
+            init(new Node.BlockStatement) { i =>
 
-              val operation = AST_SimpleStatement(node)(substitute(node, expr, op))
+              val operation = Node.SimpleStatement(node)(substitute(node, expr, op))
               node match {
-                case _: AST_UnaryPrefix =>
-                  val value = AST_SimpleStatement(node)(expr.clone())
+                case _: Node.UnaryPrefix =>
+                  val value = Node.SimpleStatement(node)(expr.clone())
                   i.body = js.Array(operation, value)
-                case _ /*: AST_UnaryPostfix*/ =>
+                case _ /*: Node.UnaryPostfix*/ =>
                   val tempName = "temp"
-                  val storeValue = AST_Const(node)(AST_VarDef.initialized(node)(tempName, expr.clone()))
-                  val loadValue = AST_SimpleStatement(node)(AST_SymbolRef(node)(tempName))
+                  val storeValue = Node.Const(node)(Node.VarDef.initialized(node)(tempName, expr.clone()))
+                  val loadValue = Node.SimpleStatement(node)(Node.SymbolRef(node)(tempName))
                   i.body = js.Array(storeValue, operation, loadValue)
               }
             }.withTokens(node)
@@ -151,23 +151,23 @@ object Transform {
     }
   }
 
-  def replaceReturnWithStatement(ret: AST_Return) = {
-    ret.value.nonNull.fold[AST_Statement] {
-      AST_EmptyStatement(ret)
+  def replaceReturnWithStatement(ret: Node.Return) = {
+    ret.value.nonNull.fold[Node.Statement] {
+      Node.EmptyStatement(ret)
     } {
-      AST_SimpleStatement(ret)
+      Node.SimpleStatement(ret)
     }
   }
 
-  def walkLastNode(n: AST_Node)(callback: AST_Node => Boolean): Boolean = {
+  def walkLastNode(n: Node.Node)(callback: Node.Node => Boolean): Boolean = {
     n match {
-      case s: AST_Block =>
+      case s: Node.Block =>
         s.body.lastOption.fold(false) { l =>
           val r = callback(l)
           if (!r) walkLastNode(l)(callback)
           r
         }
-      case s: AST_SimpleStatement =>
+      case s: Node.SimpleStatement =>
         val r = callback(s.body)
         if (!r) walkLastNode(s.body)(callback)
         r
@@ -178,16 +178,16 @@ object Transform {
   }
 
   // is this a last node in some scope? (walks also parents)
-  def nodeLast(n: AST_Node, parentLevel: Int, transformer: TreeTransformer): Boolean = {
+  def nodeLast(n: Node.Node, parentLevel: Int, transformer: TreeTransformer): Boolean = {
     //println(s"nodeLast ${nodeClassName(n)}:$parentLevel:${transformer.parent(parentLevel).map(nodeClassName)}")
     transformer.parent(parentLevel).nonNull match {
-      case Some(ss: AST_SimpleStatement) =>
+      case Some(ss: Node.SimpleStatement) =>
         ss.body == n
-      case Some(fun: AST_Lambda) =>
+      case Some(fun: Node.Lambda) =>
         fun.body.lastOption contains n
-      case Some(block: AST_Block) =>
+      case Some(block: Node.Block) =>
         (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1, transformer)
-      case Some(ii: AST_If) =>
+      case Some(ii: Node.If) =>
         (ii.body == n || ii.alternative.contains(n)) && nodeLast(ii, parentLevel + 1, transformer)
       case None =>
         true
@@ -196,11 +196,11 @@ object Transform {
     }
   }
 
-  def removeTrailingReturn(n: AST_Node): AST_Node = {
+  def removeTrailingReturn(n: Node.Node): Node.Node = {
     n.transformAfter { (node, transformer) =>
 
       node match {
-        case ret: AST_Return if nodeLast(ret, 0, transformer) =>
+        case ret: Node.Return if nodeLast(ret, 0, transformer) =>
           // check if last in a function body
           //println("Remove trailing return")
           replaceReturnWithStatement(ret)
@@ -210,18 +210,18 @@ object Transform {
     }
   }
 
-  def removeReturnFromBody(body: Seq[AST_Statement]): Seq[AST_Statement] = {
+  def removeReturnFromBody(body: Seq[Node.Statement]): Seq[Node.Statement] = {
     // remove all direct returns
     for (s <- body) yield {
       s.transformBefore { (node, descend, transformer) =>
         node match {
-          case _: AST_Lambda =>
+          case _: Node.Lambda =>
             // do not descend into any other functions
             node
-          case ret: AST_Return if nodeLast(ret, 0, transformer) =>
+          case ret: Node.Return if nodeLast(ret, 0, transformer) =>
             //println(s"Remove return of ${nodeTreeToString(ret)}")
             replaceReturnWithStatement(ret)
-          case ret: AST_Return  =>
+          case ret: Node.Return  =>
             //println(s"No remove return of ${nodeTreeToString(ret)}")
             node
           case _ =>
@@ -233,14 +233,14 @@ object Transform {
     }
   }
 
-  def removeTrailingBreak(n: AST_Node): AST_Node = {
+  def removeTrailingBreak(n: Node.Node): Node.Node = {
 
     n.transformAfter { (node, transformer) =>
 
       node match {
-        case sw: AST_Switch =>
+        case sw: Node.Switch =>
           // group conditions with empty body with the following non-empty one
-          def conditionGroups(s: Seq[AST_SwitchBranch], ret: Seq[Seq[AST_SwitchBranch]]): Seq[Seq[AST_SwitchBranch]] = s match {
+          def conditionGroups(s: Seq[Node.SwitchBranch], ret: Seq[Seq[Node.SwitchBranch]]): Seq[Seq[Node.SwitchBranch]] = s match {
             case Seq() =>
               ret
             case seq =>
@@ -248,24 +248,24 @@ object Transform {
               conditionGroups(nonEmpty.drop(1), ret :+ (empty ++ nonEmpty.headOption))
           }
 
-          val body = sw._body.asInstanceOf[js.Array[AST_SwitchBranch]]
+          val body = sw._body.asInstanceOf[js.Array[Node.SwitchBranch]]
           val conditionGrouped = conditionGroups(body, Seq())
 
           val groupedBody = for (g <- conditionGrouped) yield {
             // all but the last are empty
-            def processGroup(e: Seq[AST_SwitchBranch], ret: AST_SwitchBranch): AST_SwitchBranch = {
-              def join(c1: AST_SwitchBranch, c2: AST_SwitchBranch) = {
+            def processGroup(e: Seq[Node.SwitchBranch], ret: Node.SwitchBranch): Node.SwitchBranch = {
+              def join(c1: Node.SwitchBranch, c2: Node.SwitchBranch) = {
                 //println(s"Join ${ScalaOut.outputNode(c1)} ${ScalaOut.outputNode(c2)}")
                 assert(c1.body.isEmpty)
                 (c1, c2) match {
-                  case (case1: AST_Case, case2: AST_Case) =>
-                    case2.expression = AST_Binary(case1.expression) (case1.expression, "|", case2.expression)
+                  case (case1: Node.Case, case2: Node.Case) =>
+                    case2.expression = Node.Binary(case1.expression) (case1.expression, "|", case2.expression)
                     case2
-                  case (case1: AST_Default, case2: AST_Case) =>
+                  case (case1: Node.Default, case2: Node.Case) =>
                     case1.body = case2.body
                     case1
                   case (_, case2) =>
-                    assert(case2.isInstanceOf[AST_Default])
+                    assert(case2.isInstanceOf[Node.Default])
                     case2
                 }
 
@@ -281,15 +281,15 @@ object Transform {
             processGroup(g.tail, g.head)
           }
 
-          val newBody = new mutable.ArrayBuffer[AST_Statement]
+          val newBody = new mutable.ArrayBuffer[Node.Statement]
           for (s <- groupedBody) {
             s.body.lastOption match {
-              case Some(_: AST_Break) =>
+              case Some(_: Node.Break) =>
                 s.body = s.body.dropRight(1)
                 newBody append s
-              case Some(_: AST_Throw) =>
+              case Some(_: Node.Throw) =>
                 newBody append s
-              case Some(_: AST_Return) =>
+              case Some(_: Node.Return) =>
                 newBody append s
               case _  =>
                 // fall through branches - warn
@@ -307,14 +307,14 @@ object Transform {
     }
   }
 
-  def readJSDoc(n: AST_Extended): AST_Extended = {
+  def readJSDoc(n: NodeExtended): NodeExtended = {
     var commentsParsed = Set.empty[Int]
 
     val declBuffer = new mutable.ArrayBuffer[(SymbolDef, TypeDesc)]()
 
     n.top.walk { node =>
       node match {
-        case f: AST_Defun =>
+        case f: Node.Defun =>
           for {
             start <- f.start.nonNull
             commentToken <- start.comments_before.lastOption
@@ -402,12 +402,12 @@ object Transform {
   }
 
   object ExpressionType {
-    def unapply(arg: AST_Node)(implicit ctx: ExpressionTypeContext): Option[Option[TypeInfo]] = {
+    def unapply(arg: Node.Node)(implicit ctx: ExpressionTypeContext): Option[Option[TypeInfo]] = {
       Some(expressionType(arg))
     }
   }
 
-  def expressionType(n: AST_Node, log: Boolean = false)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
+  def expressionType(n: Node.Node, log: Boolean = false)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
 
@@ -424,33 +424,33 @@ object Transform {
       }
     }
 
-    def typeInfoFromClassDef(classDef: Option[AST_DefClass]) = {
+    def typeInfoFromClassDef(classDef: Option[Node.DefClass]) = {
       classDef.flatMap(_.name.nonNull).flatMap(_.thedef.nonNull).flatMap(typeInfoFromClassSym(_))
     }
 
     n match {
-      case s: AST_Super =>
+      case s: Node.Super =>
         val sup = findSuperClass(s.scope.nonNull)
         //println(s"super scope $sup")
         sup.map(t => TypeInfo.target(ClassType(t)))
 
-      case t: AST_This =>
+      case t: Node.This =>
         val thisScope = findThisClass(t.scope.nonNull) // TODO: consider this in a function
         //println(s"this scope ${t.scope.map(_.nesting)}")
         typeInfoFromClassDef(thisScope)
         //println(s"this def scope $cls")
 
-      case AST_SymbolRef("undefined", _, thedef)  =>
+      case Node.SymbolRef("undefined", _, thedef)  =>
         // not allowing undefined overrides
         None // Some(TypeInfo(AnyType, NoType))
 
-      case AST_SymbolRefDef(symDef) =>
+      case Node.SymbolRefDef(symDef) =>
         // if the symbol is a class name, use it as a class type directly
         val rt = types.get(symDef).orElse(typeInfoFromClassSym(symDef))
         //println(s"    Sym ${symDef.name} type $rt")
         rt
 
-      case expr AST_Dot name =>
+      case expr Node.Dot name =>
         val exprType = expressionType(expr, log)(ctx)
         if (log) println(s"type of member $expr.$name, class $exprType")
         for {
@@ -462,7 +462,7 @@ object Transform {
           r
         }
 
-      case expr AST_Sub name =>
+      case expr Node.Sub name =>
         //println(s"Infer type of array item $name, et ${expressionType(expr)(ctx)}")
         expressionType(expr, log)(ctx) match {
           case Some(TypeDecl(ArrayType(item))) =>
@@ -477,24 +477,24 @@ object Transform {
             None
         }
 
-      case a: AST_Array =>
+      case a: Node.Array =>
         val elementTypes = a.elements.map(expressionType(_, log)(ctx))
         val elType = elementTypes.reduceOption(typeUnionOption).flatten
         if (log) {
           println(s"  elementTypes $elementTypes => $elType")
         }
         Some(elType.map(_.map(ArrayType)).getOrElse(TypeInfo(ArrayType(AnyType), ArrayType(NoType))))
-      case a: AST_Object =>
+      case a: Node.Object =>
         Some(TypeInfo.target(ObjectOrMap))
-      case _: AST_Number =>
+      case _: Node.Number =>
         Some(TypeInfo.target(number))
-      case _: AST_String =>
+      case _: Node.String =>
         Some(TypeInfo.target(string))
-      case _: AST_Boolean =>
+      case _: Node.Boolean =>
         Some(TypeInfo.target(boolean))
 
       // Array.isArray( name ) ? name : [name]
-      case AST_Conditional(AST_Call(AST_SymbolRefName("Array") AST_Dot "isArray", isArrayArg), exprTrue, exprFalse) =>
+      case Node.Conditional(Node.Call(Node.SymbolRefName("Array") Node.Dot "isArray", isArrayArg), exprTrue, exprFalse) =>
         val exprType = expressionType(isArrayArg, log)
         //println(s"ExprType $exprType of Array.isArray( name ) ? name : [name] for $n1")
         if(exprType.exists(_.declType.isInstanceOf[ArrayType])) {
@@ -502,17 +502,17 @@ object Transform {
         } else {
           expressionType(exprFalse, log)
         }
-      case AST_Conditional(_, te, fe) =>
+      case Node.Conditional(_, te, fe) =>
         val t = expressionType(te, log)
         val f = expressionType(fe, log)
         val ret = typeUnionOption(t, f)
-        if (log) println(s"AST_Conditional $te:$t / $fe:$f = $ret")
+        if (log) println(s"Node.Conditional $te:$t / $fe:$f = $ret")
         ret
 
-      case AST_Binary(expr, `asinstanceof`, AST_SymbolRefDef(cls)) =>
+      case Node.Binary(expr, `asinstanceof`, Node.SymbolRefDef(cls)) =>
         typeInfoFromClassSym(cls, true)
 
-      case AST_Binary(left, op, right) =>
+      case Node.Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
         // result of any arithmetic op is a number
         op match {
@@ -534,18 +534,18 @@ object Transform {
           case _ =>
             None
         }
-      case AST_New(AST_SymbolRefDef(call), _*) =>
+      case Node.New(Node.SymbolRefDef(call), _*) =>
         typeInfoFromClassSym(call, true)
-      case AST_New(AST_SymbolRefDef(pack) AST_Dot call, _*) =>
+      case Node.New(Node.SymbolRefDef(pack) Node.Dot call, _*) =>
         // TODO: check if call is a known symbol and use it
         // TODO: handle package names properly
         Some(TypeInfo.both(ClassType(SymbolMapId(call, 0))))
-      case AST_Call(AST_SymbolRefDef(call), _*) =>
+      case Node.Call(Node.SymbolRefDef(call), _*) =>
         val tid = id(call)
         if (log)  println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
         types.get(tid).map(callReturn)
 
-      case AST_Call(cls AST_Dot name, _*) =>
+      case Node.Call(cls Node.Dot name, _*) =>
         val exprType = expressionType(cls, log)(ctx)
         if (log) println(s"Infer type of member call $cls.$name class $exprType")
         for {
@@ -556,14 +556,14 @@ object Transform {
           if (log) println(s"  Infer type of member call $c.$name as $r")
           callReturn(r)
         }
-      case seq: AST_Sequence =>
+      case seq: Node.Sequence =>
         expressionType(seq.expressions.last, log)(ctx)
-      case AST_SimpleStatement(ExpressionType(t)) =>
+      case Node.SimpleStatement(ExpressionType(t)) =>
         t
 
-      case AST_BlockStatement( _ :+ ExpressionType(last)) =>
+      case Node.BlockStatement( _ :+ ExpressionType(last)) =>
         last
-      case fun@AST_Lambda(args, body) =>
+      case fun@Node.Lambda(args, body) =>
         val returnType = transform.InferTypes.scanFunctionReturns(fun)(ctx)
         // TODO: use inferred argument types as well
         val argTypes = args.map(_ => any).toIndexedSeq
@@ -577,20 +577,20 @@ object Transform {
     }
   }
 
-  def isReadOnlyProperty(cls: AST_DefClass, name: String): Option[AST_Node] = {
-    var getter = Option.empty[AST_Node]
+  def isReadOnlyProperty(cls: Node.DefClass, name: String): Option[Node.Node] = {
+    var getter = Option.empty[Node.Node]
     var setter = false
     cls.properties.filter(p => propertyName(p) == name).foreach {
-      case AST_ConciseMethod(AST_SymbolName(p), _) =>
+      case Node.ConciseMethod(Node.SymbolName(p), _) =>
         //println(s"  function $p")
         //getter = true
-      case AST_ObjectKeyVal(p, value) =>
+      case Node.ObjectKeyVal(p, value) =>
         //println(s"  keyval $p")
         getter = Some(value)
-      case s: AST_ObjectSetter =>
+      case s: Node.ObjectSetter =>
         //println(s"  setter ${s.key.name}")
         setter = true
-      case AST_ObjectGetter(p, AST_Function(Seq(), Seq(AST_SimpleStatement(init)))) =>
+      case Node.ObjectGetter(p, Node.Function(Seq(), Seq(Node.SimpleStatement(init)))) =>
         // check
         //println(s"  getter init $p}")
         getter = Some(init)
@@ -600,38 +600,38 @@ object Transform {
     else None
   }
 
-  def listPrototypeMemberNames(cls: AST_DefClass): Seq[String] = {
+  def listPrototypeMemberNames(cls: Node.DefClass): Seq[String] = {
     var existingMembers = Seq.empty[String]
 
-    def addAccessor(s: AST_ObjectSetterOrGetter) = {
+    def addAccessor(s: Node.ObjectSetterOrGetter) = {
       s.key match {
-        case AST_SymbolRefName(name) =>
+        case Node.SymbolRefName(name) =>
           existingMembers = existingMembers :+ name
         case _ =>
       }
     }
 
     cls.properties.foreach {
-      case AST_ConciseMethod(AST_SymbolName(p), _) =>
+      case Node.ConciseMethod(Node.SymbolName(p), _) =>
         existingMembers = existingMembers :+ p
-      case AST_ObjectKeyVal(p, _) =>
+      case Node.ObjectKeyVal(p, _) =>
         existingMembers = existingMembers :+ p
-      case s: AST_ObjectSetter =>
+      case s: Node.ObjectSetter =>
         addAccessor(s)
-      case s: AST_ObjectGetter =>
+      case s: Node.ObjectGetter =>
         addAccessor(s)
       case _ =>
     }
     existingMembers
   }
 
-  def listDefinedClassMembers(node: AST_Extended) = {
+  def listDefinedClassMembers(node: NodeExtended) = {
     var listMembers = ClassInfo()
     node.top.walk {
-      case cls@AST_DefClass(Defined(AST_Symbol(_, _, Defined(clsSym))), base, _) =>
+      case cls@Node.DefClass(Defined(Node.Symbol(_, _, Defined(clsSym))), base, _) =>
         for (clsId <- id(clsSym)) {
           for {
-            AST_SymbolRefDef(parent) <- base
+            Node.SymbolRefDef(parent) <- base
             parentId <- id(parent)
           } {
             //println(s"Add parent $parent for $clsSym")
@@ -648,7 +648,7 @@ object Transform {
 
           // TODO: maybe parMembersInline is enough?
 
-          def listParameters(method: Option[AST_ConciseMethod]) = method.toSeq.flatMap(_.value.argnames.flatMap(Transform.symbolFromPar))
+          def listParameters(method: Option[Node.ConciseMethod]) = method.toSeq.flatMap(_.value.argnames.flatMap(Transform.symbolFromPar))
 
           val parMembers = listParameters(findConstructor(cls)).map(_.name)
           val parMembersInline = for {
@@ -673,26 +673,26 @@ object Transform {
     listMembers
   }
 
-  def listClassMembers(node: AST_Extended) = {
+  def listClassMembers(node: NodeExtended) = {
     SymbolTypes.stdClassInfo ++ listDefinedClassMembers(node)
   }
 
   // get rid of transform var XXX = function(){ function XXX(); return XXX; }()
-  def removeVarClassScope(n: AST_Node): AST_Node = {
+  def removeVarClassScope(n: Node.Node): Node.Node = {
     object DefineAndReturnClass {
       private object ReturnedExpression {
-        def unapply(arg: AST_Node) = arg match {
-          case AST_Return(Defined(x)) => // regular return
+        def unapply(arg: Node.Node) = arg match {
+          case Node.Return(Defined(x)) => // regular return
             Some(x)
-          case AST_SimpleStatement(x) => // elided trailing return
+          case Node.SimpleStatement(x) => // elided trailing return
             Some(x)
           case _ =>
             None
         }
       }
 
-      def unapply(arg: Seq[AST_Statement]) = arg match {
-        case Seq(defClass@AST_DefClass(Defined(c), _, _), ReturnedExpression(r : AST_SymbolRef)) if c.thedef == r.thedef =>
+      def unapply(arg: Seq[Node.Statement]) = arg match {
+        case Seq(defClass@Node.DefClass(Defined(c), _, _), ReturnedExpression(r : Node.SymbolRef)) if c.thedef == r.thedef =>
           Some(defClass, c)
         case _ => None
       }
@@ -700,7 +700,7 @@ object Transform {
 
     n.transformAfter { (node, _) =>
       node match {
-        case AST_Definitions(AST_VarDef(AST_SymbolDef(sym), Defined(AST_BlockStatement(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
+        case Node.Definitions(Node.VarDef(Node.SymbolDef(sym), Defined(Node.BlockStatement(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
           defClass
         case _ =>
           node
@@ -708,13 +708,13 @@ object Transform {
     }
   }
 
-  def iife(n: AST_Node): AST_Node = {
+  def iife(n: Node.Node): Node.Node = {
     //println(nodeTreeToString(n.top))
 
     // "Immediately-invoked function expression"
     object IIFE {
-      def unapply(arg: AST_Node) = arg match {
-        case AST_Call(AST_Lambda(args1, funcBody), args2@_*) if args1.isEmpty && args2.isEmpty =>
+      def unapply(arg: Node.Node) = arg match {
+        case Node.Call(Node.Lambda(args1, funcBody), args2@_*) if args1.isEmpty && args2.isEmpty =>
           Some(funcBody)
         case _ => None
 
@@ -724,7 +724,7 @@ object Transform {
     n.transformAfter { (node, _) =>
       node match {
         case IIFE(funcBody) =>
-          new AST_BlockStatement {
+          new Node.BlockStatement {
             fillTokens(this, node)
             this.body = removeReturnFromBody(funcBody).toJSArray
           }
@@ -737,10 +737,10 @@ object Transform {
   /**
     * Process xxxx.call(this, a, b, c)
     * */
-  def processCall(n: AST_Node): AST_Node = {
+  def processCall(n: Node.Node): Node.Node = {
     n.transformAfterSimple {
-      case call@AST_Call(expr AST_Dot "call", _: AST_This, a@_* ) =>
-        new AST_Call {
+      case call@Node.Call(expr Node.Dot "call", _: Node.This, a@_* ) =>
+        new Node.Call {
           fillTokens(this, call)
           this.expression = expr
           this.args = a.toJSArray
@@ -753,27 +753,27 @@ object Transform {
   }
 
   // IIFE removal sometimes leaves two scopes directly in one another
-  def removeDoubleScope(n: AST_Node): AST_Node = {
+  def removeDoubleScope(n: Node.Node): Node.Node = {
     n.transformAfter { (node, transformer) =>
       node match {
-        case AST_SimpleStatement(inner: AST_BlockStatement) =>
-          //println("Remove AST_SimpleStatement <- AST_BlockStatement")
+        case Node.SimpleStatement(inner: Node.BlockStatement) =>
+          //println("Remove Node.SimpleStatement <- Node.BlockStatement")
           inner
-        case AST_BlockStatement(Seq(inner: AST_BlockStatement)) =>
-          //println("Remove AST_BlockStatement <- AST_BlockStatement")
+        case Node.BlockStatement(Seq(inner: Node.BlockStatement)) =>
+          //println("Remove Node.BlockStatement <- Node.BlockStatement")
           inner
-        case func@AST_Function(_, Seq(AST_BlockStatement(body))) =>
-          //println("Remove AST_Function <- AST_BlockStatement")
+        case func@Node.Function(_, Seq(Node.BlockStatement(body))) =>
+          //println("Remove Node.Function <- Node.BlockStatement")
           func.body = body.toJSArray
           func
-        case func@AST_Accessor(_, Seq(AST_BlockStatement(body))) =>
-          //println("Remove AST_Accessor <- AST_BlockStatement")
+        case func@Node.Accessor(_, Seq(Node.BlockStatement(body))) =>
+          //println("Remove Node.Accessor <- Node.BlockStatement")
           func.body = body.toJSArray
           func
-        case func@AST_Lambda(_, body) =>
+        case func@Node.Lambda(_, body) =>
           //println(s"${nodeClassName(func)} in: ${transformer.parent().map(nodeClassName)}")
           func
-        case AST_BlockStatement(seq) =>
+        case Node.BlockStatement(seq) =>
           //println(seq.map(nodeClassName).mkString(","))
           node
         case _ =>
@@ -782,28 +782,28 @@ object Transform {
     }
   }
 
-  def objectAssign(n: AST_Extended): AST_Extended = {
+  def objectAssign(n: NodeExtended): NodeExtended = {
     // transform Object.assign to individual assignments
 
     val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case t: AST_Toplevel =>
+        case t: Node.Program =>
           val newBody = t.body.flatMap {
-            case s@AST_SimpleStatement(AST_Call(AST_SymbolRefName("Object") AST_Dot "assign", ts@AST_SymbolRefDef(sym), x: AST_Object)) =>
+            case s@Node.SimpleStatement(Node.Call(Node.SymbolRefName("Object") Node.Dot "assign", ts@Node.SymbolRefDef(sym), x: Node.Object)) =>
               //println(s"Assign to ${sym.name}")
               // iterate through the object defintion
               // each property replace with an individual assignment statement
               x.properties.collect {
-                case p: AST_ObjectKeyVal =>
+                case p: Node.ObjectKeyVal =>
                   //println(s"${p.key}")
-                  AST_SimpleStatement(p) {
-                    new AST_Assign {
+                  Node.SimpleStatement(p) {
+                    new Node.Assign {
                       fillTokens(this, p)
-                      left = new AST_Dot {
+                      left = new Node.Dot {
                         expression = ts
                         property = p.key
                         fillTokens(this, p)
-                        AST_SymbolRef(p)(p.key)
+                        Node.SymbolRef(p)(p.key)
                       }
                       operator = "="
                       right = p.value
@@ -823,16 +823,16 @@ object Transform {
     n.copy(top = ret, types = n.types)
   }
 
-  def onTopNode(n: AST_Node => AST_Node): AST_Extended => AST_Extended = { ext =>
+  def onTopNode(n: Node.Node => Node.Node): NodeExtended => NodeExtended = { ext =>
     val ret = n(ext.top)
-    ext.copy(top = ret.asInstanceOf[AST_Toplevel])
+    ext.copy(top = ret.asInstanceOf[Node.Program])
   }
 
-  def apply(n: AST_Extended): AST_Extended = {
+  def apply(n: NodeExtended): NodeExtended = {
 
     import transform._
 
-    val transforms = Seq[AST_Extended => AST_Extended](
+    val transforms = Seq[NodeExtended => NodeExtended](
       onTopNode(Modules.cleanupExports),
       onTopNode(Modules.inlineImports),
       onTopNode(handleIncrement),

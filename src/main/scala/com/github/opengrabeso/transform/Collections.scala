@@ -2,8 +2,7 @@ package com.github.opengrabeso
 package transform
 
 import net.gamatron.esprima._
-
-
+import esprima._
 
 object Collections {
 
@@ -11,13 +10,13 @@ object Collections {
     def append(member: String) = MemberValuePath(this, member)
     def parent: ValuePath
 
-    def unapply(arg: AST_Node): Boolean
+    def unapply(arg: Node.Node): Boolean
   }
 
   case object ThisValuePath extends ValuePath {
     def parent: ValuePath = throw new NoSuchFieldException(s"No more parents in $this")
-    def unapply(arg: AST_Node) = arg match {
-      case _: AST_This => // AST_SymbolRefDef does not match against this
+    def unapply(arg: Node.Node) = arg match {
+      case _: Node.This => // Node.SymbolRefDef does not match against this
         //println(s"ThisValuePath: match $arg")
         true
       case _ =>
@@ -29,8 +28,8 @@ object Collections {
   case class VariableValuePath(name: SymbolDef) extends ValuePath {
     def parent: ValuePath = throw new NoSuchFieldException(s"No more parents in $this")
 
-    def unapply(arg: AST_Node) = arg match {
-      case AST_SymbolDef(`name`) => // AST_SymbolRefDef does not match against this
+    def unapply(arg: Node.Node) = arg match {
+      case Node.SymbolDef(`name`) => // Node.SymbolRefDef does not match against this
         //println(s"VariableValuePath $this: match $arg against ${name.name}")
         true
       case _ =>
@@ -40,9 +39,9 @@ object Collections {
   }
   case class MemberValuePath(parent: ValuePath, member: String) extends ValuePath {
 
-    def unapply(arg: AST_Node): Boolean = {
+    def unapply(arg: Node.Node): Boolean = {
       arg match {
-        case parent() AST_Dot `member` =>
+        case parent() Node.Dot `member` =>
           //println(s"MemberValuePath $this: match $arg against $parent.$member")
           true
         case _ =>
@@ -54,15 +53,15 @@ object Collections {
   }
 
   object ValuePath {
-    def unapply(arg: AST_Node): Option[ValuePath] = {
+    def unapply(arg: Node.Node): Option[ValuePath] = {
       //println(s"ValuePath Unapply $arg")
       arg match {
-        case AST_SymbolRefDef(refDef) => // AST_SymbolRefDef does not match against this
+        case Node.SymbolRefDef(refDef) => // Node.SymbolRefDef does not match against this
           //println(s"ValuePath: Match $arg as ${refDef.name}")
           Some(VariableValuePath(refDef))
-        case _: AST_This =>
+        case _: Node.This =>
           Some(ThisValuePath)
-        case ValuePath(parent) AST_Dot name =>
+        case ValuePath(parent) Node.Dot name =>
           //println(s"ValuePath: Match $arg as $parent.$name")
           Some(parent append name)
         case _ =>
@@ -73,10 +72,10 @@ object Collections {
     }
   }
 
-  def usedOnlyAsIndex(body: AST_Node, varName: SymbolDef, objName: ValuePath): Boolean = {
+  def usedOnlyAsIndex(body: Node.Node, varName: SymbolDef, objName: ValuePath): Boolean = {
     object IndexUsage {
-      def unapply(arg: AST_Sub) = arg match {
-        case objName() AST_Sub AST_SymbolRefDef(`varName`) =>
+      def unapply(arg: Node.Sub) = arg match {
+        case objName() Node.Sub Node.SymbolRefDef(`varName`) =>
           true
         case _ =>
           false
@@ -84,7 +83,7 @@ object Collections {
     }
     var otherUse = false
     body.walk {
-      case node@AST_Assign(IndexUsage(), _, _) =>
+      case node@Node.Assign(IndexUsage(), _, _) =>
         // use on the left side of assignment - that is not allowed
         //println(s"L-value use $node")
         otherUse = true
@@ -92,7 +91,7 @@ object Collections {
       case node@IndexUsage() =>
         //println(s"Allowed use $node")
         true
-      case node@AST_SymbolRefDef(`varName`) =>
+      case node@Node.SymbolRefDef(`varName`) =>
         //println(s"Forbidden use $node")
         otherUse = true
         otherUse
@@ -102,10 +101,10 @@ object Collections {
     !otherUse
   }
 
-  def transformIndexUse(body: AST_Node, varName: SymbolDef, objName: ValuePath): AST_Node = {
+  def transformIndexUse(body: Node.Node, varName: SymbolDef, objName: ValuePath): Node.Node = {
     body.transformAfter {(node, _) =>
       node match {
-        case objName() AST_Sub (varRef@AST_SymbolRefDef(`varName`)) =>
+        case objName() Node.Sub (varRef@Node.SymbolRefDef(`varName`)) =>
           varRef
         case _ =>
           node
@@ -114,15 +113,15 @@ object Collections {
     }
   }
 
-  def substituteIndex(forStatement: AST_ForIn, varName: SymbolDef) = {
+  def substituteIndex(forStatement: Node.ForIn, varName: SymbolDef) = {
     // if there is a single variable inside of the body as const xx = varName and varName it not used otherwise, substitute it
     var otherUse = false
     var subst = Option.empty[SymbolDef]
     forStatement.body.walk {
-      case AST_Const(AST_VarDef(AST_SymbolDef(name), Defined(AST_SymbolRefDef(`varName`)))) =>
+      case Node.Const(Node.VarDef(Node.SymbolDef(name), Defined(Node.SymbolRefDef(`varName`)))) =>
         subst = Some(name)
         true
-      case AST_SymbolRefDef(`varName`) =>
+      case Node.SymbolRefDef(`varName`) =>
         otherUse = true
         otherUse
       case _ =>
@@ -137,40 +136,40 @@ object Collections {
       // the body now contains "const substName = substName, remove it
       forStatement.body = forStatement.body.transformAfter {(node, _) =>
         node match {
-          case AST_Const(AST_VarDef(AST_SymbolDef(`substName`), Defined(AST_SymbolRefDef(`substName`)))) =>
-            AST_EmptyStatement(node)
+          case Node.Const(Node.VarDef(Node.SymbolDef(`substName`), Defined(Node.SymbolRefDef(`substName`)))) =>
+            Node.EmptyStatement(node)
           case _ =>
             node
         }
       }
       Variables.renameVariable(forStatement.init, varName, substName.name, substName)
-      forStatement.name = AST_SymbolRef.symDef(forStatement.init)(substName)
+      forStatement.name = Node.SymbolRef.symDef(forStatement.init)(substName)
     }
   }
 
 
-  def transformFor(forStatement: AST_ForIn, varName: SymbolDef, objName: ValuePath): AST_ForIn = {
+  def transformFor(forStatement: Node.ForIn, varName: SymbolDef, objName: ValuePath): Node.ForIn = {
     transformIndexUse(forStatement.body, varName, objName)
     substituteIndex(forStatement, varName)
     forStatement
   }
-  def apply(n: AST_Node): AST_Node = {
+  def apply(n: Node.Node): Node.Node = {
 
     n.transformAfter { (node, _) =>
       node match {
 
-        case forStatement@ForRange(varName, "until", initVar@AST_Number(0), (obj@ValuePath(objName)) AST_Dot "length", AST_Number(1))
+        case forStatement@ForRange(varName, "until", initVar@Node.Number(0), (obj@ValuePath(objName)) Node.Dot "length", Node.Number(1))
           if usedOnlyAsIndex(forStatement.body, varName, objName) =>
-          // note: AST_ForOf would be more appropriate, however it is not present yet in the Uglify AST we use
+          // note: Node.ForOf would be more appropriate, however it is not present yet in the Uglify AST we use
           //println(s"Detect for ..in $forStatement")
-          val newFor = new AST_ForIn {
+          val newFor = new Node.ForIn {
             fillTokens(this, node)
             this.`object` = obj
-            this.init = AST_Let(node)(AST_VarDef.uninitialized(node)(varName.name))
-            this.name = AST_SymbolRef.symDef(node)(varName)
+            this.init = Node.Let(node)(Node.VarDef.uninitialized(node)(varName.name))
+            this.name = Node.SymbolRef.symDef(node)(varName)
             this.body = forStatement.body
           }
-          transformFor(newFor, varName, objName).asInstanceOf[AST_Statement]
+          transformFor(newFor, varName, objName).asInstanceOf[Node.Statement]
         case _ =>
           node
       }

@@ -4,7 +4,7 @@ package classes
 
 import Classes._
 import net.gamatron.esprima._
-
+import esprima._
 
 import SymbolTypes.SymbolMapId
 
@@ -15,7 +15,7 @@ object ClassList {
 
   implicit def classesFromClassList(cl: ClassList):  Map[ClassId, ClassDef] = cl.classes
 
-  private [classes] def apply(n: AST_Node): ClassList = {
+  private [classes] def apply(n: Node.Node): ClassList = {
     var classes = new ClassList
     var classNames = Set.empty[ClassId]
 
@@ -35,30 +35,30 @@ object ClassList {
 
     n.walk {
       // new XXX()
-      case `n` => // the scope itself should never be considered a symbol (can be AST_DefClass)
+      case `n` => // the scope itself should never be considered a symbol (can be Node.DefClass)
         false
-      case AST_New(AST_SymbolRefDef(call), _*) =>
-        //println(s"AST_New ${call.name}")
+      case Node.New(Node.SymbolRefDef(call), _*) =>
+        //println(s"Node.New ${call.name}")
         classNames += ClassId(call)
         false
 
       // any use of XXX.prototype probably marks a class
-      case AST_SymbolRefDef(name) AST_Dot "prototype" =>
-        //println(s"AST_SymbolRefDef ${name.name}")
+      case Node.SymbolRefDef(name) Node.Dot "prototype" =>
+        //println(s"Node.SymbolRefDef ${name.name}")
         classNames += ClassId(name)
         false
-      case AST_DefClass(Defined(name), _, _) =>
-        //println(s"AST_DefClass ${name.name}")
+      case Node.DefClass(Defined(name), _, _) =>
+        //println(s"Node.DefClass ${name.name}")
         classNames += ClassId(name)
         true
 
       /* the rule did more harm than good - functions are sometimes defined externally
       // use of this in a function most likely means the function is a constructor
-      case (_: AST_This) AST_Dot _ =>
+      case (_: Node.This) Node.Dot _ =>
         for {
-          fun <- walker.stack.reverse.collectFirst { case c: AST_Lambda => c }
+          fun <- walker.stack.reverse.collectFirst { case c: Node.Lambda => c }
           sym <- fun.name.nonNull
-          Some(sym: AST_SymbolDefun) <- sym.thedef.nonNull.map(_.orig.headOption)
+          Some(sym: Node.SymbolDefun) <- sym.thedef.nonNull.map(_.orig.headOption)
         } {
           //println(s"Detected class ${sym.name}")
           classNames += sym.name
@@ -76,7 +76,7 @@ object ClassList {
     }
 
 
-    def processPrototype(name: ClassId, prototypeDef: AST_Object, isStatic: Boolean = false) = {
+    def processPrototype(name: ClassId, prototypeDef: Node.Object, isStatic: Boolean = false) = {
       val clazz = classes.getOrElse(name, ClassDef(staticOnly = isStatic))
 
       classes += name -> prototypeDef.properties.foldLeft(clazz) { (clazz, m) =>
@@ -95,13 +95,13 @@ object ClassList {
           def addSetter(member: ClassFunMember) = clazz.copy(setters = clazz.setters + (key -> member))
 
           m match {
-            case kv: AST_ObjectKeyVal =>
-              //println(s"Add AST_ObjectKeyVal $key")
+            case kv: Node.ObjectKeyVal =>
+              //println(s"Add Node.ObjectKeyVal $key")
               if (isStatic) {
                 addMember(ClassVarMember(kv.value))
               } else {
                 kv.value match {
-                  case AST_Function(args, body) =>
+                  case Node.Function(args, body) =>
                     //println(s"Add fun member ${kv.key}")
                     addMember(ClassFunMember(args, body))
                   case v =>
@@ -109,13 +109,13 @@ object ClassList {
                     addMember(ClassVarMember(v))
                 }
               }
-            case m: AST_ConciseMethod =>
-              //println(s"Add AST_ConciseMethod $key")
+            case m: Node.ConciseMethod =>
+              //println(s"Add Node.ConciseMethod $key")
               addMember(ClassFunMember(m.value.argnames, m.value.body))
-            case p: AST_ObjectGetter =>
+            case p: Node.ObjectGetter =>
               assert(!isStatic)
               addGetter(ClassFunMember(p.value.argnames, p.value.body))
-            case p: AST_ObjectSetter =>
+            case p: Node.ObjectSetter =>
               assert(!isStatic)
               addSetter(ClassFunMember(p.value.argnames, p.value.body))
 
@@ -134,18 +134,18 @@ object ClassList {
       }
     }
 
-    def processBody(clsId: SymbolMapId, body: Seq[AST_Statement]) = {
+    def processBody(clsId: SymbolMapId, body: Seq[Node.Statement]) = {
       // constructor may contain property definitions
       // note: we do not currently handle property definitions in any inner scopes
       val bodyFiltered = body.filter {
         //Object.defineProperty( this, 'id', { value: textureId ++ } );
-        case AST_SimpleStatement(AST_Call(
-        AST_SymbolRefName("Object") AST_Dot "defineProperty", _: AST_This, prop: AST_String,
-        AST_Object(properties)
+        case Node.SimpleStatement(Node.Call(
+        Node.SymbolRefName("Object") Node.Dot "defineProperty", _: Node.This, prop: Node.String,
+        Node.Object(properties)
         )) =>
           //println(s"Detect defineProperty ${sym.name}.${prop.value}")
           properties.foreach {
-            case p: AST_ObjectKeyVal => classes.defineSingleProperty(clsId, prop.value, p)
+            case p: Node.ObjectKeyVal => classes.defineSingleProperty(clsId, prop.value, p)
             case _ =>
           }
           false
@@ -159,7 +159,7 @@ object ClassList {
 
       case `n` => // always enter into the scope we are processing
         false
-      case defun@ClassDefineValue(AST_SymbolDef(symDef), args, body, proto) =>
+      case defun@ClassDefineValue(Node.SymbolDef(symDef), args, body, proto) =>
         for {
           clsId <- SymbolTypes.id(symDef) if classNames contains clsId
         } {
@@ -167,17 +167,17 @@ object ClassList {
           val funScope = defun
           //println(s"Constructor ${symDef.name} returning value, funScope $funScope")
 
-          def transformReferences[T <: AST_Node](n: T): T = {
+          def transformReferences[T <: Node.Node](n: T): T = {
             n.transformAfter { (node, _) =>
               node match {
-                case AST_SymbolRef(name, _, Defined(symbolDef)) =>
+                case Node.SymbolRef(name, _, Defined(symbolDef)) =>
                   //println(s"Check reference $name, ${symbolDef.scope}")
                   if (funScope == symbolDef.scope) {
                     //println(s"Transform reference $name")
 
-                    new AST_Dot {
+                    new Node.Dot {
                       fillTokens(this, node)
-                      expression = AST_This().withTokens(node)
+                      expression = Node.This().withTokens(node)
                       property = name
                     }
                   } else node
@@ -186,7 +186,7 @@ object ClassList {
               }
             }
           }
-          def transformReferencesInBody(body: Seq[AST_Statement]): Seq[AST_Statement] = {
+          def transformReferencesInBody(body: Seq[Node.Statement]): Seq[Node.Statement] = {
             body.map(transformReferences)
           }
 
@@ -195,22 +195,22 @@ object ClassList {
           //val c = classes.defClass(clsId)
           object res {
             var clazz = new ClassDef
-            val body = ArrayBuffer.empty[AST_Statement]
+            val body = ArrayBuffer.empty[Node.Statement]
           }
 
           body.foreach {
-            case AST_Defun(Defined(AST_SymbolDef(sym)), fArgs, fBody) =>
+            case Node.Defun(Defined(Node.SymbolDef(sym)), fArgs, fBody) =>
               val member = ClassFunMember(fArgs, transformReferencesInBody(fBody))
               res.clazz = res.clazz.addMember(sym.name, member)
-            case AST_Definitions(vars@_*) =>
+            case Node.Definitions(vars@_*) =>
               //println("Vardef")
               vars.foreach {
-                case AST_VarDef(AST_SymbolName(vName), Defined(vValue)) =>
+                case Node.VarDef(Node.SymbolName(vName), Defined(vValue)) =>
                   val member = ClassVarMember(vValue)
                   res.clazz = res.clazz.addValue(vName, member)
-                case vd@AST_VarDef(AST_SymbolName(vName), _) =>
+                case vd@Node.VarDef(Node.SymbolName(vName), _) =>
                   //println(s"value member $vName as undefined")
-                  val member = ClassVarMember(AST_EmptyStatement(vd))
+                  val member = ClassVarMember(Node.EmptyStatement(vd))
                   res.clazz = res.clazz.addValue(vName, member)
               }
             case s =>
@@ -220,13 +220,13 @@ object ClassList {
 
 
           proto.foreach {
-            case AST_ObjectKeyVal(name, value) =>
+            case Node.ObjectKeyVal(name, value) =>
               //println(s"$name, $value")
               value match {
-                case AST_SymbolName(`name`) => // same name, no need for any action
-                case AST_SymbolName(other) =>
+                case Node.SymbolName(`name`) => // same name, no need for any action
+                case Node.SymbolName(other) =>
                   res.clazz = res.clazz.renameMember(other, name)
-                case AST_Lambda(fArgs, fBody) =>
+                case Node.Lambda(fArgs, fBody) =>
                   val member = ClassFunMember(fArgs, transformReferencesInBody(fBody))
                   res.clazz = res.clazz.addMember(name, member)
                 case _ =>
@@ -247,7 +247,7 @@ object ClassList {
         }
         true
 
-      case ClassDefine(AST_SymbolDef(symDef), args, body) =>
+      case ClassDefine(Node.SymbolDef(symDef), args, body) =>
         for (clsId <- SymbolTypes.id(symDef) if classNames contains clsId ) {
           // looks like a constructor
           //println("Constructor " + symDef.name)
@@ -269,7 +269,7 @@ object ClassList {
         }
         true
 
-      case DefineProperty(name, prop, Seq(property: AST_ObjectKeyVal)) if classes.contains(name) =>
+      case DefineProperty(name, prop, Seq(property: Node.ObjectKeyVal)) if classes.contains(name) =>
         //println(s"Detected DefineProperty $name.$prop  ${nodeClassName(property)}")
         classes.defineSingleProperty(name, prop, property)
         true
@@ -277,10 +277,10 @@ object ClassList {
       case DefineProperties(name, properties) if classes.contains(name) =>
         //println(s"Detected DefineProperties $name")
         properties.foreach {
-          case AST_ObjectKeyVal(key, AST_Object(props)) =>
+          case Node.ObjectKeyVal(key, Node.Object(props)) =>
             //println(s"  property $key")
             props.foreach {
-              case p: AST_ObjectKeyVal =>
+              case p: Node.ObjectKeyVal =>
                 //println(s"  sub property ${p.key} ${nodeClassName(p.value)}")
                 classes.defineSingleProperty(name, key, p)
 
@@ -325,10 +325,10 @@ object ClassList {
           classes.defineStaticMember(clsName, member, value)
         }
         true
-      case AST_DefClass(Defined(clsSym), _, _) =>
+      case Node.DefClass(Defined(clsSym), _, _) =>
         createClassAsNeeded(ClassId(clsSym))
         true
-      case _: AST_Scope =>
+      case _: Node.Scope =>
         // do not enter any other scopes, they will be handled by recursion
         true
 
@@ -353,14 +353,14 @@ class ClassList {
 
   def defClass(name: ClassId): ClassDef = classes.getOrElse(name, new ClassDef)
 
-  def defineSingleProperty(name: ClassId, key: String, p: AST_ObjectKeyVal) = {
+  def defineSingleProperty(name: ClassId, key: String, p: Node.ObjectKeyVal) = {
     (p.value, p.key) match {
-      case (fun: AST_Function, "get") =>
+      case (fun: Node.Function, "get") =>
         //println(s"Add getter ${pp.key}")
         // new lookup needed for classes(name), multiple changes can be chained
         val c = defClass(name)
         classes += name -> c.copy(getters = c.getters + (key -> ClassFunMember(fun.argnames, fun.body)))
-      case (fun: AST_Function, "set") =>
+      case (fun: Node.Function, "set") =>
         //println(s"Add setter ${pp.key}")
         val c = defClass(name)
         classes += name -> c.copy(setters = c.setters + (key -> ClassFunMember(fun.argnames, fun.body)))
@@ -376,12 +376,12 @@ class ClassList {
     }
   }
 
-  def defineStaticMember(name: ClassId, key: String, value: AST_Node) = {
+  def defineStaticMember(name: ClassId, key: String, value: Node.Node) = {
     //println(s"defineStaticMember $name.$key ${ScalaOut.outputNode(value)}")
     val c = defClass(name)
     if (!(c.membersStatic contains key)) {
       val member = value match {
-        case AST_Function(args, body) =>
+        case Node.Function(args, body) =>
           //println(s"Define static fun $key")
           ClassFunMember(args, body)
         case _ =>

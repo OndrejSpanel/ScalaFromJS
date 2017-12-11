@@ -1,10 +1,10 @@
 package com.github.opengrabeso
 
 import net.gamatron.esprima._
-
+import esprima._
 
 import CommandLine._
-import com.github.opengrabeso.Transform.AST_Extended
+import com.github.opengrabeso.Transform.NodeExtended
 
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
@@ -15,32 +15,32 @@ import scala.reflect.ClassTag
 
 object ConvertProject {
 
-  def loadStringValue(o: AST_Object, name: String): Option[String] = {
+  def loadStringValue(o: Node.Object, name: String): Option[String] = {
     o.properties.collectFirst {
-      case AST_ObjectKeyVal(`name`, AST_String(value)) =>
+      case Node.ObjectKeyVal(`name`, Node.String(value)) =>
         value
-      case AST_ObjectKeyVal(`name`, AST_Array(lines@_*)) =>
+      case Node.ObjectKeyVal(`name`, Node.Array(lines@_*)) =>
         val lineStrings = lines.collect {
-          case s: AST_String => s.value
+          case s: Node.String => s.value
         }
         lineStrings.mkString("\n")
     }
   }
 
-  def loadRequiredStringValue(o: AST_Object, name: String): String = {
+  def loadRequiredStringValue(o: Node.Object, name: String): String = {
     val opt = loadStringValue(o, name)
     opt.getOrElse {
       throw new UnsupportedOperationException(s"Missing entry '$name'")
     }
   }
   trait Rule {
-    def apply(c: AST_Extended): AST_Extended
+    def apply(c: NodeExtended): NodeExtended
   }
 
   case class MemberDesc(cls: RegExp, name: RegExp)
 
   object MemberDesc {
-    def load(o: AST_Object): MemberDesc = {
+    def load(o: Node.Object): MemberDesc = {
       val cls = RegExp(loadRequiredStringValue(o, "cls"))
       val name = RegExp(loadRequiredStringValue(o, "name"))
       MemberDesc(cls, name)
@@ -48,44 +48,44 @@ object ConvertProject {
   }
 
   case class DeleteMemberRule(member: MemberDesc) extends Rule {
-    override def apply(n: AST_Extended) = {
+    override def apply(n: NodeExtended) = {
       transform.classes.Rules.deleteMembers(n, member)
     }
   }
 
   case class IsClassMemberRule(member: MemberDesc) extends Rule {
-    override def apply(n: AST_Extended) = {
+    override def apply(n: NodeExtended) = {
       transform.classes.Rules.replaceIsClass(n, member)
     }
   }
 
   case class GetClassMemberRule(member: MemberDesc) extends Rule {
-    override def apply(n: AST_Extended) = {
+    override def apply(n: NodeExtended) = {
       transform.classes.Rules.replaceGetClass(n, member)
     }
   }
 
   case class MakePropertyRule(member: MemberDesc) extends Rule {
-    override def apply(n: AST_Extended) = {
+    override def apply(n: NodeExtended) = {
       transform.classes.Rules.makeProperties(n, member)
     }
   }
 
   case class ReplicateMemberRule(member: MemberDesc, template: String) extends Rule {
-    override def apply(n: AST_Extended) = {
+    override def apply(n: NodeExtended) = {
       transform.classes.Rules.substMember(n, member, template)
     }
 
   }
 
   case class RemoveScopeRule(scope: List[String]) extends Rule {
-    override def apply(n: AST_Extended) = {
+    override def apply(n: NodeExtended) = {
       transform.classes.Rules.removeScope(n, scope)
     }
   }
 
   case class AliasPackageRule(folder: String, name: String, template: Option[String]) extends Rule {
-    override def apply(n: AST_Extended) = n
+    override def apply(n: NodeExtended) = n
     def namePackage(path: String): Option[String] = {
       if (path startsWith folder) {
         val aliased = name ++ path.drop(folder.length)
@@ -105,7 +105,7 @@ object ConvertProject {
   }
 
   object AliasPackageRule {
-    def load(o: AST_Object): AliasPackageRule = {
+    def load(o: Node.Object): AliasPackageRule = {
       val folder = loadRequiredStringValue(o, "folder")
       val name = loadRequiredStringValue(o, "name")
       val template = loadStringValue(o, "template")
@@ -117,7 +117,7 @@ object ConvertProject {
     * The real functionality of the regex rule is outside of AST processing, as a text only postprocess
     * */
   case class RegexPostprocessRule(find: String, replace: String) extends Rule {
-    def apply(c: AST_Extended): AST_Extended = c
+    def apply(c: NodeExtended): NodeExtended = c
 
     def transformText(src: String): String = {
       src.replaceAll(find, replace)
@@ -137,11 +137,11 @@ object ConvertProject {
 
   object ConvertConfig {
 
-    def load(props: Seq[AST_ObjectProperty]) = {
+    def load(props: Seq[Node.ObjectProperty]) = {
       val rules: Seq[Rule] = props.flatMap {
-        case AST_ObjectKeyVal("members", a: AST_Array) =>
+        case Node.ObjectKeyVal("members", a: Node.Array) =>
           a.elements.toSeq.flatMap {
-            case o: AST_Object =>
+            case o: Node.Object =>
               val m = MemberDesc.load(o)
               val op = loadStringValue(o, "operation")
               op match {
@@ -164,9 +164,9 @@ object ConvertProject {
             case _ =>
               None
           }
-        case AST_ObjectKeyVal("packages", a: AST_Array) =>
+        case Node.ObjectKeyVal("packages", a: Node.Array) =>
           a.elements.toSeq.flatMap {
-            case o: AST_Object =>
+            case o: Node.Object =>
               val op = loadStringValue(o, "operation")
               val folder = loadStringValue(o, "folder")
               op match {
@@ -180,9 +180,9 @@ object ConvertProject {
             case _ =>
               None
           }
-        case AST_ObjectKeyVal("symbols", a: AST_Array) =>
+        case Node.ObjectKeyVal("symbols", a: Node.Array) =>
           a.elements.toSeq.flatMap {
-            case o: AST_Object =>
+            case o: Node.Object =>
               val op = loadStringValue(o, "operation")
               //println(s"op $op")
               val name = loadRequiredStringValue(o, "name")
@@ -201,9 +201,9 @@ object ConvertProject {
             case _ =>
               None
           }
-        case AST_ObjectKeyVal("postprocess", a: AST_Array) =>
+        case Node.ObjectKeyVal("postprocess", a: Node.Array) =>
           a.elements.toSeq.flatMap {
-            case o: AST_Object =>
+            case o: Node.Object =>
               val op = loadStringValue(o, "operation")
               op match {
                 case Some("replace") =>
@@ -216,7 +216,7 @@ object ConvertProject {
             case _ =>
               None
           }
-        case AST_ObjectKeyVal(name, _) =>
+        case Node.ObjectKeyVal(name, _) =>
           throw new UnsupportedOperationException(s"Unexpected config entry $name")
         case n =>
           throw new UnsupportedOperationException(s"Unexpected config entry of type ${nodeClassName(n)}")
@@ -244,12 +244,12 @@ object ConvertProject {
     }
   }
 
-  def loadConfig(ast: AST_Toplevel): (ConvertConfig, AST_Toplevel) = {
+  def loadConfig(ast: Node.Program): (ConvertConfig, Node.Program) = {
     var readConfig = Option.empty[ConvertConfig]
 
     object GetConfig {
-      def unapply(arg: AST_Node) = arg match {
-        case AST_Definitions(AST_VarDef(AST_SymbolName(`configName`), AST_Object(props))) =>
+      def unapply(arg: Node.Node) = arg match {
+        case Node.Definitions(Node.VarDef(Node.SymbolName(`configName`), Node.Object(props))) =>
           Some(props)
         case _ =>
           None
@@ -260,9 +260,9 @@ object ConvertProject {
       case GetConfig(props) =>
         readConfig = Some(ConvertConfig.load(props))
         false
-      case _: AST_Toplevel =>
+      case _: Node.Program =>
         false
-      case _: AST_Scope =>
+      case _: Node.Scope =>
         true // do not descend into any other scopes, we expect the config at the top level only
       case _ =>
         false
@@ -273,7 +273,7 @@ object ConvertProject {
       ast.transformAfter { (node, _) =>
         node match {
           case GetConfig(_) =>
-            AST_EmptyStatement(node)
+            Node.EmptyStatement(node)
           case _ =>
             node
         }
@@ -374,7 +374,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     val exampleBuffer = new mutable.ArrayBuffer[(String, String)]
     val includeBuffer = new mutable.ArrayBuffer[(String, String)]
     ast.walk {
-      case i: AST_Import =>
+      case i: Node.Import =>
         i.start.foreach { s =>
           val example = s.comments_before.exists {commentToken =>
             val comment = commentToken.value.asInstanceOf[String]
@@ -384,7 +384,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
           target append readJsFile(resolveSibling(pathForOffset(s.pos), i.module_name.value))
         }
         false
-      case e: AST_Export =>
+      case e: Node.Export =>
         // ignore exports in imported files
         e.start.foreach { s =>
           val index = indexOfItem(s.pos)
@@ -464,7 +464,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       minify(compositeFile, defaultUglifyOptions).top
     }
 
-    val ext = AST_Extended(ast).loadConfig
+    val ext = NodeExtended(ast).loadConfig
 
     val astOptimized = if (true) Transform(ext) else ext
 

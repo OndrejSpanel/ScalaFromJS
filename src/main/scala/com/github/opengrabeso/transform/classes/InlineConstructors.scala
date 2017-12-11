@@ -3,7 +3,7 @@ package transform
 package classes
 
 import net.gamatron.esprima._
-
+import esprima._
 
 import Classes._
 import Expressions._
@@ -18,27 +18,27 @@ object InlineConstructors {
   private case class PrivateMember(sym: SymbolDef, isVal: Boolean)
 
   private object AssignToMember {
-    def unapply(arg: AST_Node): Option[(String, AST_Node)] = arg match {
-      case SingleStatement(AST_Assign(AST_This() AST_Dot funName, "=", value)) =>
+    def unapply(arg: Node.Node): Option[(String, Node.Node)] = arg match {
+      case SingleStatement(Node.Assign(Node.This() Node.Dot funName, "=", value)) =>
         Some(funName, value)
       case _ =>
         None
     }
   }
   private object DefinePrivateFunction {
-    def unapply(arg: AST_Statement): Option[(String, AST_Lambda)] = arg match {
-      case AssignToMember(funName, lambda: AST_Lambda) =>
+    def unapply(arg: Node.Statement): Option[(String, Node.Lambda)] = arg match {
+      case AssignToMember(funName, lambda: Node.Lambda) =>
         Some(funName, lambda)
       case _ =>
         None
     }
   }
 
-  private def detectPrivateFunctions(n: AST_Lambda) = {
+  private def detectPrivateFunctions(n: Node.Lambda) = {
     // detect exported functions
-    var localLambdas = Set.empty[AST_Lambda]
+    var localLambdas = Set.empty[Node.Lambda]
     n.walk {
-      case fun: AST_Lambda if fun != n =>
+      case fun: Node.Lambda if fun != n =>
         localLambdas += fun
         true
       case _ =>
@@ -48,17 +48,17 @@ object InlineConstructors {
     //println(s"localLambdas $localLambdas")
     // detect functions which are not exported - i.e. local named function not assigned to anything
 
-    def localLambdaByName(name: String): Option[AST_Lambda] = {
+    def localLambdaByName(name: String): Option[Node.Lambda] = {
       localLambdas.find(_.name.nonNull.exists(_.name == name))
     }
 
-    var isExported = Set.empty[AST_Lambda]
+    var isExported = Set.empty[Node.Lambda]
     n.walk {
       case DefinePrivateFunction(_, lambda) =>
         assert(localLambdas contains lambda)
         isExported += lambda
         true
-      case AssignToMember(_, AST_SymbolRefName(funName)) =>
+      case AssignToMember(_, Node.SymbolRefName(funName)) =>
         val isLocal = localLambdaByName(funName)
         isExported ++= isLocal
         isLocal.nonEmpty
@@ -67,14 +67,14 @@ object InlineConstructors {
     }
 
 
-    val definedFunctions = localLambdas.filter(_.isInstanceOf[AST_Defun])
+    val definedFunctions = localLambdas.filter(_.isInstanceOf[Node.Defun])
     //println(s"definedFunctions $definedFunctions")
 
-    var definedAndExported = Set.empty[AST_Lambda]
+    var definedAndExported = Set.empty[Node.Lambda]
     n.walk {
-      case AST_Call(AST_SymbolRefName(_), _*) =>
+      case Node.Call(Node.SymbolRefName(_), _*) =>
         true // a plain call, do not dive into
-      case AST_SymbolRefName(funName) if localLambdas.exists(_.name.nonNull.exists(_.name == funName)) =>
+      case Node.SymbolRefName(funName) if localLambdas.exists(_.name.nonNull.exists(_.name == funName)) =>
         definedAndExported ++= localLambdas.filter(_.name.nonNull.exists(_.name == funName))
         true
       case _ =>
@@ -95,19 +95,19 @@ object InlineConstructors {
 
     // detect calls from exported functions
 
-    def transitiveClosure(functions: Set[AST_Lambda]): Set[AST_Lambda] = {
+    def transitiveClosure(functions: Set[Node.Lambda]): Set[Node.Lambda] = {
       var called = functions
       var someChange = false
       n.walkWithDescend { (node, _, walker) =>
         node match {
           // any use other than a definition should be enough to export the function as well
-          case _: AST_Lambda =>
+          case _: Node.Lambda =>
             false
-          case AST_SymbolRefName(sym) =>
+          case Node.SymbolRefName(sym) =>
             for {
               fun <- localLambdaByName(sym)
               inFunction <- walker.stack.reverse.collectFirst {
-                case c: AST_Lambda =>
+                case c: Node.Lambda =>
                   //println(s"Found ${c.name.map(_.name)}")
                   c
               }
@@ -129,7 +129,7 @@ object InlineConstructors {
     transitiveClosure(exportedDirectly)
   }
 
-  private def detectPrivateMembers(n: AST_Lambda): Seq[PrivateMember] = {
+  private def detectPrivateMembers(n: Node.Lambda): Seq[PrivateMember] = {
     // any variable defined in the main body scope and references from any function is considered a private member
     //n.variables = Dictionary.empty[SymbolDef]
     val functions = detectPrivateFunctions(n)
@@ -143,7 +143,7 @@ object InlineConstructors {
       (_, sym) <- variables
       // empty 'references' means automatic symbol, like "arguments"
       rs <- refs.refs.get(sym)
-      if (rs -- Set(n)).intersect(functions.asInstanceOf[Set[AST_Scope]]).nonEmpty
+      if (rs -- Set(n)).intersect(functions.asInstanceOf[Set[Node.Scope]]).nonEmpty
     } yield {
       sym
     }
@@ -160,12 +160,12 @@ object InlineConstructors {
   }
 
 
-  def privateVariables(n: AST_Node): AST_Node = {
+  def privateVariables(n: Node.Node): Node.Node = {
     n.transformAfter { (node, _) =>
       node match {
-        case cls: AST_DefClass =>
+        case cls: Node.DefClass =>
           for {
-            constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
+            constructorProperty@Node.ConciseMethod(_, rawConstructor: Node.Lambda) <- findConstructor(cls)
           } {
             val allLocals = detectPrivateMembers(rawConstructor)
             // convert private variables to members (TODO: mark them as private somehow)
@@ -178,17 +178,17 @@ object InlineConstructors {
 
             val locals = allLocals diff constructorParameters
 
-            def newThisDotMember(member: String) = new AST_Dot {
-              expression = AST_This()
+            def newThisDotMember(member: String) = new Node.Dot {
+              expression = Node.This()
               property = member
             }
 
-            def privateMember(v: SymbolDef): AST_Node = newThisDotMember(v.name)
+            def privateMember(v: SymbolDef): Node.Node = newThisDotMember(v.name)
 
             val constructor = locals.foldLeft(rawConstructor) { (constructor, privateVar) =>
               val replacedInit = replaceVariableInit(constructor, privateVar.sym) { (sym, init) =>
-                new AST_SimpleStatement {
-                  body = new AST_Assign {
+                new Node.SimpleStatement {
+                  body = new Node.Assign {
                     left = newThisDotMember(sym.name)
                     operator = "="
                     right = init.clone()
@@ -206,9 +206,9 @@ object InlineConstructors {
             val clsTokenDef = classTokenSource(cls)
 
             val vars = locals.map { local =>
-              val varDecl = if (local.isVal) new AST_Const else new AST_Var
+              val varDecl = if (local.isVal) new Node.Const else new Node.Var
               fillTokens(varDecl, clsTokenDef)
-              varDecl.definitions = js.Array(AST_VarDef.uninitializedSym(clsTokenDef)(local.sym))
+              varDecl.definitions = js.Array(Node.VarDef.uninitializedSym(clsTokenDef)(local.sym))
               //println(s"privateVariables ${local.sym.name} $varDecl ${cls.start.get.pos}")
               varDecl
             }
@@ -216,7 +216,7 @@ object InlineConstructors {
             if (vars.nonEmpty) {
               val accessor = classInlineBody(cls, clsTokenDef)
 
-              accessor.body ++= (vars: Iterable[AST_Statement]).toJSArray
+              accessor.body ++= (vars: Iterable[Node.Statement]).toJSArray
               //println(s"privateVariables newMembers $vars")
 
               // remove overwritten members
@@ -231,14 +231,14 @@ object InlineConstructors {
     }
   }
 
-  def privateFunctions(n: AST_Node): AST_Node = {
+  def privateFunctions(n: Node.Node): Node.Node = {
     val log = false
 
     n.transformAfter { (node, _) =>
       node match {
-        case cls: AST_DefClass =>
+        case cls: Node.DefClass =>
           for {
-            constructorProperty@AST_ConciseMethod(_, rawConstructor: AST_Lambda) <- findConstructor(cls)
+            constructorProperty@Node.ConciseMethod(_, rawConstructor: Node.Lambda) <- findConstructor(cls)
           } {
             val functionsToConvert = detectPrivateFunctions(rawConstructor)
             if (log) println(s"functionsToConvert ${functionsToConvert.toSeq.map(_.name)}")
@@ -246,14 +246,14 @@ object InlineConstructors {
             val functions = rawConstructor.body.collect {
               case s@DefinePrivateFunction(funName, f) if functionsToConvert contains f =>
                 (s, funName, f)
-              case s@AST_Defun(Defined(AST_SymbolName(funName)), _, _) if functionsToConvert contains s =>
+              case s@Node.Defun(Defined(Node.SymbolName(funName)), _, _) if functionsToConvert contains s =>
                 (s, funName, s)
             }
 
             val restRaw = rawConstructor.body diff functions.map(_._1)
 
             val rest = restRaw.filter {
-              case AST_SimpleStatement(AST_Assign(AST_This() AST_Dot tgtName, "=", AST_SymbolRefName(funName)))
+              case Node.SimpleStatement(Node.Assign(Node.This() Node.Dot tgtName, "=", Node.SymbolRefName(funName)))
                 // TODO: relax tgtName == funName requirement
                 if tgtName == funName && (functionsToConvert exists (_.name.nonNull.exists(_.name==funName))) =>
                 //if (log) println(s"Drop assign $funName")
@@ -267,9 +267,9 @@ object InlineConstructors {
             // add functions as methods
             cls.properties = cls.properties ++ functions.map {
               case (statement, funName, lambda) =>
-                new AST_ConciseMethod {
+                new Node.ConciseMethod {
                   fillTokens(this, node)
-                  key = new AST_SymbolMethod {
+                  key = new Node.SymbolMethod {
                     /*_*/
                     fillTokens(this, node)
                     /*_*/
@@ -277,7 +277,7 @@ object InlineConstructors {
                     // scope, thedef will be filled
 
                   }
-                  value = new AST_Accessor {
+                  value = new Node.Accessor {
                     fillTokens(this, node)
                     name = lambda.name
                     argnames = lambda.argnames
@@ -298,18 +298,18 @@ object InlineConstructors {
     }
   }
 
-  def apply(n: AST_Extended): AST_Extended = {
+  def apply(n: NodeExtended): NodeExtended = {
     var types = n.types
     val r = n.top.transformAfter { (node, _) =>
       node match {
-        case cls: AST_DefClass =>
+        case cls: Node.DefClass =>
           val clsTokenDef = classTokenSource(cls)
           for {
-            constructorProperty@AST_ConciseMethod(_, constructor: AST_Lambda) <- findConstructor(cls)
+            constructorProperty@Node.ConciseMethod(_, constructor: Node.Lambda) <- findConstructor(cls)
           } {
             // anything before a first variable declaration can be inlined, variables need to stay private
             val (inlined, rest_?) = constructor.body.span {
-              case _: AST_Definitions => false
+              case _: Node.Definitions => false
               case _ => true
             }
 
@@ -317,7 +317,7 @@ object InlineConstructors {
               val body = findInlineBody(cls)
               body.exists {
                 _.value.body.exists {
-                  case AST_Const(AST_VarDef(AST_SymbolName(`varName`), _)) =>
+                  case Node.Const(Node.VarDef(Node.SymbolName(`varName`), _)) =>
                     true
                   case _ =>
                     false
@@ -327,10 +327,10 @@ object InlineConstructors {
 
 
             object IsConstantInitializerInThis extends RecursiveExpressionCondition {
-              def allow(c: AST_Node): Boolean = c match {
+              def allow(c: Node.Node): Boolean = c match {
                 case IsConstant() =>
                   true
-                case AST_This() AST_Dot varName if isClassConstant(varName) =>
+                case Node.This() Node.Dot varName if isClassConstant(varName) =>
                   true
                 case _ =>
                   false
@@ -338,7 +338,7 @@ object InlineConstructors {
             }
 
             val (inlineVars, rest) = rest_?.partition {
-              case SingleStatement(AST_Assign((_: AST_This) AST_Dot member, "=", IsConstantInitializerInThis(expr))) =>
+              case SingleStatement(Node.Assign((_: Node.This) Node.Dot member, "=", IsConstantInitializerInThis(expr))) =>
                 //println(s"Assign const $expr")
                 true
               case _ =>
@@ -356,14 +356,14 @@ object InlineConstructors {
             val parNamesAdjusted = (inlined ++ inlineVars).map { s =>
               s.transformAfter { (node, transformer) =>
                 node match {
-                  case sym@AST_SymbolName(IsParameter()) =>
+                  case sym@Node.SymbolName(IsParameter()) =>
                     sym.name = sym.name + parSuffix
                     types = types addHint sym.thedef.nonNull.flatMap(id).map(_.copy(name = sym.name)) -> IsConstructorParameter
                     sym
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
-                  case (_: AST_This) AST_Dot member if !transformer.parent().isInstanceOf[AST_Call] =>
-                    AST_SymbolRef(clsTokenDef)(member)
+                  case (_: Node.This) Node.Dot member if !transformer.parent().isInstanceOf[Node.Call] =>
+                    Node.SymbolRef(clsTokenDef)(member)
                   case _ =>
                     node
                 }
@@ -384,17 +384,17 @@ object InlineConstructors {
 
 
             // add the constructor call itself, so that type inference binds its parameters and arguments
-            val constructorCall = if (rest.nonEmpty) Some(AST_SimpleStatement(constructorProperty) {
-              new AST_Call {
+            val constructorCall = if (rest.nonEmpty) Some(Node.SimpleStatement(constructorProperty) {
+              new Node.Call {
                 fillTokens(this, constructorProperty)
-                expression = new AST_Dot {
+                expression = new Node.Dot {
                   fillTokens(this, constructorProperty)
-                  expression = AST_This().withTokens(constructorProperty)
+                  expression = Node.This().withTokens(constructorProperty)
                   property = "constructor"
                 }
 
                 args = constructor.argnames.map { p =>
-                  AST_SymbolRef(p)(p.name + parSuffix)
+                  Node.SymbolRef(p)(p.name + parSuffix)
                 }
               }
             }) else None

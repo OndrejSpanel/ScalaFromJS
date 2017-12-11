@@ -2,27 +2,26 @@ package com.github.opengrabeso
 package transform
 
 import net.gamatron.esprima._
-
-
+import esprima._
 
 object BoolComparison {
-  def apply(n: AST_Node): AST_Node = {
+  def apply(n: Node.Node): Node.Node = {
 
     object IsTrue {
-      def unapply(op: AST_Binary) = op match {
-        case AST_Binary(expr, "!="|"!==", _: AST_False) =>
+      def unapply(op: Node.Binary) = op match {
+        case Node.Binary(expr, "!="|"!==", _: Node.False) =>
           Some(expr)
-        case AST_Binary(expr, "=="|"===", _: AST_True) =>
+        case Node.Binary(expr, "=="|"===", _: Node.True) =>
           Some(expr)
         case _ =>
           None
       }
     }
     object IsFalse {
-      def unapply(op: AST_Binary) = op match {
-        case AST_Binary(expr, "=="|"===", _: AST_False) =>
+      def unapply(op: Node.Binary) = op match {
+        case Node.Binary(expr, "=="|"===", _: Node.False) =>
           Some(expr)
-        case AST_Binary(expr, "!="|"!==", _: AST_True) =>
+        case Node.Binary(expr, "!="|"!==", _: Node.True) =>
           Some(expr)
         case _ =>
           None
@@ -35,7 +34,7 @@ object BoolComparison {
         case IsTrue(expr) =>
           expr
         case IsFalse(expr) =>
-          new AST_UnaryPrefix {
+          new Node.UnaryPrefix {
             fillTokens(this, node)
             this.operator = "!"
             this.expression = expr

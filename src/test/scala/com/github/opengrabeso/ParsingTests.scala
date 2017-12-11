@@ -19,11 +19,11 @@ class ParsingTests extends FunSuite with TestUtils {
     assert(m.start.exists(_.pos == 0))
     assert(m.end.exists(_.endpos == code.length))
     (m.body.head: @unchecked) match {
-      case s: AST_SimpleStatement =>
+      case s: Node.SimpleStatement =>
         (s.body: @unchecked) match {
-          case a: AST_Assign =>
+          case a: Node.Assign =>
             assert(a.left.start.exists(_.`type` == "name"))
-            assert(a.left.asInstanceOf[AST_SymbolRef].name == "answer")
+            assert(a.left.asInstanceOf[Node.SymbolRef].name == "answer")
             assert(a.operator == "=")
             assert(a.right.start.exists(_.`type` == "num"))
             assert(a.right.start.exists(_.value == 42.any))
@@ -44,7 +44,7 @@ class ParsingTests extends FunSuite with TestUtils {
     val m = minify(code, defaultUglifyOptions).top
     var countStatements = 0
     m.walk {
-      case s: AST_SimpleStatement =>
+      case s: Node.SimpleStatement =>
         countStatements += 1
         false
       case _ =>
@@ -60,7 +60,7 @@ class ParsingTests extends FunSuite with TestUtils {
     var countStatements = 0
     m.transformAfter { (node, transformer) =>
       node match {
-        case s: AST_SimpleStatement =>
+        case s: Node.SimpleStatement =>
           countStatements += 1
           node
         case _ =>

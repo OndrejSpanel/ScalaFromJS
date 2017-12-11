@@ -3,7 +3,7 @@ package transform
 
 import JsUtils._
 import net.gamatron.esprima._
-
+import esprima._
 
 import Transform._
 import Symbols._
@@ -12,17 +12,17 @@ import Expressions._
 object Parameters {
 
   /*
-  * AST types are incorrect - function parameters may be of a type other than AST_SymbolFunarg
+  * AST types are incorrect - function parameters may be of a type other than Node.SymbolFunarg
   * This allows us to hotfix this.
   * */
-  def isNormalPar(par: AST_Node): Boolean = {
+  def isNormalPar(par: Node.Node): Boolean = {
     //
     par match {
-      case _: AST_Destructuring =>
+      case _: Node.Destructuring =>
         false
-      case _: AST_DefaultAssign =>
+      case _: Node.DefaultAssign =>
         false
-      case _: AST_SymbolFunarg =>
+      case _: Node.SymbolFunarg =>
         true
       case _ =>
         false
@@ -34,11 +34,11 @@ object Parameters {
     * @param process process the function - once this returns None, scan is aborted
     * */
 
-  def processAllFunctions(n: AST_Node, process: (AST_Lambda, AST_SymbolFunarg) => Option[AST_Lambda]): AST_Node = {
+  def processAllFunctions(n: Node.Node, process: (Node.Lambda, Node.SymbolFunarg) => Option[Node.Lambda]): Node.Node = {
 
-    def processOneFunction(f: AST_Lambda): AST_Lambda = {
+    def processOneFunction(f: Node.Lambda): Node.Lambda = {
 
-      def processArguments(f: AST_Lambda, args: Seq[AST_SymbolFunarg]): AST_Lambda = args match {
+      def processArguments(f: Node.Lambda, args: Seq[Node.SymbolFunarg]): Node.Lambda = args match {
         case Seq() =>
           f
         case head +: tail =>
@@ -52,9 +52,9 @@ object Parameters {
 
     n.transformAfter { (node, _) =>
       node match {
-        case f: AST_Defun =>
+        case f: Node.Defun =>
           processOneFunction(f)
-        case m: AST_ConciseMethod =>
+        case m: Node.ConciseMethod =>
           //println(s"introduceDefaultValues ${m.key.name}")
           m.value = processOneFunction(m.value)
           m
@@ -67,18 +67,18 @@ object Parameters {
   }
 
   class CompareWithUndefined(parName: String) {
-    def unapply(arg: AST_Node) = arg match {
-      case AST_Binary(AST_SymbolRefName(`parName`), op, AST_SymbolRefName("undefined")) =>
+    def unapply(arg: Node.Node) = arg match {
+      case Node.Binary(Node.SymbolRefName(`parName`), op, Node.SymbolRefName("undefined")) =>
         Some(op)
       case _ =>
         None
     }
   }
 
-  def defaultValues(n: AST_Node): AST_Node = {
+  def defaultValues(n: Node.Node): Node.Node = {
 
     // the only use of a parameter is in a `x_par || value` form
-    def introduceDefaultValue(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+    def introduceDefaultValue(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
       if (!isNormalPar(par)) return None
       val parName = par.name
       //println(s"introduceDefaultValue $parName")
@@ -87,12 +87,12 @@ object Parameters {
       object CompareParWithUndefined extends CompareWithUndefined(parName)
 
       object CheckParIsUndefined {
-        def unapply(arg: AST_Node): Boolean = arg match {
+        def unapply(arg: Node.Node): Boolean = arg match {
           // par == undefined
           case CompareParWithUndefined("==" | "===") =>
             true
           // !par
-          case AST_UnaryPrefix("!", AST_SymbolRefName(`parName`)) =>
+          case Node.UnaryPrefix("!", Node.SymbolRefName(`parName`)) =>
             true
           case _ =>
             false
@@ -100,12 +100,12 @@ object Parameters {
       }
 
       object CheckParNotUndefined {
-        def unapply(arg: AST_Node): Boolean = arg match {
+        def unapply(arg: Node.Node): Boolean = arg match {
           // par != undefined
           case CompareParWithUndefined("!=" | "!==") =>
             true
           // par
-          case AST_SymbolRefName(`parName`) =>
+          case Node.SymbolRefName(`parName`) =>
             true
           case _ =>
             false
@@ -113,12 +113,12 @@ object Parameters {
       }
 
       object IsParDefaultHandling {
-        def unapply(arg: AST_Node) = arg match {
-          case AST_Binary(symRef@AST_SymbolRefName(`parName`), "||", InitStatement(init)) =>
+        def unapply(arg: Node.Node) = arg match {
+          case Node.Binary(symRef@Node.SymbolRefName(`parName`), "||", InitStatement(init)) =>
             Some(symRef, init)
-          case AST_Conditional(CheckParNotUndefined(), symRef@AST_SymbolRefName(`parName`), InitStatement(init)) =>
+          case Node.Conditional(CheckParNotUndefined(), symRef@Node.SymbolRefName(`parName`), InitStatement(init)) =>
             Some(symRef, init)
-          case AST_Conditional(CheckParIsUndefined(), InitStatement(init), symRef@AST_SymbolRefName(`parName`)) =>
+          case Node.Conditional(CheckParIsUndefined(), InitStatement(init), symRef@Node.SymbolRefName(`parName`)) =>
             Some(symRef, init)
           case _ =>
             None
@@ -126,19 +126,19 @@ object Parameters {
       }
 
       object IsParDefaultHandlingAssignment {
-        def unapply(arg: AST_Node) = arg match {
-          case AST_SimpleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", IsParDefaultHandling(_, init))) =>
+        def unapply(arg: Node.Node) = arg match {
+          case Node.SimpleStatement(Node.Assign(Node.SymbolRefName(`parName`), "=", IsParDefaultHandling(_, init))) =>
             Some(init)
 
-          case AST_If(CheckParIsUndefined(), SingleStatement(AST_Assign(AST_SymbolRefName(`parName`), "=", init)), None) =>
+          case Node.If(CheckParIsUndefined(), SingleStatement(Node.Assign(Node.SymbolRefName(`parName`), "=", init)), None) =>
             Some(init)
 
           case _ => None
         }
       }
 
-      var defValueCond = Option.empty[AST_Node]
-      var defValueAssign = Option.empty[AST_Node]
+      var defValueCond = Option.empty[Node.Node]
+      var defValueAssign = Option.empty[Node.Node]
       var otherUse = false
       var alreadyUsed = false
       f.walk {
@@ -152,7 +152,7 @@ object Parameters {
           if (!alreadyUsed) defValueAssign = Some(init)
           alreadyUsed = true
           true // use inside of the def. value pattern must not set otherUse
-        case AST_SymbolRefName(`parName`) =>
+        case Node.SymbolRefName(`parName`) =>
           otherUse = true
           alreadyUsed = true
           defValueCond = None
@@ -168,7 +168,7 @@ object Parameters {
           Some(f.transformBefore { (node, descend, transform) =>
             node match {
               case IsParDefaultHandlingAssignment(_) if defValueAssign.isDefined =>
-                AST_EmptyStatement(node)
+                Node.EmptyStatement(node)
               case IsParDefaultHandling(symRef, _) if defValueCond.isDefined =>
                 symRef.clone()
               case _ =>
@@ -185,7 +185,7 @@ object Parameters {
 
   }
 
-  private def renameParameter(f: AST_Lambda, par: AST_SymbolFunarg, newName: String) = {
+  private def renameParameter(f: Node.Lambda, par: Node.SymbolFunarg, newName: String) = {
     val parIndex = f.argnames.indexOf(par)
     val parNode = par.clone()
 
@@ -199,12 +199,12 @@ object Parameters {
   }
 
 
-  def modifications(n: AST_Node): AST_Node = {
+  def modifications(n: Node.Node): Node.Node = {
     import VariableUtils._
 
     val refs = buildReferenceStacks(n)
 
-    def handleModification(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+    def handleModification(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
       par.thedef.nonNull.map { parDef =>
         val parName = par.name
         //println(s"Checking $parName")
@@ -222,7 +222,7 @@ object Parameters {
           val parNode = renameParameter(newF, par, parName + Symbols.parSuffix)
 
           newF.body = js.Array(
-            AST_Let(parNode)(AST_VarDef.initialized(parNode)(parName, AST_SymbolRef(parNode)(parName + Symbols.parSuffix)))
+            Node.Let(parNode)(Node.VarDef.initialized(parNode)(parName, Node.SymbolRef(parNode)(parName + Symbols.parSuffix)))
           ) ++ f.body
 
           newF
@@ -241,11 +241,11 @@ object Parameters {
   /*
   If a class inline body parameter is named xxx_par and a member named xxx does not exist, we can remove the _par
   */
-  def simpleParameters(n: AST_Extended): AST_Extended = {
+  def simpleParameters(n: NodeExtended): NodeExtended = {
 
     var types = n.types
 
-    def handleSimpleParameters(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+    def handleSimpleParameters(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
 
       if (!f.name.nonNull.exists(_.name == Classes.inlineBodyName)) Some(f)
       else {
@@ -256,7 +256,7 @@ object Parameters {
             // check for existence of variable without a suffix
             val shortName = parName dropRight parSuffix.length
             val conflict = f.body.exists {
-              case AST_Definitions(AST_VarDef(AST_SymbolName(`shortName`), _)) =>
+              case Node.Definitions(Node.VarDef(Node.SymbolName(`shortName`), _)) =>
                 true
               case _ =>
                 false
@@ -285,21 +285,21 @@ object Parameters {
 
     }
 
-    val ret = processAllFunctions(n.top, handleSimpleParameters).asInstanceOf[AST_Toplevel]
+    val ret = processAllFunctions(n.top, handleSimpleParameters).asInstanceOf[Node.Program]
     n.copy(top = ret, types = types)
   }
 
 
-  def removeDeprecated(n: AST_Node): AST_Node = {
-    def removeOneDeprecated(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+  def removeDeprecated(n: Node.Node): Node.Node = {
+    def removeOneDeprecated(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
       if (!isNormalPar(par)) return None
       val parName = par.name
 
-      def containsDeprecation(body: Seq[AST_Statement]) = {
+      def containsDeprecation(body: Seq[Node.Statement]) = {
         body.exists {
-          case AST_SimpleStatement(AST_Call(AST_SymbolRefName("console") AST_Dot "warn", _)) =>
+          case Node.SimpleStatement(Node.Call(Node.SymbolRefName("console") Node.Dot "warn", _)) =>
             true
-          case _: AST_Throw =>
+          case _: Node.Throw =>
             true
           case _ =>
             false
@@ -310,8 +310,8 @@ object Parameters {
 
         object CompareParWithUndefined extends CompareWithUndefined(parName)
 
-        def unapply(arg: AST_Node) = arg match {
-          case AST_If(CompareParWithUndefined("!=" | "!=="), Statements(body), None) if containsDeprecation(body) =>
+        def unapply(arg: Node.Node) = arg match {
+          case Node.If(CompareParWithUndefined("!=" | "!=="), Statements(body), None) if containsDeprecation(body) =>
             //println("IsParDeprecated")
             true
           case _ =>
@@ -327,7 +327,7 @@ object Parameters {
           //println(s"Detected deprecated par for $parName")
           isDeprecated = true
           true // use inside of the current pattern must not set otherUse
-        case AST_SymbolRefName(`parName`) =>
+        case Node.SymbolRefName(`parName`) =>
           otherUse = true
           true
         case _ =>
@@ -340,7 +340,7 @@ object Parameters {
         f.transformAfter { (node, _) =>
           node match {
             case s@IsParDeprecated() =>
-              AST_EmptyStatement(s)
+              Node.EmptyStatement(s)
             case _ =>
               node
           }
@@ -355,10 +355,10 @@ object Parameters {
   /*
   find constructor parameters which are assigned to a var member and replace them with a var parameter
   * */
-  def inlineConstructorVars(n: AST_Extended): AST_Extended = {
+  def inlineConstructorVars(n: NodeExtended): NodeExtended = {
     var types = n.types
     val logging = false
-    def handleConstructorVars(f: AST_Lambda, par: AST_SymbolFunarg): Option[AST_Lambda] = {
+    def handleConstructorVars(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
       if (!f.name.nonNull.exists(_.name == Classes.inlineBodyName)) Some(f)
       else {
         // inline all parameters, or constructor only?
@@ -373,8 +373,8 @@ object Parameters {
           val parDef = par.thedef.get
           object IsVarPar {
 
-            def unapply(arg: AST_Node) = arg match {
-              case AST_Var(AST_VarDef(AST_Symbol(symName, _, Defined(symDef)), Defined(AST_SymbolRef(_, _, Defined(`parDef`))))) =>
+            def unapply(arg: Node.Node) = arg match {
+              case Node.Var(Node.VarDef(Node.Symbol(symName, _, Defined(symDef)), Defined(Node.SymbolRef(_, _, Defined(`parDef`))))) =>
                 //println(s"IsVarPar $symName ${parDef.name}")
                 Some(symDef)
               case _ =>
@@ -383,9 +383,9 @@ object Parameters {
             }
           }
 
-          def isParRef(n: AST_Node) = {
+          def isParRef(n: Node.Node) = {
             n match {
-              case AST_SymbolRefName(`parName`) =>
+              case Node.SymbolRefName(`parName`) =>
                 true
               case _ =>
                 false
@@ -406,12 +406,12 @@ object Parameters {
                 otherUse = true
               }
               true // use inside of the current pattern must not set otherUse
-            case AST_Call(AST_This() AST_Dot "constructor", args@_*) if args.exists(isParRef) =>
+            case Node.Call(Node.This() Node.Dot "constructor", args@_*) if args.exists(isParRef) =>
               // passed to the constructor - this is always allowed
               // should we check what the constructor does with the value?
               //println(s"Detected constructor call for $parName")
               true
-            case AST_SymbolRefName(`parName`) =>
+            case Node.SymbolRefName(`parName`) =>
               if (logging) println(s"Detected other use for $parName")
               isVarPar = None
               otherUse = true
@@ -450,7 +450,7 @@ object Parameters {
             f.transformAfter { (node, _) =>
               node match {
                 case IsVarPar(`varSym`) =>
-                  AST_EmptyStatement(node)
+                  Node.EmptyStatement(node)
                 case _ =>
                   node
               }
@@ -464,7 +464,7 @@ object Parameters {
     val processed = processAllFunctions(n.top, handleConstructorVars)
     //println(s"Before: ${n.types}")
     //println(s"After: $types")
-    n.copy(top = processed.asInstanceOf[AST_Toplevel], types = types)
+    n.copy(top = processed.asInstanceOf[Node.Program], types = types)
 
   }
 }

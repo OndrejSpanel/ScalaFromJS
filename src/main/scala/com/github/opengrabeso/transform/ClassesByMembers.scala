@@ -3,7 +3,7 @@ package transform
 
 import JsUtils._
 import net.gamatron.esprima._
-
+import esprima._
 
 import Classes._
 import Transform._
@@ -22,7 +22,7 @@ object ClassesByMembers {
     )
   }
 
-  case class MemberList(classes: Map[SymbolMapId, AST_DefClass]) {
+  case class MemberList(classes: Map[SymbolMapId, Node.DefClass]) {
 
     case class ClassUseInfo(members: Set[String] = Set.empty, funMembers: Map[String, Int] = Map.empty) {
       def addMember(member: String): ClassUseInfo = {
@@ -50,16 +50,16 @@ object ClassesByMembers {
         val propertiesSeq = cls.properties.toSeq
         val propertiesNonStatic = propertiesSeq.filterNot(propertyIsStatic)
 
-        val funMembers = propertiesSeq.collect { case c: AST_ConciseMethod => c.key.name -> c.value.argnames.length }
-        val getters = propertiesNonStatic.collect {case AST_ObjectGetter(AST_SymbolRefName(name), _) => name}
-        val setters = propertiesNonStatic.collect {case AST_ObjectSetter(AST_SymbolRefName(name), _) => name}
-        val values = propertiesNonStatic.collect {case c: AST_ObjectKeyVal => c.key}
+        val funMembers = propertiesSeq.collect { case c: Node.ConciseMethod => c.key.name -> c.value.argnames.length }
+        val getters = propertiesNonStatic.collect {case Node.ObjectGetter(Node.SymbolRefName(name), _) => name}
+        val setters = propertiesNonStatic.collect {case Node.ObjectSetter(Node.SymbolRefName(name), _) => name}
+        val values = propertiesNonStatic.collect {case c: Node.ObjectKeyVal => c.key}
 
         val propMembers = getters.toSet ++ setters.toSet ++ values.toSet
 
         val varMembers = for {
           body <- findInlineBody(cls).toSeq
-          AST_Definitions(AST_VarDef(AST_SymbolName(varName), _)) <- body.value.body
+          Node.Definitions(Node.VarDef(Node.SymbolName(varName), _)) <- body.value.body
         } yield varName
 
         //println(s"Cls ${id(cls.name.get.thedef.get)}: Fun $funMembers mem $varMembers")
@@ -188,7 +188,7 @@ object ClassesByMembers {
 
   }
 
-  def apply(n: AST_Extended, desperate: Boolean): AST_Extended = {
+  def apply(n: NodeExtended, desperate: Boolean): NodeExtended = {
 
     // try to identify any symbol not inferred completely
     val classInfo = listDefinedClassMembers(n)
@@ -205,13 +205,13 @@ object ClassesByMembers {
         descend(node, walker)
 
         node match {
-          case AST_SymbolRefDef(sym) AST_Dot member =>
+          case Node.SymbolRefDef(sym) Node.Dot member =>
             //println(s"Symbol ${sym.name}")
             val tpe = ctx.types.get(sym)
             if (tpe.isEmpty) {
               //println(s"Symbol ${sym.name} parent ${walker.parent().nonNull.map(nodeClassName)}")
               walker.parent().nonNull match {
-                case Some(c: AST_Call) if c.expression == node =>
+                case Some(c: Node.Call) if c.expression == node =>
                   byMembers.addFunMember(sym, member, c.args.length)
                 case _ =>
                   //println(s"  ${sym.name}.$member")

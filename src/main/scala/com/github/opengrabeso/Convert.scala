@@ -1,7 +1,7 @@
 package com.github.opengrabeso
 
 import net.gamatron.esprima._
-
+import esprima._
 
 object Convert {
   def prefix(header: Boolean) = if (header) s"/* ${ScalaFromJS.fingerprint()}*/\n\n" else ""
@@ -15,7 +15,7 @@ object Convert {
       val res = minify(code, defaultUglifyOptions)
       val ast = res.top
 
-      val ext = Transform.AST_Extended(ast).loadConfig
+      val ext = Transform.NodeExtended(ast).loadConfig
 
       val astOptimized = Transform(ext)
       val ret = prefix(header) + ScalaOut.output(astOptimized, code).mkString

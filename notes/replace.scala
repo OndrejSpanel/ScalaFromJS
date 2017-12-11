@@ -23,7 +23,7 @@ object Uglify extends js.Object {
 
   @js.native class MinifyOutput extends js.Object {
     val code: js.UndefOr[String] = js.native
-    val ast: js.UndefOr[AST_Toplevel] = js.native
+    val ast: js.UndefOr[AST_Program] = js.native
     val error: js.UndefOr[JS_Parse_Error] = js.native
   }
 
@@ -140,10 +140,10 @@ object Uglify extends js.Object {
     val cname: js.UndefOr[Int] = js.native
   }
 
-  @js.native class AST_Toplevel extends AST_Scope with CloneSelf[AST_Toplevel] {
+  @js.native class AST_Program extends AST_Scope with CloneSelf[AST_Program] {
     def figure_out_scope(): Unit = js.native
 
-    def transform(c: TreeTransformer): AST_Toplevel = js.native
+    def transform(c: TreeTransformer): AST_Program = js.native
 
     def compute_char_frequency(): Unit = js.native
 
@@ -608,7 +608,7 @@ object UglifyExt {
 
 
   implicit class MinifyOutputOps(val output: MinifyOutput) {
-    def top: AST_Toplevel = {
+    def top: AST_Program = {
       (output.ast.nonNull, output.error.nonNull) match {
         case (Some(ast), _) => ast
         case (_, Some(error)) => throw js.JavaScriptException(error)
@@ -617,12 +617,12 @@ object UglifyExt {
     }
   }
 
-  implicit class AST_ToplevelOps(val ast: AST_Toplevel) {
+  implicit class AST_ProgramOps(val ast: AST_Program) {
     def source(options: Options.Output = defaultOutputOptions): String = {
       ast.print_to_string(options)
     }
 
-    def mangleNames(): AST_Toplevel = {
+    def mangleNames(): AST_Program = {
       ast.figure_out_scope()
       ast.compute_char_frequency()
       ast.mangle_names()

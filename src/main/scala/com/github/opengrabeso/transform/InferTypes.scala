@@ -3,7 +3,7 @@ package transform
 
 import JsUtils._
 import net.gamatron.esprima._
-
+import esprima._
 
 import Classes._
 import Transform._
@@ -12,15 +12,15 @@ import scala.language.implicitConversions
 
 object InferTypes {
 
-  def scanFunctionReturns(node: AST_Lambda)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
+  def scanFunctionReturns(node: Node.Lambda)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
     import ctx.classOps
 
     var allReturns = Option.empty[TypeInfo]
     node.walk {
       // include any sub-scopes, but not local functions
-      case innerFunc: AST_Lambda if innerFunc != node =>
+      case innerFunc: Node.Lambda if innerFunc != node =>
         true
-      case AST_Return(Defined(value)) =>
+      case Node.Return(Defined(value)) =>
         //println(s"  return expression ${nodeClassName(value)}")
         val tpe = expressionType(value)(ctx)
         //println(s"  Return type $tpe: expr ${ScalaOut.outputNode(value)}")
@@ -34,13 +34,13 @@ object InferTypes {
     allReturns.orElse {
       //println("Infer no return function")
       node.body.toSeq match {
-        case Seq(AST_SimpleStatement(ex)) => expressionType(ex)(ctx)
+        case Seq(Node.SimpleStatement(ex)) => expressionType(ex)(ctx)
         case _ => None
       }
     }
   }
 
-  def inferTypes(n: AST_Extended): AST_Extended = {
+  def inferTypes(n: NodeExtended): NodeExtended = {
 
     // TODO: cleanup inferred, was used for members, not for variables, now it is not used at all
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
@@ -56,7 +56,7 @@ object InferTypes {
     import ctx.classPos
     import ctx.classOps
 
-    def typeFromOperation(op: String, n: AST_Node) = {
+    def typeFromOperation(op: String, n: Node.Node) = {
       op match {
         case IsComparison() =>
           // comparison - most like the type we are comparing to
@@ -185,9 +185,9 @@ object InferTypes {
     }
 
     // list all functions so that we can look-up them from call sites
-    var functions = Map.empty[AST_SymbolDeclaration, AST_Defun]
+    var functions = Map.empty[Node.SymbolDeclaration, Node.Defun]
     n.top.walk {
-      case defun@AST_Defun(Defined(name),_,_) =>
+      case defun@Node.Defun(Defined(name),_,_) =>
         functions += name -> defun
         false
       case _ =>
@@ -196,7 +196,7 @@ object InferTypes {
 
     //println(functions.map(f => f._1.name))
 
-    def inferArgsFromPars(pars: Seq[(Option[SymbolMapId], Option[TypeInfo])], args: Seq[AST_Node])(debug: String*) = {
+    def inferArgsFromPars(pars: Seq[(Option[SymbolMapId], Option[TypeInfo])], args: Seq[Node.Node])(debug: String*) = {
       for (((parId, Some(par)), arg) <- pars zip args) {
         arg match {
           case SymbolInfo(a) =>
@@ -207,7 +207,7 @@ object InferTypes {
       }
     }
 
-    def inferParsOrArgs(pars: Seq[AST_SymbolFunarg], args: Seq[AST_Node])(debug: String*) = {
+    def inferParsOrArgs(pars: Seq[Node.SymbolFunarg], args: Seq[Node.Node])(debug: String*) = {
 
       //println(s"inferParsOrArgs $pars")
       val parIds = pars.map(symbolFromPar).flatMap(_.map(id))
@@ -224,25 +224,25 @@ object InferTypes {
       inferArgsFromPars(parIds.map(p => p -> allTypes.get(p)), args)(debug:_*)
     }
 
-    def inferArgs(funType: FunctionType, args: Seq[AST_Node])(debug: String*) = {
+    def inferArgs(funType: FunctionType, args: Seq[Node.Node])(debug: String*) = {
       val argTypes = funType.args.map(par => None -> Some(TypeInfo.target(par)))
       //println(s"Infer args for $funType, $args, $argTypes")
       inferArgsFromPars(argTypes, args)(debug:_*)
     }
 
 
-    def inferFunction(pars: Seq[AST_Node], log: Boolean) = {
+    def inferFunction(pars: Seq[Node.Node], log: Boolean) = {
       val parTypes = pars.map(expressionType(_, log)(ctx))
       //println(s"  $pars $parTypes")
       FunctionType(AnyType, parTypes.map(_.fold[TypeDesc](NoType)(_.target)).toIndexedSeq)
     }
 
-    def inferFunctionReturn(value: AST_Node, r: TypeInfo) = {
+    def inferFunctionReturn(value: Node.Node, r: TypeInfo) = {
       r.declType match {
         case fType: FunctionType =>
           walkLastNode(value) {
             // find any direct returns, when returning a function, infer argument symbol types
-            case AST_Lambda(args, body) =>
+            case Node.Lambda(args, body) =>
               //println(s"fun ${args.map(_.name).mkString(",")} -- ${fType.args}")
               //println(s"  $allTypes")
 
@@ -377,12 +377,12 @@ object InferTypes {
     }
 
     object SymbolInfo {
-      def unapply(arg: AST_Node): Option[SymbolAccessInfo] = arg match {
-        case AST_SymbolRefDef(symDef) =>
+      def unapply(arg: Node.Node): Option[SymbolAccessInfo] = arg match {
+        case Node.SymbolRefDef(symDef) =>
           Some(SymbolAccessSymbol(symDef))
 
-        case AST_SymbolRefDef(symDef) AST_Sub property =>
-          //println(s"AST_Sub - ${symDef.name}")
+        case Node.SymbolRefDef(symDef) Node.Sub property =>
+          //println(s"Node.Sub - ${symDef.name}")
           expressionType(property)(ctx).flatMap {
             _.declType match {
               case `number` =>
@@ -395,8 +395,8 @@ object InferTypes {
             }
           }
 
-        case expr AST_Dot name AST_Sub property =>
-          //println(s"AST_Dot AST_Sub - $name $property")
+        case expr Node.Dot name Node.Sub property =>
+          //println(s"Node.Dot Node.Sub - $name $property")
           // consider DRY with the case above
           expressionType(property)(ctx).flatMap {
             _.declType match {
@@ -415,7 +415,7 @@ object InferTypes {
 
 
 
-        case expr AST_Dot name =>
+        case expr Node.Dot name =>
           val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
           clsId.map(SymbolAccessDot)
 
@@ -424,7 +424,7 @@ object InferTypes {
       }
     }
 
-    def inferConstructorCall(args: Seq[AST_Node], className: SymbolMapId) = {
+    def inferConstructorCall(args: Seq[Node.Node], className: SymbolMapId) = {
       //println(s"Infer arg types for class $className")
       for (c <- classes.get(className)) {
         {
@@ -433,7 +433,7 @@ object InferTypes {
           inferParsOrArgs(value.argnames, args)(s"Constructor call body $className")
         }
 
-        for (AST_ConciseMethod(_, value: AST_Accessor) <- findConstructor(c)) {
+        for (Node.ConciseMethod(_, value: Node.Accessor) <- findConstructor(c)) {
           //println(s"  Constructor pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
           inferParsOrArgs(value.argnames, args)(s"Constructor call $className")
         }
@@ -441,14 +441,14 @@ object InferTypes {
     }
 
     object KnownType {
-      def unapply(arg: AST_Node)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
+      def unapply(arg: Node.Node)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
         val tpe = expressionType(arg)(ctx)
         //println(s"  check type of ${ScalaOut.outputNode(arg)} as $tpe")
         tpe
       }
     }
     object GetArrayType {
-      def unapply(arg: AST_Node)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
+      def unapply(arg: Node.Node)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
         val exprType = expressionType(arg)(ctx).map(_.declType)
         exprType match {
           case Some(ArrayType(tpe)) =>
@@ -465,7 +465,7 @@ object InferTypes {
       descend(node, walker)
 
       node match {
-        case AST_VarDef(AST_SymbolDef(symDef), Defined(right)) =>
+        case Node.VarDef(Node.SymbolDef(symDef), Defined(right)) =>
           val log = watched(symDef.name)
           val symId = id(symDef)
           val leftT = n.types.get(symId)
@@ -485,18 +485,18 @@ object InferTypes {
             }
           }
 
-        case AST_SymbolFunarg(Defined(symDef), _, Defined(JsArray(init))) =>
+        case Node.SymbolFunarg(Defined(symDef), _, Defined(JsArray(init))) =>
           if (n.types.get(symDef).isEmpty) {
             val tpe = expressionType(init)(ctx)
-            addInferredType(symDef, tpe)(s"AST_SymbolFunarg ${symDef.name}")
+            addInferredType(symDef, tpe)(s"Node.SymbolFunarg ${symDef.name}")
           }
 
         // a few special forms of assignment should infer no type - cyclic dependencies
-        case AST_Assign(SymbolInfo(symLeft), _, SymbolInfo(symRight)) if symLeft == symRight =>
+        case Node.Assign(SymbolInfo(symLeft), _, SymbolInfo(symRight)) if symLeft == symRight =>
 
-        case AST_Assign(left, _, right) =>
+        case Node.Assign(left, _, right) =>
           val log = left match {
-            case AST_SymbolDef(symDef) if watched(symDef.name) => true
+            case Node.SymbolDef(symDef) if watched(symDef.name) => true
             case _ => false
           }
           val leftT = expressionType(left, log)(ctx)
@@ -513,34 +513,34 @@ object InferTypes {
             }
           }
 
-        case AST_Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
+        case Node.Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
           if symLeft.unknownType(n.types) && symRight.unknownType(n.types) =>
           //println(s"Infer arithmetic: both unknown $symLeft $symRight")
           val numType = Some(TypeInfo.both(number))
           symLeft.addSymbolInferredType(numType)(s"Infer arithmetic: both unknown $symLeft $symRight")
           symRight.addSymbolInferredType(numType)(s"Infer arithmetic: both unknown $symLeft $symRight")
 
-        case AST_Binary(SymbolInfo(symInfo), op, expr) if symInfo.unknownType(n.types) =>
+        case Node.Binary(SymbolInfo(symInfo), op, expr) if symInfo.unknownType(n.types) =>
           val tpe = typeFromOperation(op, expr)
           //println(s"Infer binary: left unknown $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)(s"Infer binary: left unknown $symInfo $tpe")
 
-        case AST_Binary(expr, op, SymbolInfo(symInfo)) if symInfo.unknownType(n.types) =>
+        case Node.Binary(expr, op, SymbolInfo(symInfo)) if symInfo.unknownType(n.types) =>
           val tpe = typeFromOperation(op, expr)
           //println(s"Infer binary: right unknown $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)(s"Infer binary: right unknown $symInfo $tpe")
 
-        case AST_Switch(SymbolInfo(symInfo), body) =>
+        case Node.Switch(SymbolInfo(symInfo), body) =>
           var allCases = Option.empty[TypeInfo]
           body.foreach {
-            case cc: AST_Case =>
+            case cc: Node.Case =>
               val cType = expressionType(cc.expression)(ctx)
               allCases = typeUnionOption(allCases, cType)
             case _ =>
           }
           symInfo.addSymbolInferredType(allCases)(s"Infer switch")
 
-        case fun@AST_Defun(Defined(symDef), _, _) =>
+        case fun@Node.Defun(Defined(symDef), _, _) =>
           val allReturns = scanFunctionReturns(fun)(ctx)
           //println(s"${symDef.name} returns $allReturns")
           for {
@@ -553,13 +553,13 @@ object InferTypes {
           }
 
         // TODO: derive getters and setters as well
-        case AST_ConciseMethod(AST_SymbolName(sym), fun: AST_Lambda) =>
+        case Node.ConciseMethod(Node.SymbolName(sym), fun: Node.Lambda) =>
           val allReturns = scanFunctionReturns(fun)(ctx)
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope.nonNull)
           for {
             retType <- allReturns
-            AST_DefClass(Defined(AST_SymbolDef(cls)), _, _) <- scope
+            Node.DefClass(Defined(Node.SymbolDef(cls)), _, _) <- scope
             clsId <- id(cls)
           } {
             //println(s"Infer return type for method ${cls.name}.$sym as $retType")
@@ -567,21 +567,21 @@ object InferTypes {
             val funType = FunctionType(retType.declType, IndexedSeq())
             addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(s"Infer return type for method ${cls.name}.$sym as $retType")
           }
-        case AST_ObjectGetter(AST_SymbolName(sym), fun: AST_Lambda) =>
+        case Node.ObjectGetter(Node.SymbolName(sym), fun: Node.Lambda) =>
           val allReturns = scanFunctionReturns(fun)(ctx)
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope.nonNull)
           //println(s"Infer getter $sym as $allReturns")
           for {
             retType <- allReturns
-            AST_DefClass(Defined(AST_SymbolDef(cls)), _, _) <- scope
+            Node.DefClass(Defined(Node.SymbolDef(cls)), _, _) <- scope
             clsId <- id(cls)
           } {
             //println(s"Infer return type for getter ${cls.name}.$sym as $retType")
             val classId = MemberId(clsId, sym)
             addInferredMemberType(Some(classId), Some(retType))(s"Infer return type for getter ${cls.name}.$sym as $retType")
           }
-        case AST_ObjectSetter(AST_SymbolName(sym), fun: AST_Lambda) =>
+        case Node.ObjectSetter(Node.SymbolName(sym), fun: Node.Lambda) =>
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope.nonNull)
           //println(s"Infer setter $sym")
@@ -589,7 +589,7 @@ object InferTypes {
           for {
             arg <- fun.argnames.headOption
             retType <- allTypes.get(symbolFromPar(arg).flatMap(id))
-            AST_DefClass(Defined(AST_SymbolDef(cls)), _, _) <- scope
+            Node.DefClass(Defined(Node.SymbolDef(cls)), _, _) <- scope
             clsId <- id(cls)
           } {
             //println(s"Infer return type for setter $cls.$sym as $retType")
@@ -597,10 +597,10 @@ object InferTypes {
             // target, because setter parameter is typically used as a source for the property variable, which sets source only
             addInferredMemberType(Some(classId), Some(TypeInfo.target(retType.declType)))(s"Infer return type for setter $cls.$sym as $retType")
           }
-        case AST_ObjectKeyVal(name, value) =>
+        case Node.ObjectKeyVal(name, value) =>
           val scope = findThisClassInWalker(walker)
           for {
-            AST_DefClass(Defined(AST_SymbolDef(cls)), _, _) <- scope
+            Node.DefClass(Defined(Node.SymbolDef(cls)), _, _) <- scope
             clsId <- id(cls)
           } {
             val classId = MemberId(clsId, name)
@@ -611,10 +611,10 @@ object InferTypes {
           }
 
 
-        case AST_Call(AST_SymbolRefDef(call), args@_*) =>
+        case Node.Call(Node.SymbolRefDef(call), args@_*) =>
           //println(s"Call ${call.name}")
           call.orig.headOption match {
-            case Some(clazz: AST_SymbolDefClass) => // constructor call in the new Class(x)
+            case Some(clazz: Node.SymbolDefClass) => // constructor call in the new Class(x)
               for {
                 clsSym <- clazz.thedef.nonNull
                 clsId <- id(clsSym)
@@ -622,15 +622,15 @@ object InferTypes {
                 inferConstructorCall(args, clsId)
               }
 
-            case Some(defunSym: AST_SymbolDefun) => // normal function call
+            case Some(defunSym: Node.SymbolDefun) => // normal function call
               //println(s"Infer arg types for ${defunSym.name}")
               functions.get(defunSym) match {
-                case Some(AST_Defun(_, pars, _)) =>
+                case Some(Node.Defun(_, pars, _)) =>
                   // now match arguments to parameters
                   inferParsOrArgs(pars, args)(s"Call function ${defunSym.name}")
                 case _ =>
               }
-            case Some(varSym: AST_SymbolVar) =>
+            case Some(varSym: Node.SymbolVar) =>
               //println(s"Infer arg types for a var call ${varSym.name} as $tpe")
               varSym.thedef.foreach { td =>
                 val log = watched(td.name)
@@ -640,13 +640,13 @@ object InferTypes {
             // TODO: reverse inference
             case _ =>
           }
-        case AST_Call(s: AST_Super, args@_*) =>
+        case Node.Call(s: Node.Super, args@_*) =>
           for (sup <- findSuperClass(s.scope.nonNull)) {
             //println(s"Super call of $sup")
             inferConstructorCall(args, sup)
           }
 
-        case AST_Call(expr AST_Dot call, args@_*) =>
+        case Node.Call(expr Node.Dot call, args@_*) =>
           val exprType = expressionType(expr)(ctx)
 
           (exprType.map(_.declType),call,expr) match {
@@ -695,9 +695,9 @@ object InferTypes {
               }
           }
 
-        case SymbolInfo(symbol) AST_Sub property =>
+        case SymbolInfo(symbol) Node.Sub property =>
           val tpe = symbol.tpe(ctx.types)
-          //println(s"$symbol AST_Sub $property `$tpe` -> `${tpe.map(_.declType)}`")
+          //println(s"$symbol Node.Sub $property `$tpe` -> `${tpe.map(_.declType)}`")
           tpe.map(_.declType) match {
             case Some(ObjectOrMap) =>
               // initialized as {}, cannot be an Array, must be a map
@@ -739,12 +739,12 @@ object InferTypes {
     ret
   }
 
-  def multipass(n: AST_Extended): AST_Extended = {
+  def multipass(n: NodeExtended): NodeExtended = {
     val maxDepth = 15
     val byMembersAfter = 3
     val log = false
 
-    def inferTypesOneStep(n: AST_Extended, depth: Int, doByMembers: Boolean, desperate: Boolean): AST_Extended = {
+    def inferTypesOneStep(n: NodeExtended, depth: Int, doByMembers: Boolean, desperate: Boolean): NodeExtended = {
 
       val now = System.currentTimeMillis()
       val r = if (doByMembers) ClassesByMembers(n, desperate) else inferTypes(n)
@@ -760,7 +760,7 @@ object InferTypes {
     }
 
 
-    def inferTypesStep(n: AST_Extended, depth: Int, byMembers: Int, desperateDone: Boolean): AST_Extended = {
+    def inferTypesStep(n: NodeExtended, depth: Int, byMembers: Int, desperateDone: Boolean): NodeExtended = {
       //if (log) println(s"Type inference: ${n.types} steps $maxDepth")
       val r = inferTypesOneStep(n, depth, byMembers == 0, false)
 
