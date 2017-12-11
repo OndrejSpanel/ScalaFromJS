@@ -23,7 +23,7 @@ package object classes {
     def apply(sym: SymbolDef): ClassId = {
       SymbolTypes.id(sym).getOrElse(SymbolMapId(sym.name, 0))
     }
-    def apply(sym: Node.Symbol): ClassId = ClassId(sym.thedef.get)
+    def apply(sym: Node.Identifier): ClassId = ClassId(sym.thedef.get)
   }
 
   object ClassDefineValue {
@@ -37,17 +37,17 @@ package object classes {
 
   }
   object ClassDefine {
-    def unapply(arg: Node.Node): Option[(Node.Symbol, Seq[Node.SymbolFunarg], Seq[Node.Statement])] = arg match {
+    def unapply(arg: Node.Node): Option[(Node.Identifier, Seq[Node.SymbolFunarg], Seq[Node.Statement])] = arg match {
       // function ClassName() {}
       case Node.Defun(Defined(sym), args, body) =>
         Some(sym, args, body)
 
       // ClassName = function() {}
-      case Node.Assign(sym: Node.SymbolRef, "=", Node.Lambda(args, body)) =>
+      case Node.Assign(sym: Node.Identifier, "=", Node.Lambda(args, body)) =>
         Some(sym, args, body)
 
       // var ClassName = function() {}
-      case Node.Definitions(Node.VarDef(sym: Node.Symbol, Defined(Node.Lambda(args, body)))) =>
+      case Node.Definitions(Node.VarDef(sym: Node.Identifier, Defined(Node.Lambda(args, body)))) =>
         Some(sym, args, body)
 
       case _ =>
@@ -99,7 +99,7 @@ package object classes {
 
   object ClassPropertyDef {
     def unapply(arg: Node.Node) = arg match {
-      case Node.SimpleStatement(Node.Assign(Node.SymbolRef(_, _, Defined(symDef)) Node.StaticMemberExpression "prototype" Node.StaticMemberExpression funName, "=", value)) =>
+      case Node.SimpleStatement(Node.Assign(Node.Identifier(_, _, Defined(symDef)) Node.StaticMemberExpression "prototype" Node.StaticMemberExpression funName, "=", value)) =>
         Some(ClassId(symDef), funName, value)
       case _ => None
     }
@@ -117,12 +117,12 @@ package object classes {
 
     object DefinePropertiesObject {
       def unapply(arg: Node.Node) = arg match {
-        case Node.SimpleStatement(Node.Call(Node.SymbolRefName("Object") Node.StaticMemberExpression "defineProperties",
-        Node.SymbolRef(_, _, Defined(symDef)) Node.StaticMemberExpression "prototype", properties@_*)) =>
+        case Node.SimpleStatement(Node.Call(Node.Identifier("Object") Node.StaticMemberExpression "defineProperties",
+        Node.Identifier(_, _, Defined(symDef)) Node.StaticMemberExpression "prototype", properties@_*)) =>
           Some(ClassId(symDef), properties)
 
-        case Node.SimpleStatement(Node.Call(Node.SymbolRefName("Object") Node.StaticMemberExpression "defineProperties",
-        Node.SymbolRef(_, _, Defined(symDef)), properties@_*)) =>
+        case Node.SimpleStatement(Node.Call(Node.Identifier("Object") Node.StaticMemberExpression "defineProperties",
+        Node.Identifier(_, _, Defined(symDef)), properties@_*)) =>
           Some(ClassId(symDef), properties)
 
         case _ => None
@@ -140,8 +140,8 @@ package object classes {
     def unapply(arg: Node.Node) = arg match {
       // Object.defineProperty(XXXX.prototype, "name", {...} //
       case Node.SimpleStatement(Node.Call(
-      Node.SymbolRefName("Object") Node.StaticMemberExpression "defineProperty",
-      Node.SymbolRefDef(sym) Node.StaticMemberExpression "prototype",
+      Node.Identifier("Object") Node.StaticMemberExpression "defineProperty",
+      Node.Identifier(sym) Node.StaticMemberExpression "prototype",
       prop: Node.String,
       Node.Object(properties))) =>
         Some(ClassId(sym), prop.value, properties)
@@ -154,7 +154,7 @@ package object classes {
     def unapply(arg: Node.Node) = arg match {
       // Cls.defX = 0;
       // Cls.defY = function() {return 0;};
-      case Node.SimpleStatement(Node.Assign(Node.SymbolRef(_, Defined(scope), Defined(clsSym)) Node.StaticMemberExpression member, "=", value)) =>
+      case Node.SimpleStatement(Node.Assign(Node.Identifier(_, Defined(scope), Defined(clsSym)) Node.StaticMemberExpression member, "=", value)) =>
         Some(ClassId(clsSym), clsSym, scope, member, value)
       case _ => None
     }
@@ -164,19 +164,19 @@ package object classes {
     def unapply(arg: Node.Node) = arg match {
       // name.prototype = Object.assign( Object.create( sym.prototype ), {... prototype object ... } )
       case Node.SimpleStatement(
-      Node.Assign(Node.SymbolRefDef(name) Node.StaticMemberExpression "prototype", "=",
+      Node.Assign(Node.Identifier(name) Node.StaticMemberExpression "prototype", "=",
       Node.Call(
-      Node.SymbolRefName("Object") Node.StaticMemberExpression "assign",
-      Node.Call(Node.SymbolRefName("Object") Node.StaticMemberExpression "create", Node.SymbolRefDef(sym) Node.StaticMemberExpression "prototype"), prototypeDef: Node.Object)
+      Node.Identifier("Object") Node.StaticMemberExpression "assign",
+      Node.Call(Node.Identifier("Object") Node.StaticMemberExpression "create", Node.Identifier(sym) Node.StaticMemberExpression "prototype"), prototypeDef: Node.Object)
       )) =>
         //println(s"ClassParentAndPrototypeDef $name extends ${sym.name}")
         Some(ClassId(name), ClassId(sym), prototypeDef)
 
       // Object.assign( name.prototype, sym.prototype, {prototype object} )
       case Node.SimpleStatement(Node.Call(
-      Node.SymbolRefName("Object") Node.StaticMemberExpression "assign",
-      Node.SymbolRefDef(name) Node.StaticMemberExpression "prototype",
-      Node.SymbolRefDef(sym) Node.StaticMemberExpression "prototype",
+      Node.Identifier("Object") Node.StaticMemberExpression "assign",
+      Node.Identifier(name) Node.StaticMemberExpression "prototype",
+      Node.Identifier(sym) Node.StaticMemberExpression "prototype",
       prototypeDef: Node.Object
       )) =>
         //println(s"ClassParentAndPrototypeDef2 $name extends $sym")
@@ -190,21 +190,21 @@ package object classes {
   object ClassParentDef {
     def unapply(arg: Node.Node) = arg match {
       // name.prototype = new sym.prototype
-      case Node.SimpleStatement(Node.Assign(Node.SymbolRefDef(name) Node.StaticMemberExpression "prototype", "=", Node.New(Node.SymbolRefDef(sym), _*))) =>
+      case Node.SimpleStatement(Node.Assign(Node.Identifier(name) Node.StaticMemberExpression "prototype", "=", Node.New(Node.Identifier(sym), _*))) =>
         Some(ClassId(name), sym)
 
       // name.prototype = Object.create( sym.prototype );
       case Node.SimpleStatement(Node.Assign(
-      Node.SymbolRefDef(name) Node.StaticMemberExpression "prototype", "=",
-      Node.Call(Node.SymbolRefName("Object") Node.StaticMemberExpression "create", Node.SymbolRefDef(sym) Node.StaticMemberExpression "prototype")
+      Node.Identifier(name) Node.StaticMemberExpression "prototype", "=",
+      Node.Call(Node.Identifier("Object") Node.StaticMemberExpression "create", Node.Identifier(sym) Node.StaticMemberExpression "prototype")
       )) =>
         Some(ClassId(name), sym)
 
       // Object.assign( name.prototype, sym.prototype)
       case Node.SimpleStatement(Node.Call(
-      Node.SymbolRefName("Object") Node.StaticMemberExpression "assign",
-      Node.SymbolRefDef(name) Node.StaticMemberExpression "prototype",
-      Node.SymbolRefDef(sym) Node.StaticMemberExpression "prototype"
+      Node.Identifier("Object") Node.StaticMemberExpression "assign",
+      Node.Identifier(name) Node.StaticMemberExpression "prototype",
+      Node.Identifier(sym) Node.StaticMemberExpression "prototype"
       )) =>
         Some(ClassId(name), sym)
 
@@ -217,14 +217,14 @@ package object classes {
 
       //Object.assign( XXX.prototype, { ... })
       case Node.SimpleStatement(Node.Call(
-      Node.SymbolRefName("Object") Node.StaticMemberExpression "assign",
-      Node.SymbolRefDef(name) Node.StaticMemberExpression "prototype", prototypeDef: Node.Object
+      Node.Identifier("Object") Node.StaticMemberExpression "assign",
+      Node.Identifier(name) Node.StaticMemberExpression "prototype", prototypeDef: Node.Object
       )) =>
         //println(s"Match prototype def $name")
         Some(ClassId(name),prototypeDef)
 
       /// XXX.prototype = new { ... }
-      case Node.SimpleStatement(Node.Assign(Node.SymbolRefDef(name) Node.StaticMemberExpression "prototype", "=", prototypeDef: Node.Object)) =>
+      case Node.SimpleStatement(Node.Assign(Node.Identifier(name) Node.StaticMemberExpression "prototype", "=", prototypeDef: Node.Object)) =>
         //println(s"Match prototype def $name")
         Some(ClassId(name),prototypeDef)
 
@@ -394,7 +394,7 @@ package object classes {
           newGetterOrSetter(new Node.ObjectSetter, k, args, body, isStatic)
         }
 
-        def newClass(sym: Node.Symbol, base: js.UndefOr[Node.Node], props: Iterable[Node.ObjectProperty]): Node.DefClass = {
+        def newClass(sym: Node.Identifier, base: js.UndefOr[Node.Node], props: Iterable[Node.ObjectProperty]): Node.DefClass = {
           new Node.DefClass {
             fillTokens(this, tokensFrom)
             name = new Node.SymbolDefClass {
@@ -429,7 +429,7 @@ package object classes {
         mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues ++ mappedStatic
       }
 
-      def classDefine(sym: Node.Symbol) = {
+      def classDefine(sym: Node.Identifier) = {
         val clsId = ClassId(sym)
         //println(s"  ${walker.stack.map(nodeClassName).mkString("|")}")
         // check if there exists a type with this name
@@ -440,7 +440,7 @@ package object classes {
 
         //val baseDef = clazz.base.flatMap(classes.get)
 
-        val base = clazz.base.fold(js.undefined: js.UndefOr[Node.SymbolRef])(b => Node.SymbolRef(node)(b.name))
+        val base = clazz.base.fold(js.undefined: js.UndefOr[Node.Identifier])(b => Node.Identifier(node)(b.name))
 
         val properties = classProperties(clazz)
 
@@ -513,29 +513,29 @@ package object classes {
         val args = findThisClassInWalker(walker).toSeq.flatMap { defClass =>
           findInlineBody(defClass).orElse(findConstructor(defClass)).toSeq.flatMap(_.value.argnames)
         }
-        args.map(a => Node.SymbolRef.sym(a)(a))
+        args.map(a => Node.Identifier.sym(a)(a))
       }
 
       node match {
         // Animal.apply(this, Array.prototype.slice.call(arguments))
         case call@Node.Call(
-        Node.SymbolRefDef(IsSuperClass()) Node.StaticMemberExpression "apply",
+        Node.Identifier(IsSuperClass()) Node.StaticMemberExpression "apply",
         _: Node.This,
-        Node.Call(Node.SymbolRefName("Array") Node.StaticMemberExpression "prototype" Node.StaticMemberExpression "slice" Node.StaticMemberExpression "call", Node.SymbolRefName("arguments"))
+        Node.Call(Node.Identifier("Array") Node.StaticMemberExpression "prototype" Node.StaticMemberExpression "slice" Node.StaticMemberExpression "call", Node.Identifier("arguments"))
         ) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
           call.expression = Node.Super().withTokens(node)
           call.args = getClassArguments.toJSArray
           call
         // Super.apply(this, arguments)
-        case call@Node.Call(Node.SymbolRefDef(IsSuperClass()) Node.StaticMemberExpression "apply", _: Node.This, Node.SymbolRefName("arguments")) =>
+        case call@Node.Call(Node.Identifier(IsSuperClass()) Node.StaticMemberExpression "apply", _: Node.This, Node.Identifier("arguments")) =>
           // TODO: check class constructor arguments as pass them
           call.expression = Node.Super().withTokens(node)
           call.args = getClassArguments.toJSArray
           call
 
         // Light.call( this, skyColor, intensity )
-        case call@Node.Call(Node.SymbolRefDef(IsSuperClass()) Node.StaticMemberExpression "call", args@_*) =>
+        case call@Node.Call(Node.Identifier(IsSuperClass()) Node.StaticMemberExpression "call", args@_*) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
           call.expression = Node.Super().withTokens(node)
           call.args = removeHeadThis(args).toJSArray
@@ -544,7 +544,7 @@ package object classes {
 
         // Light.prototype.call( this, source );
         case call@Node.Call(
-        Node.SymbolRefDef(IsSuperClass()) Node.StaticMemberExpression "prototype" Node.StaticMemberExpression func Node.StaticMemberExpression "call",
+        Node.Identifier(IsSuperClass()) Node.StaticMemberExpression "prototype" Node.StaticMemberExpression func Node.StaticMemberExpression "call",
         _: Node.This, args@_*
         ) =>
           //println(s"Super call of $func in ${thisClass.map(_.name.get.name)}")
@@ -560,7 +560,7 @@ package object classes {
         // this.constructor, typically as new this.constructor( ... )
         case (_: Node.This) Node.StaticMemberExpression "constructor" =>
           //println("this.constructor")
-          thisClass.flatMap(_.name.nonNull.map(_.name)).fold(node)(cls => Node.SymbolRef(node)(cls))
+          thisClass.flatMap(_.name.nonNull.map(_.name)).fold(node)(cls => Node.Identifier(node)(cls))
 
         case _ =>
           //println(nodeClassName(node))
@@ -657,11 +657,11 @@ package object classes {
     // and replace YYYY with XXX.prototype
     // is order a problem?
 
-    var prototypeVariableSymbols = Map.empty[SymbolDef, Node.SymbolRef]
+    var prototypeVariableSymbols = Map.empty[SymbolDef, Node.Identifier]
 
     object PrototypeVariable {
       def unapply(arg: Node.Node) = arg match  {
-        case Node.SimpleStatement(assign@Node.Assign((clsSym: Node.SymbolRef) Node.StaticMemberExpression "prototype", "=", Node.SymbolRefDef(protoFunSym))) =>
+        case Node.SimpleStatement(assign@Node.Assign((clsSym: Node.Identifier) Node.StaticMemberExpression "prototype", "=", Node.Identifier(protoFunSym))) =>
           Some(clsSym, protoFunSym, assign)
         case _ => None
       }
@@ -679,7 +679,7 @@ package object classes {
 
     object PrototypeVariableDef {
       def unapply(arg: Node.Node) = arg match {
-        case Node.Definitions(Node.VarDef(Node.Symbol(_, _, Defined(symDef)), Defined(init))) if prototypeVariableSymbols contains symDef =>
+        case Node.Definitions(Node.VarDef(Node.Identifier(_, _, Defined(symDef)), Defined(init))) if prototypeVariableSymbols contains symDef =>
           Some(symDef, init)
         case _ => None
 
@@ -707,7 +707,7 @@ package object classes {
       }
     }.transformAfter { (node, _) =>
       node match {
-        case symRef@Node.SymbolRef(_,_,Defined(symDef)) =>
+        case symRef@Node.Identifier(_,_,Defined(symDef)) =>
           prototypeVariableSymbols.get(symDef).fold[Node.Node](symRef) { clsSymRef =>
             new Node.StaticMemberExpression {
               fillTokens(this, symRef)
@@ -737,7 +737,7 @@ package object classes {
 
     object PrototypeConstant {
       def unapply(arg: Node.Node) = arg match  {
-        case Node.Definitions(Node.VarDef(Node.Symbol(_, _, Defined(protoSym)), Node.SymbolRefDef(clsSym) Node.StaticMemberExpression "prototype")) =>
+        case Node.Definitions(Node.VarDef(Node.Identifier(_, _, Defined(protoSym)), Node.Identifier(clsSym) Node.StaticMemberExpression "prototype")) =>
           Some(clsSym, protoSym)
         case _ => None
       }
@@ -753,11 +753,11 @@ package object classes {
 
     n.transformAfter { (node, _) =>
       node match {
-        case symRef@Node.SymbolRef(_,_,Defined(symDef)) =>
+        case symRef@Node.Identifier(_,_,Defined(symDef)) =>
           prototypeSymbols.get(symDef).fold[Node.Node](symRef) { clsSymDef =>
             new Node.StaticMemberExpression {
               fillTokens(this, symRef)
-              expression = Node.SymbolRef.symDef(symRef)(clsSymDef)
+              expression = Node.Identifier.symDef(symRef)(clsSymDef)
               property = "prototype"
             }
           }
@@ -780,7 +780,7 @@ package object classes {
     object PrototypeConstructor {
       def unapply(arg: Node.Node) = arg match {
         case s@Node.SimpleStatement(Node.Assign(
-        Node.SymbolRefDef(clsSym) Node.StaticMemberExpression "prototype" Node.StaticMemberExpression "constructor", "=", Node.SymbolRefDef(protoFunSym)
+        Node.Identifier(clsSym) Node.StaticMemberExpression "prototype" Node.StaticMemberExpression "constructor", "=", Node.Identifier(protoFunSym)
         )) if clsSym.name == protoFunSym.name =>
           Some(clsSym, s)
         case _ => None
@@ -801,8 +801,8 @@ package object classes {
     // function XXXXX( name, times, values, interpolation ) { YYYYY.apply( this, arguments ); }
     n.walk {
       case Node.Defun(
-      Defined(Node.SymbolDef(fun)), args, Seq(Node.SimpleStatement(Node.Call(
-      Node.SymbolRefDef(implementFun) Node.StaticMemberExpression "apply", _: Node.This, Node.SymbolRefName("arguments")
+      Defined(Node.Identifier(fun)), args, Seq(Node.SimpleStatement(Node.Call(
+      Node.Identifier(implementFun) Node.StaticMemberExpression "apply", _: Node.This, Node.Identifier("arguments")
       )))) if constructorSymbols contains fun =>
         //println(s"Defined function ${fun.name} using ${implementFun.name}")
         implToConstructor += implementFun -> fun
@@ -813,7 +813,7 @@ package object classes {
 
     var constructorFunctionDefs = Map.empty[SymbolDef, Node.Defun]
     n.walk {
-      case defun@Node.Defun(Defined(Node.SymbolDef(fun)), _, _) if implToConstructor contains fun =>
+      case defun@Node.Defun(Defined(Node.Identifier(fun)), _, _) if implToConstructor contains fun =>
         //println(s"Stored function def ${fun.name}")
         constructorFunctionDefs += fun -> defun
         true
@@ -827,7 +827,7 @@ package object classes {
     n.transformAfter { (node, _) =>
       node match {
         // rewrite the symbol YYYYY use to  XXXXX
-        case n@Node.SymbolRef(_, _, Defined(symDef)) =>
+        case n@Node.Identifier(_, _, Defined(symDef)) =>
           implToConstructor.get(symDef).fold(node) { impl =>
             n.thedef = impl
             n.name = impl.name
@@ -835,7 +835,7 @@ package object classes {
           }
         // inline XXXXX.apply(this, arguments) - was already rewritten from YYYYY (transformAfter transforms children first)
         case defun@Node.Defun(_, _, Seq(Node.SimpleStatement(Node.Call(
-        Node.SymbolRefDef(symDef) Node.StaticMemberExpression "apply", _: Node.This, Node.SymbolRefName("arguments")
+        Node.Identifier(symDef) Node.StaticMemberExpression "apply", _: Node.This, Node.Identifier("arguments")
         )))) =>
           //println(s"Detect ${symDef.name}.apply")
           constructorToImpl.get(symDef).flatMap(constructorFunctionDefs.get).fold(node) { funDef =>
@@ -844,7 +844,7 @@ package object classes {
             defun
           }
         // remove the original implementation
-        case defun@Node.Defun(Defined(Node.SymbolDef(sym)), _, _) if implToConstructor contains sym =>
+        case defun@Node.Defun(Defined(Node.Identifier(sym)), _, _) if implToConstructor contains sym =>
           Node.EmptyStatement(defun)
         case _ => node
       }

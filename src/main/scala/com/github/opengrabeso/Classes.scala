@@ -58,13 +58,13 @@ object Classes {
 
   def superClassSymbolDef(cls: Node.DefClass): Option[SymbolDef] = {
     cls.`extends`.nonNull.collect {
-      case Node.SymbolRefDef(c) =>
+      case Node.Identifier(c) =>
         // symbol defined, use it directly
-        //println(s"  Node.SymbolRefDef ${c.name}")
+        //println(s"  Node.Identifier ${c.name}")
         Some(c)
-      case Node.SymbolRef(name, _, _) =>
+      case Node.Identifier(name, _, _) =>
         // symbol not defined, search for it
-        //println(s"  Node.SymbolRef $name $scope $thedef")
+        //println(s"  Node.Identifier $name $scope $thedef")
 
         val thisCls = cls
         val superSym = for {
@@ -104,7 +104,7 @@ object Classes {
 
   def includeParents(clazz: Node.DefClass, ret: Seq[Node.DefClass])(ctx: ExpressionTypeContext): Seq[Node.DefClass] = {
     clazz.`extends`.nonNull match {
-      case Some(cls: Node.SymbolRef) =>
+      case Some(cls: Node.Identifier) =>
         val c = cls.thedef.nonNull.flatMap(id).flatMap(ctx.classes.get)
         c.fold(ret) { parent =>
           if (ret contains parent) {
@@ -210,7 +210,7 @@ object Classes {
     val transformed = for (cons <- findConstructor(c)) yield {
       init.transformAfter { (node, transformer) =>
         node match {
-          case sym@Node.SymbolRefName(name) =>
+          case sym@Node.Identifier(name) =>
             val pn = cons.value.argnames.find(_.name == name)
             pn.fold(sym) { p =>
               val c = sym.clone()

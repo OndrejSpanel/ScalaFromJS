@@ -16,7 +16,7 @@ object Collections {
   case object ThisValuePath extends ValuePath {
     def parent: ValuePath = throw new NoSuchFieldException(s"No more parents in $this")
     def unapply(arg: Node.Node) = arg match {
-      case _: Node.This => // Node.SymbolRefDef does not match against this
+      case _: Node.This => // Node.Identifier does not match against this
         //println(s"ThisValuePath: match $arg")
         true
       case _ =>
@@ -29,7 +29,7 @@ object Collections {
     def parent: ValuePath = throw new NoSuchFieldException(s"No more parents in $this")
 
     def unapply(arg: Node.Node) = arg match {
-      case Node.SymbolDef(`name`) => // Node.SymbolRefDef does not match against this
+      case Node.Identifier(`name`) => // Node.Identifier does not match against this
         //println(s"VariableValuePath $this: match $arg against ${name.name}")
         true
       case _ =>
@@ -56,7 +56,7 @@ object Collections {
     def unapply(arg: Node.Node): Option[ValuePath] = {
       //println(s"ValuePath Unapply $arg")
       arg match {
-        case Node.SymbolRefDef(refDef) => // Node.SymbolRefDef does not match against this
+        case Node.Identifier(refDef) => // Node.Identifier does not match against this
           //println(s"ValuePath: Match $arg as ${refDef.name}")
           Some(VariableValuePath(refDef))
         case _: Node.This =>
@@ -75,7 +75,7 @@ object Collections {
   def usedOnlyAsIndex(body: Node.Node, varName: SymbolDef, objName: ValuePath): Boolean = {
     object IndexUsage {
       def unapply(arg: Node.Sub) = arg match {
-        case objName() Node.Sub Node.SymbolRefDef(`varName`) =>
+        case objName() Node.Sub Node.Identifier(`varName`) =>
           true
         case _ =>
           false
@@ -91,7 +91,7 @@ object Collections {
       case node@IndexUsage() =>
         //println(s"Allowed use $node")
         true
-      case node@Node.SymbolRefDef(`varName`) =>
+      case node@Node.Identifier(`varName`) =>
         //println(s"Forbidden use $node")
         otherUse = true
         otherUse
@@ -104,7 +104,7 @@ object Collections {
   def transformIndexUse(body: Node.Node, varName: SymbolDef, objName: ValuePath): Node.Node = {
     body.transformAfter {(node, _) =>
       node match {
-        case objName() Node.Sub (varRef@Node.SymbolRefDef(`varName`)) =>
+        case objName() Node.Sub (varRef@Node.Identifier(`varName`)) =>
           varRef
         case _ =>
           node
@@ -118,10 +118,10 @@ object Collections {
     var otherUse = false
     var subst = Option.empty[SymbolDef]
     forStatement.body.walk {
-      case Node.Const(Node.VarDef(Node.SymbolDef(name), Defined(Node.SymbolRefDef(`varName`)))) =>
+      case Node.Const(Node.VarDef(Node.Identifier(name), Defined(Node.Identifier(`varName`)))) =>
         subst = Some(name)
         true
-      case Node.SymbolRefDef(`varName`) =>
+      case Node.Identifier(`varName`) =>
         otherUse = true
         otherUse
       case _ =>
@@ -136,14 +136,14 @@ object Collections {
       // the body now contains "const substName = substName, remove it
       forStatement.body = forStatement.body.transformAfter {(node, _) =>
         node match {
-          case Node.Const(Node.VarDef(Node.SymbolDef(`substName`), Defined(Node.SymbolRefDef(`substName`)))) =>
+          case Node.Const(Node.VarDef(Node.Identifier(`substName`), Defined(Node.Identifier(`substName`)))) =>
             Node.EmptyStatement(node)
           case _ =>
             node
         }
       }
       Variables.renameVariable(forStatement.init, varName, substName.name, substName)
-      forStatement.name = Node.SymbolRef.symDef(forStatement.init)(substName)
+      forStatement.name = Node.Identifier.symDef(forStatement.init)(substName)
     }
   }
 
@@ -166,7 +166,7 @@ object Collections {
             fillTokens(this, node)
             this.`object` = obj
             this.init = Node.Let(node)(Node.VarDef.uninitialized(node)(varName.name))
-            this.name = Node.SymbolRef.symDef(node)(varName)
+            this.name = Node.Identifier.symDef(node)(varName)
             this.body = forStatement.body
           }
           transformFor(newFor, varName, objName).asInstanceOf[Node.Statement]

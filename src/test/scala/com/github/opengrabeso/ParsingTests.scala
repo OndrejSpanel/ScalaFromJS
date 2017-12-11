@@ -23,7 +23,7 @@ class ParsingTests extends FunSuite with TestUtils {
         (s.body: @unchecked) match {
           case a: Node.Assign =>
             assert(a.left.start.exists(_.`type` == "name"))
-            assert(a.left.asInstanceOf[Node.SymbolRef].name == "answer")
+            assert(a.left.asInstanceOf[Node.Identifier].name == "answer")
             assert(a.operator == "=")
             assert(a.right.start.exists(_.`type` == "num"))
             assert(a.right.start.exists(_.value == 42.any))

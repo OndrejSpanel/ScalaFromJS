@@ -18,11 +18,11 @@ object Transform {
   import SymbolTypes._
   import Symbols._
 
-  def symbolType(types: SymbolTypes, symbol: Node.Symbol): Option[TypeInfo] = {
+  def symbolType(types: SymbolTypes, symbol: Node.Identifier): Option[TypeInfo] = {
     types.get(symbolId(symbol))
   }
 
-  def symbolId(symbol: Node.Symbol): Option[SymbolMapId] = {
+  def symbolId(symbol: Node.Identifier): Option[SymbolMapId] = {
     symbol.thedef.nonNull.flatMap(id)
   }
 
@@ -140,7 +140,7 @@ object Transform {
                 case _ /*: Node.UnaryPostfix*/ =>
                   val tempName = "temp"
                   val storeValue = Node.Const(node)(Node.VarDef.initialized(node)(tempName, expr.clone()))
-                  val loadValue = Node.SimpleStatement(node)(Node.SymbolRef(node)(tempName))
+                  val loadValue = Node.SimpleStatement(node)(Node.Identifier(node)(tempName))
                   i.body = js.Array(storeValue, operation, loadValue)
               }
             }.withTokens(node)
@@ -440,11 +440,11 @@ object Transform {
         typeInfoFromClassDef(thisScope)
         //println(s"this def scope $cls")
 
-      case Node.SymbolRef("undefined", _, thedef)  =>
+      case Node.Identifier("undefined", _, thedef)  =>
         // not allowing undefined overrides
         None // Some(TypeInfo(AnyType, NoType))
 
-      case Node.SymbolRefDef(symDef) =>
+      case Node.Identifier(symDef) =>
         // if the symbol is a class name, use it as a class type directly
         val rt = types.get(symDef).orElse(typeInfoFromClassSym(symDef))
         //println(s"    Sym ${symDef.name} type $rt")
@@ -494,7 +494,7 @@ object Transform {
         Some(TypeInfo.target(boolean))
 
       // Array.isArray( name ) ? name : [name]
-      case Node.Conditional(Node.Call(Node.SymbolRefName("Array") Node.StaticMemberExpression "isArray", isArrayArg), exprTrue, exprFalse) =>
+      case Node.Conditional(Node.Call(Node.Identifier("Array") Node.StaticMemberExpression "isArray", isArrayArg), exprTrue, exprFalse) =>
         val exprType = expressionType(isArrayArg, log)
         //println(s"ExprType $exprType of Array.isArray( name ) ? name : [name] for $n1")
         if(exprType.exists(_.declType.isInstanceOf[ArrayType])) {
@@ -509,7 +509,7 @@ object Transform {
         if (log) println(s"Node.Conditional $te:$t / $fe:$f = $ret")
         ret
 
-      case Node.BinaryExpression(expr, `asinstanceof`, Node.SymbolRefDef(cls)) =>
+      case Node.BinaryExpression(expr, `asinstanceof`, Node.Identifier(cls)) =>
         typeInfoFromClassSym(cls, true)
 
       case Node.BinaryExpression(left, op, right) =>
@@ -534,13 +534,13 @@ object Transform {
           case _ =>
             None
         }
-      case Node.New(Node.SymbolRefDef(call), _*) =>
+      case Node.New(Node.Identifier(call), _*) =>
         typeInfoFromClassSym(call, true)
-      case Node.New(Node.SymbolRefDef(pack) Node.StaticMemberExpression call, _*) =>
+      case Node.New(Node.Identifier(pack) Node.StaticMemberExpression call, _*) =>
         // TODO: check if call is a known symbol and use it
         // TODO: handle package names properly
         Some(TypeInfo.both(ClassType(SymbolMapId(call, 0))))
-      case Node.Call(Node.SymbolRefDef(call), _*) =>
+      case Node.Call(Node.Identifier(call), _*) =>
         val tid = id(call)
         if (log)  println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
         types.get(tid).map(callReturn)
@@ -605,7 +605,7 @@ object Transform {
 
     def addAccessor(s: Node.ObjectSetterOrGetter) = {
       s.key match {
-        case Node.SymbolRefName(name) =>
+        case Node.Identifier(name) =>
           existingMembers = existingMembers :+ name
         case _ =>
       }
@@ -628,10 +628,10 @@ object Transform {
   def listDefinedClassMembers(node: NodeExtended) = {
     var listMembers = ClassInfo()
     node.top.walk {
-      case cls@Node.DefClass(Defined(Node.Symbol(_, _, Defined(clsSym))), base, _) =>
+      case cls@Node.DefClass(Defined(Node.Identifier(_, _, Defined(clsSym))), base, _) =>
         for (clsId <- id(clsSym)) {
           for {
-            Node.SymbolRefDef(parent) <- base
+            Node.Identifier(parent) <- base
             parentId <- id(parent)
           } {
             //println(s"Add parent $parent for $clsSym")
@@ -692,7 +692,7 @@ object Transform {
       }
 
       def unapply(arg: Seq[Node.Statement]) = arg match {
-        case Seq(defClass@Node.DefClass(Defined(c), _, _), ReturnedExpression(r : Node.SymbolRef)) if c.thedef == r.thedef =>
+        case Seq(defClass@Node.DefClass(Defined(c), _, _), ReturnedExpression(r : Node.Identifier)) if c.thedef == r.thedef =>
           Some(defClass, c)
         case _ => None
       }
@@ -700,7 +700,7 @@ object Transform {
 
     n.transformAfter { (node, _) =>
       node match {
-        case Node.Definitions(Node.VarDef(Node.SymbolDef(sym), Defined(Node.BlockStatement(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
+        case Node.Definitions(Node.VarDef(Node.Identifier(sym), Defined(Node.BlockStatement(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
           defClass
         case _ =>
           node
@@ -789,7 +789,7 @@ object Transform {
       node match {
         case t: Node.Program =>
           val newBody = t.body.flatMap {
-            case s@Node.SimpleStatement(Node.Call(Node.SymbolRefName("Object") Node.StaticMemberExpression "assign", ts@Node.SymbolRefDef(sym), x: Node.Object)) =>
+            case s@Node.SimpleStatement(Node.Call(Node.Identifier("Object") Node.StaticMemberExpression "assign", ts@Node.Identifier(sym), x: Node.Object)) =>
               //println(s"Assign to ${sym.name}")
               // iterate through the object defintion
               // each property replace with an individual assignment statement
@@ -803,7 +803,7 @@ object Transform {
                         expression = ts
                         property = p.key
                         fillTokens(this, p)
-                        Node.SymbolRef(p)(p.key)
+                        Node.Identifier(p)(p.key)
                       }
                       operator = "="
                       right = p.value

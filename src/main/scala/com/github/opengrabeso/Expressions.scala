@@ -1,13 +1,13 @@
 package com.github.opengrabeso
 
-import com.github.opengrabeso.Uglify._
-import com.github.opengrabeso.UglifyExt.Import._
+import net.gamatron.esprima._
+import esprima._
 
 object Expressions {
   object IsConstant {
     def unapply(arg: Node.Node): Boolean = arg match {
       case _: Node.Constant => true
-      case Node.SymbolRef("Infinity", _, _) => true
+      case Node.Identifier("Infinity", _, _) => true
       case _ =>
         //println(s"Not constant $arg")
         false
@@ -55,8 +55,8 @@ object Expressions {
       case c: Node.New => Some(c)
       case c@Node.Object(Seq()) => Some(c)
       // TODO: check for dependent expressions
-      case c: Node.SymbolRef => Some(c)
-      case c@((x: Node.SymbolRef) Node.StaticMemberExpression _) => Some(c)
+      case c: Node.Identifier => Some(c)
+      case c@((x: Node.Identifier) Node.StaticMemberExpression _) => Some(c)
       case _ =>
         //println(s"not InitStatement $arg")
         None

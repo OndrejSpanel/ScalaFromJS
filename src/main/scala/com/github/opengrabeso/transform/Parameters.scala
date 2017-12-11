@@ -68,7 +68,7 @@ object Parameters {
 
   class CompareWithUndefined(parName: String) {
     def unapply(arg: Node.Node) = arg match {
-      case Node.BinaryExpression(Node.SymbolRefName(`parName`), op, Node.SymbolRefName("undefined")) =>
+      case Node.BinaryExpression(Node.Identifier(`parName`), op, Node.Identifier("undefined")) =>
         Some(op)
       case _ =>
         None
@@ -92,7 +92,7 @@ object Parameters {
           case CompareParWithUndefined("==" | "===") =>
             true
           // !par
-          case Node.UnaryPrefix("!", Node.SymbolRefName(`parName`)) =>
+          case Node.UnaryPrefix("!", Node.Identifier(`parName`)) =>
             true
           case _ =>
             false
@@ -105,7 +105,7 @@ object Parameters {
           case CompareParWithUndefined("!=" | "!==") =>
             true
           // par
-          case Node.SymbolRefName(`parName`) =>
+          case Node.Identifier(`parName`) =>
             true
           case _ =>
             false
@@ -114,11 +114,11 @@ object Parameters {
 
       object IsParDefaultHandling {
         def unapply(arg: Node.Node) = arg match {
-          case Node.BinaryExpression(symRef@Node.SymbolRefName(`parName`), "||", InitStatement(init)) =>
+          case Node.BinaryExpression(symRef@Node.Identifier(`parName`), "||", InitStatement(init)) =>
             Some(symRef, init)
-          case Node.Conditional(CheckParNotUndefined(), symRef@Node.SymbolRefName(`parName`), InitStatement(init)) =>
+          case Node.Conditional(CheckParNotUndefined(), symRef@Node.Identifier(`parName`), InitStatement(init)) =>
             Some(symRef, init)
-          case Node.Conditional(CheckParIsUndefined(), InitStatement(init), symRef@Node.SymbolRefName(`parName`)) =>
+          case Node.Conditional(CheckParIsUndefined(), InitStatement(init), symRef@Node.Identifier(`parName`)) =>
             Some(symRef, init)
           case _ =>
             None
@@ -127,10 +127,10 @@ object Parameters {
 
       object IsParDefaultHandlingAssignment {
         def unapply(arg: Node.Node) = arg match {
-          case Node.SimpleStatement(Node.Assign(Node.SymbolRefName(`parName`), "=", IsParDefaultHandling(_, init))) =>
+          case Node.SimpleStatement(Node.Assign(Node.Identifier(`parName`), "=", IsParDefaultHandling(_, init))) =>
             Some(init)
 
-          case Node.IfStatement(CheckParIsUndefined(), SingleStatement(Node.Assign(Node.SymbolRefName(`parName`), "=", init)), None) =>
+          case Node.IfStatement(CheckParIsUndefined(), SingleStatement(Node.Assign(Node.Identifier(`parName`), "=", init)), None) =>
             Some(init)
 
           case _ => None
@@ -152,7 +152,7 @@ object Parameters {
           if (!alreadyUsed) defValueAssign = Some(init)
           alreadyUsed = true
           true // use inside of the def. value pattern must not set otherUse
-        case Node.SymbolRefName(`parName`) =>
+        case Node.Identifier(`parName`) =>
           otherUse = true
           alreadyUsed = true
           defValueCond = None
@@ -222,7 +222,7 @@ object Parameters {
           val parNode = renameParameter(newF, par, parName + Symbols.parSuffix)
 
           newF.body = js.Array(
-            Node.Let(parNode)(Node.VarDef.initialized(parNode)(parName, Node.SymbolRef(parNode)(parName + Symbols.parSuffix)))
+            Node.Let(parNode)(Node.VarDef.initialized(parNode)(parName, Node.Identifier(parNode)(parName + Symbols.parSuffix)))
           ) ++ f.body
 
           newF
@@ -297,7 +297,7 @@ object Parameters {
 
       def containsDeprecation(body: Seq[Node.Statement]) = {
         body.exists {
-          case Node.SimpleStatement(Node.Call(Node.SymbolRefName("console") Node.StaticMemberExpression "warn", _)) =>
+          case Node.SimpleStatement(Node.Call(Node.Identifier("console") Node.StaticMemberExpression "warn", _)) =>
             true
           case _: Node.Throw =>
             true
@@ -327,7 +327,7 @@ object Parameters {
           //println(s"Detected deprecated par for $parName")
           isDeprecated = true
           true // use inside of the current pattern must not set otherUse
-        case Node.SymbolRefName(`parName`) =>
+        case Node.Identifier(`parName`) =>
           otherUse = true
           true
         case _ =>
@@ -374,7 +374,7 @@ object Parameters {
           object IsVarPar {
 
             def unapply(arg: Node.Node) = arg match {
-              case Node.Var(Node.VarDef(Node.Symbol(symName, _, Defined(symDef)), Defined(Node.SymbolRef(_, _, Defined(`parDef`))))) =>
+              case Node.Var(Node.VarDef(Node.Identifier(symName, _, Defined(symDef)), Defined(Node.Identifier(_, _, Defined(`parDef`))))) =>
                 //println(s"IsVarPar $symName ${parDef.name}")
                 Some(symDef)
               case _ =>
@@ -385,7 +385,7 @@ object Parameters {
 
           def isParRef(n: Node.Node) = {
             n match {
-              case Node.SymbolRefName(`parName`) =>
+              case Node.Identifier(`parName`) =>
                 true
               case _ =>
                 false
@@ -411,7 +411,7 @@ object Parameters {
               // should we check what the constructor does with the value?
               //println(s"Detected constructor call for $parName")
               true
-            case Node.SymbolRefName(`parName`) =>
+            case Node.Identifier(`parName`) =>
               if (logging) println(s"Detected other use for $parName")
               isVarPar = None
               otherUse = true

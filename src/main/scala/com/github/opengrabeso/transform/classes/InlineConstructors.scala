@@ -58,7 +58,7 @@ object InlineConstructors {
         assert(localLambdas contains lambda)
         isExported += lambda
         true
-      case AssignToMember(_, Node.SymbolRefName(funName)) =>
+      case AssignToMember(_, Node.Identifier(funName)) =>
         val isLocal = localLambdaByName(funName)
         isExported ++= isLocal
         isLocal.nonEmpty
@@ -72,9 +72,9 @@ object InlineConstructors {
 
     var definedAndExported = Set.empty[Node.Lambda]
     n.walk {
-      case Node.Call(Node.SymbolRefName(_), _*) =>
+      case Node.Call(Node.Identifier(_), _*) =>
         true // a plain call, do not dive into
-      case Node.SymbolRefName(funName) if localLambdas.exists(_.name.nonNull.exists(_.name == funName)) =>
+      case Node.Identifier(funName) if localLambdas.exists(_.name.nonNull.exists(_.name == funName)) =>
         definedAndExported ++= localLambdas.filter(_.name.nonNull.exists(_.name == funName))
         true
       case _ =>
@@ -103,7 +103,7 @@ object InlineConstructors {
           // any use other than a definition should be enough to export the function as well
           case _: Node.Lambda =>
             false
-          case Node.SymbolRefName(sym) =>
+          case Node.Identifier(sym) =>
             for {
               fun <- localLambdaByName(sym)
               inFunction <- walker.stack.reverse.collectFirst {
@@ -253,7 +253,7 @@ object InlineConstructors {
             val restRaw = rawConstructor.body diff functions.map(_._1)
 
             val rest = restRaw.filter {
-              case Node.SimpleStatement(Node.Assign(Node.This() Node.StaticMemberExpression tgtName, "=", Node.SymbolRefName(funName)))
+              case Node.SimpleStatement(Node.Assign(Node.This() Node.StaticMemberExpression tgtName, "=", Node.Identifier(funName)))
                 // TODO: relax tgtName == funName requirement
                 if tgtName == funName && (functionsToConvert exists (_.name.nonNull.exists(_.name==funName))) =>
                 //if (log) println(s"Drop assign $funName")
@@ -363,7 +363,7 @@ object InlineConstructors {
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
                   case (_: Node.This) Node.StaticMemberExpression member if !transformer.parent().isInstanceOf[Node.Call] =>
-                    Node.SymbolRef(clsTokenDef)(member)
+                    Node.Identifier(clsTokenDef)(member)
                   case _ =>
                     node
                 }
@@ -394,7 +394,7 @@ object InlineConstructors {
                 }
 
                 args = constructor.argnames.map { p =>
-                  Node.SymbolRef(p)(p.name + parSuffix)
+                  Node.Identifier(p)(p.name + parSuffix)
                 }
               }
             }) else None

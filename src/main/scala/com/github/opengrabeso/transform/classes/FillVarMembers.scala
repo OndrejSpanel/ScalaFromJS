@@ -13,7 +13,7 @@ object FillVarMembers {
     object IsThis {
       def unapply(arg: Node.Node) = arg match {
         case _: Node.This => true
-        case Node.SymbolRef("this", _, _) => true // not used in practice, Node.This seems to catch all
+        case Node.Identifier("this", _, _) => true // not used in practice, Node.This seems to catch all
         case _ => false
       }
     }
@@ -96,7 +96,7 @@ object FillVarMembers {
       node match {
         case cls: Node.DefClass =>
           for {
-            Node.SymbolDef(base) <- cls.`extends`
+            Node.Identifier(base) <- cls.`extends`
             baseId <- SymbolTypes.id(base)
             inlineBody <- findInlineBody(cls)
           } {

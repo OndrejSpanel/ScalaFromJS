@@ -111,7 +111,7 @@ object Rules {
         dot match {
           case expr Node.StaticMemberExpression `seqHead` if seq.tail.nonEmpty && matches(expr, seq.tail) =>
             true
-          case Node.SymbolRefName(`seqHead`) =>
+          case Node.Identifier(`seqHead`) =>
             true
           case _ =>
             false
@@ -132,7 +132,7 @@ object Rules {
     val r = n.top.transformAfter {(node, transformer) =>
       node match {
         case MatchingScope(name) =>
-          Node.SymbolRef(node)(name)
+          Node.Identifier(node)(name)
         case _ =>
           node
       }
@@ -176,7 +176,7 @@ object Rules {
       node match {
         case callOn Node.StaticMemberExpression GetClass(Node.DefClass(Defined(Node.SymbolName(prop)), _, _)) =>
           //println(s"Detect call $prop")
-          Node.BinaryExpression(node) (callOn, instanceof, Node.SymbolRef(node)(prop))
+          Node.BinaryExpression(node) (callOn, instanceof, Node.Identifier(node)(prop))
         case _ =>
           node
       }
@@ -197,7 +197,7 @@ object Rules {
               Some(s.value)
             case _ Node.StaticMemberExpression s =>
               Some(s)
-            case Node.SymbolRefName(s) =>
+            case Node.Identifier(s) =>
               Some(s)
             case _ =>
               None
@@ -209,7 +209,7 @@ object Rules {
           //className.foreach(c => println(s"Found $c sym ${sym.map(_.name).getOrElse(expr)}"))
           // TODO: even when there is no class, consider passing the name if it looks reasonable
           sym.map {
-            sym => (callOn, Node.SymbolRef.symDef(tokensFrom)(sym))
+            sym => (callOn, Node.Identifier.symDef(tokensFrom)(sym))
           }
         case _ =>
           None

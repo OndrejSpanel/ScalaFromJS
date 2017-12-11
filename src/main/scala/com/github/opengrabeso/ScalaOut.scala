@@ -115,7 +115,7 @@ object ScalaOut {
         case s: String =>
           //println("symbol")
           output(s)
-        case s: Node.Symbol =>
+        case s: Node.Identifier =>
           //println("symbol")
           identifierToOut(output, s.name)
 
@@ -236,7 +236,7 @@ object ScalaOut {
       out.submitLocation(s.pos, source.lines.next)
     }
 
-    def outputVarDef(name: Node.Symbol, initInput: js.UndefOr[Node.Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
+    def outputVarDef(name: Node.Identifier, initInput: js.UndefOr[Node.Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
       out"$name"
 
       // handle a hack: uninitialized variable using Node.EmptyStatement
@@ -298,7 +298,7 @@ object ScalaOut {
             out("}\n")
           }
         // empty object - might be a map instead
-        case v@Node.VarDef(s@Node.Symbol(name, _, Defined(symDef)), Defined(Node.Object(Seq()))) =>
+        case v@Node.VarDef(s@Node.Identifier(name, _, Defined(symDef)), Defined(Node.Object(Seq()))) =>
           val symId = SymbolTypes.id(symDef)
           val tpe = input.types.get(symId).map(_.declType)
           //println(s"Var $name ($symId) type $tpe empty object")
@@ -314,7 +314,7 @@ object ScalaOut {
               outputVarDef(s, js.undefined, tpe, false)
           }
 
-        case Node.VarDef(s@Node.Symbol(name, _, Defined(sym)), init) =>
+        case Node.VarDef(s@Node.Identifier(name, _, Defined(sym)), init) =>
           outValVar(init.isDefined)
           //out("/*outputDefinitions 1*/")
           val sType = getSymbolType(sym)
@@ -554,7 +554,7 @@ object ScalaOut {
       case tn: Node.This => out("this") // TODO: handle differences between Scala and JS this
       case tn: Node.Super => out("super")
       //case tn: Node.LabelRef => out("Node.LabelRef")
-      //case tn: Node.SymbolRef => out("Node.SymbolRef")
+      //case tn: Node.Identifier => out("Node.Identifier")
       //case tn: Node.Label => out("Node.Label")
       //case tn: Node.SymbolCatch => out("Node.SymbolCatch")
       //case tn: Node.SymbolLambda => out("Node.SymbolLambda")
@@ -564,8 +564,8 @@ object ScalaOut {
       //case tn: Node.SymbolVar => out("Node.SymbolVar")
       //case tn: Node.SymbolDeclaration => out(tn.name)
       //case tn: Node.SymbolAccessor => out("Node.SymbolAccessor")
-      //case tn: Node.SymbolRef => identifierToOut(out, tn.name)
-      case tn: Node.Symbol =>
+      //case tn: Node.Identifier => identifierToOut(out, tn.name)
+      case tn: Node.Identifier =>
         out"$tn"
       //identifierToOut(out, tn.name)
       case tn: Node.ObjectSetter =>
@@ -687,7 +687,7 @@ object ScalaOut {
       case tn: Node.Call =>
         outputCall(tn)
 
-      case Node.VarDef(s@Node.Symbol(name, _, Defined(sym)), init) =>
+      case Node.VarDef(s@Node.Identifier(name, _, Defined(sym)), init) =>
         out("/*Node.VarDef*/")
         val sType = getSymbolType(sym)
         outputVarDef(s, init, sType, false)
@@ -866,7 +866,7 @@ object ScalaOut {
 
         tn.expression match {
           // CASE_CAST
-          case Node.Call(Node.SymbolRefName("cast_^"),AsInstanceOfCondition(name, classes)) =>
+          case Node.Call(Node.Identifier("cast_^"),AsInstanceOfCondition(name, classes)) =>
             classes match {
               case Seq(cls) =>
                 out"${identifier(name.name + castSuffix)}: $cls"

@@ -30,7 +30,7 @@ object VariableUtils {
 
   class IsSym(sym: SymbolDef) extends Extractor[Unit] {
     def unapply(arg: Node.Node) = arg match {
-      case Node.SymbolRefDef(`sym`) => Some(())
+      case Node.Identifier(`sym`) => Some(())
       case _ => None
     }
   }
@@ -38,7 +38,7 @@ object VariableUtils {
   def listSymbols(n: Node.Node): Set[SymbolDef] = {
     val symbols = Set.newBuilder[SymbolDef]
     n walk {
-      case Node.SymbolDef(symDef) =>
+      case Node.Identifier(symDef) =>
         symbols += symDef
         false
       case _ =>
@@ -82,7 +82,7 @@ object VariableUtils {
 
       n.walkWithDescend { (node, _, walker) =>
         node match {
-          case Node.SymbolRefDef(symDef) =>
+          case Node.Identifier(symDef) =>
             val old = refs.getOrElse(symDef, Set())
 
             val stack = walker.stack.toSeq.collect {

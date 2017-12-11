@@ -37,14 +37,14 @@ object ClassList {
       // new XXX()
       case `n` => // the scope itself should never be considered a symbol (can be Node.DefClass)
         false
-      case Node.New(Node.SymbolRefDef(call), _*) =>
+      case Node.New(Node.Identifier(call), _*) =>
         //println(s"Node.New ${call.name}")
         classNames += ClassId(call)
         false
 
       // any use of XXX.prototype probably marks a class
-      case Node.SymbolRefDef(name) Node.StaticMemberExpression "prototype" =>
-        //println(s"Node.SymbolRefDef ${name.name}")
+      case Node.Identifier(name) Node.StaticMemberExpression "prototype" =>
+        //println(s"Node.Identifier ${name.name}")
         classNames += ClassId(name)
         false
       case Node.DefClass(Defined(name), _, _) =>
@@ -140,7 +140,7 @@ object ClassList {
       val bodyFiltered = body.filter {
         //Object.defineProperty( this, 'id', { value: textureId ++ } );
         case Node.SimpleStatement(Node.Call(
-        Node.SymbolRefName("Object") Node.StaticMemberExpression "defineProperty", _: Node.This, prop: Node.String,
+        Node.Identifier("Object") Node.StaticMemberExpression "defineProperty", _: Node.This, prop: Node.String,
         Node.Object(properties)
         )) =>
           //println(s"Detect defineProperty ${sym.name}.${prop.value}")
@@ -159,7 +159,7 @@ object ClassList {
 
       case `n` => // always enter into the scope we are processing
         false
-      case defun@ClassDefineValue(Node.SymbolDef(symDef), args, body, proto) =>
+      case defun@ClassDefineValue(Node.Identifier(symDef), args, body, proto) =>
         for {
           clsId <- SymbolTypes.id(symDef) if classNames contains clsId
         } {
@@ -170,7 +170,7 @@ object ClassList {
           def transformReferences[T <: Node.Node](n: T): T = {
             n.transformAfter { (node, _) =>
               node match {
-                case Node.SymbolRef(name, _, Defined(symbolDef)) =>
+                case Node.Identifier(name, _, Defined(symbolDef)) =>
                   //println(s"Check reference $name, ${symbolDef.scope}")
                   if (funScope == symbolDef.scope) {
                     //println(s"Transform reference $name")
@@ -199,7 +199,7 @@ object ClassList {
           }
 
           body.foreach {
-            case Node.Defun(Defined(Node.SymbolDef(sym)), fArgs, fBody) =>
+            case Node.Defun(Defined(Node.Identifier(sym)), fArgs, fBody) =>
               val member = ClassFunMember(fArgs, transformReferencesInBody(fBody))
               res.clazz = res.clazz.addMember(sym.name, member)
             case Node.Definitions(vars@_*) =>
@@ -247,7 +247,7 @@ object ClassList {
         }
         true
 
-      case ClassDefine(Node.SymbolDef(symDef), args, body) =>
+      case ClassDefine(Node.Identifier(symDef), args, body) =>
         for (clsId <- SymbolTypes.id(symDef) if classNames contains clsId ) {
           // looks like a constructor
           //println("Constructor " + symDef.name)

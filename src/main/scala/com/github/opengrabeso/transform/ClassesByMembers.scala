@@ -51,8 +51,8 @@ object ClassesByMembers {
         val propertiesNonStatic = propertiesSeq.filterNot(propertyIsStatic)
 
         val funMembers = propertiesSeq.collect { case c: Node.ConciseMethod => c.key.name -> c.value.argnames.length }
-        val getters = propertiesNonStatic.collect {case Node.ObjectGetter(Node.SymbolRefName(name), _) => name}
-        val setters = propertiesNonStatic.collect {case Node.ObjectSetter(Node.SymbolRefName(name), _) => name}
+        val getters = propertiesNonStatic.collect {case Node.ObjectGetter(Node.Identifier(name), _) => name}
+        val setters = propertiesNonStatic.collect {case Node.ObjectSetter(Node.Identifier(name), _) => name}
         val values = propertiesNonStatic.collect {case c: Node.ObjectKeyVal => c.key}
 
         val propMembers = getters.toSet ++ setters.toSet ++ values.toSet
@@ -205,7 +205,7 @@ object ClassesByMembers {
         descend(node, walker)
 
         node match {
-          case Node.SymbolRefDef(sym) Node.StaticMemberExpression member =>
+          case Node.Identifier(sym) Node.StaticMemberExpression member =>
             //println(s"Symbol ${sym.name}")
             val tpe = ctx.types.get(sym)
             if (tpe.isEmpty) {

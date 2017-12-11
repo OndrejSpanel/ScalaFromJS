@@ -53,7 +53,7 @@ object Modules {
 
     n.transformAfterSimple {
       case node@Node.SymbolName(x) Node.StaticMemberExpression name if namespacesToRemove contains x =>
-        Node.SymbolRef(node)(name)
+        Node.Identifier(node)(name)
       case node =>
         node
     }

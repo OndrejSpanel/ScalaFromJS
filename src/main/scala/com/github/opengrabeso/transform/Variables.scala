@@ -105,7 +105,7 @@ object Variables {
             var list = mutable.ArrayBuffer.empty[Node.Token]
 
             varDef.scope.walk {
-              case n@Node.Var(Node.VarDef(Node.SymbolDef(`varDef`), _)) =>
+              case n@Node.Var(Node.VarDef(Node.Identifier(`varDef`), _)) =>
                 count += 1
                 list ++= n.start.nonNull
                 false
@@ -138,7 +138,7 @@ object Variables {
             //println(s"Multiple definitions for $varName ($count) in $scope - decl $node")
             new Node.Assign {
               fillTokens(this, node)
-              left = Node.SymbolRef.sym(node)(varName)
+              left = Node.Identifier.sym(node)(varName)
               operator = "="
               right = value.clone()
             }
@@ -157,17 +157,17 @@ object Variables {
     n.transformBefore {(node, descend, transformer) =>
       node match {
         case obj@Node.Object(props) =>
-        //case Node.Definitions(Node.VarDef(Node.SymbolDef(df), Defined(obj@Node.Object(props)))) =>
+        //case Node.Definitions(Node.VarDef(Node.Identifier(df), Defined(obj@Node.Object(props)))) =>
 
           // check if the object is part of variable / const initialization, like: var df = {}
           transformer.parent(1).nonNull match {
-            case Some(Node.Definitions(Node.VarDef(Node.SymbolDef(df), Defined(o: Node.Object)))) =>
+            case Some(Node.Definitions(Node.VarDef(Node.Identifier(df), Defined(o: Node.Object)))) =>
               //println(s"Scan object ${df.name} for methods ${o.properties}")
               assert(o == obj)
 
               object IsDfMember extends Extractor[String] {
                 def unapply(arg: Node.Node) = arg match {
-                  case Node.SymbolRefDef(`df`) Node.StaticMemberExpression key => Some(key)
+                  case Node.Identifier(`df`) Node.StaticMemberExpression key => Some(key)
                   case _ => None
                 }
               }
@@ -263,7 +263,7 @@ object Variables {
   def varInitialization(n: Node.Node): Node.Node = {
 
     // walk the tree, check for first reference of each var
-    var pairs = Map.empty[SymbolDef, (Node.SymbolRef, Boolean)] // symbol definition -> first reference
+    var pairs = Map.empty[SymbolDef, (Node.Identifier, Boolean)] // symbol definition -> first reference
     n.walk { node =>
       node match {
         case defs@Node.Definitions(Node.VarDef(name, value)) if value.nonNull.isEmpty =>
@@ -296,12 +296,12 @@ object Variables {
     object MatchInitWithAssign {
       def unapply(arg: Node.Node) = arg match {
         // sr = xxx
-        case Node.SimpleStatement(Node.Assign(sr@Node.SymbolRef(name, scope, thedef), "=", right)) if refs contains sr =>
+        case Node.SimpleStatement(Node.Assign(sr@Node.Identifier(name, scope, thedef), "=", right)) if refs contains sr =>
           Some(sr, name, scope, thedef, right)
         // if (m1 == undefined) m1 = xxx
         case Node.IfStatement(
-        Node.BinaryExpression(sr@Node.SymbolRef(name, scope, thedef), "==" | "===", Node.SymbolRefName("undefined")),
-        SingleStatement(Node.Assign(sr2@Node.SymbolRef(_, _, thedef2), "=", right)),
+        Node.BinaryExpression(sr@Node.Identifier(name, scope, thedef), "==" | "===", Node.Identifier("undefined")),
+        SingleStatement(Node.Assign(sr2@Node.Identifier(_, _, thedef2), "=", right)),
         None
         ) if thedef == thedef2 && (refs contains sr) =>
           Some(sr, name, scope, thedef, right)
@@ -328,7 +328,7 @@ object Variables {
               val origNode = td.orig.headOption.getOrElse(node)
               fillTokens(r, origNode)
               r.definitions = js.Array(Node.VarDef.initializedSym(origNode)(td, right))
-              //println(s"  Replaced $sr Node.SymbolRef with $r, init ${nodeClassName(right)}")
+              //println(s"  Replaced $sr Node.Identifier with $r, init ${nodeClassName(right)}")
               r
             case _ =>
               node
@@ -365,7 +365,7 @@ object Variables {
   def nodeContainsRef(init: Node.Node, sym: SymbolDef) = {
     var found = false
     init.walk {
-      case Node.SymbolRefDef(`sym`) =>
+      case Node.Identifier(`sym`) =>
         found = true
         found
       case _ =>
@@ -381,7 +381,7 @@ object Variables {
       n.walk {
         case _ : Node.Sequence =>
           false
-        case Node.Assign(Node.SymbolRefDef(sym), "=", init) if !nodeContainsRef(init, sym) =>
+        case Node.Assign(Node.Identifier(sym), "=", init) if !nodeContainsRef(init, sym) =>
           b += sym -> init
           true
         case nn =>
@@ -396,7 +396,7 @@ object Variables {
   def renameVariable[T <: Node.Node](n: T, oldName: SymbolDef, newName: String, newSymbol: js.UndefOr[SymbolDef] = js.undefined): T = {
     val ret = n.transformAfter { (node, _) =>
       node match {
-        case sym@Node.SymbolRefDef(`oldName`) =>
+        case sym@Node.Identifier(`oldName`) =>
           //println(s"  renamed ${oldName.name} to $newName")
           sym.name = newName
           sym.thedef = newSymbol // scope and definition needs to be filled by the parser
@@ -412,7 +412,7 @@ object Variables {
   def replaceVariable[T <: Node.Node](n: T, oldName: SymbolDef, newExpr: Node.Node): T = {
     val ret = n.transformAfter { (node, _) =>
       node match {
-        case Node.SymbolRefDef(`oldName`) =>
+        case Node.Identifier(`oldName`) =>
           val r = newExpr.clone()
           fillTokensRecursively(r, node)
           //println(s"replaceVariable ${oldName.name} $newExpr")
@@ -424,10 +424,10 @@ object Variables {
     ret.asInstanceOf[T]
   }
 
-  def replaceVariableInit[T <: Node.Node](n: T, oldName: SymbolDef)(transform: (Node.Symbol, Node.Node) => Node.Node): T = {
+  def replaceVariableInit[T <: Node.Node](n: T, oldName: SymbolDef)(transform: (Node.Identifier, Node.Node) => Node.Node): T = {
     val ret = n.transformAfter { (node, _) =>
       node match {
-        case Node.Definitions(varDef@Node.VarDef(Node.SymbolDef(`oldName`), init)) =>
+        case Node.Definitions(varDef@Node.VarDef(Node.Identifier(`oldName`), init)) =>
           init.nonNull.map { init =>
             val r = transform(varDef.name, init)
             fillTokensRecursively(r, node)
@@ -463,7 +463,7 @@ object Variables {
               // note: the assignment will often be in the init of another for loop
               val vScopes = for {
                 (v, init) <- vars
-                Node.Symbol(_, Defined(scope), _ ) <- v.orig.headOption
+                Node.Identifier(_, Defined(scope), _ ) <- v.orig.headOption
               } yield {
                 (v, init, scope)
               }
@@ -477,12 +477,12 @@ object Variables {
                   case `f` =>
                     seenFor = true
                     true // no need to dive into the for
-                  case Node.Assign(Node.SymbolRefDef(`v`), "=", init) if seenFor && !seenAfterFor && !nodeContainsRef(init, v) =>
+                  case Node.Assign(Node.Identifier(`v`), "=", init) if seenFor && !seenAfterFor && !nodeContainsRef(init, v) =>
                     //println(s"Seen ${v.name} after the for - in assignment")
                     seenAfterForInAssignment = true
                     seenAfterFor = true
                     true
-                  case Node.SymbolRefDef(`v`) if seenFor =>
+                  case Node.Identifier(`v`) if seenFor =>
                     //println(s"Seen ${v.name} after the for - in use")
                     seenAfterFor = true
                     true
@@ -523,7 +523,7 @@ object Variables {
     import Casting._
 
     object SingleCast {
-      def unapply(arg: Node.IfStatement): Option[(SymbolDef, Seq[Node.SymbolRef], Node.Statement, Option[Node.Statement])] = arg match {
+      def unapply(arg: Node.IfStatement): Option[(SymbolDef, Seq[Node.Identifier], Node.Statement, Option[Node.Statement])] = arg match {
         // if (symDef instanceof cs)
         // if (symDef instanceof cs || symDef instanceof ds)
         case Node.IfStatement(InstanceOfCondition(symDef, cs), ifStatement, elseStatement) =>
@@ -535,7 +535,7 @@ object Variables {
     }
 
     object SequenceOfCasts {
-      def unapply(arg: Node.IfStatement): Option[(SymbolDef, Seq[(Seq[Node.SymbolRef], Node.Statement)], Option[Node.Statement])] = arg match {
+      def unapply(arg: Node.IfStatement): Option[(SymbolDef, Seq[(Seq[Node.Identifier], Node.Statement)], Option[Node.Statement])] = arg match {
         case SingleCast(symDef, cs, ifStatement, Some(SequenceOfCasts(symDef2, casts, elseStatement))) if symDef == symDef2 =>
           //println(s"Match ex ${symDef.name}")
           Some(symDef, (cs, ifStatement) +: casts, elseStatement)
@@ -551,7 +551,7 @@ object Variables {
       def unapplySeq(arg: Node.Node): Option[Seq[(SymbolDef, SymbolDef)]] = {
         val buffer = ArrayBuffer.empty[(SymbolDef, SymbolDef)]
         arg.walk {
-          case Node.BinaryExpression(Node.SymbolRefDef(symDef), `instanceof`, Node.SymbolRefDef(cs)) =>
+          case Node.BinaryExpression(Node.Identifier(symDef), `instanceof`, Node.Identifier(cs)) =>
             buffer.append((symDef, cs))
             false
           case _ =>
@@ -562,13 +562,13 @@ object Variables {
       }
     }
 
-    def condition(sym: Node.SymbolRef, cs: Seq[String])(from: Node.Node): Node.BinaryExpression = {
+    def condition(sym: Node.Identifier, cs: Seq[String])(from: Node.Node): Node.BinaryExpression = {
       cs match {
         case Seq(head) =>
-          Node.BinaryExpression(from) (sym, asinstanceof, Node.SymbolRef(from)(head))
+          Node.BinaryExpression(from) (sym, asinstanceof, Node.Identifier(from)(head))
         case head +: tail =>
           Node.BinaryExpression(from) (
-            Node.BinaryExpression(from) (sym, asinstanceof, Node.SymbolRef(from)(head)),
+            Node.BinaryExpression(from) (sym, asinstanceof, Node.Identifier(from)(head)),
             "||",
             condition(sym, tail)(from)
           )
@@ -586,7 +586,7 @@ object Variables {
 
     def createCaseVariable(from: Node.Node, name: String, castTo: Seq[String]) = {
       //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
-      val symRef = Node.SymbolRef(from)(name)
+      val symRef = Node.Identifier(from)(name)
       Node.Let(from)(Node.VarDef.initialized(from)(name + castSuffix, condition(symRef, castTo)(from)))
     }
 
@@ -622,7 +622,7 @@ object Variables {
       node match {
         // note: handles one or multiple casts
         case s@SequenceOfCasts(symDef, casts, elseStatement) /*if casts.lengthCompare(1) > 0*/ =>
-          val castVar = Node.SymbolRef.symDef(s)(symDef)
+          val castVar = Node.Identifier.symDef(s)(symDef)
           new Node.Switch {
             expression = castVar
             this.body = casts.map { cast =>
@@ -630,9 +630,9 @@ object Variables {
                 // we handle this in the ScalaOut as a special case, see CASE_CAST
                 expression = new Node.Call() {
                   fillTokens(this, s)
-                  expression = Node.SymbolRef(s)("cast_^")
+                  expression = Node.Identifier(s)("cast_^")
                   val castExpr = condition(castVar, cast._1.map(_.name))(s)
-                  //args = js.Array(Node.SymbolRef.symDef(s)(symDef), castExpr)
+                  //args = js.Array(Node.Identifier.symDef(s)(symDef), castExpr)
                   args = js.Array(castExpr)
                 }
                 this.body = js.Array(new Node.BlockStatement {
@@ -687,8 +687,8 @@ object Variables {
     val inConditionCast = ret.transformAfter { (node, _) =>
       implicit val tokensFrom = node
       node match {
-        // TODO: allow other forms of callOn, not only Node.SymbolRef
-        case Node.BinaryExpression(right@Node.BinaryExpression(callExpr@Node.SymbolRefDef(callOn), "instanceof", classExpr), "&&", expr) =>
+        // TODO: allow other forms of callOn, not only Node.Identifier
+        case Node.BinaryExpression(right@Node.BinaryExpression(callExpr@Node.Identifier(callOn), "instanceof", classExpr), "&&", expr) =>
           //println(s"Detected cast && on $callExpr")
           val instancedExpr = Node.BinaryExpression(node)(callExpr, asinstanceof, classExpr)
           Variables.replaceVariable(expr, callOn, instancedExpr)
