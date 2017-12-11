@@ -1,6 +1,0 @@
-{
-  "name": "scalafromjs",
-  "version": "0.1.1",
-  "description": "Javascript to Scala transpiller",
-  "main": "index.js"
-}
