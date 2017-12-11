@@ -1,9 +1,9 @@
 package com.github.opengrabeso
 package transform
 
-import Uglify._
-import UglifyExt._
-import UglifyExt.Import._
+import net.gamatron.esprima._
+
+
 
 object Collections {
 

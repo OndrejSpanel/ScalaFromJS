@@ -2,9 +2,9 @@ package com.github.opengrabeso
 package transform
 package classes
 
-import Uglify._
-import UglifyExt._
-import UglifyExt.Import._
+import net.gamatron.esprima._
+
+
 import Classes._
 import Transform._
 

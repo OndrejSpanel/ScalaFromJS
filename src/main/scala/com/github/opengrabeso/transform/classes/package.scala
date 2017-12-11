@@ -3,10 +3,10 @@ package transform
 
 import Transform._
 import Classes._
-import Uglify._
-import UglifyExt._
+import net.gamatron.esprima._
+
 import JsUtils._
-import UglifyExt.Import._
+
 import SymbolTypes.SymbolMapId
 
 import scala.collection.immutable.ListMap

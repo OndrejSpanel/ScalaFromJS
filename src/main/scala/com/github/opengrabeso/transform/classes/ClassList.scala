@@ -3,9 +3,9 @@ package transform
 package classes
 
 import Classes._
-import Uglify._
-import UglifyExt._
-import UglifyExt.Import._
+import net.gamatron.esprima._
+
+
 import SymbolTypes.SymbolMapId
 
 import scala.collection.mutable.ArrayBuffer

@@ -1,9 +1,9 @@
 package com.github.opengrabeso
 
 import Transform._
-import Uglify._
-import UglifyExt._
-import UglifyExt.Import._
+import net.gamatron.esprima._
+
+
 import JsUtils._
 import SymbolTypes._
 

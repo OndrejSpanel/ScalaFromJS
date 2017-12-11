@@ -2,9 +2,7 @@ package com.github.opengrabeso
 package transform
 
 import JsUtils._
-import Uglify._
-import UglifyExt._
-import UglifyExt.Import._
+import net.gamatron.esprima._
 import Classes._
 import SymbolTypes._
 import Expressions._

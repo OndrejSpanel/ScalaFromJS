@@ -1,7 +1,7 @@
 package com.github.opengrabeso
 
-import Uglify._
-import UglifyExt._
+import net.gamatron.esprima._
+
 
 object Convert {
   def prefix(header: Boolean) = if (header) s"/* ${ScalaFromJS.fingerprint()}*/\n\n" else ""

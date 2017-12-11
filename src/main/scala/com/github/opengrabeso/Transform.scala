@@ -1,9 +1,9 @@
 package com.github.opengrabeso
 
 import JsUtils._
-import Uglify._
-import UglifyExt._
-import UglifyExt.Import._
+import net.gamatron.esprima._
+
+
 import Classes._
 import Expressions._
 

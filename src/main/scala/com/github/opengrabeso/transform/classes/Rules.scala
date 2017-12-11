@@ -4,9 +4,9 @@ package classes
 
 import Transform._
 import Classes._
-import Uglify._
-import UglifyExt._
-import UglifyExt.Import._
+import net.gamatron.esprima._
+
+
 import Symbols._
 
 import scala.collection.mutable
