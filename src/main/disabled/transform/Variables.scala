@@ -156,12 +156,12 @@ object Variables {
 
     n.transformBefore {(node, descend, transformer) =>
       node match {
-        case obj@Node.Object(props) =>
-        //case Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(df), Defined(obj@Node.Object(props)))) =>
+        case obj@OObject(props) =>
+        //case Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(df), Defined(obj@OObject(props)))) =>
 
           // check if the object is part of variable / const initialization, like: var df = {}
           transformer.parent(1) match {
-            case Some(Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(df), Defined(o: Node.Object)))) =>
+            case Some(Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(df), Defined(o: OObject)))) =>
               //println(s"Scan object ${df.name} for methods ${o.properties}")
               assert(o == obj)
 
@@ -182,7 +182,7 @@ object Variables {
               //println(s"Detected modified members $modifiedMembers")
 
               val newProps = props.map {
-                case kv@Node.ObjectKeyVal(k, f@Node.Function(args, body)) =>
+                case kv@ObjectKeyVal(k, f@Node.Function(args, body)) =>
                   if (modifiedMembers contains k) {
                     //println(s"Modified member $k")
                     kv

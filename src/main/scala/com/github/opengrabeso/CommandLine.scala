@@ -56,7 +56,7 @@ object CommandLine {
 
       //println(s"shortName $shortFileName inRelative $inRelative inRelativePath $inRelativePath aliasedName $aliasedName packageDirectives $packageDirectives")
 
-      val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint()}\n$shortFileName\n*/\n\n"
+      val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint}\n$shortFileName\n*/\n\n"
       val outCodeWithPackage = packagePrefix + wrappedOutCode
 
       val skip = Try {

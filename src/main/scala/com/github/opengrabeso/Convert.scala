@@ -4,7 +4,7 @@ import com.github.opengrabeso.esprima._
 import _root_.esprima._
 
 object Convert {
-  def prefix(header: Boolean) = if (header) s"/* ${ScalaFromJS.fingerprint()}*/\n\n" else ""
+  def prefix(header: Boolean) = if (header) s"/* ${ScalaFromJS.fingerprint}*/\n\n" else ""
 
   def apply(code: String, header: Boolean = true): String = {
     // split input file based on //file: comments

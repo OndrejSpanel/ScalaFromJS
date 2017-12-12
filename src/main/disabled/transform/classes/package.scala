@@ -29,7 +29,7 @@ package object classes {
   object ClassDefineValue {
     // function C() {return {a: x, b:y}
     def unapply(arg: Node.Defun) = arg match {
-      case Node.Defun(Defined(sym), args, body :+ Node.Return(Node.Object(proto))) =>
+      case Node.Defun(Defined(sym), args, body :+ Node.Return(OObject(proto))) =>
         Some(sym, args, body, proto)
       case _ =>
         None
@@ -130,7 +130,7 @@ package object classes {
     }
 
     def unapply(arg: Node.Node) = arg match {
-      case DefinePropertiesObject(name, Seq(Node.Object(properties))) => Some(name, properties)
+      case DefinePropertiesObject(name, Seq(OObject(properties))) => Some(name, properties)
       case _ => None
 
     }
@@ -143,7 +143,7 @@ package object classes {
       Node.Identifier("Object") Dot "defineProperty",
       Node.Identifier(sym) Dot "prototype",
       prop: Node.String,
-      Node.Object(properties))) =>
+      OObject(properties))) =>
         Some(ClassId(sym), prop.value, properties)
       case _ => None
 
@@ -167,7 +167,7 @@ package object classes {
       Node.Assign(Node.Identifier(name) Dot "prototype", "=",
       Node.CallExpression(
       Node.Identifier("Object") Dot "assign",
-      Node.CallExpression(Node.Identifier("Object") Dot "create", Node.Identifier(sym) Dot "prototype"), prototypeDef: Node.Object)
+      Node.CallExpression(Node.Identifier("Object") Dot "create", Node.Identifier(sym) Dot "prototype"), prototypeDef: OObject)
       )) =>
         //println(s"ClassParentAndPrototypeDef $name extends ${sym.name}")
         Some(ClassId(name), ClassId(sym), prototypeDef)
@@ -177,7 +177,7 @@ package object classes {
       Node.Identifier("Object") Dot "assign",
       Node.Identifier(name) Dot "prototype",
       Node.Identifier(sym) Dot "prototype",
-      prototypeDef: Node.Object
+      prototypeDef: OObject
       )) =>
         //println(s"ClassParentAndPrototypeDef2 $name extends $sym")
         Some(ClassId(name), ClassId(sym), prototypeDef)
@@ -218,13 +218,13 @@ package object classes {
       //Object.assign( XXX.prototype, { ... })
       case Node.SimpleStatement(Node.CallExpression(
       Node.Identifier("Object") Dot "assign",
-      Node.Identifier(name) Dot "prototype", prototypeDef: Node.Object
+      Node.Identifier(name) Dot "prototype", prototypeDef: OObject
       )) =>
         //println(s"Match prototype def $name")
         Some(ClassId(name),prototypeDef)
 
       /// XXX.prototype = new { ... }
-      case Node.SimpleStatement(Node.Assign(Node.Identifier(name) Dot "prototype", "=", prototypeDef: Node.Object)) =>
+      case Node.SimpleStatement(Node.Assign(Node.Identifier(name) Dot "prototype", "=", prototypeDef: OObject)) =>
         //println(s"Match prototype def $name")
         Some(ClassId(name),prototypeDef)
 
@@ -350,7 +350,7 @@ package object classes {
 
         def newValue(k: String, v: Node.Node, isStatic: Boolean) = {
           //println(s"newValue $k $v $isStatic")
-          new Node.ObjectKeyVal {
+          new ObjectKeyVal {
             fillTokens(this, v)
             key = k
             value = v
@@ -583,7 +583,7 @@ package object classes {
     declName.orElse(name).getOrElse(cls)
   }
 
-  // convert class members represented as Node.ObjectKeyVal into inline class body variables
+  // convert class members represented as ObjectKeyVal into inline class body variables
   def convertClassMembers(n: Node.Node): Node.Node = {
     val ret = n.transformAfter { (node, _) =>
       node match {
@@ -593,7 +593,7 @@ package object classes {
           val newMembers = mutable.ArrayBuffer.empty[Node.Var]
           cls.properties.foreach {
             //case Node.MethodDefinition(Node.SymbolName(p), _) =>
-            case kv@Node.ObjectKeyVal(p, v) if !propertyIsStatic(kv) =>
+            case kv@ObjectKeyVal(p, v) if !propertyIsStatic(kv) =>
               //println(s"newMembers append $cls $p $v")
               newMembers append Node.Var(cls)(Node.VariableDeclarator.initialized(cls)(p, v))
             //case s: Node.ObjectSetter =>

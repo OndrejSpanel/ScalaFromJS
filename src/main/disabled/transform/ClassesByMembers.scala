@@ -53,7 +53,7 @@ object ClassesByMembers {
         val funMembers = propertiesSeq.collect { case c: Node.MethodDefinition => c.key.name -> c.value.argnames.length }
         val getters = propertiesNonStatic.collect {case Node.ObjectGetter(Node.Identifier(name), _) => name}
         val setters = propertiesNonStatic.collect {case Node.ObjectSetter(Node.Identifier(name), _) => name}
-        val values = propertiesNonStatic.collect {case c: Node.ObjectKeyVal => c.key}
+        val values = propertiesNonStatic.collect {case c: ObjectKeyVal => c.key}
 
         val propMembers = getters.toSet ++ setters.toSet ++ values.toSet
 

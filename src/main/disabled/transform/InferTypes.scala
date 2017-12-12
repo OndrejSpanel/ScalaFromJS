@@ -597,7 +597,7 @@ object InferTypes {
             // target, because setter parameter is typically used as a source for the property variable, which sets source only
             addInferredMemberType(Some(classId), Some(TypeInfo.target(retType.declType)))(s"Infer return type for setter $cls.$sym as $retType")
           }
-        case Node.ObjectKeyVal(name, value) =>
+        case ObjectKeyVal(name, value) =>
           val scope = findThisClassInWalker(walker)
           for {
             Node.DefClass(Defined(Node.Identifier(cls)), _, _) <- scope

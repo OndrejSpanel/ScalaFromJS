@@ -2,8 +2,9 @@ package com.github.opengrabeso
 
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
-
 import CommandLine._
+
+import scala.util.matching.Regex
 //import com.github.opengrabeso.Transform.NodeExtended
 
 import scala.collection.immutable.ListMap
@@ -15,19 +16,19 @@ import scala.reflect.ClassTag
 
 object ConvertProject {
 
-  def loadStringValue(o: Node.Object, name: String): Option[String] = {
+  def loadStringValue(o: OObject, name: String): Option[String] = {
     o.properties.collectFirst {
-      case Node.ObjectKeyVal(`name`, Node.String(value)) =>
+      case ObjectKeyVal(`name`, StringLiteral(value)) =>
         value
-      case Node.ObjectKeyVal(`name`, Node.AArray(lines@_*)) =>
+      case ObjectKeyVal(`name`, AArray(lines@_*)) =>
         val lineStrings = lines.collect {
-          case s: Node.String => s.value
+          case StringLiteral(s) => s
         }
         lineStrings.mkString("\n")
     }
   }
 
-  def loadRequiredStringValue(o: Node.Object, name: String): String = {
+  def loadRequiredStringValue(o: OObject, name: String): String = {
     val opt = loadStringValue(o, name)
     opt.getOrElse {
       throw new UnsupportedOperationException(s"Missing entry '$name'")
@@ -37,50 +38,56 @@ object ConvertProject {
     def apply(c: NodeExtended): NodeExtended
   }
 
-  case class MemberDesc(cls: RegExp, name: RegExp)
+  case class MemberDesc(cls: Regex, name: Regex)
 
   object MemberDesc {
-    def load(o: Node.Object): MemberDesc = {
-      val cls = RegExp(loadRequiredStringValue(o, "cls"))
-      val name = RegExp(loadRequiredStringValue(o, "name"))
+    def load(o: OObject): MemberDesc = {
+      val cls = new Regex(loadRequiredStringValue(o, "cls"))
+      val name = new Regex(loadRequiredStringValue(o, "name"))
       MemberDesc(cls, name)
     }
   }
 
   case class DeleteMemberRule(member: MemberDesc) extends Rule {
     override def apply(n: NodeExtended) = {
-      transform.classes.Rules.deleteMembers(n, member)
+      ???
+      //transform.classes.Rules.deleteMembers(n, member)
     }
   }
 
   case class IsClassMemberRule(member: MemberDesc) extends Rule {
     override def apply(n: NodeExtended) = {
-      transform.classes.Rules.replaceIsClass(n, member)
+      ???
+      //transform.classes.Rules.replaceIsClass(n, member)
     }
   }
 
   case class GetClassMemberRule(member: MemberDesc) extends Rule {
     override def apply(n: NodeExtended) = {
-      transform.classes.Rules.replaceGetClass(n, member)
+      ???
+      //transform.classes.Rules.replaceGetClass(n, member)
     }
   }
 
   case class MakePropertyRule(member: MemberDesc) extends Rule {
     override def apply(n: NodeExtended) = {
-      transform.classes.Rules.makeProperties(n, member)
+      ???
+      //transform.classes.Rules.makeProperties(n, member)
     }
   }
 
   case class ReplicateMemberRule(member: MemberDesc, template: String) extends Rule {
     override def apply(n: NodeExtended) = {
-      transform.classes.Rules.substMember(n, member, template)
+      ???
+      //transform.classes.Rules.substMember(n, member, template)
     }
 
   }
 
   case class RemoveScopeRule(scope: List[String]) extends Rule {
     override def apply(n: NodeExtended) = {
-      transform.classes.Rules.removeScope(n, scope)
+      ???
+      //transform.classes.Rules.removeScope(n, scope)
     }
   }
 
@@ -105,7 +112,7 @@ object ConvertProject {
   }
 
   object AliasPackageRule {
-    def load(o: Node.Object): AliasPackageRule = {
+    def load(o: OObject): AliasPackageRule = {
       val folder = loadRequiredStringValue(o, "folder")
       val name = loadRequiredStringValue(o, "name")
       val template = loadStringValue(o, "template")
@@ -137,11 +144,11 @@ object ConvertProject {
 
   object ConvertConfig {
 
-    def load(props: Seq[Node.ObjectProperty]) = {
+    def load(props: Seq[Node.Property]) = {
       val rules: Seq[Rule] = props.flatMap {
-        case Node.ObjectKeyVal("members", a: Node.AArray) =>
+        case ObjectKeyVal("members", a: AArray) =>
           a.elements.toSeq.flatMap {
-            case o: Node.Object =>
+            case o: OObject =>
               val m = MemberDesc.load(o)
               val op = loadStringValue(o, "operation")
               op match {
@@ -164,9 +171,9 @@ object ConvertProject {
             case _ =>
               None
           }
-        case Node.ObjectKeyVal("packages", a: Node.AArray) =>
+        case ObjectKeyVal("packages", a: AArray) =>
           a.elements.toSeq.flatMap {
-            case o: Node.Object =>
+            case o: OObject =>
               val op = loadStringValue(o, "operation")
               val folder = loadStringValue(o, "folder")
               op match {
@@ -180,9 +187,9 @@ object ConvertProject {
             case _ =>
               None
           }
-        case Node.ObjectKeyVal("symbols", a: Node.AArray) =>
+        case ObjectKeyVal("symbols", a: AArray) =>
           a.elements.toSeq.flatMap {
-            case o: Node.Object =>
+            case o: OObject =>
               val op = loadStringValue(o, "operation")
               //println(s"op $op")
               val name = loadRequiredStringValue(o, "name")
@@ -201,9 +208,9 @@ object ConvertProject {
             case _ =>
               None
           }
-        case Node.ObjectKeyVal("postprocess", a: Node.AArray) =>
+        case ObjectKeyVal("postprocess", a: AArray) =>
           a.elements.toSeq.flatMap {
-            case o: Node.Object =>
+            case o: OObject =>
               val op = loadStringValue(o, "operation")
               op match {
                 case Some("replace") =>
@@ -216,7 +223,7 @@ object ConvertProject {
             case _ =>
               None
           }
-        case Node.ObjectKeyVal(name, _) =>
+        case ObjectKeyVal(name, _) =>
           throw new UnsupportedOperationException(s"Unexpected config entry $name")
         case n =>
           throw new UnsupportedOperationException(s"Unexpected config entry of type ${nodeClassName(n)}")
@@ -249,7 +256,7 @@ object ConvertProject {
 
     object GetConfig {
       def unapply(arg: Node.Node) = arg match {
-        case Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(`configName`), Node.Object(props))) =>
+        case Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(`configName`), OObject(props)), _) =>
           Some(props)
         case _ =>
           None

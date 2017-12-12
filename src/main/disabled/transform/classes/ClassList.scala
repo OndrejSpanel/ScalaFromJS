@@ -76,7 +76,7 @@ object ClassList {
     }
 
 
-    def processPrototype(name: ClassId, prototypeDef: Node.Object, isStatic: Boolean = false) = {
+    def processPrototype(name: ClassId, prototypeDef: OObject, isStatic: Boolean = false) = {
       val clazz = classes.getOrElse(name, ClassDef(staticOnly = isStatic))
 
       classes += name -> prototypeDef.properties.foldLeft(clazz) { (clazz, m) =>
@@ -95,8 +95,8 @@ object ClassList {
           def addSetter(member: ClassFunMember) = clazz.copy(setters = clazz.setters + (key -> member))
 
           m match {
-            case kv: Node.ObjectKeyVal =>
-              //println(s"Add Node.ObjectKeyVal $key")
+            case kv: ObjectKeyVal =>
+              //println(s"Add ObjectKeyVal $key")
               if (isStatic) {
                 addMember(ClassVarMember(kv.value))
               } else {
@@ -141,11 +141,11 @@ object ClassList {
         //Object.defineProperty( this, 'id', { value: textureId ++ } );
         case Node.SimpleStatement(Node.CallExpression(
         Node.Identifier("Object") Dot "defineProperty", _: Node.This, prop: Node.String,
-        Node.Object(properties)
+        OObject(properties)
         )) =>
           //println(s"Detect defineProperty ${sym.name}.${prop.value}")
           properties.foreach {
-            case p: Node.ObjectKeyVal => classes.defineSingleProperty(clsId, prop.value, p)
+            case p: ObjectKeyVal => classes.defineSingleProperty(clsId, prop.value, p)
             case _ =>
           }
           false
@@ -220,7 +220,7 @@ object ClassList {
 
 
           proto.foreach {
-            case Node.ObjectKeyVal(name, value) =>
+            case ObjectKeyVal(name, value) =>
               //println(s"$name, $value")
               value match {
                 case Node.SymbolName(`name`) => // same name, no need for any action
@@ -269,7 +269,7 @@ object ClassList {
         }
         true
 
-      case DefineProperty(name, prop, Seq(property: Node.ObjectKeyVal)) if classes.contains(name) =>
+      case DefineProperty(name, prop, Seq(property: ObjectKeyVal)) if classes.contains(name) =>
         //println(s"Detected DefineProperty $name.$prop  ${nodeClassName(property)}")
         classes.defineSingleProperty(name, prop, property)
         true
@@ -277,10 +277,10 @@ object ClassList {
       case DefineProperties(name, properties) if classes.contains(name) =>
         //println(s"Detected DefineProperties $name")
         properties.foreach {
-          case Node.ObjectKeyVal(key, Node.Object(props)) =>
+          case ObjectKeyVal(key, OObject(props)) =>
             //println(s"  property $key")
             props.foreach {
-              case p: Node.ObjectKeyVal =>
+              case p: ObjectKeyVal =>
                 //println(s"  sub property ${p.key} ${nodeClassName(p.value)}")
                 classes.defineSingleProperty(name, key, p)
 
@@ -353,7 +353,7 @@ class ClassList {
 
   def defClass(name: ClassId): ClassDef = classes.getOrElse(name, new ClassDef)
 
-  def defineSingleProperty(name: ClassId, key: String, p: Node.ObjectKeyVal) = {
+  def defineSingleProperty(name: ClassId, key: String, p: ObjectKeyVal) = {
     (p.value, p.key) match {
       case (fun: Node.Function, "get") =>
         //println(s"Add getter ${pp.key}")

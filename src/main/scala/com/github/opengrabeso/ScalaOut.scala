@@ -17,22 +17,6 @@ object ScalaOut {
 
   type SymbolDef = SymbolTypes.SymbolMapId
 
-  def nodeClassName(node: Node.Node): String = node.getClass.getSimpleName
-
-
-  object Defined {
-    // extract value from a potential null only if non-null
-    def unapply[T](some: T): Option[T] = {
-      Option(some)
-    }
-  }
-
-  object MayBeNull {
-    // extract value from a potential null as an option
-    def unapply[T](some: T): Option[Option[T]] = {
-      Some(Option(some))
-    }
-  }
 
   class ClassListHarmony
 
@@ -296,7 +280,7 @@ object ScalaOut {
 
       tn.declarations.foreach {
 
-        case Node.VariableDeclarator(name, Defined(Node.Object(props))) if props.nonEmpty && isVal =>
+        case Node.VariableDeclarator(name, Defined(OObject(props))) if props.nonEmpty && isVal =>
           // special case handling for isResource marked object (see readFileAsJs)
           val propNames = props.map(propertyName)
           //println(s"propNames $propNames")
@@ -589,7 +573,7 @@ object ScalaOut {
         accessorToOut(tn, "_=")
       case tn: Node.ObjectGetter =>
         accessorToOut(tn, "")
-      case tn: Node.ObjectKeyVal =>
+      case tn: ObjectKeyVal =>
         if (keyValIsTemplate(tn)) {
           tn.value match {
             case Node.Sequence(node: Node.ObjectProperty, Node.String(template)) =>
@@ -623,7 +607,7 @@ object ScalaOut {
         //out"/*${nodeClassName(n)}*/"
         out.eol()
         out"def ${tn.key}${tn.value}\n"
-      case tn: Node.Object =>
+      case tn: OObject =>
         if (tn.properties.isEmpty) {
           out("new {}")
         } else {
@@ -637,7 +621,7 @@ object ScalaOut {
           out.eol()
           out("}")
         }
-      case tn: Node.AArray =>
+      case tn: AArray =>
         out("Array(")
         outputNodes(tn.elements)(nodeToOut)
         out(")")
@@ -1025,7 +1009,7 @@ object ScalaOut {
 
           val (functionMembers, varMembers) = nonStaticProperties.partition {
             case _: Node.MethodDefinition => true
-            case kv: Node.ObjectKeyVal if keyValIsTemplate(kv) => true
+            case kv: ObjectKeyVal if keyValIsTemplate(kv) => true
             case _ => false
           }
 

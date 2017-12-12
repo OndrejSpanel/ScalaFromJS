@@ -52,20 +52,6 @@ object Transform {
       None
   }
 
-
-
-  object NodeExtended {
-    def noTypes = SymbolTypes()
-  }
-  case class NodeExtended(top: Node.Program, types: SymbolTypes = SymbolTypes(), config: ConvertProject.ConvertConfig = ConvertProject.ConvertConfig()) {
-    def loadConfig: NodeExtended = {
-      val (config,ast) = ConvertProject.loadConfig(top)
-
-      copy(top = ast, config = config)
-    }
-
-  }
-
   // individual sensible transformations
 
   // convert === to ==
@@ -477,14 +463,14 @@ object Transform {
             None
         }
 
-      case a: Node.AArray =>
+      case a: AArray =>
         val elementTypes = a.elements.map(expressionType(_, log)(ctx))
         val elType = elementTypes.reduceOption(typeUnionOption).flatten
         if (log) {
           println(s"  elementTypes $elementTypes => $elType")
         }
         Some(elType.map(_.map(ArrayType)).getOrElse(TypeInfo(ArrayType(AnyType), ArrayType(NoType))))
-      case a: Node.Object =>
+      case a: OObject =>
         Some(TypeInfo.target(ObjectOrMap))
       case _: Node.Number =>
         Some(TypeInfo.target(number))
@@ -584,7 +570,7 @@ object Transform {
       case Node.MethodDefinition(Node.SymbolName(p), _) =>
         //println(s"  function $p")
         //getter = true
-      case Node.ObjectKeyVal(p, value) =>
+      case ObjectKeyVal(p, value) =>
         //println(s"  keyval $p")
         getter = Some(value)
       case s: Node.ObjectSetter =>
@@ -614,7 +600,7 @@ object Transform {
     cls.properties.foreach {
       case Node.MethodDefinition(Node.SymbolName(p), _) =>
         existingMembers = existingMembers :+ p
-      case Node.ObjectKeyVal(p, _) =>
+      case ObjectKeyVal(p, _) =>
         existingMembers = existingMembers :+ p
       case s: Node.ObjectSetter =>
         addAccessor(s)
@@ -789,12 +775,12 @@ object Transform {
       node match {
         case t: Node.Program =>
           val newBody = t.body.flatMap {
-            case s@Node.SimpleStatement(Node.CallExpression(Node.Identifier("Object") Dot "assign", ts@Node.Identifier(sym), x: Node.Object)) =>
+            case s@Node.SimpleStatement(Node.CallExpression(Node.Identifier("Object") Dot "assign", ts@Node.Identifier(sym), x: OObject)) =>
               //println(s"Assign to ${sym.name}")
               // iterate through the object defintion
               // each property replace with an individual assignment statement
               x.properties.collect {
-                case p: Node.ObjectKeyVal =>
+                case p: ObjectKeyVal =>
                   //println(s"${p.key}")
                   Node.SimpleStatement(p) {
                     new Node.Assign {

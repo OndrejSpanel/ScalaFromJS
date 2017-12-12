@@ -24,9 +24,9 @@ object Expressions {
         Some(c)
       case Node.New(cls, args@_*) if args.forall(check) =>
         Some(arg)
-      case Node.AArray(args@_*) if args.forall(check) =>
+      case AArray(args@_*) if args.forall(check) =>
         Some(arg)
-      case Node.Object(props) if props.map(_.value).forall(check) =>
+      case OObject(props) if props.map(_.value).forall(check) =>
         Some(arg)
       case Node.BinaryExpression(a, _, b) if check(a) && check(b) =>
         Some(arg)
@@ -51,9 +51,9 @@ object Expressions {
     def unapply(arg: Node.Node) = arg match {
       case c@IsConstant() => Some(c)
       // TODO: accept only some forms of new or Array (avoid reordering dependent expressions)
-      case c: Node.AArray => Some(c)
+      case c: AArray => Some(c)
       case c: Node.New => Some(c)
-      case c@Node.Object(Seq()) => Some(c)
+      case c@OObject(Seq()) => Some(c)
       // TODO: check for dependent expressions
       case c: Node.Identifier => Some(c)
       case c@((x: Node.Identifier) Dot _) => Some(c)

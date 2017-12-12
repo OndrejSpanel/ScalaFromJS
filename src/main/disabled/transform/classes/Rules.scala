@@ -36,7 +36,7 @@ object Rules {
           def unapply(arg: Node.Node): Option[Node.Node] = arg match {
             case c: Node.Constant =>
               Some(c)
-            case o: Node.Object =>
+            case o: OObject =>
               // TODO: check if values are acceptable (no dependencies on anything else then parameters)
               Some(o)
             case _ =>
@@ -91,7 +91,7 @@ object Rules {
             expressions = js.Array(p, Node.String(p)(value))
           }
           // special named property which is passed to output as a string, used for insertion of Scala code
-          Seq[Node.ObjectProperty](Node.ObjectKeyVal(p)(templatePrefix + name, v))
+          Seq[Node.ObjectProperty](ObjectKeyVal(p)(templatePrefix + name, v))
         } else {
           Seq(p)
         }

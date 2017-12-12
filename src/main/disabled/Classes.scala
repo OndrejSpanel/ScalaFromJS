@@ -171,9 +171,9 @@ object Classes {
     }
   }
 
-  def findProperty(c: Node.DefClass, name: String): Option[Node.ObjectKeyVal] = {
+  def findProperty(c: Node.DefClass, name: String): Option[ObjectKeyVal] = {
     c.properties.collectFirst {
-      case m: Node.ObjectKeyVal if m.key == name => m
+      case m: ObjectKeyVal if m.key == name => m
     }
   }
 
@@ -181,7 +181,7 @@ object Classes {
     case m: Node.MethodDefinition => m.`static`
     case m: Node.ObjectSetter => m.`static`
     case m: Node.ObjectGetter => m.`static`
-    case m: Node.ObjectKeyVal => m.quote == "'"
+    case m: ObjectKeyVal => m.quote == "'"
     case _ => false
   }
 
