@@ -71,11 +71,41 @@ class WalkTest extends FunSuite with TestInputs {
     assert(count >= 100000)
   }
 
-  test("transformBefore") {
+  test("transformAfter") {
+    val ast = parse(answer42)
 
+    val transformed = ast.transformAfterSimple {
+      case Identifier("answer") =>
+        Identifier("question")
+      case Literal(esprima.OrType(42), _) =>
+        Literal(24, "24")
+      case node =>
+        node
+    }
+
+    var oldHits = 0
+    var newHits = 0
+    transformed.walk {
+      case Identifier("answer") =>
+        oldHits += 1
+        false
+      case Identifier("question") =>
+        newHits += 1
+        false
+      case Literal(esprima.OrType(42), _) =>
+        oldHits += 1
+        false
+      case Literal(esprima.OrType(24), _) =>
+        newHits += 1
+        false
+      case _ =>
+        false
+    }
+    assert(oldHits == 0)
+    assert(newHits == 2)
   }
 
-  test("transformAfter") {
+  test("transformBefore") {
 
   }
 

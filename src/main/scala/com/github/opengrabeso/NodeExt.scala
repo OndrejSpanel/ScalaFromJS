@@ -70,7 +70,7 @@ trait NodeExt {
   }
 
   def parameterName(n: Node.FunctionParameter): (Node.Identifier, Option[Node.Node]) = {
-    n match {
+    (n: @unchecked) match {
       case Node.AssignmentPattern(left: Node.Identifier, right) =>
         left -> Some(right)
       case id: Node.Identifier =>
@@ -82,7 +82,7 @@ trait NodeExt {
   }
 
   def propertyName(n: Node.ObjectExpressionProperty): String = {
-    n match {
+    (n: @unchecked) match {
       case p: Node.Property =>
         p.key match {
           case Node.Identifier(name) =>

@@ -7,7 +7,10 @@ import scala.reflect.runtime.currentMirror
 
 package object walker {
   type TermCallback = (InstanceMirror, (Node) => Unit) => Unit
+  type TermTransformerCallback = (InstanceMirror, (Node) => Node) => Unit
+
   type NodeWalker = (Node, Node => Unit) => Unit
+  type NodeTransformer = (Node, Node => Node) => Unit
 
   def createWalkerForNode[T <: Node](tag: TypeTag[T]): NodeWalker = {
     createWalkerForType(typeOf[T](tag))
@@ -54,6 +57,51 @@ package object walker {
     }
   }
 
+  // TODO: DRY createWalkerForType and createTransformerForType
+  def createTransformerForType(t: Type): NodeTransformer = {
+    val members = t.members.filter(_.isTerm).map(_.asTerm).filter(_.isGetter)
+
+    val walker: Iterable[TermTransformerCallback] = members.flatMap { term =>
+      term.typeSignature match {
+        case NullaryMethodType(resultType) if resultType <:< typeOf[Node] =>
+          Some[TermTransformerCallback] {(oMirror, callback) =>
+            val termMirror = oMirror.reflectField(term)
+            termMirror set callback(termMirror.get.asInstanceOf[Node])
+          }
+        case NullaryMethodType(resultType) if resultType <:< typeOf[Seq[Node]] =>
+          Some[TermTransformerCallback]{(oMirror, callback) =>
+            val termMirror = oMirror.reflectField(term)
+            termMirror set termMirror.get.asInstanceOf[Seq[Node]].map(callback)
+          }
+        case NullaryMethodType(resultType) if resultType <:< typeOf[Array[_]] =>
+          resultType.typeArgs match {
+            case at :: Nil if at <:< typeOf[Node] =>
+              Some[TermTransformerCallback]{(oMirror, callback) =>
+                val termMirror = oMirror.reflectField(term)
+                termMirror set termMirror.get.asInstanceOf[Array[Node]].map(callback)
+              }
+            case _ =>
+              None
+          }
+        case  _ =>
+          None
+      }
+    }
+
+    if (walker.isEmpty) {
+      // special case optimization: no need to reflect on o when there are no members to dive into
+      (_, _) => {}
+    } else {
+      (o: Node, callback: Node => Node) => {
+        val oMirror = currentMirror.reflect(o)
+        walker.foreach { w =>
+          // walkNode(w)
+          w(oMirror, callback)
+        }
+      }
+    }
+  }
+
   def createAllWalkers: Map[Class[_], NodeWalker] = {
     // https://stackoverflow.com/questions/27189258/list-all-classes-in-object-using-reflection
     import scala.reflect.runtime.universe._
@@ -62,6 +110,19 @@ package object walker {
       case c: ClassSymbol if c.toType <:< typeOf[Node] =>
         val t = c.selfType
         mirror.runtimeClass(t) -> createWalkerForType(t)
+    }
+
+    nodes.toMap
+  }
+
+  def createAllTransformers: Map[Class[_], NodeTransformer] = {
+    // https://stackoverflow.com/questions/27189258/list-all-classes-in-object-using-reflection
+    import scala.reflect.runtime.universe._
+    val mirror = runtimeMirror(this.getClass.getClassLoader)
+    val nodes = typeOf[Node.type].decls.collect {
+      case c: ClassSymbol if c.toType <:< typeOf[Node] =>
+        val t = c.selfType
+        mirror.runtimeClass(t) -> createTransformerForType(t)
     }
 
     nodes.toMap
@@ -83,11 +144,8 @@ package object walker {
     )
   }
 
-  def walkNode(o: Node, walker: NodeWalker, callback: Node => Unit): Unit = {
-    walker(o, callback)
-  }
-
   lazy val allWalkers = specializedWalkers(createAllWalkers)
+  lazy val allTransformers = createAllTransformers
 
   /*
   call callback, if it returns false, descend recursively into children nodes
@@ -103,9 +161,14 @@ package object walker {
   def walkInto(o: Node)(callback: Node => Unit): Unit = {
     if (o != null) {
       val walker = allWalkers(o.getClass)
-      walkNode(o, walker, callback)
+      walker(o, callback)
     }
-
   }
 
+  def transformInto(o: Node)(callback: Node => Node): Unit = {
+    if (o != null) {
+      val walker = allTransformers(o.getClass)
+      walker(o, callback)
+    }
+  }
 }

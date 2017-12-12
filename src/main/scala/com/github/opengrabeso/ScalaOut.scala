@@ -750,7 +750,7 @@ object ScalaOut {
           out"${tn.right}.map { ${tn.left} =>\n"
           out.indent()
 
-          val yieldBody = tn.body /*.transformBefore {(node, descend, walker) =>
+          val yieldBody = tn.body.transformBefore {(node, descend, walker) =>
             node match {
               case `call` =>
                 arg.clone()
@@ -759,7 +759,7 @@ object ScalaOut {
                 descend(c, walker)
                 c
             }
-          }*/
+          }
           def bodyFromStatement(s: Node.Statement): Seq[Node.StatementListItem] = {
             s match {
               case b: Node.BlockStatement =>
