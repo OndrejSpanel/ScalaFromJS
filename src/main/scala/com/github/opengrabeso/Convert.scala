@@ -12,12 +12,11 @@ object Convert {
     val files = code.split("\\/\\/file\\:")
     if (files.lengthCompare(1) <= 0) {
 
-      val res = minify(code, defaultUglifyOptions)
-      val ast = res.top
+      val ast = Esprima.parse(code)
 
-      val ext = Transform.NodeExtended(ast).loadConfig
+      val ext = NodeExtended(ast).loadConfig
 
-      val astOptimized = Transform(ext)
+      val astOptimized = ext // Transform(ext)
       val ret = prefix(header) + ScalaOut.output(astOptimized, code).mkString
 
       ext.config.postprocess(ret)

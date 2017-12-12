@@ -6,6 +6,7 @@ trait NodeExt {
 
   implicit class NodeOps(n: Node.Node) {
     def start: Option[Int] = Option(n.range).map(_._1)
+    def end: Option[Int] = Option(n.range).map(_._2)
   }
 
   def nodeClassName(node: Node.Node): String = node.getClass.getSimpleName
@@ -62,6 +63,18 @@ trait NodeExt {
     def unapply(arg: Node.Literal): Option[String] = arg.value.value match {
       case s: String => Some(s)
       case _ => None
+
+    }
+  }
+
+  object ExportFromSource {
+    def unapply(arg: Node.ExportDeclaration) = arg match {
+      case Node.ExportAllDeclaration(source) =>
+        Some(source)
+      case Node.ExportNamedDeclaration(declaration, specifiers, source) =>
+        Some(source)
+      case _ =>
+        None
 
     }
   }

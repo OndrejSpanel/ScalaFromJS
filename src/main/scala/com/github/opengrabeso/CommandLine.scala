@@ -6,6 +6,23 @@ import ConvertProject.AliasPackageRule
 
 object CommandLine {
 
+  def readFile(path: String): String = {
+    val source = scala.io.Source.fromFile("file.txt")
+    val lines = try source.mkString finally source.close()
+    lines
+  }
+  def writeFile(path: String, content: String): Unit = {
+    import java.nio.file.{Paths, Files}
+    import java.nio.charset.StandardCharsets
+
+    Files.write(Paths.get(path), content.getBytes(StandardCharsets.UTF_8))
+  }
+
+  def mkAllDirs(path: String): Unit = {
+    val dir = new java.io.File(path)
+    dir.mkdirs()
+
+  }
 
   // return filenames of the output files
   def convertFileToFile(in: String, out: String): Seq[String] = {
@@ -88,9 +105,9 @@ object CommandLine {
     }
   }
 
-  def apply() = {
-    val realArgs = argv.drop(2)
-    println(s"  args ${realArgs.mkString(",")}")
+  def apply(argv: String*) = {
+    val realArgs = argv.drop(1)
+    println(s"  args ${argv.mkString(",")}")
 
     if (realArgs.length == 2) {
       convertFileToFile(realArgs(0), realArgs(1))

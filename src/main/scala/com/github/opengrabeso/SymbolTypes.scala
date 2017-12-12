@@ -1,8 +1,5 @@
 package com.github.opengrabeso
 
-import Uglify.SymbolDef
-import JsUtils._
-
 import scala.language.implicitConversions
 
 import SymbolTypes._
@@ -285,7 +282,7 @@ object SymbolTypes {
   }
 
   def apply(): SymbolTypes = SymbolTypes.std
-  def apply(syms: Seq[(SymbolDef, TypeDesc)]) = {
+  def apply(syms: Seq[(SymbolMapId, TypeDesc)]) = {
     val idMap = syms.map { case (k,v) => id(k) -> v }.toMap - None
     new SymbolTypes(StdLibraries(), idMap.map{ case (k, v) => k.get -> TypeInfo.target(v)})
   }

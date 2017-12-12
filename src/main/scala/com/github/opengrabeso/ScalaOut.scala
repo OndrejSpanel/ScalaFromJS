@@ -18,7 +18,10 @@ object ScalaOut {
   type SymbolDef = SymbolTypes.SymbolMapId
 
 
-  class ClassListHarmony
+  class ClassListHarmony(ast: Any)
+  object ClassListHarmony {
+    def apply(a: Any): ClassListHarmony = new ClassListHarmony(a)
+  }
 
   // @param unknowns annotate unknown constructs with a comment (source is always passed through)
 
@@ -234,7 +237,7 @@ object ScalaOut {
     def source = nodeSource(n, input.input)
     // http://lisperator.net/uglifyjs/ast
     for (s <- n.start) {
-      out.submitLocation(s.pos, source.lines.next)
+      out.submitLocation(s, source.lines.next)
     }
 
     def outputVarDef(name: Node.Identifier, initInput: Option[Node.Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
@@ -252,8 +255,8 @@ object ScalaOut {
 
       def trivialInit(i: Node.Node): Option[Node.Node] = {
         i match {
-          case a: NodeExt.Array if a.elements.isEmpty => None
-          case o: NodeExt.Object if o.properties.isEmpty => None
+          case a: AArray if a.elements.isEmpty => None
+          case o: OObject if o.properties.isEmpty => None
           case _ => Some(i)
         }
       }
@@ -299,8 +302,8 @@ object ScalaOut {
             out("}\n")
           }
         // empty object - might be a map instead
-        case v@Node.VariableDeclarator(s@Node.Identifier(name), Defined(NodeExt.Object(Seq()))) =>
-          val symId = SymbolTypes.id(symDef)
+        case v@Node.VariableDeclarator(s@Node.Identifier(name), Defined(OObject(Seq()))) =>
+          val symId = SymbolTypes.id(name)
           val tpe = input.types.get(symId).map(_.declType)
           //println(s"Var $name ($symId) type $tpe empty object")
           tpe match {
@@ -1125,14 +1128,14 @@ object ScalaOut {
     }
   }
 
-  private def blockToOut(body: Seq[Node.Statement])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
+  private def blockToOut(body: Seq[Node.StatementListItem])(implicit outConfig: Config, input: InputContext, out: Output): Unit = {
     for ((s, notLast) <- markEnd(body)) {
       nodeToOut(s)
       if (notLast) out.eol()
     }
   }
 
-  def output(ast: Transform.NodeExtended, input: String, outConfig: Config = Config.default): Seq[String] = {
+  def output(ast: NodeExtended, input: String, outConfig: Config = Config.default): Seq[String] = {
     val sb = Array.fill(outConfig.parts.size max 1)(new StringBuilder)
     var currentSb = 0
     val ret = new NiceOutput {
@@ -1165,7 +1168,7 @@ object ScalaOut {
     (for {
       s <- n.start
       e <- n.end
-    } yield input.slice(s.pos, e.endpos)).getOrElse("")
+    } yield input.slice(s, e)).getOrElse("")
   }
 
   def outputNode(ast: Node.Node, input: String = "", outConfig: Config = Config.default): String = {

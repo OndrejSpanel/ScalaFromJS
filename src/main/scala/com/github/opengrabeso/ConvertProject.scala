@@ -20,7 +20,7 @@ object ConvertProject {
     o.properties.collectFirst {
       case ObjectKeyVal(`name`, StringLiteral(value)) =>
         value
-      case ObjectKeyVal(`name`, AArray(lines@_*)) =>
+      case ObjectKeyVal(`name`, AArray(lines)) =>
         val lineStrings = lines.collect {
           case StringLiteral(s) => s
         }
@@ -144,10 +144,10 @@ object ConvertProject {
 
   object ConvertConfig {
 
-    def load(props: Seq[Node.Property]) = {
+    def load(props: Seq[Node.ObjectExpressionProperty]) = {
       val rules: Seq[Rule] = props.flatMap {
         case ObjectKeyVal("members", a: AArray) =>
-          a.elements.toSeq.flatMap {
+          a.elements.flatMap {
             case o: OObject =>
               val m = MemberDesc.load(o)
               val op = loadStringValue(o, "operation")
@@ -172,7 +172,7 @@ object ConvertProject {
               None
           }
         case ObjectKeyVal("packages", a: AArray) =>
-          a.elements.toSeq.flatMap {
+          a.elements.flatMap {
             case o: OObject =>
               val op = loadStringValue(o, "operation")
               val folder = loadStringValue(o, "folder")
@@ -188,7 +188,7 @@ object ConvertProject {
               None
           }
         case ObjectKeyVal("symbols", a: AArray) =>
-          a.elements.toSeq.flatMap {
+          a.elements.flatMap {
             case o: OObject =>
               val op = loadStringValue(o, "operation")
               //println(s"op $op")
@@ -209,7 +209,7 @@ object ConvertProject {
               None
           }
         case ObjectKeyVal("postprocess", a: AArray) =>
-          a.elements.toSeq.flatMap {
+          a.elements.flatMap {
             case o: OObject =>
               val op = loadStringValue(o, "operation")
               op match {
@@ -256,7 +256,7 @@ object ConvertProject {
 
     object GetConfig {
       def unapply(arg: Node.Node) = arg match {
-        case Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(`configName`), OObject(props)), _) =>
+        case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(`configName`), OObject(props)) ), _) =>
           Some(props)
         case _ =>
           None
@@ -269,14 +269,14 @@ object ConvertProject {
         false
       case _: Node.Program =>
         false
-      case _: Node.Scope =>
+      case _: Node.IsScope =>
         true // do not descend into any other scopes, we expect the config at the top level only
       case _ =>
         false
 
     }
 
-    val removedConfig = readConfig.fold(ast) { rc =>
+    val removedConfig = ast /*readConfig.fold(ast) { rc =>
       ast.transformAfter { (node, _) =>
         node match {
           case GetConfig(_) =>
@@ -286,7 +286,7 @@ object ConvertProject {
         }
 
       }
-    }
+    }*/
 
     readConfig.getOrElse(ConvertConfig()) -> removedConfig
   }
@@ -321,10 +321,10 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       val code = readSourceFile(path)
       // try parsing, if unable, return a comment file instead
       try {
-        minify(code, defaultUglifyOptions).top
+        Esprima.parse(code)
         code -> path
       } catch {
-        case JavaScriptException(ex) if ex.asInstanceOf[js.Dynamic].name.asInstanceOf[String]=="SyntaxError" =>
+        case _: Exception =>
           //println(s"Parse ex: ${ex.toString} in $path")
           val short = shortName(path)
           val dot = short.indexOf('.')
@@ -355,7 +355,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
         try {
           readFileAsJs(name)
         } catch {
-          case ex@js.JavaScriptException(ErrorCode("ENOENT" | "EISDIR")) if !name.endsWith(extension) =>
+          case _: java.io.FileNotFoundException if !name.endsWith(extension) =>
             readFileAsJs(name + extension)
         }
       } { item =>
@@ -365,15 +365,16 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
 
     val ast = try {
       //println("** Parse\n" + items.mkString("\n"))
-      minify(code, defaultUglifyOptions).top
+      Esprima.parse(code)
     } catch {
-      case ex@JavaScriptException(exJS) if exJS.asInstanceOf[js.Dynamic].name.asInstanceOf[String]=="SyntaxError" =>
-        val err = exJS.asInstanceOf[JS_Parse_Error]
-        println(s"Parse error $err")
+      case ex: Exception =>
+        println(s"Parse error $ex")
+        /*
         println(s"file ${err.filename} at ${err.line}:${err.col}")
 
         val context = code.slice(err.pos - 30, err.pos + 30)
         println(s"Context: \n$context")
+        */
         throw ex
     }
 
@@ -381,25 +382,26 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     val exampleBuffer = new mutable.ArrayBuffer[(String, String)]
     val includeBuffer = new mutable.ArrayBuffer[(String, String)]
     ast.walk {
-      case i: Node.Import =>
+      case i: Node.ImportDeclaration =>
         i.start.foreach { s =>
+          val example = false
+          /*
           val example = s.comments_before.exists {commentToken =>
             val comment = commentToken.value.asInstanceOf[String]
             comment contains "@example"
           }
+          */
           val target = if (example) exampleBuffer else includeBuffer
-          target append readJsFile(resolveSibling(pathForOffset(s.pos), i.module_name.value))
+          target append readJsFile(resolveSibling(pathForOffset(s), i.source.value))
         }
         false
-      case e: Node.Export =>
+      case e@ExportFromSource(StringLiteral(source)) =>
         // ignore exports in imported files
         e.start.foreach { s =>
-          val index = indexOfItem(s.pos)
+          val index = indexOfItem(s)
           //println(s"index of ${s.pos} = $index in $offsets")
           if (values.isDefinedAt(index) && values(index).included) {
-            e.module_name.foreach { name =>
-              includeBuffer append readJsFile(resolveSibling(pathForOffset(s.pos), name.value))
-            }
+            includeBuffer append readJsFile(resolveSibling(pathForOffset(s), source))
           }
         }
 
@@ -452,7 +454,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       for (ConvertProject.Item(code, _, name) <- exportsImports) {
         try {
           println(s"Parse $name")
-          minify(code, defaultUglifyOptions).top
+          Esprima.parse(code)
         } catch {
           case util.control.NonFatal(ex) =>
             ex.printStackTrace()
@@ -468,12 +470,12 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     val compositeFile = exportsImports.map(_.code).mkString
 
     val ast = Time(s"Parse ${compositeFile.lines.length} lines") {
-      minify(compositeFile, defaultUglifyOptions).top
+      Esprima.parse(compositeFile)
     }
 
     val ext = NodeExtended(ast).loadConfig
 
-    val astOptimized = if (true) Transform(ext) else ext
+    val astOptimized = /*if (true) Transform(ext) else*/ ext
 
     val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1).withRoot(root)
     //println(s"$outConfig")
