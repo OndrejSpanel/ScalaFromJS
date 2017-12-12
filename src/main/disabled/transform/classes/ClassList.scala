@@ -199,7 +199,7 @@ object ClassList {
           }
 
           body.foreach {
-            case Node.Defun(Defined(Node.Identifier(sym)), fArgs, fBody) =>
+            case DefFun(Defined(Node.Identifier(sym)), fArgs, fBody) =>
               val member = ClassFunMember(fArgs, transformReferencesInBody(fBody))
               res.clazz = res.clazz.addMember(sym.name, member)
             case Node.VariableDeclaration(vars@_*) =>

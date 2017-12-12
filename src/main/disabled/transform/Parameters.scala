@@ -52,7 +52,7 @@ object Parameters {
 
     n.transformAfter { (node, _) =>
       node match {
-        case f: Node.Defun =>
+        case f: DefFun =>
           processOneFunction(f)
         case m: Node.MethodDefinition =>
           //println(s"introduceDefaultValues ${m.key.name}")

@@ -318,7 +318,7 @@ object ScalaOut {
               outputVarDef(s, None, tpe, false)
           }
 
-        case NodeExt.VarDef(s@Node.Identifier(name), MayBeNull(init)) =>
+        case VarDef(s@Node.Identifier(name), MayBeNull(init)) =>
           outValVar(init.isDefined)
           //out("/*outputDefinitions 1*/")
           val sType = getSymbolType(name)
@@ -336,8 +336,8 @@ object ScalaOut {
       }
     }
 
-    def outputArgType(n: Node.SymbolFunarg, init: Option[Node.Node]) = {
-      val typeString = Transform.symbolFromPar(n).fold(SymbolTypes.any.toOut)(input.types.getAsScala(_))
+    def outputArgType(n: Node.Identifier, init: Option[Node.Node]) = {
+      val typeString = input.types.getAsScala(n.name)
       //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeString")
       out": $typeString"
       for (init <- init) {
@@ -459,12 +459,12 @@ object ScalaOut {
     }
 
     object CanYield {
-      def unapply(forIn: Node.ForIn): Option[(Node.CallExpression, Node.Node, Node.Node)] = {
+      def unapply(forIn: Node.ForInStatement): Option[(Node.CallExpression, Node.Node, Node.Node)] = {
         var countPush = 0
         forIn.body.walk {
           case _: Node.IterationStatement =>
             true // do not check inner loops
-          case Node.CallExpression(expr Dot "push", arg) =>
+          case Node.CallExpression(expr Dot StringLiteral("push"), arg) =>
             countPush += 1
             false
           case _ =>
@@ -628,10 +628,10 @@ object ScalaOut {
         out("Array(")
         outputNodes(tn.elements)(nodeToOut)
         out(")")
-      case tn: Node.Conditional =>
-        out"if (${tn.condition}) ${tn.consequent} else ${tn.alternative}"
+      case tn: Node.ConditionalExpression =>
+        out"if (${tn.test}) ${tn.consequent} else ${tn.alternate}"
       //case tn: Node.Assign => outputUnknownNode(tn)
-      case Node.BinaryExpression(left, op, right) =>
+      case Node.BinaryExpression(op, left, right) =>
         op match {
           case `instanceof` =>
             termToOut(left)
@@ -673,7 +673,7 @@ object ScalaOut {
       case tn: Dot =>
         termToOut(tn.`object`)
         out(".")
-        identifierToOut(out, tn.property)
+        nodeToOut(tn.property)
       //case tn: Node.PropAccess => outputUnknownNode(tn)
       case tn: Node.SequenceExpression =>
         out("{\n")
@@ -691,21 +691,16 @@ object ScalaOut {
         outputCall(tn)
 
       case Node.VariableDeclarator(s@Node.Identifier(name), MayBeNull(init)) =>
-        out("/*Node.VariableDeclarator*/")
         val sType = getSymbolType(name)
         outputVarDef(s, init, sType, false)
 
-      case tn: Node.Const =>
-        outputDefinitions(true, tn)
-      case tn: Node.Var =>
-        outputDefinitions(false, tn) // we assume scoping is reasonable, we do not try to handle hoisting
-      case tn: Node.Let =>
-        outputDefinitions(false, tn)
+      case tn@Node.VariableDeclaration(decl, kind) =>
+        outputDefinitions(kind == "const", tn)
       //case tn: Node.VariableDeclaration => outputUnknownNode(tn)
-      case tn: Node.Continue => outputUnknownNode(tn, true)
-      case tn: Node.Break => outputUnknownNode(tn, true)
+      case tn: Node.ContinueStatement => outputUnknownNode(tn, true)
+      case tn: Node.BreakStatement => outputUnknownNode(tn, true)
       //case tn: Node.LoopControl => outputUnknownNode(tn)
-      case tn: Node.Throw =>
+      case tn: Node.ThrowStatement =>
         out("throw")
         tn.value.foreach { v =>
           out(" ")
@@ -729,8 +724,8 @@ object ScalaOut {
           nodeToOut(a)
         }
         out.eol()
-      case tn: Node.With => outputUnknownNode(tn, true)
-      case tn: Node.ForIn =>
+      case tn: Node.WithStatement => outputUnknownNode(tn, true)
+      case tn: Node.ForInStatement =>
 
         val push = CanYield.unapply(tn)
 
@@ -767,7 +762,7 @@ object ScalaOut {
           out.unindent()
           out("}")
         }
-      case tn: Node.For =>
+      case tn: Node.ForStatement =>
         tn match {
           case ForRange(name, until, init, end, step) =>
             (init, until, end, step) match {
@@ -818,14 +813,14 @@ object ScalaOut {
 
       case tn: Node.WhileStatement =>
         out("while (")
-        nodeToOut(tn.condition)
+        nodeToOut(tn.test)
         out(") ")
         nodeToOut(tn.body)
       case tn: Node.DoWhileStatement =>
         out("do ")
         nodeToOut(tn.body)
         out(" while (")
-        nodeToOut(tn.condition)
+        nodeToOut(tn.test)
         out(")\n")
       //case tn: Node.DWLoop => outputUnknownNode(tn)
       //case tn: Node.IterationStatement => outputUnknownNode(tn)
@@ -834,14 +829,14 @@ object ScalaOut {
         nodeToOut(tn.body)
       //case tn: Node.StatementWithBody => outputUnknownNode(tn)
       case tn: Node.EmptyStatement =>
-      case tn: Node.Catch =>
+      case tn: Node.CatchClause =>
         out(" catch {\n")
         out.indent()
         out("case ")
         out.indent()
-        nodeToOut(tn.argname)
+        nodeToOut(tn.param)
         out(" =>\n")
-        blockToOut(tn.body)
+        blockToOut(tn.body.body)
         out.unindent()
         out.unindent()
         out("}\n")
@@ -854,11 +849,8 @@ object ScalaOut {
           blockBracedToOut(fin.body)
         }
       case tn: Node.Finally =>
-      case tn: Node.Case =>
+      case tn: Node.SwitchCase =>
         out("case ")
-
-        import Casting._
-        object AsInstanceOfCondition extends InstanceOfCondition(asinstanceof)
 
         def outputCaseBody(body: Seq[Node.Statement]) = {
           out(" =>\n")
@@ -867,8 +859,12 @@ object ScalaOut {
           out.eol()
           out.unindent()
         }
+        /*
+        import Casting._
+        object AsInstanceOfCondition extends InstanceOfCondition(asinstanceof)
 
-        tn.expression match {
+
+        tn.test match {
           // CASE_CAST
           case Node.CallExpression(Node.Identifier("cast_^"),AsInstanceOfCondition(name, classes)) =>
             classes match {
@@ -890,6 +886,9 @@ object ScalaOut {
             nodeToOut(tn.expression)
             outputCaseBody(tn.body)
         }
+        */
+        nodeToOut(tn.test)
+        outputCaseBody(tn.consequent)
 
       case tn: Node.Default =>
         out("case _ =>\n")
@@ -898,11 +897,11 @@ object ScalaOut {
         out.eol()
         out.unindent()
       //case tn: Node.SwitchBranch => outputUnknownNode(tn)
-      case tn: Node.Switch =>
+      case tn: Node.SwitchStatement =>
         nodeToOut(tn.expression)
         out(" match ")
         blockBracedToOut(tn.body, true)
-      case tn: Node.Defun =>
+      case tn: DefFun =>
         out.eol(2)
         out("def ")
         tn.name.foreach(n => nodeToOut(n))
@@ -916,12 +915,12 @@ object ScalaOut {
         //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
         blockBracedToOut(tn.body)
         out.eol()
-      case tn: Node.Function =>
+      case tn: Node.FunctionExpression =>
         outputArgNames(tn)
         out(" => ")
         //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
         blockBracedToOut(tn.body)
-      case tn: Node.Arrow =>
+      case tn: Node.ArrowFunctionExpression =>
         outputArgNames(tn)
         out(" => ")
         blockBracedToOut(tn.body)
@@ -929,9 +928,9 @@ object ScalaOut {
       case tn: Node.Lambda => outputUnknownNode(tn)
       //case tn: Node.Program => outputUnknownNode(tn)
       //case tn: Node.Scope => outputUnknownNode(tn)
-      case tn: Node.DefClass =>
+      case tn: Node.ClassDeclaration =>
 
-        val (staticProperties, nonStaticProperties) = tn.properties.partition(propertyIsStatic)
+        val (staticProperties, nonStaticProperties) = tn.body.body.partition(propertyIsStatic)
 
         if (staticProperties.nonEmpty || nonStaticProperties.isEmpty) {
           out.eol(2)
@@ -1068,18 +1067,18 @@ object ScalaOut {
           // classes have no body
           //blockBracedToOut(tn.body)
         }
-      case tn: Node.Block =>
+      case tn: Node.BlockStatement =>
         blockBracedToOut(tn.body)
       //case tn: Node.BlockStatement =>
-      case tn: Node.SimpleStatement =>
-        nodeToOut(tn.body)
+      case tn: Node.ExpressionStatement =>
+        nodeToOut(tn.expression)
         out.eol()
       case tn: Node.Directive =>
         if (source != """"use strict";""" && source != "'use strict';") { // east use strict silently
           outputUnknownNode(tn)
           out.eol()
         }
-      case tn: Node.Debugger =>
+      case tn: Node.DebuggerStatement =>
         outputUnknownNode(tn)
         out.eol()
       case ex: Node.Export if ex.module_name.isEmpty && ex.exported_definition.nonEmpty =>

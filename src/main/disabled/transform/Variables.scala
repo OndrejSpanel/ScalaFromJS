@@ -213,7 +213,7 @@ object Variables {
     n.transformAfter { (node, _) =>
       node match {
         case Node.Const(Node.VariableDeclarator(sym, Defined(Node.Function(args, body)))) =>
-          new Node.Defun {
+          new DefFun {
             defun =>
             name = new Node.SymbolDefun {
               name = sym.name

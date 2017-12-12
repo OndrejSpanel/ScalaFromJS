@@ -300,7 +300,7 @@ object Transform {
 
     n.top.walk { node =>
       node match {
-        case f: Node.Defun =>
+        case f: DefFun =>
           for {
             start <- f.start
             commentToken <- start.comments_before.lastOption

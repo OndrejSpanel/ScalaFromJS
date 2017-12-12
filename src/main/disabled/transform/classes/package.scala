@@ -28,8 +28,8 @@ package object classes {
 
   object ClassDefineValue {
     // function C() {return {a: x, b:y}
-    def unapply(arg: Node.Defun) = arg match {
-      case Node.Defun(Defined(sym), args, body :+ Node.Return(OObject(proto))) =>
+    def unapply(arg: DefFun) = arg match {
+      case DefFun(Defined(sym), args, body :+ Node.Return(OObject(proto))) =>
         Some(sym, args, body, proto)
       case _ =>
         None
@@ -39,7 +39,7 @@ package object classes {
   object ClassDefine {
     def unapply(arg: Node.Node): Option[(Node.Identifier, Seq[Node.SymbolFunarg], Seq[Node.Statement])] = arg match {
       // function ClassName() {}
-      case Node.Defun(Defined(sym), args, body) =>
+      case DefFun(Defined(sym), args, body) =>
         Some(sym, args, body)
 
       // ClassName = function() {}
@@ -800,7 +800,7 @@ package object classes {
     // find constructors implemented by calling another function
     // function XXXXX( name, times, values, interpolation ) { YYYYY.apply( this, arguments ); }
     n.walk {
-      case Node.Defun(
+      case DefFun(
       Defined(Node.Identifier(fun)), args, Seq(Node.SimpleStatement(Node.CallExpression(
       Node.Identifier(implementFun) Dot "apply", _: Node.This, Node.Identifier("arguments")
       )))) if constructorSymbols contains fun =>
@@ -811,9 +811,9 @@ package object classes {
         false
     }
 
-    var constructorFunctionDefs = Map.empty[SymbolDef, Node.Defun]
+    var constructorFunctionDefs = Map.empty[SymbolDef, DefFun]
     n.walk {
-      case defun@Node.Defun(Defined(Node.Identifier(fun)), _, _) if implToConstructor contains fun =>
+      case defun@DefFun(Defined(Node.Identifier(fun)), _, _) if implToConstructor contains fun =>
         //println(s"Stored function def ${fun.name}")
         constructorFunctionDefs += fun -> defun
         true
@@ -834,7 +834,7 @@ package object classes {
             n
           }
         // inline XXXXX.apply(this, arguments) - was already rewritten from YYYYY (transformAfter transforms children first)
-        case defun@Node.Defun(_, _, Seq(Node.SimpleStatement(Node.CallExpression(
+        case defun@DefFun(_, _, Seq(Node.SimpleStatement(Node.CallExpression(
         Node.Identifier(symDef) Dot "apply", _: Node.This, Node.Identifier("arguments")
         )))) =>
           //println(s"Detect ${symDef.name}.apply")
@@ -844,7 +844,7 @@ package object classes {
             defun
           }
         // remove the original implementation
-        case defun@Node.Defun(Defined(Node.Identifier(sym)), _, _) if implToConstructor contains sym =>
+        case defun@DefFun(Defined(Node.Identifier(sym)), _, _) if implToConstructor contains sym =>
           Node.EmptyStatement(defun)
         case _ => node
       }

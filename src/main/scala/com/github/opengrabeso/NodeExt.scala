@@ -32,6 +32,8 @@ trait NodeExt {
   type VarDef = Node.VariableDeclarator
   val VarDef = Node.VariableDeclarator
 
+  type DefFun = Node.FunctionDeclaration
+  val DefFun = Node.FunctionDeclaration
 
   object ObjectKeyVal {
     def unapply(arg: Node.Property) = {
@@ -65,6 +67,22 @@ trait NodeExt {
       case _ => None
 
     }
+  }
+
+  def propertyName(n: Node.ObjectExpressionProperty): String = {
+    n match {
+      case p: Node.Property =>
+        p.key match {
+          case Node.Identifier(name) =>
+            name
+          case Node.Literal(value, raw) =>
+            value
+        }
+    }
+  }
+
+  def propertyIsStatic(p: Node.MethodDefinition): Boolean = {
+    p.static
   }
 
   object ExportFromSource {

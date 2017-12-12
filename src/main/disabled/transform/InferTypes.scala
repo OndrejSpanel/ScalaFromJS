@@ -185,9 +185,9 @@ object InferTypes {
     }
 
     // list all functions so that we can look-up them from call sites
-    var functions = Map.empty[Node.SymbolDeclaration, Node.Defun]
+    var functions = Map.empty[Node.SymbolDeclaration, DefFun]
     n.top.walk {
-      case defun@Node.Defun(Defined(name),_,_) =>
+      case defun@DefFun(Defined(name),_,_) =>
         functions += name -> defun
         false
       case _ =>
@@ -540,7 +540,7 @@ object InferTypes {
           }
           symInfo.addSymbolInferredType(allCases)(s"Infer switch")
 
-        case fun@Node.Defun(Defined(symDef), _, _) =>
+        case fun@DefFun(Defined(symDef), _, _) =>
           val allReturns = scanFunctionReturns(fun)(ctx)
           //println(s"${symDef.name} returns $allReturns")
           for {
@@ -625,7 +625,7 @@ object InferTypes {
             case Some(defunSym: Node.SymbolDefun) => // normal function call
               //println(s"Infer arg types for ${defunSym.name}")
               functions.get(defunSym) match {
-                case Some(Node.Defun(_, pars, _)) =>
+                case Some(DefFun(_, pars, _)) =>
                   // now match arguments to parameters
                   inferParsOrArgs(pars, args)(s"Call function ${defunSym.name}")
                 case _ =>

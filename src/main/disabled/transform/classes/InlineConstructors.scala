@@ -67,7 +67,7 @@ object InlineConstructors {
     }
 
 
-    val definedFunctions = localLambdas.filter(_.isInstanceOf[Node.Defun])
+    val definedFunctions = localLambdas.filter(_.isInstanceOf[DefFun])
     //println(s"definedFunctions $definedFunctions")
 
     var definedAndExported = Set.empty[Node.Lambda]
@@ -246,7 +246,7 @@ object InlineConstructors {
             val functions = rawConstructor.body.collect {
               case s@DefinePrivateFunction(funName, f) if functionsToConvert contains f =>
                 (s, funName, f)
-              case s@Node.Defun(Defined(Node.SymbolName(funName)), _, _) if functionsToConvert contains s =>
+              case s@DefFun(Defined(Node.SymbolName(funName)), _, _) if functionsToConvert contains s =>
                 (s, funName, s)
             }
 
