@@ -11,7 +11,22 @@ package object symbols {
     var symbols = Set.empty[String] // all symbols defined in the scope
   }
 
-  case class SymId(name: String, scope: Int)
+  case class SymId(name: String, sourcePos: Int) {
+    override def toString = s"$name:$sourcePos"
+    def compare(that: SymId) = {
+      val d = name compare that.name
+      if (d != 0) {
+        d
+      } else {
+        sourcePos - that.sourcePos
+      }
+    }
+
+  }
+
+  // TODO: refactor: simplify - SymId is always known
+  def symId(name: String)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name))
+  def symId(name: Node.Identifier)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name.name))
 
   class ScopeContext {
     val parents = ArrayBuffer.empty[Node.Node]

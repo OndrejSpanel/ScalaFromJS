@@ -175,10 +175,8 @@ object SymbolTypes {
 
   // SymbolDef instances (including ids) are recreated on each figure_out_scope
   // we need a stable id. Original source location + name should be unique and stable
-  case class SymbolMapId(name: String, sourcePos: Int) extends Ordered[SymbolMapId] {
-    override def toString = s"$name:$sourcePos"
-    def compare(that: SymbolMapId) = name compare that.name
-  }
+  type SymbolMapId = esprima.symbols.SymId
+  val SymbolMapId = esprima.symbols.SymId
 
   case class MemberId(cls: SymbolMapId, name: String)
 

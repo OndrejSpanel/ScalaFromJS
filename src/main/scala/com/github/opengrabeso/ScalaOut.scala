@@ -2,7 +2,6 @@ package com.github.opengrabeso
 
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
-
 import JsUtils._
 //import Classes._
 
@@ -17,6 +16,7 @@ object ScalaOut {
 
   type SymbolDef = SymbolTypes.SymbolMapId
 
+  import symbols.symId
 
   class ClassListHarmony(ast: Any)
   object ClassListHarmony {
@@ -128,9 +128,9 @@ object ScalaOut {
           identifierToOut(output, s.name)
 
           if (false) { // output symbol ids and types
-            val symId = SymbolTypes.id(s.name)
-            out"/*${symId.fold(-1)(_.sourcePos)}*/"
-            out"/*${input.types.get(symId)}*/"
+            val sid = symId(s.name)
+            out"/*${sid.fold(-1)(_.sourcePos)}*/"
+            out"/*${input.types.get(sid)}*/"
           }
         case n: Node.Node =>
           nodeToOut(n)
@@ -345,33 +345,29 @@ object ScalaOut {
       }
     }
 
-    def outputClassArgNames(tn: Node.Lambda) = {
+    def outputClassArgNames(argnames: Seq[Node.FunctionParameter]) = {
       out("(")
-      outputNodes(tn.argnames) { n =>
+      outputNodes(argnames) { n =>
+        val (sym, init) = parameterName(n)
         // parSuffix is still used for parameters which are modified
-        if (!input.types.getHint(Transform.symbolId(n)).contains(IsConstructorParameter) && !n.name.endsWith(parSuffix)) {
+        if (!input.types.getHint(id(sym)).contains(IsConstructorParameter) && !sym.name.endsWith(parSuffix)) {
           out("var ")
         }
         out"$n"
-        outputArgType(n, n.init.flatMap(_.headOption))
+        outputArgType(sym, init)
       }
       out(")")
     }
 
-    def outputArgNames(tn: Node.Lambda, types: Boolean = false) = {
+    def outputArgNames(argnames: Seq[Node.FunctionParameter], types: Boolean = false) = {
       out("(")
-      outputNodes(tn.argnames) { n =>
-        val (sym, init: Option[Node.Node]) = n.asInstanceOf[Node.Node] match {
-          case d: Node.DefaultAssign =>
-            d.left.asInstanceOf[Node.SymbolFunarg] -> Some(d.right)
-          case _ =>
-            n -> n.init.flatMap(_.headOption)
-        }
+      outputNodes(argnames) { n =>
+        val (sym, init) = parameterName(n)
         out"$sym"
         if (types) {
           outputArgType(sym, init)
         } else {
-          val sid = n.thedef.flatMap(SymbolTypes.id)
+          val sid = SymbolTypes.id(sym.name)
           for (t <- input.types.get(sid)) {
             out": ${t.declType.toOut}"
           }
@@ -381,9 +377,9 @@ object ScalaOut {
     }
 
     def outputCall(tn: Node.CallExpression) = {
-      nodeToOut(tn.expression)
+      nodeToOut(tn.callee)
       out("(")
-      outputNodes(tn.args)(nodeToOut)
+      outputNodes(tn.arguments)(nodeToOut)
       out(")")
     }
 
@@ -393,7 +389,7 @@ object ScalaOut {
       // non-associative need to be parenthesed when used on the right side
 
       arg match {
-        case a@Node.BinaryExpression(_, op, _) if OperatorPriorities.useParens(op, outer, right) =>
+        case a@Node.BinaryExpression(op, _, _) if OperatorPriorities.useParens(op, outer, right) =>
           // TODO: compare priorities
           out"($arg)"
         case _ =>

@@ -69,6 +69,18 @@ trait NodeExt {
     }
   }
 
+  def parameterName(n: Node.FunctionParameter): (Node.Identifier, Option[Node.Node]) = {
+    n match {
+      case Node.AssignmentPattern(left: Node.Identifier, right) =>
+        left -> Some(right)
+      case id: Node.Identifier =>
+        id -> None
+      //case _: Node.ArrowParameterPlaceHolder =>
+      //case _: Node.BindingPattern =>
+    }
+
+  }
+
   def propertyName(n: Node.ObjectExpressionProperty): String = {
     n match {
       case p: Node.Property =>
