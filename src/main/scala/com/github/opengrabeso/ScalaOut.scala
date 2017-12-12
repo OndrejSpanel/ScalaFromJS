@@ -1,8 +1,7 @@
 package com.github.opengrabeso
 
-import net.gamatron.esprima._
-import esprima._
-import NodeExt._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import JsUtils._
 //import Classes._
@@ -19,6 +18,21 @@ object ScalaOut {
   type SymbolDef = SymbolTypes.SymbolMapId
 
   def nodeClassName(node: Node.Node): String = node.getClass.getSimpleName
+
+
+  object Defined {
+    // extract value from a potential null only if non-null
+    def unapply[T](some: T): Option[T] = {
+      Option(some)
+    }
+  }
+
+  object MayBeNull {
+    // extract value from a potential null as an option
+    def unapply[T](some: T): Option[Option[T]] = {
+      Some(Option(some))
+    }
+  }
 
   class ClassListHarmony
 
@@ -127,7 +141,7 @@ object ScalaOut {
           identifierToOut(output, s.name)
 
           if (false) { // output symbol ids and types
-            val symId = SymbolTypes.id(s)
+            val symId = SymbolTypes.id(s.name)
             out"/*${symId.fold(-1)(_.sourcePos)}*/"
             out"/*${input.types.get(symId)}*/"
           }
@@ -273,16 +287,16 @@ object ScalaOut {
       input.types.get(symDef).map(_.declType)
     }
 
-    def outputDefinitions(isVal: Boolean, tn: Node.Definitions, types: Boolean = false) = {
+    def outputDefinitions(isVal: Boolean, tn: Node.VariableDeclaration, types: Boolean = false) = {
       //out"/*outputDefinitions ${tn.definitions}*/"
       //println("outputDefinitions -")
       def outValVar(isInitialized: Boolean) = {
         out(if (isVal && isInitialized) "val " else "var ")
       }
 
-      tn.definitions.foreach {
+      tn.declarations.foreach {
 
-        case Node.VarDef(name, Defined(Node.Object(props))) if props.nonEmpty && isVal =>
+        case Node.VariableDeclarator(name, Defined(Node.Object(props))) if props.nonEmpty && isVal =>
           // special case handling for isResource marked object (see readFileAsJs)
           val propNames = props.map(propertyName)
           //println(s"propNames $propNames")
@@ -301,7 +315,7 @@ object ScalaOut {
             out("}\n")
           }
         // empty object - might be a map instead
-        case v@Node.VarDef(s@Node.Identifier(name, _, Defined(symDef)), Defined(Node.Object(Seq()))) =>
+        case v@Node.VariableDeclarator(s@Node.Identifier(name), Defined(NodeExt.Object(Seq()))) =>
           val symId = SymbolTypes.id(symDef)
           val tpe = input.types.get(symId).map(_.declType)
           //println(s"Var $name ($symId) type $tpe empty object")
@@ -314,17 +328,17 @@ object ScalaOut {
               outValVar(false)
               // it has no sense for uninitialized variable to be "val", fix it
               // such variables can be created by extracting class private variables when their initialization cannot be extracted
-              outputVarDef(s, js.undefined, tpe, false)
+              outputVarDef(s, None, tpe, false)
           }
 
-        case NodeExt.VarDef(s@Node.Identifier(name), init) =>
-          outValVar(Option(init).isDefined)
+        case NodeExt.VarDef(s@Node.Identifier(name), MayBeNull(init)) =>
+          outValVar(init.isDefined)
           //out("/*outputDefinitions 1*/")
-          val sType = getSymbolType(sym)
-          //out"/*Node.VarDef sym ${SymbolTypes.id(sym)} $sType*/"
-          //println(s"Node.VarDef sym ${SymbolTypes.id(sym)} $sType")
+          val sType = getSymbolType(name)
+          //out"/*Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType*/"
+          //println(s"Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType")
           //println(getType(sym))
-          outputVarDef(s, Option(init), sType, types)
+          outputVarDef(s, init, sType, types)
       }
     }
 
@@ -379,7 +393,7 @@ object ScalaOut {
       out(")")
     }
 
-    def outputCall(tn: Node.Call) = {
+    def outputCall(tn: Node.CallExpression) = {
       nodeToOut(tn.expression)
       out("(")
       outputNodes(tn.args)(nodeToOut)
@@ -458,12 +472,12 @@ object ScalaOut {
     }
 
     object CanYield {
-      def unapply(forIn: Node.ForIn): Option[(Node.Call, Node.Node, Node.Node)] = {
+      def unapply(forIn: Node.ForIn): Option[(Node.CallExpression, Node.Node, Node.Node)] = {
         var countPush = 0
         forIn.body.walk {
           case _: Node.IterationStatement =>
             true // do not check inner loops
-          case Node.Call(expr Dot "push", arg) =>
+          case Node.CallExpression(expr Dot "push", arg) =>
             countPush += 1
             false
           case _ =>
@@ -474,9 +488,9 @@ object ScalaOut {
 
         // detect if last statement in the for body is a push
         // if it is, convert the loop to yield
-        var push = Option.empty[(Node.Call, Node.Node, Node.Node)]
+        var push = Option.empty[(Node.CallExpression, Node.Node, Node.Node)]
         Transform.walkLastNode(forIn.body) {
-          case call@Node.Call(expr Dot "push", arg) =>
+          case call@Node.CallExpression(expr Dot "push", arg) =>
             push = Some(call, expr, arg)
             false
           case _ =>
@@ -605,7 +619,7 @@ object ScalaOut {
 
       //out"/*${nodeClassName(n)}*/"
       //case tn: Node.ObjectProperty =>
-      case tn: Node.ConciseMethod =>
+      case tn: Node.MethodDefinition =>
         //out"/*${nodeClassName(n)}*/"
         out.eol()
         out"def ${tn.key}${tn.value}\n"
@@ -623,7 +637,7 @@ object ScalaOut {
           out.eol()
           out("}")
         }
-      case tn: Node.Array =>
+      case tn: Node.AArray =>
         out("Array(")
         outputNodes(tn.elements)(nodeToOut)
         out(")")
@@ -643,39 +657,38 @@ object ScalaOut {
             out" $op "
             outputBinaryArgument(right, op, true)
         }
-      case tn: Node.Unary =>
+      case tn: Node.UnaryExpression =>
         tn.operator match {
           case "typeof" =>
-            termToOut(tn.expression)
+            termToOut(tn.argument)
             out(".getClass")
           case _ =>
-            tn match {
-              case _: Node.UnaryPrefix =>
-                (tn.operator, tn.expression) match {
-                  case ("delete", sym Node.Sub prop) =>
-                    out"$sym -= $prop"
-                  case _ =>
-                    out(tn.operator)
-                    if (tn.operator.last.isLetterOrDigit) out(" ")
-                    termToOut(tn.expression)
-                }
-              case _: Node.UnaryPostfix =>
-                termToOut(tn.expression)
-                if (tn.operator.head.isLetterOrDigit) out(" ")
-                out(tn.operator)
+            if (tn.prefix) {
+              (tn.operator, tn.argument) match {
+                case ("delete", sym Sub prop) =>
+                  out"$sym -= $prop"
+                case _ =>
+                  out(tn.operator)
+                  if (tn.operator.last.isLetterOrDigit) out(" ")
+                  termToOut(tn.argument)
+              }
+            } else {
+              termToOut(tn.argument)
+              if (tn.operator.head.isLetterOrDigit) out(" ")
+              out(tn.operator)
             }
         }
-      case tn: Node.Sub =>
-        termToOut(tn.expression)
+      case tn: Sub =>
+        termToOut(tn.`object`)
         out("(")
         nodeToOut(tn.property)
         out(")")
       case tn: Dot =>
-        termToOut(tn.expression)
+        termToOut(tn.`object`)
         out(".")
         identifierToOut(out, tn.property)
       //case tn: Node.PropAccess => outputUnknownNode(tn)
-      case tn: Node.Sequence =>
+      case tn: Node.SequenceExpression =>
         out("{\n")
         out.indent()
         for (item <- tn.expressions) {
@@ -684,15 +697,15 @@ object ScalaOut {
         }
         out.unindent()
         out("}")
-      case tn: Node.New =>
+      case tn: Node.NewExpression =>
         out("new ")
         outputCall(tn)
-      case tn: Node.Call =>
+      case tn: Node.CallExpression =>
         outputCall(tn)
 
-      case Node.VarDef(s@Node.Identifier(name, _, Defined(sym)), init) =>
-        out("/*Node.VarDef*/")
-        val sType = getSymbolType(sym)
+      case Node.VariableDeclarator(s@Node.Identifier(name), MayBeNull(init)) =>
+        out("/*Node.VariableDeclarator*/")
+        val sType = getSymbolType(name)
         outputVarDef(s, init, sType, false)
 
       case tn: Node.Const =>
@@ -701,7 +714,7 @@ object ScalaOut {
         outputDefinitions(false, tn) // we assume scoping is reasonable, we do not try to handle hoisting
       case tn: Node.Let =>
         outputDefinitions(false, tn)
-      //case tn: Node.Definitions => outputUnknownNode(tn)
+      //case tn: Node.VariableDeclaration => outputUnknownNode(tn)
       case tn: Node.Continue => outputUnknownNode(tn, true)
       case tn: Node.Break => outputUnknownNode(tn, true)
       //case tn: Node.LoopControl => outputUnknownNode(tn)
@@ -816,12 +829,12 @@ object ScalaOut {
             //out("}\n")
         }
 
-      case tn: Node.While =>
+      case tn: Node.WhileStatement =>
         out("while (")
         nodeToOut(tn.condition)
         out(") ")
         nodeToOut(tn.body)
-      case tn: Node.Do =>
+      case tn: Node.DoWhileStatement =>
         out("do ")
         nodeToOut(tn.body)
         out(" while (")
@@ -834,9 +847,6 @@ object ScalaOut {
         nodeToOut(tn.body)
       //case tn: Node.StatementWithBody => outputUnknownNode(tn)
       case tn: Node.EmptyStatement =>
-      case tn: Node.Finally =>
-        out(" finally ")
-        blockBracedToOut(tn.body)
       case tn: Node.Catch =>
         out(" catch {\n")
         out.indent()
@@ -848,11 +858,15 @@ object ScalaOut {
         out.unindent()
         out.unindent()
         out("}\n")
-      case tn: Node.Try =>
+      case tn: Node.TryStatement =>
         out("try ")
-        blockBracedToOut(tn.body)
-        tn.bcatch.foreach(nodeToOut)
-        tn.bfinally.foreach(nodeToOut)
+        nodeToOut(tn.block)
+        Option(tn.handler).foreach(nodeToOut)
+        Option(tn.finalizer).foreach { fin =>
+          out(" finally ")
+          blockBracedToOut(fin.body)
+        }
+      case tn: Node.Finally =>
       case tn: Node.Case =>
         out("case ")
 
@@ -869,7 +883,7 @@ object ScalaOut {
 
         tn.expression match {
           // CASE_CAST
-          case Node.Call(Node.Identifier("cast_^"),AsInstanceOfCondition(name, classes)) =>
+          case Node.CallExpression(Node.Identifier("cast_^"),AsInstanceOfCondition(name, classes)) =>
             classes match {
               case Seq(cls) =>
                 out"${identifier(name.name + castSuffix)}: $cls"
@@ -879,7 +893,7 @@ object ScalaOut {
             }
 
             tn.body.toSeq match {
-              case Seq(Node.BlockStatement(Node.Definitions(Node.VarDef(sv, AsInstanceOfCondition(_, _))) +: body)) =>
+              case Seq(Node.BlockStatement(Node.VariableDeclaration(Node.VariableDeclarator(sv, AsInstanceOfCondition(_, _))) +: body)) =>
                 // we might check sv - variable name correspondence
                 outputCaseBody(body)
               case _ =>
@@ -971,7 +985,7 @@ object ScalaOut {
             for (inlineBody <- inlineBodyOpt) {
               // find the super constructor call and use its parameters
               inlineBody.value.body.foreach {
-                case Node.SimpleStatement(call@Node.Call(_: Node.Super, pars@_*)) =>
+                case Node.SimpleStatement(call@Node.CallExpression(_: Node.Super, pars@_*)) =>
                   out("(")
                   outputNodes(pars)(nodeToOut)
                   out(")")
@@ -988,7 +1002,7 @@ object ScalaOut {
             if (false) {
               out"/* inlineBody defs ${
                 inlineBody.value.body.collect {
-                  case Node.Definitions(Node.VarDef(Node.SymbolName(vn), _)) =>
+                  case Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(vn), _)) =>
                     vn
                 }.mkString(",")
               } */\n"
@@ -998,9 +1012,9 @@ object ScalaOut {
             inlineBody.value.body.foreach {
               case df: Node.Const =>
                 outputDefinitions(true, df, true)
-              case df: Node.Definitions =>
+              case df: Node.VariableDeclaration =>
                 outputDefinitions(false, df, true)
-              case Node.SimpleStatement(Node.Call(_: Node.Super, _*)) =>
+              case Node.SimpleStatement(Node.CallExpression(_: Node.Super, _*)) =>
               case ss =>
                 //out(nodeTreeToString(ss))
                 nodeToOut(ss)
@@ -1010,7 +1024,7 @@ object ScalaOut {
           //blockToOut(tn.body)
 
           val (functionMembers, varMembers) = nonStaticProperties.partition {
-            case _: Node.ConciseMethod => true
+            case _: Node.MethodDefinition => true
             case kv: Node.ObjectKeyVal if keyValIsTemplate(kv) => true
             case _ => false
           }
@@ -1028,7 +1042,7 @@ object ScalaOut {
 
           for (pm <- functionMembers if !inlineBodyOpt.contains(pm)) {
             pm match {
-              case p: Node.ConciseMethod =>
+              case p: Node.MethodDefinition =>
                 // check overrides
                 def isObjectOverride = {
                   // special case: override AnyRef (java.lang.Object) methods:
@@ -1043,7 +1057,7 @@ object ScalaOut {
                     parentMethod <- Classes.findMethod(parentCls, p.key.name)
                   } yield {
                     // check method signature
-                    def getArgTypes(m: Node.ConciseMethod) = {
+                    def getArgTypes(m: Node.MethodDefinition) = {
                       m.value.argnames.flatMap(_.thedef).map(SymbolTypes.id).map(input.types.get)
                     }
 
