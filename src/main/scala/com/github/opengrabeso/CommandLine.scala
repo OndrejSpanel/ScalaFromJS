@@ -24,6 +24,10 @@ object CommandLine {
 
   }
 
+  def removeFile(path: String): Unit = ???
+
+  def withTempDir[T](path: String)(f: String => T): T = ???
+
   // return filenames of the output files
   def convertFileToFile(in: String, out: String): Seq[String] = {
     val log = false

@@ -6,7 +6,7 @@ class BasicConversionTests extends FunSuite with TestUtils {
 
 
   test("Simple functions") {
-    execute check ConversionCheck(rsc("simpleFunction/simpleFunctions.js"))
+    exec check ConversionCheck(rsc("simpleFunction/simpleFunctions.js"))
       .required(
         "def firstFunction()",
         "def secondFunction()"
@@ -17,13 +17,13 @@ class BasicConversionTests extends FunSuite with TestUtils {
   }
 
   test("Unsupported code") {
-    execute check ConversionCheck(rsc("unsupported/unsupported.js"))
+    exec check ConversionCheck(rsc("unsupported/unsupported.js"))
       .required("/* Unsupported: Break */ break")
       .forbiddenNothing
   }
 
   test("String escaping") {
-    execute check ConversionCheck(""""Multiple lines\nAnd some tabs\tas well\r\n"""")
+    exec check ConversionCheck(""""Multiple lines\nAnd some tabs\tas well\r\n"""")
       .required("\\n", "\\r", "\\t")
       .forbidden("\t")
   }
@@ -34,7 +34,7 @@ class BasicConversionTests extends FunSuite with TestUtils {
   }
 
   test("Reserved words") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       """function def()
         |{
         |    var val;
@@ -45,7 +45,7 @@ class BasicConversionTests extends FunSuite with TestUtils {
   }
 
   test("Sequences") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       """function f() {
         |  return 0, 1, 2;
         |}""".stripMargin

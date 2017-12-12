@@ -4,7 +4,7 @@ import org.scalatest.FunSuite
 
 class RuleTests extends FunSuite with TestUtils {
   test("Delete member variables and functions") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function C() {
@@ -40,7 +40,7 @@ class RuleTests extends FunSuite with TestUtils {
   }
 
   test("Replace member variables with properties") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function C(width, height) {
@@ -73,7 +73,7 @@ class RuleTests extends FunSuite with TestUtils {
   }
 
   test("Handle isClass") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function C(width, height) {
@@ -117,7 +117,7 @@ class RuleTests extends FunSuite with TestUtils {
   }
 
   test("Handle getClass") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       class Node {
@@ -182,7 +182,7 @@ class RuleTests extends FunSuite with TestUtils {
   }
 
   test("Handle method extending") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       class Person {
@@ -228,7 +228,7 @@ class RuleTests extends FunSuite with TestUtils {
   }
 
   test("Handle symbol scope removal") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
 

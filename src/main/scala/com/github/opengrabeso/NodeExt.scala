@@ -93,8 +93,13 @@ trait NodeExt {
     }
   }
 
-  def propertyIsStatic(p: Node.MethodDefinition): Boolean = {
-    p.static
+  def keyValIsTemplate(kv: Node.Property): Boolean = propertyName(kv) startsWith Symbols.templatePrefix
+
+  def propertyIsStatic(p: Node.ClassBodyElement): Boolean = {
+    p match {
+      case p: Node.MethodDefinition =>
+        p.static
+    }
   }
 
   object ExportFromSource {

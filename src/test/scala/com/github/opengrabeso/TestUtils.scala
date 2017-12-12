@@ -41,7 +41,7 @@ trait TestUtils extends Assertions {
       }
     }
 
-    def execute() = {
+    def exec() = {
       checkResult(getResult()).failed.foreach(x => fail(x.getMessage))
     }
   }
@@ -58,14 +58,14 @@ trait TestUtils extends Assertions {
 
     // TODO: facade instead of Dynamic
     def readFile(name: String): String = {
-      fs.readFileSync(name).toString
+      ???
     }
 
     readFile(rscPath(path))
   }
 
-  object execute {
-    def check(setup: TestCheck) = setup.execute()
+  object exec {
+    def check(setup: TestCheck) = setup.exec()
   }
 
 

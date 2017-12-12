@@ -4,7 +4,7 @@ import org.scalatest.FunSuite
 
 class ClassVarsTests extends FunSuite with TestUtils {
   test("Handle class variables") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function f(a_par) {
@@ -29,7 +29,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
   }
 
   test("Infer type of class members when using class variables in prototype based classes") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function Person(name){
@@ -51,7 +51,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
   }
 
   test("Infer type of class members when using class variables in ES6 classes") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       class Person {
@@ -75,7 +75,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
   }
 
   test("Duplicate assignment prevents introducing a parameter variable") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       class Person {
@@ -100,7 +100,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
 
   test("Member initializations after var inlined only when constant") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function Cls() {
@@ -136,7 +136,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
   }
 
   test("Private variables should be extracted") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function WebGLRenderer() {
@@ -157,7 +157,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
   }
 
   test("Private variables should not be created for known functions") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function C() {
@@ -184,7 +184,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
 
   test("Private variables should be extracted as object when appropriate") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function WebGLRenderer() {
@@ -214,7 +214,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
   }
 
   test("Private variables should be extracted when initializer is constant") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function WebGLRenderer() {
@@ -242,7 +242,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
   }
 
   test("Private variables should not be extracted for class parameters") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function C( x ) {
@@ -269,7 +269,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
   }
 
   test("Constructor-local functions which are not exported (and their variables) should not be extracted as members") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function C() {

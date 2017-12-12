@@ -4,7 +4,7 @@ import org.scalatest.FunSuite
 
 class ArrayTests extends FunSuite with TestUtils {
   test("Map and Array types should be inferred") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function f(x,y,w) {
@@ -44,7 +44,7 @@ class ArrayTests extends FunSuite with TestUtils {
   }
 
   test("Array types should be inferred from item operations") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function C() {
@@ -72,7 +72,7 @@ class ArrayTests extends FunSuite with TestUtils {
   }
 
   test("Smart Array.isArray conditional handling") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function f( shapes ) {
@@ -91,7 +91,7 @@ class ArrayTests extends FunSuite with TestUtils {
   }
 
   test("Map and Array types should be inferred from property access") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function C() {
@@ -120,7 +120,7 @@ class ArrayTests extends FunSuite with TestUtils {
   }
 
   test("Array types should be inferred for multiple items, including function calls") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       var array;

@@ -29,6 +29,22 @@ package object symbols {
   def symId(name: Node.Identifier)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name.name))
 
   class ScopeContext {
+    def enterScope(node: Node) = {
+      val isScope = node.isInstanceOf[IsScope]
+      if (isScope) {
+        scopes.push(node -> new ScopeInfo)
+      }
+      parents.push(node)
+    }
+
+    def leaveScope(node: Node) = {
+      val isScope = node.isInstanceOf[IsScope]
+      parents.pop()
+      if (isScope) {
+        scopes.pop()
+      }
+    }
+
     val parents = ArrayBuffer.empty[Node.Node]
     val scopes =  ArrayBuffer.empty[(Node.Node, ScopeInfo)]
 
@@ -54,11 +70,7 @@ package object symbols {
     def callbackWithPrefix(node: Node): Boolean = {
       val ret = callback(node, context)
       if (!ret) {
-        val isScope = node.isInstanceOf[IsScope]
-        if (isScope) {
-          context.scopes.push(node -> new ScopeInfo)
-        }
-        context.parents.push(node)
+        context.enterScope(node)
       }
       // scan for nodes defining symbols
       node match {
@@ -70,11 +82,7 @@ package object symbols {
     }
 
     def post(node: Node) = {
-      val isScope = node.isInstanceOf[IsScope]
-      context.parents.pop()
-      if (isScope) {
-        context.scopes.pop()
-      }
+      context.leaveScope(node)
     }
 
     walker.walkRecursive(node)(callbackWithPrefix)(post)

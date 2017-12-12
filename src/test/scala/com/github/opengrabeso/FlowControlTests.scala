@@ -6,7 +6,7 @@ class FlowControlTests extends FunSuite with TestUtils {
 
 
   test("Flow control") {
-    execute check ConversionCheck(rsc("control/control.js"))
+    exec check ConversionCheck(rsc("control/control.js"))
       .required(
         "if (b) {",
         "a += 1",
@@ -17,7 +17,7 @@ class FlowControlTests extends FunSuite with TestUtils {
   }
 
   test("For loop special form") {
-    execute check ConversionCheck(rsc("control/for.js"))
+    exec check ConversionCheck(rsc("control/for.js"))
       .required(
         "for (a <- 0 until 10)",
         "for (i <- 0 until 2 + 3)",
@@ -36,7 +36,7 @@ class FlowControlTests extends FunSuite with TestUtils {
   }
 
   test("Switch / case / break") {
-    execute check ConversionCheck(rsc("control/switch.js"))
+    exec check ConversionCheck(rsc("control/switch.js"))
       .required(
         "a match",
         "case \"A\" | \"B\" | \"C\" =>",

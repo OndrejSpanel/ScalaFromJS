@@ -4,7 +4,7 @@ import org.scalatest.FunSuite
 
 class ValVarTests extends FunSuite with TestUtils {
   test("Val detection") {
-    execute check ConversionCheck(rsc("expressions/variables.js"))
+    exec check ConversionCheck(rsc("expressions/variables.js"))
       .required(
         "val s =",
         "var x =",
@@ -23,7 +23,7 @@ class ValVarTests extends FunSuite with TestUtils {
   }
 
   test("Double var merge") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function f() {
@@ -57,7 +57,7 @@ class ValVarTests extends FunSuite with TestUtils {
   }
 
   test("Detect object instead of variable") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function W() {
@@ -82,7 +82,7 @@ class ValVarTests extends FunSuite with TestUtils {
   }
 
   test("Do not detect object when var is reassigned") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function W() {
@@ -109,7 +109,7 @@ class ValVarTests extends FunSuite with TestUtils {
   }
 
   test("Detect object instead of variable even when used in a function") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function W() {
@@ -136,7 +136,7 @@ class ValVarTests extends FunSuite with TestUtils {
   }
 
   test("Private variable which cannot be initialized on construction should not be a val") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function GL() {

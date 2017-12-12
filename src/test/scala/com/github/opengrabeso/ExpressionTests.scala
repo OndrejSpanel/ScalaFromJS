@@ -5,7 +5,7 @@ import org.scalatest.FunSuite
 class ExpressionTests extends FunSuite with TestUtils {
 
   test("Handle unary operators") {
-    execute check ConversionCheck(rsc("expressions/unary.js"))
+    exec check ConversionCheck(rsc("expressions/unary.js"))
       .required(
         "a += 1",
         "b += 1",
@@ -23,13 +23,13 @@ class ExpressionTests extends FunSuite with TestUtils {
   }
 
   test("Handle typeof / instanceof") {
-    execute check ConversionCheck(rsc("expressions/types.js"))
+    exec check ConversionCheck(rsc("expressions/types.js"))
       .required("s.isInstanceOf[String]", ".getClass")
       .forbidden("instanceof", "typeof")
   }
 
   test("Handle Scala keywords in identifiers") {
-    execute check ConversionCheck(rsc("expressions/reserved.js"))
+    exec check ConversionCheck(rsc("expressions/reserved.js"))
       .required(
         "var `type`",
         "val `object` =",
@@ -48,7 +48,7 @@ class ExpressionTests extends FunSuite with TestUtils {
   }
 
   test("Handle Immediately-invoked function expression (IIFE)") {
-    execute check ConversionCheck(rsc("expressions/iife.js"))
+    exec check ConversionCheck(rsc("expressions/iife.js"))
       .required(
       )
       .forbidden(
@@ -58,7 +58,7 @@ class ExpressionTests extends FunSuite with TestUtils {
   }
 
   test("Remove trailing return in various positions") {
-    execute check ConversionCheck(rsc("expressions/return.js"))
+    exec check ConversionCheck(rsc("expressions/return.js"))
       .required(
       )
       .forbidden(
@@ -67,7 +67,7 @@ class ExpressionTests extends FunSuite with TestUtils {
   }
 
   test("Handle delete (including property)") {
-    execute check ConversionCheck(rsc("expressions/delete.js"))
+    exec check ConversionCheck(rsc("expressions/delete.js"))
       .required(
         "a -= \"x\"",
         "delete b"
@@ -77,7 +77,7 @@ class ExpressionTests extends FunSuite with TestUtils {
   }
 
   test("Handle binary operator priorities") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function f() {
@@ -120,7 +120,7 @@ class ExpressionTests extends FunSuite with TestUtils {
   }
 
   test("Handle binary operators used as arguments to unary ops or method calls") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
         function f() {
@@ -136,7 +136,7 @@ class ExpressionTests extends FunSuite with TestUtils {
   }
 
   test("Simplify boolean expressions") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function compare(x, y) {

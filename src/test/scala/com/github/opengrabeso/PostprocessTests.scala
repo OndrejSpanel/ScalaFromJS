@@ -3,7 +3,7 @@ package com.github.opengrabeso
 import org.scalatest.FunSuite
 class PostprocessTests extends FunSuite with TestUtils {
     test("Delete member variables and functions") {
-      execute check ConversionCheck(
+      exec check ConversionCheck(
         //language=JavaScript
         """
 

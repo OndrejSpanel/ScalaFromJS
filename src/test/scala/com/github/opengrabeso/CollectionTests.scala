@@ -4,7 +4,7 @@ import org.scalatest.FunSuite
 
 class CollectionTests extends FunSuite with TestUtils {
   test("Detect Array access") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       var ar = [0, 1, 2, 3, 4];
@@ -30,7 +30,7 @@ class CollectionTests extends FunSuite with TestUtils {
       )
   }
   test("Detect Array access with substituted variable") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       var ar = [0, 1, 2, 3, 4];
@@ -48,7 +48,7 @@ class CollectionTests extends FunSuite with TestUtils {
     )
   }
   test("Detect Array fill") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       var v, vl, vertices;
@@ -65,7 +65,7 @@ class CollectionTests extends FunSuite with TestUtils {
   }
 
   test("Detect Array append") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       var x = 10;
@@ -98,7 +98,7 @@ class CollectionTests extends FunSuite with TestUtils {
   }
 
   test("Detect Array append for members") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       var x = 10;
@@ -121,7 +121,7 @@ class CollectionTests extends FunSuite with TestUtils {
   }
 
   test("Detect Array map") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       var vertices = [], colors = new Array();

@@ -5,7 +5,7 @@ import org.scalatest.FunSuite
 class ClassVariantsTests extends FunSuite with TestUtils {
 
   test("Define class using basic prototype ES5 form") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function C() {}
@@ -22,7 +22,7 @@ class ClassVariantsTests extends FunSuite with TestUtils {
   }
 
   test("Define class using basic prototype ES5 form with constructor not first") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       C.prototype.constructor = C;
@@ -38,7 +38,7 @@ class ClassVariantsTests extends FunSuite with TestUtils {
   }
 
   test("Define class using Object.assign ES5 form") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function C() {}
@@ -56,7 +56,7 @@ class ClassVariantsTests extends FunSuite with TestUtils {
   }
 
   test("Define class using Object.assign ES5 form with inheritance") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function C() {}
@@ -84,7 +84,7 @@ class ClassVariantsTests extends FunSuite with TestUtils {
   }
 
   test("Mix ES6 and prototype class definition") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       class C {

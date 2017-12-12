@@ -5,7 +5,7 @@ import org.scalatest.FunSuite
 class ClassTests extends FunSuite with TestUtils {
 
   test("Simple JS 1.8 (ES 5) class") {
-    execute check ConversionCheck(rsc("types/simpleClass.js"))
+    exec check ConversionCheck(rsc("types/simpleClass.js"))
       .required(
         "class Person",
         """person = new Person("Bob", "M")"""
@@ -14,7 +14,7 @@ class ClassTests extends FunSuite with TestUtils {
   }
 
   test("Harmony (ES 6) class with inheritance") {
-    execute check ConversionCheck(rsc("types/harmonyClass.js"))
+    exec check ConversionCheck(rsc("types/harmonyClass.js"))
       .required(
         "class Employe",
         "class Janitor",
@@ -31,7 +31,7 @@ class ClassTests extends FunSuite with TestUtils {
   }
 
   test("Infer member types defined in constructor or functions") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function C() {
@@ -50,7 +50,7 @@ class ClassTests extends FunSuite with TestUtils {
   }
 
   test("Infer constructor parameter types") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function C(a) {
@@ -72,7 +72,7 @@ class ClassTests extends FunSuite with TestUtils {
 
 
   test("Support local classes") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       var v1, v2;
@@ -105,7 +105,7 @@ class ClassTests extends FunSuite with TestUtils {
   }
 
   test("Support local objects") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function f() {
@@ -136,7 +136,7 @@ class ClassTests extends FunSuite with TestUtils {
   }
 
   test("Create a class when constructor is returning a value") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function C() {
@@ -175,7 +175,7 @@ class ClassTests extends FunSuite with TestUtils {
   }
 
   test("Handle constructor parameters when constructor is returning a value") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function C(gl) {
@@ -195,7 +195,7 @@ class ClassTests extends FunSuite with TestUtils {
   }
 
   test("Handle local classes") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       function C() {
@@ -214,7 +214,7 @@ class ClassTests extends FunSuite with TestUtils {
 
 
   test("Handle override for member functions") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       class Person {
@@ -264,7 +264,7 @@ class ClassTests extends FunSuite with TestUtils {
   }
 
   test("Handle unknown classes and classes in a package") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       // language=JavaScript
       """
       var undef;

@@ -28,7 +28,7 @@ class CommandLineTest extends FunSuite with TestUtils {
         assert(f.endsWith(".scala"))
         val outCode = readFile(f)
         sb append outCode
-        execute check ResultCheck(outCode).required("/*", "*/")
+        exec check ResultCheck(outCode).required("/*", "*/")
       }
       sb.result
     }
@@ -40,21 +40,21 @@ class CommandLineTest extends FunSuite with TestUtils {
       assert(out.nonEmpty)
       forEachFileWithCleanup(out) { f =>
         val outCode = readFile(f)
-        execute check ResultCheck(outCode).required("def A()")
+        exec check ResultCheck(outCode).required("def A()")
       }
     }
   }
 
   test("Multiple file conversion") {
     val outCode = convertProject("files/input.js")
-    execute check ResultCheck(outCode)
+    exec check ResultCheck(outCode)
       .required("/*", "*/", "def ", "() =", "def A", "def B", "def D")
       .forbidden("def C", "def E")
   }
 
   test("Multiple file conversion with non-js files") {
     val outCode = convertProject("nonJSFiles/input.js")
-    execute check ResultCheck(outCode)
+    exec check ResultCheck(outCode)
       .required(
         "This is a plain text file, to be packed verbatim, as data.",
         "var value =",
@@ -66,7 +66,7 @@ class CommandLineTest extends FunSuite with TestUtils {
 
   test("Multiple file conversion with rules") {
     val outCode = convertProject("folderRules/input.js")
-    execute check ResultCheck(outCode)
+    exec check ResultCheck(outCode)
       .required(
         "package my.name"
       ).forbidden(
@@ -84,7 +84,7 @@ class CommandLineTest extends FunSuite with TestUtils {
 
   test("Multiple file conversion with file wrapping") {
     val outCode = convertProject("folderRules/wrapFile.js")
-    execute check ResultCheck(outCode)
+    exec check ResultCheck(outCode)
       .required(
         "package my.name",
         "class SomeTest extends Tests",

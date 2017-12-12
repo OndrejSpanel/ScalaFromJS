@@ -4,7 +4,7 @@ import org.scalatest.FunSuite
 
 class NumberTypeTests extends FunSuite with TestUtils {
   test("Autodetect hex color values") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       var number1 = 1;

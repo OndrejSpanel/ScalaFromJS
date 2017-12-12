@@ -5,7 +5,7 @@ import org.scalatest.FunSuite
 class TypeTests extends FunSuite with TestUtils {
   test("Detect vals, infer var type") {
     // note: overlaps expression/variables (ExpressionTests / "Val detection")
-    execute check ConversionCheck(rsc("types/inference.js"))
+    exec check ConversionCheck(rsc("types/inference.js"))
       .required(
         "val i = 1",
         "val d = 1.2",
@@ -21,7 +21,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Function parameters and calls (with JSDoc)") {
-    execute check ConversionCheck(rsc("types/functionsJSDoc.js")).
+    exec check ConversionCheck(rsc("types/functionsJSDoc.js")).
       required(
         "full = first + last",
         """result = concatenate("Zara", "Ali")""",
@@ -36,7 +36,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Correctly infer subtypes / supertypes in various positions") {
-    execute check ConversionCheck(rsc("types/subtypes.js"))
+    exec check ConversionCheck(rsc("types/subtypes.js"))
       .required(
         "def fx(px: X)",
         "def fa(pa: A)",
@@ -49,7 +49,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Correctly infer types from Math functions") {
-    execute check ConversionCheck(rsc("types/math.js"))
+    exec check ConversionCheck(rsc("types/math.js"))
       .required(
         "var x: Double",
         "var y: Double"
@@ -58,7 +58,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Default values should be inferred for parameters") {
-    execute check ConversionCheck(rsc("types/defaultValues.js"))
+    exec check ConversionCheck(rsc("types/defaultValues.js"))
       .required(
         "a: Any",
         "d: Double = 0",
@@ -73,7 +73,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Modified parameters should introduce a variable") {
-    execute check ConversionCheck(rsc("types/modParameters.js"))
+    exec check ConversionCheck(rsc("types/modParameters.js"))
       .required(
         "a_par:",
         "b_par:",
@@ -90,7 +90,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("JS class in IIFE") {
-    execute check ConversionCheck(rsc("types/classVariants.js"))
+    exec check ConversionCheck(rsc("types/classVariants.js"))
       .required(
         "class Background",
         "def init() =",
@@ -109,7 +109,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("JS class with a constructor and super calls") {
-    execute check ConversionCheck(rsc("types/classSuper.js"))
+    exec check ConversionCheck(rsc("types/classSuper.js"))
       .required(
         "class Animal",
         "class Snake",
@@ -123,7 +123,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Classes should be inferred based on used members") {
-    execute check ConversionCheck(rsc("types/classesByMembers.js"))
+    exec check ConversionCheck(rsc("types/classesByMembers.js"))
       .required(
         //"t: Any",
         "cx: X",
@@ -136,7 +136,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Class properties should be defined") {
-    execute check ConversionCheck(rsc("types/classSuper.js"))
+    exec check ConversionCheck(rsc("types/classSuper.js"))
       .required(
         "def fullName =",
         "def fullName_=(value",
@@ -146,7 +146,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Static members should be handled as objects") {
-    execute check ConversionCheck(rsc("types/static.js"))
+    exec check ConversionCheck(rsc("types/static.js"))
       .required(
         "object Cls",
         "var defX = ",
@@ -168,7 +168,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Handle instanceof implied cast") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function C() {
@@ -204,7 +204,7 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Handle instanceof implied cast - if variant") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function C() {
@@ -261,7 +261,7 @@ class TypeTests extends FunSuite with TestUtils {
 
 
   test("Function variable types should be inferred") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       var a,b,c,d,e;

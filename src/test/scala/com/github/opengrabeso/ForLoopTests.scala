@@ -4,7 +4,7 @@ import org.scalatest.FunSuite
 
 class ForLoopTests extends FunSuite with TestUtils {
   test("Detect for loop variable scope") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       function ForLoop() {
@@ -37,7 +37,7 @@ class ForLoopTests extends FunSuite with TestUtils {
   }
 
   test("Detect for loops with limit variable") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       var i,il;
@@ -48,7 +48,7 @@ class ForLoopTests extends FunSuite with TestUtils {
   }
 
   test("Detect for loop as indices") {
-    execute check ConversionCheck(
+    exec check ConversionCheck(
       //language=JavaScript
       """
       var i, sum = 0;
