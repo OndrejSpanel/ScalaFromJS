@@ -1,8 +1,8 @@
 package com.github.opengrabeso
 
 import Transform._
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import JsUtils._
 import SymbolTypes._
@@ -136,18 +136,18 @@ object Classes {
     */
   }
 
-  val isConstructorProperty: PartialFunction[Node.ObjectProperty, Node.ConciseMethod] = {
-    case m: Node.ConciseMethod if m.key.name == "constructor" =>
+  val isConstructorProperty: PartialFunction[Node.ObjectProperty, Node.MethodDefinition] = {
+    case m: Node.MethodDefinition if m.key.name == "constructor" =>
       m
   }
 
-  def findConstructor(c: Node.DefClass): Option[Node.ConciseMethod] = {
+  def findConstructor(c: Node.DefClass): Option[Node.MethodDefinition] = {
     c.properties.collectFirst(isConstructorProperty)
   }
 
   val inlineBodyName = "inline_^"
 
-  def findInlineBody(c: Node.DefClass):  Option[Node.ConciseMethod] = {
+  def findInlineBody(c: Node.DefClass):  Option[Node.MethodDefinition] = {
     findMethod(c, inlineBodyName)
 
   }
@@ -165,9 +165,9 @@ object Classes {
 
 
 
-  def findMethod(c: Node.DefClass, name: String): Option[Node.ConciseMethod] = {
+  def findMethod(c: Node.DefClass, name: String): Option[Node.MethodDefinition] = {
     c.properties.collectFirst {
-      case m: Node.ConciseMethod if m.key.name == name => m
+      case m: Node.MethodDefinition if m.key.name == name => m
     }
   }
 
@@ -178,7 +178,7 @@ object Classes {
   }
 
   def propertyIsStatic(prop: Node.ObjectProperty): Boolean = prop match {
-    case m: Node.ConciseMethod => m.`static`
+    case m: Node.MethodDefinition => m.`static`
     case m: Node.ObjectSetter => m.`static`
     case m: Node.ObjectGetter => m.`static`
     case m: Node.ObjectKeyVal => m.quote == "'"
@@ -196,7 +196,7 @@ object Classes {
       // filter member variables as well
       val retIB = ib.clone()
       retIB.value.body = retIB.value.body.filterNot {
-        case Node.Definitions(Node.VarDef(Node.SymbolName(v), _)) if member.test(v) =>
+        case Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(v), _)) if member.test(v) =>
           true
         case _ =>
           false

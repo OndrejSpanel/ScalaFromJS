@@ -2,8 +2,8 @@ package com.github.opengrabeso
 package transform
 
 import JsUtils._
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import Classes._
 import Transform._
@@ -433,7 +433,7 @@ object InferTypes {
           inferParsOrArgs(value.argnames, args)(s"Constructor call body $className")
         }
 
-        for (Node.ConciseMethod(_, value: Node.Accessor) <- findConstructor(c)) {
+        for (Node.MethodDefinition(_, value: Node.Accessor) <- findConstructor(c)) {
           //println(s"  Constructor pars ${value.argnames.map(_.name)} args ${args.map(ScalaOut.outputNode(_))}")
           inferParsOrArgs(value.argnames, args)(s"Constructor call $className")
         }
@@ -465,7 +465,7 @@ object InferTypes {
       descend(node, walker)
 
       node match {
-        case Node.VarDef(Node.Identifier(symDef), Defined(right)) =>
+        case Node.VariableDeclarator(Node.Identifier(symDef), Defined(right)) =>
           val log = watched(symDef.name)
           val symId = id(symDef)
           val leftT = n.types.get(symId)
@@ -553,7 +553,7 @@ object InferTypes {
           }
 
         // TODO: derive getters and setters as well
-        case Node.ConciseMethod(Node.SymbolName(sym), fun: Node.Lambda) =>
+        case Node.MethodDefinition(Node.SymbolName(sym), fun: Node.Lambda) =>
           val allReturns = scanFunctionReturns(fun)(ctx)
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope)
@@ -611,7 +611,7 @@ object InferTypes {
           }
 
 
-        case Node.Call(Node.Identifier(call), args@_*) =>
+        case Node.CallExpression(Node.Identifier(call), args@_*) =>
           //println(s"Call ${call.name}")
           call.orig.headOption match {
             case Some(clazz: Node.SymbolDefClass) => // constructor call in the new Class(x)
@@ -640,13 +640,13 @@ object InferTypes {
             // TODO: reverse inference
             case _ =>
           }
-        case Node.Call(s: Node.Super, args@_*) =>
+        case Node.CallExpression(s: Node.Super, args@_*) =>
           for (sup <- findSuperClass(s.scope)) {
             //println(s"Super call of $sup")
             inferConstructorCall(args, sup)
           }
 
-        case Node.Call(expr Dot call, args@_*) =>
+        case Node.CallExpression(expr Dot call, args@_*) =>
           val exprType = expressionType(expr)(ctx)
 
           (exprType.map(_.declType),call,expr) match {

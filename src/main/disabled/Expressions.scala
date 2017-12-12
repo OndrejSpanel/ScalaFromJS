@@ -1,7 +1,7 @@
 package com.github.opengrabeso
 
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 object Expressions {
   object IsConstant {
@@ -24,15 +24,15 @@ object Expressions {
         Some(c)
       case Node.New(cls, args@_*) if args.forall(check) =>
         Some(arg)
-      case Node.Array(args@_*) if args.forall(check) =>
+      case Node.AArray(args@_*) if args.forall(check) =>
         Some(arg)
       case Node.Object(props) if props.map(_.value).forall(check) =>
         Some(arg)
       case Node.BinaryExpression(a, _, b) if check(a) && check(b) =>
         Some(arg)
-      case Node.Unary(UnaryModification(), _) =>
+      case Node.UnaryExpression(UnaryModification(), _) =>
         None
-      case Node.Unary(_, a) if check(a) =>
+      case Node.UnaryExpression(_, a) if check(a) =>
         Some(arg)
       case _ =>
         None
@@ -51,7 +51,7 @@ object Expressions {
     def unapply(arg: Node.Node) = arg match {
       case c@IsConstant() => Some(c)
       // TODO: accept only some forms of new or Array (avoid reordering dependent expressions)
-      case c: Node.Array => Some(c)
+      case c: Node.AArray => Some(c)
       case c: Node.New => Some(c)
       case c@Node.Object(Seq()) => Some(c)
       // TODO: check for dependent expressions

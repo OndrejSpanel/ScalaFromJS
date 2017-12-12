@@ -2,8 +2,8 @@ package com.github.opengrabeso
 package transform
 
 import JsUtils._
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import Classes._
 import Transform._
@@ -50,7 +50,7 @@ object ClassesByMembers {
         val propertiesSeq = cls.properties.toSeq
         val propertiesNonStatic = propertiesSeq.filterNot(propertyIsStatic)
 
-        val funMembers = propertiesSeq.collect { case c: Node.ConciseMethod => c.key.name -> c.value.argnames.length }
+        val funMembers = propertiesSeq.collect { case c: Node.MethodDefinition => c.key.name -> c.value.argnames.length }
         val getters = propertiesNonStatic.collect {case Node.ObjectGetter(Node.Identifier(name), _) => name}
         val setters = propertiesNonStatic.collect {case Node.ObjectSetter(Node.Identifier(name), _) => name}
         val values = propertiesNonStatic.collect {case c: Node.ObjectKeyVal => c.key}
@@ -59,7 +59,7 @@ object ClassesByMembers {
 
         val varMembers = for {
           body <- findInlineBody(cls).toSeq
-          Node.Definitions(Node.VarDef(Node.SymbolName(varName), _)) <- body.value.body
+          Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(varName), _)) <- body.value.body
         } yield varName
 
         //println(s"Cls ${id(cls.name.get.thedef.get)}: Fun $funMembers mem $varMembers")
@@ -211,7 +211,7 @@ object ClassesByMembers {
             if (tpe.isEmpty) {
               //println(s"Symbol ${sym.name} parent ${walker.parent().map(nodeClassName)}")
               walker.parent() match {
-                case Some(c: Node.Call) if c.expression == node =>
+                case Some(c: Node.CallExpression) if c.expression == node =>
                   byMembers.addFunMember(sym, member, c.args.length)
                 case _ =>
                   //println(s"  ${sym.name}.$member")

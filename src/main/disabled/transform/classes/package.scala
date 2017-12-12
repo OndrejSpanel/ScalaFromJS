@@ -3,8 +3,8 @@ package transform
 
 import Transform._
 import Classes._
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import JsUtils._
 
@@ -47,7 +47,7 @@ package object classes {
         Some(sym, args, body)
 
       // var ClassName = function() {}
-      case Node.Definitions(Node.VarDef(sym: Node.Identifier, Defined(Node.Lambda(args, body)))) =>
+      case Node.VariableDeclaration(Node.VariableDeclarator(sym: Node.Identifier, Defined(Node.Lambda(args, body)))) =>
         Some(sym, args, body)
 
       case _ =>
@@ -117,11 +117,11 @@ package object classes {
 
     object DefinePropertiesObject {
       def unapply(arg: Node.Node) = arg match {
-        case Node.SimpleStatement(Node.Call(Node.Identifier("Object") Dot "defineProperties",
+        case Node.SimpleStatement(Node.CallExpression(Node.Identifier("Object") Dot "defineProperties",
         Node.Identifier(_, _, Defined(symDef)) Dot "prototype", properties@_*)) =>
           Some(ClassId(symDef), properties)
 
-        case Node.SimpleStatement(Node.Call(Node.Identifier("Object") Dot "defineProperties",
+        case Node.SimpleStatement(Node.CallExpression(Node.Identifier("Object") Dot "defineProperties",
         Node.Identifier(_, _, Defined(symDef)), properties@_*)) =>
           Some(ClassId(symDef), properties)
 
@@ -139,7 +139,7 @@ package object classes {
   object DefineProperty {
     def unapply(arg: Node.Node) = arg match {
       // Object.defineProperty(XXXX.prototype, "name", {...} //
-      case Node.SimpleStatement(Node.Call(
+      case Node.SimpleStatement(Node.CallExpression(
       Node.Identifier("Object") Dot "defineProperty",
       Node.Identifier(sym) Dot "prototype",
       prop: Node.String,
@@ -165,15 +165,15 @@ package object classes {
       // name.prototype = Object.assign( Object.create( sym.prototype ), {... prototype object ... } )
       case Node.SimpleStatement(
       Node.Assign(Node.Identifier(name) Dot "prototype", "=",
-      Node.Call(
+      Node.CallExpression(
       Node.Identifier("Object") Dot "assign",
-      Node.Call(Node.Identifier("Object") Dot "create", Node.Identifier(sym) Dot "prototype"), prototypeDef: Node.Object)
+      Node.CallExpression(Node.Identifier("Object") Dot "create", Node.Identifier(sym) Dot "prototype"), prototypeDef: Node.Object)
       )) =>
         //println(s"ClassParentAndPrototypeDef $name extends ${sym.name}")
         Some(ClassId(name), ClassId(sym), prototypeDef)
 
       // Object.assign( name.prototype, sym.prototype, {prototype object} )
-      case Node.SimpleStatement(Node.Call(
+      case Node.SimpleStatement(Node.CallExpression(
       Node.Identifier("Object") Dot "assign",
       Node.Identifier(name) Dot "prototype",
       Node.Identifier(sym) Dot "prototype",
@@ -196,12 +196,12 @@ package object classes {
       // name.prototype = Object.create( sym.prototype );
       case Node.SimpleStatement(Node.Assign(
       Node.Identifier(name) Dot "prototype", "=",
-      Node.Call(Node.Identifier("Object") Dot "create", Node.Identifier(sym) Dot "prototype")
+      Node.CallExpression(Node.Identifier("Object") Dot "create", Node.Identifier(sym) Dot "prototype")
       )) =>
         Some(ClassId(name), sym)
 
       // Object.assign( name.prototype, sym.prototype)
-      case Node.SimpleStatement(Node.Call(
+      case Node.SimpleStatement(Node.CallExpression(
       Node.Identifier("Object") Dot "assign",
       Node.Identifier(name) Dot "prototype",
       Node.Identifier(sym) Dot "prototype"
@@ -216,7 +216,7 @@ package object classes {
     def unapply(arg: Node.Node) = arg match {
 
       //Object.assign( XXX.prototype, { ... })
-      case Node.SimpleStatement(Node.Call(
+      case Node.SimpleStatement(Node.CallExpression(
       Node.Identifier("Object") Dot "assign",
       Node.Identifier(name) Dot "prototype", prototypeDef: Node.Object
       )) =>
@@ -518,24 +518,24 @@ package object classes {
 
       node match {
         // Animal.apply(this, Array.prototype.slice.call(arguments))
-        case call@Node.Call(
+        case call@Node.CallExpression(
         Node.Identifier(IsSuperClass()) Dot "apply",
         _: Node.This,
-        Node.Call(Node.Identifier("Array") Dot "prototype" Dot "slice" Dot "call", Node.Identifier("arguments"))
+        Node.CallExpression(Node.Identifier("Array") Dot "prototype" Dot "slice" Dot "call", Node.Identifier("arguments"))
         ) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
           call.expression = Node.Super().withTokens(node)
           call.args = getClassArguments.toJSArray
           call
         // Super.apply(this, arguments)
-        case call@Node.Call(Node.Identifier(IsSuperClass()) Dot "apply", _: Node.This, Node.Identifier("arguments")) =>
+        case call@Node.CallExpression(Node.Identifier(IsSuperClass()) Dot "apply", _: Node.This, Node.Identifier("arguments")) =>
           // TODO: check class constructor arguments as pass them
           call.expression = Node.Super().withTokens(node)
           call.args = getClassArguments.toJSArray
           call
 
         // Light.call( this, skyColor, intensity )
-        case call@Node.Call(Node.Identifier(IsSuperClass()) Dot "call", args@_*) =>
+        case call@Node.CallExpression(Node.Identifier(IsSuperClass()) Dot "call", args@_*) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
           call.expression = Node.Super().withTokens(node)
           call.args = removeHeadThis(args).toJSArray
@@ -543,7 +543,7 @@ package object classes {
 
 
         // Light.prototype.call( this, source );
-        case call@Node.Call(
+        case call@Node.CallExpression(
         Node.Identifier(IsSuperClass()) Dot "prototype" Dot func Dot "call",
         _: Node.This, args@_*
         ) =>
@@ -592,10 +592,10 @@ package object classes {
 
           val newMembers = mutable.ArrayBuffer.empty[Node.Var]
           cls.properties.foreach {
-            //case Node.ConciseMethod(Node.SymbolName(p), _) =>
+            //case Node.MethodDefinition(Node.SymbolName(p), _) =>
             case kv@Node.ObjectKeyVal(p, v) if !propertyIsStatic(kv) =>
               //println(s"newMembers append $cls $p $v")
-              newMembers append Node.Var(cls)(Node.VarDef.initialized(cls)(p, v))
+              newMembers append Node.Var(cls)(Node.VariableDeclarator.initialized(cls)(p, v))
             //case s: Node.ObjectSetter =>
             //case s: Node.ObjectGetter =>
             case _ =>
@@ -679,7 +679,7 @@ package object classes {
 
     object PrototypeVariableDef {
       def unapply(arg: Node.Node) = arg match {
-        case Node.Definitions(Node.VarDef(Node.Identifier(_, _, Defined(symDef)), Defined(init))) if prototypeVariableSymbols contains symDef =>
+        case Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(_, _, Defined(symDef)), Defined(init))) if prototypeVariableSymbols contains symDef =>
           Some(symDef, init)
         case _ => None
 
@@ -737,7 +737,7 @@ package object classes {
 
     object PrototypeConstant {
       def unapply(arg: Node.Node) = arg match  {
-        case Node.Definitions(Node.VarDef(Node.Identifier(_, _, Defined(protoSym)), Node.Identifier(clsSym) Dot "prototype")) =>
+        case Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(_, _, Defined(protoSym)), Node.Identifier(clsSym) Dot "prototype")) =>
           Some(clsSym, protoSym)
         case _ => None
       }
@@ -801,7 +801,7 @@ package object classes {
     // function XXXXX( name, times, values, interpolation ) { YYYYY.apply( this, arguments ); }
     n.walk {
       case Node.Defun(
-      Defined(Node.Identifier(fun)), args, Seq(Node.SimpleStatement(Node.Call(
+      Defined(Node.Identifier(fun)), args, Seq(Node.SimpleStatement(Node.CallExpression(
       Node.Identifier(implementFun) Dot "apply", _: Node.This, Node.Identifier("arguments")
       )))) if constructorSymbols contains fun =>
         //println(s"Defined function ${fun.name} using ${implementFun.name}")
@@ -834,7 +834,7 @@ package object classes {
             n
           }
         // inline XXXXX.apply(this, arguments) - was already rewritten from YYYYY (transformAfter transforms children first)
-        case defun@Node.Defun(_, _, Seq(Node.SimpleStatement(Node.Call(
+        case defun@Node.Defun(_, _, Seq(Node.SimpleStatement(Node.CallExpression(
         Node.Identifier(symDef) Dot "apply", _: Node.This, Node.Identifier("arguments")
         )))) =>
           //println(s"Detect ${symDef.name}.apply")

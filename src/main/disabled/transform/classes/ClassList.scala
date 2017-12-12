@@ -3,8 +3,8 @@ package transform
 package classes
 
 import Classes._
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import SymbolTypes.SymbolMapId
 
@@ -109,8 +109,8 @@ object ClassList {
                     addMember(ClassVarMember(v))
                 }
               }
-            case m: Node.ConciseMethod =>
-              //println(s"Add Node.ConciseMethod $key")
+            case m: Node.MethodDefinition =>
+              //println(s"Add Node.MethodDefinition $key")
               addMember(ClassFunMember(m.value.argnames, m.value.body))
             case p: Node.ObjectGetter =>
               assert(!isStatic)
@@ -139,7 +139,7 @@ object ClassList {
       // note: we do not currently handle property definitions in any inner scopes
       val bodyFiltered = body.filter {
         //Object.defineProperty( this, 'id', { value: textureId ++ } );
-        case Node.SimpleStatement(Node.Call(
+        case Node.SimpleStatement(Node.CallExpression(
         Node.Identifier("Object") Dot "defineProperty", _: Node.This, prop: Node.String,
         Node.Object(properties)
         )) =>
@@ -202,13 +202,13 @@ object ClassList {
             case Node.Defun(Defined(Node.Identifier(sym)), fArgs, fBody) =>
               val member = ClassFunMember(fArgs, transformReferencesInBody(fBody))
               res.clazz = res.clazz.addMember(sym.name, member)
-            case Node.Definitions(vars@_*) =>
+            case Node.VariableDeclaration(vars@_*) =>
               //println("Vardef")
               vars.foreach {
-                case Node.VarDef(Node.SymbolName(vName), Defined(vValue)) =>
+                case Node.VariableDeclarator(Node.SymbolName(vName), Defined(vValue)) =>
                   val member = ClassVarMember(vValue)
                   res.clazz = res.clazz.addValue(vName, member)
-                case vd@Node.VarDef(Node.SymbolName(vName), _) =>
+                case vd@Node.VariableDeclarator(Node.SymbolName(vName), _) =>
                   //println(s"value member $vName as undefined")
                   val member = ClassVarMember(Node.EmptyStatement(vd))
                   res.clazz = res.clazz.addValue(vName, member)

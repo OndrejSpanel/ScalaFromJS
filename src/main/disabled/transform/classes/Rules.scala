@@ -4,8 +4,8 @@ package classes
 
 import Transform._
 import Classes._
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import Symbols._
 

@@ -2,8 +2,8 @@ package com.github.opengrabeso
 package transform
 
 import JsUtils._
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import Classes._
 import SymbolTypes._
@@ -25,7 +25,7 @@ object Variables {
 
     n.transformBefore {(node, descend, transformer) =>
       node match {
-        case cm: Node.ConciseMethod =>
+        case cm: Node.MethodDefinition =>
           if (cm.key.name != inlineBodyName) {
             // no var detection inside of inline class body (its variables are actually class members)
             val n = cm.clone()
@@ -33,8 +33,8 @@ object Variables {
             n
           } else cm.clone()
 
-        case Node.Definitions(varDef@Node.VarDef(varName, value)) if value.nonEmpty => // var with init - search for a modification
-          //println(s"Node.VarDef ${varName.name}")
+        case Node.VariableDeclaration(varDef@Node.VariableDeclarator(varName, value)) if value.nonEmpty => // var with init - search for a modification
+          //println(s"Node.VariableDeclarator ${varName.name}")
           varName.thedef.fold(node) { df =>
             assert(df.name == varName.name)
             // check if any reference is assignment target
@@ -95,9 +95,9 @@ object Variables {
     n.transformAfter {(node, transformer) =>
       node match {
         // match only Node.Var, assume Node.Let and Node.Const are already well scoped
-        case Node.Var(Node.VarDef(varName, Defined(value))) if !usedAsForVar(varName, transformer) => // var with init - search for a modification
+        case Node.Var(Node.VariableDeclarator(varName, Defined(value))) if !usedAsForVar(varName, transformer) => // var with init - search for a modification
           // if the orig is different from this, it is suspicions
-          //println(s"Node.VarDef ${varName.name}")
+          //println(s"Node.VariableDeclarator ${varName.name}")
           //println(s"${varName.thedef.get.name} $varDef ${varName.thedef.get.orig} ${varName == varName.thedef.get.orig.head}")
 
           def countDefsInScope(varDef: SymbolDef, scope: Node.Scope) = {
@@ -105,7 +105,7 @@ object Variables {
             var list = mutable.ArrayBuffer.empty[Node.Token]
 
             varDef.scope.walk {
-              case n@Node.Var(Node.VarDef(Node.Identifier(`varDef`), _)) =>
+              case n@Node.Var(Node.VariableDeclarator(Node.Identifier(`varDef`), _)) =>
                 count += 1
                 list ++= n.start
                 false
@@ -157,11 +157,11 @@ object Variables {
     n.transformBefore {(node, descend, transformer) =>
       node match {
         case obj@Node.Object(props) =>
-        //case Node.Definitions(Node.VarDef(Node.Identifier(df), Defined(obj@Node.Object(props)))) =>
+        //case Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(df), Defined(obj@Node.Object(props)))) =>
 
           // check if the object is part of variable / const initialization, like: var df = {}
           transformer.parent(1) match {
-            case Some(Node.Definitions(Node.VarDef(Node.Identifier(df), Defined(o: Node.Object)))) =>
+            case Some(Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(df), Defined(o: Node.Object)))) =>
               //println(s"Scan object ${df.name} for methods ${o.properties}")
               assert(o == obj)
 
@@ -212,7 +212,7 @@ object Variables {
   def convertConstToFunction(n: Node.Node): Node.Node = {
     n.transformAfter { (node, _) =>
       node match {
-        case Node.Const(Node.VarDef(sym, Defined(Node.Function(args, body)))) =>
+        case Node.Const(Node.VariableDeclarator(sym, Defined(Node.Function(args, body)))) =>
           new Node.Defun {
             defun =>
             name = new Node.SymbolDefun {
@@ -234,7 +234,7 @@ object Variables {
   }
 
   /*
-  * many transformations assume each Node.Definitions contains at most one Node.VarDef
+  * many transformations assume each Node.VariableDeclaration contains at most one Node.VariableDeclarator
   * Split multiple definitions (comma separated definitiob lists)
   * */
   def splitMultipleDefinitions(n: Node.Node): Node.Node = {
@@ -242,9 +242,9 @@ object Variables {
       node match {
         case block: Node.Block =>
           block.body = block.body.flatMap {
-            case defs: Node.Definitions =>
+            case defs: Node.VariableDeclaration =>
               defs.definitions.map { d =>
-                val clone = defs.clone() // keeps Node.Definitions type (Node.Var or whatever it is)
+                val clone = defs.clone() // keeps Node.VariableDeclaration type (Node.Var or whatever it is)
                 clone.definitions = js.Array(d)
                 clone
               }
@@ -266,8 +266,8 @@ object Variables {
     var pairs = Map.empty[SymbolDef, (Node.Identifier, Boolean)] // symbol definition -> first reference
     n.walk { node =>
       node match {
-        case defs@Node.Definitions(Node.VarDef(name, value)) if value.isEmpty =>
-          //println(s"varInitialization Node.VarDef $name")
+        case defs@Node.VariableDeclaration(Node.VariableDeclarator(name, value)) if value.isEmpty =>
+          //println(s"varInitialization Node.VariableDeclarator $name")
           for (df <- name.thedef) {
             assert(df.name == name.name)
             //println(s"  refs ${df.references}")
@@ -327,7 +327,7 @@ object Variables {
               // use td.orig if possible to keep original initialization tokens
               val origNode = td.orig.headOption.getOrElse(node)
               fillTokens(r, origNode)
-              r.definitions = js.Array(Node.VarDef.initializedSym(origNode)(td, right))
+              r.definitions = js.Array(Node.VariableDeclarator.initializedSym(origNode)(td, right))
               //println(s"  Replaced $sr Node.Identifier with $r, init ${nodeClassName(right)}")
               r
             case _ =>
@@ -347,7 +347,7 @@ object Variables {
     changeAssignToVar.transformAfter{ (node, _) =>
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
-        case v: Node.Definitions =>
+        case v: Node.VariableDeclaration =>
           // remove only the original declaration, not the one introduced by us
           // original declaration has no init value
           val af = v.definitions.filterNot { d =>
@@ -427,7 +427,7 @@ object Variables {
   def replaceVariableInit[T <: Node.Node](n: T, oldName: SymbolDef)(transform: (Node.Identifier, Node.Node) => Node.Node): T = {
     val ret = n.transformAfter { (node, _) =>
       node match {
-        case Node.Definitions(varDef@Node.VarDef(Node.Identifier(`oldName`), init)) =>
+        case Node.VariableDeclaration(varDef@Node.VariableDeclarator(Node.Identifier(`oldName`), init)) =>
           init.map { init =>
             val r = transform(varDef.name, init)
             fillTokensRecursively(r, node)
@@ -452,7 +452,7 @@ object Variables {
       node match {
         case f: Node.For =>
           val forOK: Seq[(SymbolDef, Node.Node, Node.Scope)] = f.init.toSeq.flatMap {
-            case _: Node.Definitions => // if init already is a definition, no need to process anything
+            case _: Node.VariableDeclaration => // if init already is a definition, no need to process anything
               Seq()
             case ExtractVariables(vars) =>
               // we expect a sequence of variable initializations
@@ -502,7 +502,7 @@ object Variables {
             //println("Transform for")
 
             val vars = forOK.map { case (v, initV, _) =>
-              Node.VarDef.initialized(initV)(v.name, initV)
+              Node.VariableDeclarator.initialized(initV)(v.name, initV)
             }
 
             f.init = Node.Let(f)(vars:_*)
@@ -587,7 +587,7 @@ object Variables {
     def createCaseVariable(from: Node.Node, name: String, castTo: Seq[String]) = {
       //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
       val symRef = Node.Identifier(from)(name)
-      Node.Let(from)(Node.VarDef.initialized(from)(name + castSuffix, condition(symRef, castTo)(from)))
+      Node.Let(from)(Node.VariableDeclarator.initialized(from)(name + castSuffix, condition(symRef, castTo)(from)))
     }
 
     lazy val classInfo = Transform.listClassMembers(n)
@@ -628,7 +628,7 @@ object Variables {
             this.body = casts.map { cast =>
               new Node.Case {
                 // we handle this in the ScalaOut as a special case, see CASE_CAST
-                expression = new Node.Call() {
+                expression = new Node.CallExpression() {
                   fillTokens(this, s)
                   expression = Node.Identifier(s)("cast_^")
                   val castExpr = condition(castVar, cast._1.map(_.name))(s)

@@ -1,8 +1,8 @@
 package com.github.opengrabeso
 package transform
 
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import Expressions._
 
@@ -20,7 +20,7 @@ object VariableUtils {
         case Node.Assign(extract(x), _, _) =>
           //println(s"  Detected assignment modification of ${df.name}")
           Some(x)
-        case Node.Unary(UnaryModification(), extract(x)) =>
+        case Node.UnaryExpression(UnaryModification(), extract(x)) =>
           Some(x)
         case _ =>
           None

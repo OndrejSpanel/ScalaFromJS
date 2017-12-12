@@ -2,8 +2,8 @@ package com.github.opengrabeso
 package transform
 package classes
 
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import Classes._
 import Transform._
@@ -27,7 +27,7 @@ object FillVarMembers {
           var newMembers = collection.immutable.ListMap.empty[String, Option[Node.Node]]
           // scan known prototype members (both function and var) first
           val existingInlineMembers = accessor.map { _.value.body.toSeq.collect {
-            case Node.Definitions(Node.VarDef(Node.SymbolName(name), _)) =>
+            case Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(name), _)) =>
               name
           }}.getOrElse(Seq())
           val existingParameters = accessor.map(_.value.argnames.toSeq.map(_.name)).getOrElse(Seq())
@@ -64,7 +64,7 @@ object FillVarMembers {
           val vars = newMembers.map { case (memberName, init) =>
             new Node.Var {
               fillTokens(this, clsTokenDef)
-              val varDef = init.fold(Node.VarDef.uninitialized(clsTokenDef)(memberName))(Node.VarDef.initialized(clsTokenDef) (memberName, _))
+              val varDef = init.fold(Node.VariableDeclarator.uninitialized(clsTokenDef)(memberName))(Node.VariableDeclarator.initialized(clsTokenDef) (memberName, _))
               //println(s"fillVarMembers $memberName $varDef ${cls.start.get.pos} init $init")
               definitions = js.Array(varDef)
             }

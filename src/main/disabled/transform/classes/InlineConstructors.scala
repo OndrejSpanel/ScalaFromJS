@@ -2,8 +2,8 @@ package com.github.opengrabeso
 package transform
 package classes
 
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import Classes._
 import Expressions._
@@ -72,7 +72,7 @@ object InlineConstructors {
 
     var definedAndExported = Set.empty[Node.Lambda]
     n.walk {
-      case Node.Call(Node.Identifier(_), _*) =>
+      case Node.CallExpression(Node.Identifier(_), _*) =>
         true // a plain call, do not dive into
       case Node.Identifier(funName) if localLambdas.exists(_.name.exists(_.name == funName)) =>
         definedAndExported ++= localLambdas.filter(_.name.exists(_.name == funName))
@@ -165,7 +165,7 @@ object InlineConstructors {
       node match {
         case cls: Node.DefClass =>
           for {
-            constructorProperty@Node.ConciseMethod(_, rawConstructor: Node.Lambda) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, rawConstructor: Node.Lambda) <- findConstructor(cls)
           } {
             val allLocals = detectPrivateMembers(rawConstructor)
             // convert private variables to members (TODO: mark them as private somehow)
@@ -208,7 +208,7 @@ object InlineConstructors {
             val vars = locals.map { local =>
               val varDecl = if (local.isVal) new Node.Const else new Node.Var
               fillTokens(varDecl, clsTokenDef)
-              varDecl.definitions = js.Array(Node.VarDef.uninitializedSym(clsTokenDef)(local.sym))
+              varDecl.definitions = js.Array(Node.VariableDeclarator.uninitializedSym(clsTokenDef)(local.sym))
               //println(s"privateVariables ${local.sym.name} $varDecl ${cls.start.get.pos}")
               varDecl
             }
@@ -238,7 +238,7 @@ object InlineConstructors {
       node match {
         case cls: Node.DefClass =>
           for {
-            constructorProperty@Node.ConciseMethod(_, rawConstructor: Node.Lambda) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, rawConstructor: Node.Lambda) <- findConstructor(cls)
           } {
             val functionsToConvert = detectPrivateFunctions(rawConstructor)
             if (log) println(s"functionsToConvert ${functionsToConvert.toSeq.map(_.name)}")
@@ -267,7 +267,7 @@ object InlineConstructors {
             // add functions as methods
             cls.properties = cls.properties ++ functions.map {
               case (statement, funName, lambda) =>
-                new Node.ConciseMethod {
+                new Node.MethodDefinition {
                   fillTokens(this, node)
                   key = new Node.SymbolMethod {
                     /*_*/
@@ -305,11 +305,11 @@ object InlineConstructors {
         case cls: Node.DefClass =>
           val clsTokenDef = classTokenSource(cls)
           for {
-            constructorProperty@Node.ConciseMethod(_, constructor: Node.Lambda) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, constructor: Node.Lambda) <- findConstructor(cls)
           } {
             // anything before a first variable declaration can be inlined, variables need to stay private
             val (inlined, rest_?) = constructor.body.span {
-              case _: Node.Definitions => false
+              case _: Node.VariableDeclaration => false
               case _ => true
             }
 
@@ -317,7 +317,7 @@ object InlineConstructors {
               val body = findInlineBody(cls)
               body.exists {
                 _.value.body.exists {
-                  case Node.Const(Node.VarDef(Node.SymbolName(`varName`), _)) =>
+                  case Node.Const(Node.VariableDeclarator(Node.SymbolName(`varName`), _)) =>
                     true
                   case _ =>
                     false
@@ -362,7 +362,7 @@ object InlineConstructors {
                     sym
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
-                  case (_: Node.This) Dot member if !transformer.parent().isInstanceOf[Node.Call] =>
+                  case (_: Node.This) Dot member if !transformer.parent().isInstanceOf[Node.CallExpression] =>
                     Node.Identifier(clsTokenDef)(member)
                   case _ =>
                     node
@@ -385,7 +385,7 @@ object InlineConstructors {
 
             // add the constructor call itself, so that type inference binds its parameters and arguments
             val constructorCall = if (rest.nonEmpty) Some(Node.SimpleStatement(constructorProperty) {
-              new Node.Call {
+              new Node.CallExpression {
                 fillTokens(this, constructorProperty)
                 expression = new Dot {
                   fillTokens(this, constructorProperty)

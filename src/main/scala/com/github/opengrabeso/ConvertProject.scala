@@ -1,10 +1,10 @@
 package com.github.opengrabeso
 
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import CommandLine._
-import com.github.opengrabeso.Transform.NodeExtended
+//import com.github.opengrabeso.Transform.NodeExtended
 
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
@@ -19,7 +19,7 @@ object ConvertProject {
     o.properties.collectFirst {
       case Node.ObjectKeyVal(`name`, Node.String(value)) =>
         value
-      case Node.ObjectKeyVal(`name`, Node.Array(lines@_*)) =>
+      case Node.ObjectKeyVal(`name`, Node.AArray(lines@_*)) =>
         val lineStrings = lines.collect {
           case s: Node.String => s.value
         }
@@ -139,7 +139,7 @@ object ConvertProject {
 
     def load(props: Seq[Node.ObjectProperty]) = {
       val rules: Seq[Rule] = props.flatMap {
-        case Node.ObjectKeyVal("members", a: Node.Array) =>
+        case Node.ObjectKeyVal("members", a: Node.AArray) =>
           a.elements.toSeq.flatMap {
             case o: Node.Object =>
               val m = MemberDesc.load(o)
@@ -164,7 +164,7 @@ object ConvertProject {
             case _ =>
               None
           }
-        case Node.ObjectKeyVal("packages", a: Node.Array) =>
+        case Node.ObjectKeyVal("packages", a: Node.AArray) =>
           a.elements.toSeq.flatMap {
             case o: Node.Object =>
               val op = loadStringValue(o, "operation")
@@ -180,7 +180,7 @@ object ConvertProject {
             case _ =>
               None
           }
-        case Node.ObjectKeyVal("symbols", a: Node.Array) =>
+        case Node.ObjectKeyVal("symbols", a: Node.AArray) =>
           a.elements.toSeq.flatMap {
             case o: Node.Object =>
               val op = loadStringValue(o, "operation")
@@ -201,7 +201,7 @@ object ConvertProject {
             case _ =>
               None
           }
-        case Node.ObjectKeyVal("postprocess", a: Node.Array) =>
+        case Node.ObjectKeyVal("postprocess", a: Node.AArray) =>
           a.elements.toSeq.flatMap {
             case o: Node.Object =>
               val op = loadStringValue(o, "operation")
@@ -249,7 +249,7 @@ object ConvertProject {
 
     object GetConfig {
       def unapply(arg: Node.Node) = arg match {
-        case Node.Definitions(Node.VarDef(Node.SymbolName(`configName`), Node.Object(props))) =>
+        case Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(`configName`), Node.Object(props))) =>
           Some(props)
         case _ =>
           None

@@ -1,7 +1,7 @@
 package com.github.opengrabeso
 
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 object Convert {
   def prefix(header: Boolean) = if (header) s"/* ${ScalaFromJS.fingerprint()}*/\n\n" else ""

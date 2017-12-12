@@ -1,8 +1,8 @@
 package com.github.opengrabeso
 package transform
 
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 object Collections {
 
@@ -118,7 +118,7 @@ object Collections {
     var otherUse = false
     var subst = Option.empty[SymbolDef]
     forStatement.body.walk {
-      case Node.Const(Node.VarDef(Node.Identifier(name), Defined(Node.Identifier(`varName`)))) =>
+      case Node.Const(Node.VariableDeclarator(Node.Identifier(name), Defined(Node.Identifier(`varName`)))) =>
         subst = Some(name)
         true
       case Node.Identifier(`varName`) =>
@@ -136,7 +136,7 @@ object Collections {
       // the body now contains "const substName = substName, remove it
       forStatement.body = forStatement.body.transformAfter {(node, _) =>
         node match {
-          case Node.Const(Node.VarDef(Node.Identifier(`substName`), Defined(Node.Identifier(`substName`)))) =>
+          case Node.Const(Node.VariableDeclarator(Node.Identifier(`substName`), Defined(Node.Identifier(`substName`)))) =>
             Node.EmptyStatement(node)
           case _ =>
             node
@@ -165,7 +165,7 @@ object Collections {
           val newFor = new Node.ForIn {
             fillTokens(this, node)
             this.`object` = obj
-            this.init = Node.Let(node)(Node.VarDef.uninitialized(node)(varName.name))
+            this.init = Node.Let(node)(Node.VariableDeclarator.uninitialized(node)(varName.name))
             this.name = Node.Identifier.symDef(node)(varName)
             this.body = forStatement.body
           }

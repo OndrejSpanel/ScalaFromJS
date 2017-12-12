@@ -1,8 +1,8 @@
 package com.github.opengrabeso
 package transform
 
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 object BoolComparison {
   def apply(n: Node.Node): Node.Node = {

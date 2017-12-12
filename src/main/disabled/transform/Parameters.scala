@@ -2,8 +2,8 @@ package com.github.opengrabeso
 package transform
 
 import JsUtils._
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import Transform._
 import Symbols._
@@ -54,7 +54,7 @@ object Parameters {
       node match {
         case f: Node.Defun =>
           processOneFunction(f)
-        case m: Node.ConciseMethod =>
+        case m: Node.MethodDefinition =>
           //println(s"introduceDefaultValues ${m.key.name}")
           m.value = processOneFunction(m.value)
           m
@@ -222,7 +222,7 @@ object Parameters {
           val parNode = renameParameter(newF, par, parName + Symbols.parSuffix)
 
           newF.body = js.Array(
-            Node.Let(parNode)(Node.VarDef.initialized(parNode)(parName, Node.Identifier(parNode)(parName + Symbols.parSuffix)))
+            Node.Let(parNode)(Node.VariableDeclarator.initialized(parNode)(parName, Node.Identifier(parNode)(parName + Symbols.parSuffix)))
           ) ++ f.body
 
           newF
@@ -256,7 +256,7 @@ object Parameters {
             // check for existence of variable without a suffix
             val shortName = parName dropRight parSuffix.length
             val conflict = f.body.exists {
-              case Node.Definitions(Node.VarDef(Node.SymbolName(`shortName`), _)) =>
+              case Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(`shortName`), _)) =>
                 true
               case _ =>
                 false
@@ -297,7 +297,7 @@ object Parameters {
 
       def containsDeprecation(body: Seq[Node.Statement]) = {
         body.exists {
-          case Node.SimpleStatement(Node.Call(Node.Identifier("console") Dot "warn", _)) =>
+          case Node.SimpleStatement(Node.CallExpression(Node.Identifier("console") Dot "warn", _)) =>
             true
           case _: Node.Throw =>
             true
@@ -374,7 +374,7 @@ object Parameters {
           object IsVarPar {
 
             def unapply(arg: Node.Node) = arg match {
-              case Node.Var(Node.VarDef(Node.Identifier(symName, _, Defined(symDef)), Defined(Node.Identifier(_, _, Defined(`parDef`))))) =>
+              case Node.Var(Node.VariableDeclarator(Node.Identifier(symName, _, Defined(symDef)), Defined(Node.Identifier(_, _, Defined(`parDef`))))) =>
                 //println(s"IsVarPar $symName ${parDef.name}")
                 Some(symDef)
               case _ =>
@@ -406,7 +406,7 @@ object Parameters {
                 otherUse = true
               }
               true // use inside of the current pattern must not set otherUse
-            case Node.Call(Node.This() Dot "constructor", args@_*) if args.exists(isParRef) =>
+            case Node.CallExpression(Node.This() Dot "constructor", args@_*) if args.exists(isParRef) =>
               // passed to the constructor - this is always allowed
               // should we check what the constructor does with the value?
               //println(s"Detected constructor call for $parName")

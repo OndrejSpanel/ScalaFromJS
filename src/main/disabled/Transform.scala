@@ -1,8 +1,8 @@
 package com.github.opengrabeso
 
 import JsUtils._
-import net.gamatron.esprima._
-import esprima._
+import com.github.opengrabeso.esprima._
+import _root_.esprima._
 
 import Classes._
 import Expressions._
@@ -126,7 +126,7 @@ object Transform {
       }
 
       node match {
-        case Node.Unary(op@UnaryModification(), expr) =>
+        case Node.UnaryExpression(op@UnaryModification(), expr) =>
           if (nodeResultDiscarded(node, 0)) {
             substitute(node, expr, op)
           } else {
@@ -139,7 +139,7 @@ object Transform {
                   i.body = js.Array(operation, value)
                 case _ /*: Node.UnaryPostfix*/ =>
                   val tempName = "temp"
-                  val storeValue = Node.Const(node)(Node.VarDef.initialized(node)(tempName, expr.clone()))
+                  val storeValue = Node.Const(node)(Node.VariableDeclarator.initialized(node)(tempName, expr.clone()))
                   val loadValue = Node.SimpleStatement(node)(Node.Identifier(node)(tempName))
                   i.body = js.Array(storeValue, operation, loadValue)
               }
@@ -477,7 +477,7 @@ object Transform {
             None
         }
 
-      case a: Node.Array =>
+      case a: Node.AArray =>
         val elementTypes = a.elements.map(expressionType(_, log)(ctx))
         val elType = elementTypes.reduceOption(typeUnionOption).flatten
         if (log) {
@@ -494,7 +494,7 @@ object Transform {
         Some(TypeInfo.target(boolean))
 
       // Array.isArray( name ) ? name : [name]
-      case Node.Conditional(Node.Call(Node.Identifier("Array") Dot "isArray", isArrayArg), exprTrue, exprFalse) =>
+      case Node.Conditional(Node.CallExpression(Node.Identifier("Array") Dot "isArray", isArrayArg), exprTrue, exprFalse) =>
         val exprType = expressionType(isArrayArg, log)
         //println(s"ExprType $exprType of Array.isArray( name ) ? name : [name] for $n1")
         if(exprType.exists(_.declType.isInstanceOf[ArrayType])) {
@@ -540,12 +540,12 @@ object Transform {
         // TODO: check if call is a known symbol and use it
         // TODO: handle package names properly
         Some(TypeInfo.both(ClassType(SymbolMapId(call, 0))))
-      case Node.Call(Node.Identifier(call), _*) =>
+      case Node.CallExpression(Node.Identifier(call), _*) =>
         val tid = id(call)
         if (log)  println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
         types.get(tid).map(callReturn)
 
-      case Node.Call(cls Dot name, _*) =>
+      case Node.CallExpression(cls Dot name, _*) =>
         val exprType = expressionType(cls, log)(ctx)
         if (log) println(s"Infer type of member call $cls.$name class $exprType")
         for {
@@ -581,7 +581,7 @@ object Transform {
     var getter = Option.empty[Node.Node]
     var setter = false
     cls.properties.filter(p => propertyName(p) == name).foreach {
-      case Node.ConciseMethod(Node.SymbolName(p), _) =>
+      case Node.MethodDefinition(Node.SymbolName(p), _) =>
         //println(s"  function $p")
         //getter = true
       case Node.ObjectKeyVal(p, value) =>
@@ -612,7 +612,7 @@ object Transform {
     }
 
     cls.properties.foreach {
-      case Node.ConciseMethod(Node.SymbolName(p), _) =>
+      case Node.MethodDefinition(Node.SymbolName(p), _) =>
         existingMembers = existingMembers :+ p
       case Node.ObjectKeyVal(p, _) =>
         existingMembers = existingMembers :+ p
@@ -648,7 +648,7 @@ object Transform {
 
           // TODO: maybe parMembersInline is enough?
 
-          def listParameters(method: Option[Node.ConciseMethod]) = method.toSeq.flatMap(_.value.argnames.flatMap(Transform.symbolFromPar))
+          def listParameters(method: Option[Node.MethodDefinition]) = method.toSeq.flatMap(_.value.argnames.flatMap(Transform.symbolFromPar))
 
           val parMembers = listParameters(findConstructor(cls)).map(_.name)
           val parMembersInline = for {
@@ -700,7 +700,7 @@ object Transform {
 
     n.transformAfter { (node, _) =>
       node match {
-        case Node.Definitions(Node.VarDef(Node.Identifier(sym), Defined(Node.BlockStatement(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
+        case Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(sym), Defined(Node.BlockStatement(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
           defClass
         case _ =>
           node
@@ -714,7 +714,7 @@ object Transform {
     // "Immediately-invoked function expression"
     object IIFE {
       def unapply(arg: Node.Node) = arg match {
-        case Node.Call(Node.Lambda(args1, funcBody), args2@_*) if args1.isEmpty && args2.isEmpty =>
+        case Node.CallExpression(Node.Lambda(args1, funcBody), args2@_*) if args1.isEmpty && args2.isEmpty =>
           Some(funcBody)
         case _ => None
 
@@ -739,8 +739,8 @@ object Transform {
     * */
   def processCall(n: Node.Node): Node.Node = {
     n.transformAfterSimple {
-      case call@Node.Call(expr Dot "call", _: Node.This, a@_* ) =>
-        new Node.Call {
+      case call@Node.CallExpression(expr Dot "call", _: Node.This, a@_* ) =>
+        new Node.CallExpression {
           fillTokens(this, call)
           this.expression = expr
           this.args = a.toJSArray
@@ -789,7 +789,7 @@ object Transform {
       node match {
         case t: Node.Program =>
           val newBody = t.body.flatMap {
-            case s@Node.SimpleStatement(Node.Call(Node.Identifier("Object") Dot "assign", ts@Node.Identifier(sym), x: Node.Object)) =>
+            case s@Node.SimpleStatement(Node.CallExpression(Node.Identifier("Object") Dot "assign", ts@Node.Identifier(sym), x: Node.Object)) =>
               //println(s"Assign to ${sym.name}")
               // iterate through the object defintion
               // each property replace with an individual assignment statement
