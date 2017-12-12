@@ -52,13 +52,13 @@ trait TestUtils extends Assertions {
 
   def ConversionCheck(code: String) = TestCheck(getResult = () => Convert(code))
 
-  def rscPath(path: String): String = "src/test/resources/" + path
+  def rscPath(path: String): String = path
 
   def rsc(path: String) = {
 
-    // TODO: facade instead of Dynamic
     def readFile(name: String): String = {
-      ???
+      val in = io.Source.fromResource(name)
+      in.mkString
     }
 
     readFile(rscPath(path))

@@ -185,7 +185,7 @@ object ScalaOut {
     for {
       start <- n.start
       // TODO: handle inner / trailing comments better
-      c <- n.leadingComments ++ n.innerComments ++ n.trailingComments
+      c <- Option(n.leadingComments).toSeq.flatten ++ Option(n.innerComments).toSeq.flatten ++ Option(n.trailingComments).toSeq.flatten
     } {
       if (!(input.commentsDumped contains start)) {
         if (c.`type` == "comment2") {
@@ -531,29 +531,34 @@ object ScalaOut {
     // listed in reverse order, so that most specific classes match first
     //noinspection ScalaUnusedSymbol
     n match {
-      case tn: Node.Literal =>
-        out(tn.value)
       //case tn: Node.Atom => "Node.Atom"
       case tn: Node.RegexLiteral => out""""${tn.raw}".r"""
+      case StringLiteral(str) =>
+        out(s""""$str"""")
       case tn: Node.Literal =>
         // prefer the same representation as in the original source
-        val src = source
+        tn.value.value match {
+          case value: Double =>
+            val src = source
 
-        def decodeInt(s: String) = {
-          val prefixes = Seq("0x", "0X", "#")
-          for {
-            p <- prefixes if s startsWith p
-            value <- Try(Integer.parseUnsignedInt(s drop p.length, 16)).toOption
-          } yield value
+            def decodeInt(s: String) = {
+              val prefixes = Seq("0x", "0X", "#")
+              for {
+                p <- prefixes if s startsWith p
+                value <- Try(Integer.parseUnsignedInt(s drop p.length, 16)).toOption
+              } yield value
+            }
+
+            def decodeDouble(s: String) = Try(s.toDouble).toOption
+
+            def isSourceOf(s: String, number: Double) = {
+              decodeInt(s).contains(number) || decodeDouble(s).contains(number)
+            }
+
+            if (isSourceOf(src, value)) out(src) else out(value.toString)
+          case value: Boolean =>
+            out(value.toString)
         }
-
-        def decodeDouble(s: String) = Try(s.toDouble).toOption
-
-        def isSourceOf(s: String, number: Double) = {
-          decodeInt(s).contains(number) || decodeDouble(s).contains(number)
-        }
-
-        if (isSourceOf(src, tn.value)) out(src) else out(tn.value.toString)
       case tn: Node.TemplateLiteral =>
         // TODO: handle expression interpolation
         val value = tn.quasis.collect {
@@ -634,6 +639,10 @@ object ScalaOut {
       case tn: Node.ConditionalExpression =>
         out"if (${tn.test}) ${tn.consequent} else ${tn.alternate}"
       //case tn: Node.Assign => outputUnknownNode(tn)
+      case Node.AssignmentExpression(op, left, right) =>
+        nodeToOut(left)
+        out" $op "
+        nodeToOut(right)
       case Node.BinaryExpression(op, left, right) =>
         op match {
           case `instanceof` =>
