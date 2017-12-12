@@ -248,7 +248,7 @@ object InferTypes {
 
               for {
                 (a, tp) <- args zip fType.args
-                //_ = println(s"${a.thedef.nonNull.map(_.name)} $tp")
+                //_ = println(s"${a.thedef.map(_.name)} $tp")
                 sym <- symbolFromPar(a)
               } {
                 val sid = id(sym)
@@ -395,8 +395,8 @@ object InferTypes {
             }
           }
 
-        case expr Node.StaticMemberExpression name Node.Sub property =>
-          //println(s"Node.StaticMemberExpression Node.Sub - $name $property")
+        case expr Dot name Node.Sub property =>
+          //println(s"Dot Node.Sub - $name $property")
           // consider DRY with the case above
           expressionType(property)(ctx).flatMap {
             _.declType match {
@@ -415,7 +415,7 @@ object InferTypes {
 
 
 
-        case expr Node.StaticMemberExpression name =>
+        case expr Dot name =>
           val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
           clsId.map(SymbolAccessDot)
 
@@ -556,7 +556,7 @@ object InferTypes {
         case Node.ConciseMethod(Node.SymbolName(sym), fun: Node.Lambda) =>
           val allReturns = scanFunctionReturns(fun)(ctx)
           // method of which class is this?
-          val scope = findThisClass(fun.parent_scope.nonNull)
+          val scope = findThisClass(fun.parent_scope)
           for {
             retType <- allReturns
             Node.DefClass(Defined(Node.Identifier(cls)), _, _) <- scope
@@ -570,7 +570,7 @@ object InferTypes {
         case Node.ObjectGetter(Node.SymbolName(sym), fun: Node.Lambda) =>
           val allReturns = scanFunctionReturns(fun)(ctx)
           // method of which class is this?
-          val scope = findThisClass(fun.parent_scope.nonNull)
+          val scope = findThisClass(fun.parent_scope)
           //println(s"Infer getter $sym as $allReturns")
           for {
             retType <- allReturns
@@ -583,7 +583,7 @@ object InferTypes {
           }
         case Node.ObjectSetter(Node.SymbolName(sym), fun: Node.Lambda) =>
           // method of which class is this?
-          val scope = findThisClass(fun.parent_scope.nonNull)
+          val scope = findThisClass(fun.parent_scope)
           //println(s"Infer setter $sym")
 
           for {
@@ -616,7 +616,7 @@ object InferTypes {
           call.orig.headOption match {
             case Some(clazz: Node.SymbolDefClass) => // constructor call in the new Class(x)
               for {
-                clsSym <- clazz.thedef.nonNull
+                clsSym <- clazz.thedef
                 clsId <- id(clsSym)
               } {
                 inferConstructorCall(args, clsId)
@@ -641,12 +641,12 @@ object InferTypes {
             case _ =>
           }
         case Node.Call(s: Node.Super, args@_*) =>
-          for (sup <- findSuperClass(s.scope.nonNull)) {
+          for (sup <- findSuperClass(s.scope)) {
             //println(s"Super call of $sup")
             inferConstructorCall(args, sup)
           }
 
-        case Node.Call(expr Node.StaticMemberExpression call, args@_*) =>
+        case Node.Call(expr Dot call, args@_*) =>
           val exprType = expressionType(expr)(ctx)
 
           (exprType.map(_.declType),call,expr) match {
@@ -691,7 +691,7 @@ object InferTypes {
                 c <- includeParents(clazz, Seq(clazz))(ctx) // infer for all overrides
                 m <- findMethod(c, call)
               } {
-                inferParsOrArgs(m.value.argnames, args)(s"Method call $callOn: $expr.$call offset ${expr.start.nonNull.map(_.pos)}")
+                inferParsOrArgs(m.value.argnames, args)(s"Method call $callOn: $expr.$call offset ${expr.start.map(_.pos)}")
               }
           }
 

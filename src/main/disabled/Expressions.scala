@@ -56,7 +56,7 @@ object Expressions {
       case c@Node.Object(Seq()) => Some(c)
       // TODO: check for dependent expressions
       case c: Node.Identifier => Some(c)
-      case c@((x: Node.Identifier) Node.StaticMemberExpression _) => Some(c)
+      case c@((x: Node.Identifier) Dot _) => Some(c)
       case _ =>
         //println(s"not InitStatement $arg")
         None

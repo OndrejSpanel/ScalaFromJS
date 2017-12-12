@@ -43,7 +43,7 @@ object ClassList {
         false
 
       // any use of XXX.prototype probably marks a class
-      case Node.Identifier(name) Node.StaticMemberExpression "prototype" =>
+      case Node.Identifier(name) Dot "prototype" =>
         //println(s"Node.Identifier ${name.name}")
         classNames += ClassId(name)
         false
@@ -54,11 +54,11 @@ object ClassList {
 
       /* the rule did more harm than good - functions are sometimes defined externally
       // use of this in a function most likely means the function is a constructor
-      case (_: Node.This) Node.StaticMemberExpression _ =>
+      case (_: Node.This) Dot _ =>
         for {
           fun <- walker.stack.reverse.collectFirst { case c: Node.Lambda => c }
-          sym <- fun.name.nonNull
-          Some(sym: Node.SymbolDefun) <- sym.thedef.nonNull.map(_.orig.headOption)
+          sym <- fun.name
+          Some(sym: Node.SymbolDefun) <- sym.thedef.map(_.orig.headOption)
         } {
           //println(s"Detected class ${sym.name}")
           classNames += sym.name
@@ -140,7 +140,7 @@ object ClassList {
       val bodyFiltered = body.filter {
         //Object.defineProperty( this, 'id', { value: textureId ++ } );
         case Node.SimpleStatement(Node.Call(
-        Node.Identifier("Object") Node.StaticMemberExpression "defineProperty", _: Node.This, prop: Node.String,
+        Node.Identifier("Object") Dot "defineProperty", _: Node.This, prop: Node.String,
         Node.Object(properties)
         )) =>
           //println(s"Detect defineProperty ${sym.name}.${prop.value}")
@@ -175,7 +175,7 @@ object ClassList {
                   if (funScope == symbolDef.scope) {
                     //println(s"Transform reference $name")
 
-                    new Node.StaticMemberExpression {
+                    new Dot {
                       fillTokens(this, node)
                       expression = Node.This().withTokens(node)
                       property = name

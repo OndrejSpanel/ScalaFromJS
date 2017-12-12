@@ -19,7 +19,7 @@ object InlineConstructors {
 
   private object AssignToMember {
     def unapply(arg: Node.Node): Option[(String, Node.Node)] = arg match {
-      case SingleStatement(Node.Assign(Node.This() Node.StaticMemberExpression funName, "=", value)) =>
+      case SingleStatement(Node.Assign(Node.This() Dot funName, "=", value)) =>
         Some(funName, value)
       case _ =>
         None
@@ -49,7 +49,7 @@ object InlineConstructors {
     // detect functions which are not exported - i.e. local named function not assigned to anything
 
     def localLambdaByName(name: String): Option[Node.Lambda] = {
-      localLambdas.find(_.name.nonNull.exists(_.name == name))
+      localLambdas.find(_.name.exists(_.name == name))
     }
 
     var isExported = Set.empty[Node.Lambda]
@@ -74,8 +74,8 @@ object InlineConstructors {
     n.walk {
       case Node.Call(Node.Identifier(_), _*) =>
         true // a plain call, do not dive into
-      case Node.Identifier(funName) if localLambdas.exists(_.name.nonNull.exists(_.name == funName)) =>
-        definedAndExported ++= localLambdas.filter(_.name.nonNull.exists(_.name == funName))
+      case Node.Identifier(funName) if localLambdas.exists(_.name.exists(_.name == funName)) =>
+        definedAndExported ++= localLambdas.filter(_.name.exists(_.name == funName))
         true
       case _ =>
         false
@@ -178,7 +178,7 @@ object InlineConstructors {
 
             val locals = allLocals diff constructorParameters
 
-            def newThisDotMember(member: String) = new Node.StaticMemberExpression {
+            def newThisDotMember(member: String) = new Dot {
               expression = Node.This()
               property = member
             }
@@ -253,9 +253,9 @@ object InlineConstructors {
             val restRaw = rawConstructor.body diff functions.map(_._1)
 
             val rest = restRaw.filter {
-              case Node.SimpleStatement(Node.Assign(Node.This() Node.StaticMemberExpression tgtName, "=", Node.Identifier(funName)))
+              case Node.SimpleStatement(Node.Assign(Node.This() Dot tgtName, "=", Node.Identifier(funName)))
                 // TODO: relax tgtName == funName requirement
-                if tgtName == funName && (functionsToConvert exists (_.name.nonNull.exists(_.name==funName))) =>
+                if tgtName == funName && (functionsToConvert exists (_.name.exists(_.name==funName))) =>
                 //if (log) println(s"Drop assign $funName")
                 false
               case _ =>
@@ -330,7 +330,7 @@ object InlineConstructors {
               def allow(c: Node.Node): Boolean = c match {
                 case IsConstant() =>
                   true
-                case Node.This() Node.StaticMemberExpression varName if isClassConstant(varName) =>
+                case Node.This() Dot varName if isClassConstant(varName) =>
                   true
                 case _ =>
                   false
@@ -338,7 +338,7 @@ object InlineConstructors {
             }
 
             val (inlineVars, rest) = rest_?.partition {
-              case SingleStatement(Node.Assign((_: Node.This) Node.StaticMemberExpression member, "=", IsConstantInitializerInThis(expr))) =>
+              case SingleStatement(Node.Assign((_: Node.This) Dot member, "=", IsConstantInitializerInThis(expr))) =>
                 //println(s"Assign const $expr")
                 true
               case _ =>
@@ -358,11 +358,11 @@ object InlineConstructors {
                 node match {
                   case sym@Node.SymbolName(IsParameter()) =>
                     sym.name = sym.name + parSuffix
-                    types = types addHint sym.thedef.nonNull.flatMap(id).map(_.copy(name = sym.name)) -> IsConstructorParameter
+                    types = types addHint sym.thedef.flatMap(id).map(_.copy(name = sym.name)) -> IsConstructorParameter
                     sym
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
-                  case (_: Node.This) Node.StaticMemberExpression member if !transformer.parent().isInstanceOf[Node.Call] =>
+                  case (_: Node.This) Dot member if !transformer.parent().isInstanceOf[Node.Call] =>
                     Node.Identifier(clsTokenDef)(member)
                   case _ =>
                     node
@@ -374,7 +374,7 @@ object InlineConstructors {
             accessor.argnames = constructor.argnames.map(Transform.funArg).map { p =>
               val a = p.clone()
               a.name = p.name + parSuffix
-              val classSymbolId = cls.name.nonNull.flatMap(_.thedef.nonNull).flatMap(id)
+              val classSymbolId = cls.name.flatMap(_.thedef).flatMap(id)
               types = types addHint classSymbolId.map(_.copy(name = a.name)) -> IsConstructorParameter
               // marking source as cls so that they use the class scope, same as member variables
               fillTokens(a, clsTokenDef)
@@ -387,7 +387,7 @@ object InlineConstructors {
             val constructorCall = if (rest.nonEmpty) Some(Node.SimpleStatement(constructorProperty) {
               new Node.Call {
                 fillTokens(this, constructorProperty)
-                expression = new Node.StaticMemberExpression {
+                expression = new Dot {
                   fillTokens(this, constructorProperty)
                   expression = Node.This().withTokens(constructorProperty)
                   property = "constructor"

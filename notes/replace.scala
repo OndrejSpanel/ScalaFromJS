@@ -22,9 +22,9 @@ object Uglify extends js.Object {
   import Helpers._
 
   @js.native class MinifyOutput extends js.Object {
-    val code: js.UndefOr[String] = js.native
-    val ast: js.UndefOr[AST_Program] = js.native
-    val error: js.UndefOr[JS_Parse_Error] = js.native
+    val code: Option[String] = js.native
+    val ast: Option[AST_Program] = js.native
+    val error: Option[JS_Parse_Error] = js.native
   }
 
   // http://lisperator.net/uglifyjs/ast
@@ -81,7 +81,7 @@ object Uglify extends js.Object {
   // f:  return true to abort the walk
   @js.native class TreeWalker(f: js.Function2[AST_Node, js.Function2[AST_Node, TreeWalker, Unit], Boolean]) extends js.Any {
     // returns the parent of the current node.
-    def parent(n: Int = 0): js.UndefOr[AST_Node] = js.native
+    def parent(n: Int = 0): Option[AST_Node] = js.native
     // an array holding all nodes that lead to current node. The last element in this array is the current node itself.
     def stack: js.Array[AST_Node] = js.native
     // finds the innermost parent of the given type. type must be a node constructor, i.e. AST_Scope.
@@ -94,8 +94,8 @@ object Uglify extends js.Object {
   ) extends TreeWalker(js.native)
 
   @js.native sealed abstract class AST_Node extends js.Object with CloneSelf[AST_Node] {
-    var start: js.UndefOr[AST_Token] = js.native
-    var end: js.UndefOr[AST_Token] = js.native
+    var start: Option[AST_Token] = js.native
+    var end: Option[AST_Token] = js.native
 
     @JSName("walk")
     def walk_js(walker: TreeWalker): Unit = js.native
@@ -123,21 +123,21 @@ object Uglify extends js.Object {
 
   @js.native class AST_Scope extends AST_Block {
     // [string*/S] an array of directives declared in this scope
-    val directives: js.UndefOr[js.Array[String]] = js.native
+    val directives: Option[js.Array[String]] = js.native
     // [Object/S] a map of name -> SymbolDef for all variables/functions defined in this scope
     var variables: Dictionary[SymbolDef] = js.native
     // [Object/S] like `variables`, but only lists function declarations
     var functions: Dictionary[SymbolDef] = js.native
     // [boolean/S] tells whether this scope uses the `with` statement
-    val uses_with: js.UndefOr[Boolean] = js.native
+    val uses_with: Option[Boolean] = js.native
     // [boolean/S] tells whether this scope contains a direct call to the global `eval`
-    val uses_eval: js.UndefOr[Boolean] = js.native
+    val uses_eval: Option[Boolean] = js.native
     // [AST_Scope?/S] link to the parent scope
-    val parent_scope: js.UndefOr[AST_Scope] = js.native
+    val parent_scope: Option[AST_Scope] = js.native
     // [SymbolDef*/S] a list of all symbol definitions that are accessed from this scope or any subscopes
-    val enclosed: js.UndefOr[js.Array[SymbolDef]] = js.native
+    val enclosed: Option[js.Array[SymbolDef]] = js.native
     // [integer/S] current index for mangling variables (used internally by the mangler)
-    val cname: js.UndefOr[Int] = js.native
+    val cname: Option[Int] = js.native
   }
 
   @js.native class AST_Program extends AST_Scope with CloneSelf[AST_Program] {
@@ -153,11 +153,11 @@ object Uglify extends js.Object {
   }
 
   @js.native class AST_Lambda extends AST_Scope with CloneSelf[AST_Lambda] {
-    var name: js.UndefOr[AST_SymbolDeclaration] = js.native
+    var name: Option[AST_SymbolDeclaration] = js.native
     //[AST_SymbolDeclaration?] the name of this function
     var argnames: js.Array[AST_SymbolFunarg] = js.native
     // [AST_SymbolFunarg*] array of function arguments
-    var uses_arguments: js.UndefOr[Boolean] = js.native // "[boolean/S] tells whether this function accesses the arguments array"
+    var uses_arguments: Option[Boolean] = js.native // "[boolean/S] tells whether this function accesses the arguments array"
   }
 
   @js.native class AST_Accessor extends AST_Lambda
@@ -183,9 +183,9 @@ object Uglify extends js.Object {
 
   @js.native class AST_Try extends AST_Scope {
     // [AST_Catch?] the catch block, or null if not present
-    val bcatch: js.UndefOr[AST_Catch] = js.native
+    val bcatch: Option[AST_Catch] = js.native
     // [AST_Finally?] the finally block, or null if not present
-    val bfinally: js.UndefOr[AST_Finally] = js.native
+    val bfinally: Option[AST_Finally] = js.native
   }
 
   @js.native class AST_Catch extends AST_Scope {
@@ -218,18 +218,18 @@ object Uglify extends js.Object {
 
   @js.native class AST_For extends AST_IterationStatement {
     // [AST_Node?] the `for` initialization code, or null if empty
-    var init: js.UndefOr[AST_Node] = js.native
+    var init: Option[AST_Node] = js.native
     // [AST_Node?] the `for` termination clause, or null if empty
-    var condition: js.UndefOr[AST_Node] = js.native
+    var condition: Option[AST_Node] = js.native
     // [AST_Node?] the `for` update clause, or null if empty
-    var step: js.UndefOr[AST_Node] = js.native
+    var step: Option[AST_Node] = js.native
   }
 
   @js.native class AST_ForIn extends AST_IterationStatement {
     // [AST_Node] the `for/in` initialization code
     var init: AST_Node = js.native
     // [AST_SymbolRef?] the loop variable, only if `init` is AST_Var
-    var name: js.UndefOr[AST_SymbolRef] = js.native
+    var name: Option[AST_SymbolRef] = js.native
     // [AST_Node] the object that we're looping through
     var `object`: AST_Node = js.native
   }
@@ -244,14 +244,14 @@ object Uglify extends js.Object {
     // [AST_Node] the `if` condition
     var condition: AST_Node  = js.native
     // [AST_Statement?] the `else` part, or null if not present
-    var alternative: js.UndefOr[AST_Statement]  = js.native
+    var alternative: Option[AST_Statement]  = js.native
   }
 
   @js.native sealed abstract class AST_Jump extends AST_Statement
 
   @js.native sealed abstract class AST_Exit extends AST_Jump {
     // [AST_Node?] the value returned or thrown by this statement; could be null for AST_Return
-    var value: js.UndefOr[AST_Node]  = js.native
+    var value: Option[AST_Node]  = js.native
   }
 
   @js.native class AST_Return extends AST_Exit
@@ -259,7 +259,7 @@ object Uglify extends js.Object {
 
   @js.native sealed abstract class AST_LoopControl extends AST_Jump {
     // [AST_LabelRef?] the label, or null if none
-    val label: js.UndefOr[AST_LabelRef] = js.native
+    val label: Option[AST_LabelRef] = js.native
 
   }
   @js.native class AST_Break extends AST_LoopControl
@@ -278,7 +278,7 @@ object Uglify extends js.Object {
     // [AST_SymbolVar|AST_SymbolConst] name of the variable
     var name: AST_SymbolVarOrConst = js.native
     // "[AST_Node?] initializer, or null of there's no initializer"
-    var value: js.UndefOr[AST_Node] = js.native
+    var value: Option[AST_Node] = js.native
   }
 
   @js.native class AST_Call extends AST_Node {
@@ -384,7 +384,7 @@ object Uglify extends js.Object {
     override def value: AST_Accessor = js.native
 
     // [string|undefined] the original quote character, if any
-    var quote: js.UndefOr[String]= js.native
+    var quote: Option[String]= js.native
     // [boolean] whether this method is static (classes only)
     var `static`: Boolean = js.native
     // [boolean] is generatorFn or not
@@ -396,16 +396,16 @@ object Uglify extends js.Object {
     // [string] name of this symbol
     var name: String = js.native
     // [AST_Scope/S] the current scope (not necessarily the definition scope)
-    var scope: js.UndefOr[AST_Scope] = js.native
+    var scope: Option[AST_Scope] = js.native
     // [SymbolDef/S] the definition of this symbol
-    var thedef: js.UndefOr[SymbolDef] = js.native
+    var thedef: Option[SymbolDef] = js.native
   }
 
   @js.native class AST_SymbolAccessor extends AST_Symbol
   @js.native class AST_SymbolMethod extends AST_Symbol
   @js.native class AST_SymbolDeclaration extends AST_Symbol with CloneSelf[AST_SymbolDeclaration] {
     // [AST_Node*/S] array of initializers for this declaration.
-    var init: js.UndefOr[js.Array[AST_Node]] = js.native
+    var init: Option[js.Array[AST_Node]] = js.native
   }
 
   @js.native class AST_SymbolVarOrConst extends AST_SymbolDeclaration
@@ -465,7 +465,7 @@ object Uglify extends js.Object {
     // [number] the numeric value
     var value: Double = js.native
     // [string] numeric value as string (optional)
-    var literal: js.UndefOr[String] = js.native
+    var literal: Option[String] = js.native
   }
 
   @js.native class AST_RegExp extends AST_Constant {
@@ -485,9 +485,9 @@ object Uglify extends js.Object {
 
   @js.native class AST_Class extends AST_Scope with CloneSelf[AST_Class] {
     // [AST_SymbolClass|AST_SymbolDefClass?] optional class name.
-    var name: js.UndefOr[AST_Symbol] = js.native
+    var name: Option[AST_Symbol] = js.native
     // [AST_Node]? optional parent class
-    var `extends`: js.UndefOr[AST_Node] = js.native
+    var `extends`: Option[AST_Node] = js.native
     // "[AST_ObjectProperty*] array of properties"
     var properties: js.Array[AST_ObjectProperty] = js.native
   }
@@ -496,18 +496,18 @@ object Uglify extends js.Object {
 
   @js.native class AST_Export extends AST_Node {
     // String literal describing where this module came from
-    var module_name: js.UndefOr[AST_String] = js.native
+    var module_name: Option[AST_String] = js.native
     // An exported value
-    var exported_value: js.UndefOr[AST_Node] = js.native
+    var exported_value: Option[AST_Node] = js.native
     // An exported definition
-    var exported_definition: js.UndefOr[AST_Node] = js.native
+    var exported_definition: Option[AST_Node] = js.native
   }
 
   @js.native class AST_Import extends AST_Node {
     //  The name of the variable holding the module's default export
-    var imported_name: js.UndefOr[AST_SymbolImport] = js.native
+    var imported_name: Option[AST_SymbolImport] = js.native
     //  The names of non-default imported variables
-    var imported_names: js.UndefOr[js.Array[AST_NameImport]] = js.native
+    var imported_names: Option[js.Array[AST_NameImport]] = js.native
     // String literal describing where this module came from
     var module_name: AST_String = js.native
   }
@@ -578,7 +578,7 @@ object UglifyExt {
       var width: Int = 80
       var max_line_len: Int = 32000
       var beautify: Boolean = false
-      val source_map: js.UndefOr[js.Dynamic] = js.undefined
+      val source_map: Option[js.Dynamic] = js.undefined
       var bracketize: Boolean = false
       var semicolons: Boolean = true
       var comments: RegExp = RegExp("@license|@preserve|^!")
@@ -595,9 +595,9 @@ object UglifyExt {
     import Options._
 
     val parse: Parse = new Parse
-    val compress: js.UndefOr[Compress] = js.undefined
+    val compress: Option[Compress] = js.undefined
     val output: Output = new Output
-    val mangle: js.UndefOr[js.Dynamic] = js.undefined
+    val mangle: Option[js.Dynamic] = js.undefined
   }
 
   val defaultUglifyOptions = new Options
@@ -609,7 +609,7 @@ object UglifyExt {
 
   implicit class MinifyOutputOps(val output: MinifyOutput) {
     def top: AST_Program = {
-      (output.ast.nonNull, output.error.nonNull) match {
+      (output.ast, output.error) match {
         case (Some(ast), _) => ast
         case (_, Some(error)) => throw js.JavaScriptException(error)
         case _ => throw new UnsupportedOperationException()
@@ -778,7 +778,7 @@ object UglifyExt {
     object AST_VarDef {
       def unapply(arg: AST_VarDef) = Some(arg.name, arg.value)
 
-      def apply(from: AST_Node)(name: AST_SymbolVarOrConst, value: js.UndefOr[AST_Node]): AST_VarDef = {
+      def apply(from: AST_Node)(name: AST_SymbolVarOrConst, value: Option[AST_Node]): AST_VarDef = {
         //println(s"AST_VarDef.apply $name value $value")
         init(new AST_VarDef()) { node =>
           fillTokens(node, from)
@@ -952,7 +952,7 @@ object UglifyExt {
     }
 
     object AST_If {
-      def unapply(arg: AST_If) = Some(arg.condition, arg.body, arg.alternative.nonNull)
+      def unapply(arg: AST_If) = Some(arg.condition, arg.body, arg.alternative)
     }
 
     object AST_Switch {
@@ -1010,11 +1010,11 @@ object UglifyExt {
 
     // helpers, composite extractors
     object Defined {
-      def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Option[T] = arg.nonNull
+      def unapply[T](arg: Option[T])(implicit ev: Null <:< T): Option[T] = arg
     }
 
     object Undefined {
-      def unapply[T](arg: js.UndefOr[T])(implicit ev: Null <:< T): Boolean = arg.nonNull.isEmpty
+      def unapply[T](arg: Option[T])(implicit ev: Null <:< T): Boolean = arg.isEmpty
     }
 
     object JsArray {

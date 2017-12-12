@@ -23,7 +23,7 @@ object Transform {
   }
 
   def symbolId(symbol: Node.Identifier): Option[SymbolMapId] = {
-    symbol.thedef.nonNull.flatMap(id)
+    symbol.thedef.flatMap(id)
   }
 
   def funArg(p: Node.Node): Node.SymbolFunarg = (p: @unchecked) match {
@@ -40,11 +40,11 @@ object Transform {
 
   def symbolFromPar(p: Node.Node): Option[SymbolDef] = p match {
     case p: Node.SymbolFunarg =>
-      p.thedef.nonNull
+      p.thedef
     case p: Node.DefaultAssign =>
       p.left match {
         case a: Node.SymbolFunarg =>
-          a.thedef.nonNull
+          a.thedef
         case _ =>
           None
       }
@@ -106,7 +106,7 @@ object Transform {
     // walk the tree, check for increment / decrement
     n.transformAfter { (node, transformer) =>
       def nodeResultDiscarded(n: Node.Node, parentLevel: Int): Boolean = {
-        transformer.parent(parentLevel).nonNull match {
+        transformer.parent(parentLevel) match {
           case Some(_: Node.SimpleStatement) =>
             true
           case Some(f: Node.For) =>
@@ -152,7 +152,7 @@ object Transform {
   }
 
   def replaceReturnWithStatement(ret: Node.Return) = {
-    ret.value.nonNull.fold[Node.Statement] {
+    ret.value.fold[Node.Statement] {
       Node.EmptyStatement(ret)
     } {
       Node.SimpleStatement(ret)
@@ -180,7 +180,7 @@ object Transform {
   // is this a last node in some scope? (walks also parents)
   def nodeLast(n: Node.Node, parentLevel: Int, transformer: TreeTransformer): Boolean = {
     //println(s"nodeLast ${nodeClassName(n)}:$parentLevel:${transformer.parent(parentLevel).map(nodeClassName)}")
-    transformer.parent(parentLevel).nonNull match {
+    transformer.parent(parentLevel) match {
       case Some(ss: Node.SimpleStatement) =>
         ss.body == n
       case Some(fun: Node.Lambda) =>
@@ -316,7 +316,7 @@ object Transform {
       node match {
         case f: Node.Defun =>
           for {
-            start <- f.start.nonNull
+            start <- f.start
             commentToken <- start.comments_before.lastOption
           } {
             val comment = commentToken.value.asInstanceOf[String]
@@ -333,14 +333,14 @@ object Transform {
                     val sym = f.argnames.find(_.name == name)
                     for {
                       s <- sym
-                      td <- s.thedef.nonNull
+                      td <- s.thedef
                     } {
                       declBuffer append td -> parseType(tpe)
                     }
                   case JSDocReturn(tpe) =>
                     for {
-                      s <- f.name.nonNull
-                      td <- s.thedef.nonNull
+                      s <- f.name
+                      td <- s.thedef
                     } {
                       declBuffer append td -> parseType(tpe)
                     }
@@ -425,17 +425,17 @@ object Transform {
     }
 
     def typeInfoFromClassDef(classDef: Option[Node.DefClass]) = {
-      classDef.flatMap(_.name.nonNull).flatMap(_.thedef.nonNull).flatMap(typeInfoFromClassSym(_))
+      classDef.flatMap(_.name).flatMap(_.thedef).flatMap(typeInfoFromClassSym(_))
     }
 
     n match {
       case s: Node.Super =>
-        val sup = findSuperClass(s.scope.nonNull)
+        val sup = findSuperClass(s.scope)
         //println(s"super scope $sup")
         sup.map(t => TypeInfo.target(ClassType(t)))
 
       case t: Node.This =>
-        val thisScope = findThisClass(t.scope.nonNull) // TODO: consider this in a function
+        val thisScope = findThisClass(t.scope) // TODO: consider this in a function
         //println(s"this scope ${t.scope.map(_.nesting)}")
         typeInfoFromClassDef(thisScope)
         //println(s"this def scope $cls")
@@ -450,7 +450,7 @@ object Transform {
         //println(s"    Sym ${symDef.name} type $rt")
         rt
 
-      case expr Node.StaticMemberExpression name =>
+      case expr Dot name =>
         val exprType = expressionType(expr, log)(ctx)
         if (log) println(s"type of member $expr.$name, class $exprType")
         for {
@@ -494,7 +494,7 @@ object Transform {
         Some(TypeInfo.target(boolean))
 
       // Array.isArray( name ) ? name : [name]
-      case Node.Conditional(Node.Call(Node.Identifier("Array") Node.StaticMemberExpression "isArray", isArrayArg), exprTrue, exprFalse) =>
+      case Node.Conditional(Node.Call(Node.Identifier("Array") Dot "isArray", isArrayArg), exprTrue, exprFalse) =>
         val exprType = expressionType(isArrayArg, log)
         //println(s"ExprType $exprType of Array.isArray( name ) ? name : [name] for $n1")
         if(exprType.exists(_.declType.isInstanceOf[ArrayType])) {
@@ -536,7 +536,7 @@ object Transform {
         }
       case Node.New(Node.Identifier(call), _*) =>
         typeInfoFromClassSym(call, true)
-      case Node.New(Node.Identifier(pack) Node.StaticMemberExpression call, _*) =>
+      case Node.New(Node.Identifier(pack) Dot call, _*) =>
         // TODO: check if call is a known symbol and use it
         // TODO: handle package names properly
         Some(TypeInfo.both(ClassType(SymbolMapId(call, 0))))
@@ -545,7 +545,7 @@ object Transform {
         if (log)  println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
         types.get(tid).map(callReturn)
 
-      case Node.Call(cls Node.StaticMemberExpression name, _*) =>
+      case Node.Call(cls Dot name, _*) =>
         val exprType = expressionType(cls, log)(ctx)
         if (log) println(s"Infer type of member call $cls.$name class $exprType")
         for {
@@ -739,7 +739,7 @@ object Transform {
     * */
   def processCall(n: Node.Node): Node.Node = {
     n.transformAfterSimple {
-      case call@Node.Call(expr Node.StaticMemberExpression "call", _: Node.This, a@_* ) =>
+      case call@Node.Call(expr Dot "call", _: Node.This, a@_* ) =>
         new Node.Call {
           fillTokens(this, call)
           this.expression = expr
@@ -789,7 +789,7 @@ object Transform {
       node match {
         case t: Node.Program =>
           val newBody = t.body.flatMap {
-            case s@Node.SimpleStatement(Node.Call(Node.Identifier("Object") Node.StaticMemberExpression "assign", ts@Node.Identifier(sym), x: Node.Object)) =>
+            case s@Node.SimpleStatement(Node.Call(Node.Identifier("Object") Dot "assign", ts@Node.Identifier(sym), x: Node.Object)) =>
               //println(s"Assign to ${sym.name}")
               // iterate through the object defintion
               // each property replace with an individual assignment statement
@@ -799,7 +799,7 @@ object Transform {
                   Node.SimpleStatement(p) {
                     new Node.Assign {
                       fillTokens(this, p)
-                      left = new Node.StaticMemberExpression {
+                      left = new Dot {
                         expression = ts
                         property = p.key
                         fillTokens(this, p)

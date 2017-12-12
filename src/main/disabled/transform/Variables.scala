@@ -33,7 +33,7 @@ object Variables {
             n
           } else cm.clone()
 
-        case Node.Definitions(varDef@Node.VarDef(varName, value)) if value.nonNull.nonEmpty => // var with init - search for a modification
+        case Node.Definitions(varDef@Node.VarDef(varName, value)) if value.nonEmpty => // var with init - search for a modification
           //println(s"Node.VarDef ${varName.name}")
           varName.thedef.fold(node) { df =>
             assert(df.name == varName.name)
@@ -107,7 +107,7 @@ object Variables {
             varDef.scope.walk {
               case n@Node.Var(Node.VarDef(Node.Identifier(`varDef`), _)) =>
                 count += 1
-                list ++= n.start.nonNull
+                list ++= n.start
                 false
               case scope: Node.Block if scope != varDef.scope =>
                 // check only in the same block
@@ -126,8 +126,8 @@ object Variables {
             count
           }
           val replaced = for {
-            varDef <- varName.thedef.nonNull
-            //scope <- varName.scope.nonNull
+            varDef <- varName.thedef
+            //scope <- varName.scope
             scope = varDef.scope
             // if the symbol origin is different from this declaration, it is a candidate
             if varDef.orig.headOption.exists(_ != varName)
@@ -160,14 +160,14 @@ object Variables {
         //case Node.Definitions(Node.VarDef(Node.Identifier(df), Defined(obj@Node.Object(props)))) =>
 
           // check if the object is part of variable / const initialization, like: var df = {}
-          transformer.parent(1).nonNull match {
+          transformer.parent(1) match {
             case Some(Node.Definitions(Node.VarDef(Node.Identifier(df), Defined(o: Node.Object)))) =>
               //println(s"Scan object ${df.name} for methods ${o.properties}")
               assert(o == obj)
 
               object IsDfMember extends Extractor[String] {
                 def unapply(arg: Node.Node) = arg match {
-                  case Node.Identifier(`df`) Node.StaticMemberExpression key => Some(key)
+                  case Node.Identifier(`df`) Dot key => Some(key)
                   case _ => None
                 }
               }
@@ -266,7 +266,7 @@ object Variables {
     var pairs = Map.empty[SymbolDef, (Node.Identifier, Boolean)] // symbol definition -> first reference
     n.walk { node =>
       node match {
-        case defs@Node.Definitions(Node.VarDef(name, value)) if value.nonNull.isEmpty =>
+        case defs@Node.Definitions(Node.VarDef(name, value)) if value.isEmpty =>
           //println(s"varInitialization Node.VarDef $name")
           for (df <- name.thedef) {
             assert(df.name == name.name)
@@ -351,7 +351,7 @@ object Variables {
           // remove only the original declaration, not the one introduced by us
           // original declaration has no init value
           val af = v.definitions.filterNot { d =>
-            d.value.nonNull.isEmpty && d.name.thedef.exists(pairs.contains)
+            d.value.isEmpty && d.name.thedef.exists(pairs.contains)
           }
           //if (af.size != v.definitions.size) println(s"  removed decl $v -> $af")
           v.definitions = af
@@ -393,7 +393,7 @@ object Variables {
     }
   }
 
-  def renameVariable[T <: Node.Node](n: T, oldName: SymbolDef, newName: String, newSymbol: js.UndefOr[SymbolDef] = js.undefined): T = {
+  def renameVariable[T <: Node.Node](n: T, oldName: SymbolDef, newName: String, newSymbol: Option[SymbolDef] = js.undefined): T = {
     val ret = n.transformAfter { (node, _) =>
       node match {
         case sym@Node.Identifier(`oldName`) =>
@@ -428,7 +428,7 @@ object Variables {
     val ret = n.transformAfter { (node, _) =>
       node match {
         case Node.Definitions(varDef@Node.VarDef(Node.Identifier(`oldName`), init)) =>
-          init.nonNull.map { init =>
+          init.map { init =>
             val r = transform(varDef.name, init)
             fillTokensRecursively(r, node)
             r
@@ -451,7 +451,7 @@ object Variables {
     n.transformAfter { (node, _) =>
       node match {
         case f: Node.For =>
-          val forOK: Seq[(SymbolDef, Node.Node, Node.Scope)] = f.init.nonNull.toSeq.flatMap {
+          val forOK: Seq[(SymbolDef, Node.Node, Node.Scope)] = f.init.toSeq.flatMap {
             case _: Node.Definitions => // if init already is a definition, no need to process anything
               Seq()
             case ExtractVariables(vars) =>

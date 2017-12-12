@@ -205,7 +205,7 @@ object Parameters {
     val refs = buildReferenceStacks(n)
 
     def handleModification(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
-      par.thedef.nonNull.map { parDef =>
+      par.thedef.map { parDef =>
         val parName = par.name
         //println(s"Checking $parName")
 
@@ -247,9 +247,9 @@ object Parameters {
 
     def handleSimpleParameters(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
 
-      if (!f.name.nonNull.exists(_.name == Classes.inlineBodyName)) Some(f)
+      if (!f.name.exists(_.name == Classes.inlineBodyName)) Some(f)
       else {
-        par.thedef.nonNull.map { parDef =>
+        par.thedef.map { parDef =>
           val parName = par.name
 
           if (parName endsWith parSuffix) {
@@ -297,7 +297,7 @@ object Parameters {
 
       def containsDeprecation(body: Seq[Node.Statement]) = {
         body.exists {
-          case Node.SimpleStatement(Node.Call(Node.Identifier("console") Node.StaticMemberExpression "warn", _)) =>
+          case Node.SimpleStatement(Node.Call(Node.Identifier("console") Dot "warn", _)) =>
             true
           case _: Node.Throw =>
             true
@@ -359,7 +359,7 @@ object Parameters {
     var types = n.types
     val logging = false
     def handleConstructorVars(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
-      if (!f.name.nonNull.exists(_.name == Classes.inlineBodyName)) Some(f)
+      if (!f.name.exists(_.name == Classes.inlineBodyName)) Some(f)
       else {
         // inline all parameters, or constructor only?
         // check hints: is it a variable?
@@ -406,7 +406,7 @@ object Parameters {
                 otherUse = true
               }
               true // use inside of the current pattern must not set otherUse
-            case Node.Call(Node.This() Node.StaticMemberExpression "constructor", args@_*) if args.exists(isParRef) =>
+            case Node.Call(Node.This() Dot "constructor", args@_*) if args.exists(isParRef) =>
               // passed to the constructor - this is always allowed
               // should we check what the constructor does with the value?
               //println(s"Detected constructor call for $parName")

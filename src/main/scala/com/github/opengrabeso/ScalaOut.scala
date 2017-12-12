@@ -2,9 +2,10 @@ package com.github.opengrabeso
 
 import net.gamatron.esprima._
 import esprima._
+import NodeExt._
 
 import JsUtils._
-import Classes._
+//import Classes._
 
 import scala.util.Try
 
@@ -14,6 +15,12 @@ object ScalaOut {
   object Config {
     val default = new Config
   }
+
+  type SymbolDef = SymbolTypes.SymbolMapId
+
+  def nodeClassName(node: Node.Node): String = node.getClass.getSimpleName
+
+  class ClassListHarmony
 
   // @param unknowns annotate unknown constructs with a comment (source is always passed through)
 
@@ -120,17 +127,12 @@ object ScalaOut {
           identifierToOut(output, s.name)
 
           if (false) { // output symbol ids and types
-            s.thedef.nonNull.fold {
-              out"/*thedef == null*/"
-            } { df =>
-              val symId = SymbolTypes.id(df)
-              out"/*${symId.fold(-1)(_.sourcePos)}*/"
-              out"/*${input.types.get(symId)}*/"
-            }
+            val symId = SymbolTypes.id(s)
+            out"/*${symId.fold(-1)(_.sourcePos)}*/"
+            out"/*${input.types.get(symId)}*/"
           }
         case n: Node.Node =>
           nodeToOut(n)
-        case x if js.isUndefined(x) =>
         case any =>
           output(any.toString)
       }
@@ -157,8 +159,8 @@ object ScalaOut {
 
 
   //noinspection ScalaUnusedSymbol
-  private def printlnNode(n: js.UndefOr[Node.Node])(implicit outConfig: Config, input: InputContext) = {
-    println(n.nonNull.map(n => nodeClassName(n) + ":" + nodeToString(n)).getOrElse(""))
+  private def printlnNode(n: Node.Node)(implicit outConfig: Config, input: InputContext) = {
+    println(nodeClassName(n) + ":" + nodeToString(n))
   }
 
 
@@ -179,10 +181,11 @@ object ScalaOut {
   def dumpComments(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output) = {
     // start is mostly defined, but not for accessor
     for {
-      start <- n.start.nonNull
-      c <- start.comments_before
+      start <- n.start
+      // TODO: handle inner / trailing comments better
+      c <- n.leadingComments ++ n.innerComments ++ n.trailingComments
     } {
-      if (!(input.commentsDumped contains c.pos)) {
+      if (!(input.commentsDumped contains start)) {
         if (c.`type` == "comment2") {
           // process line by line, fix indenting
           val content = c.value.toString
@@ -196,7 +199,7 @@ object ScalaOut {
         } else {
           out"//${c.value}\n"
         }
-        input.commentsDumped += c.pos
+        input.commentsDumped += start
       }
     }
   }
@@ -212,7 +215,7 @@ object ScalaOut {
     }
 
     n match {
-      case Node.BinaryExpression(_, op, _) =>
+      case Node.BinaryExpression(op, _, _) =>
         op match {
           case `instanceof` | `asinstanceof` =>
             outNode(n)
@@ -221,7 +224,7 @@ object ScalaOut {
         }
       case _: Node.IfStatement =>
         outInParens(n)
-      case _: Node.Conditional =>
+      case _: Conditional =>
         outInParens(n)
       case _ =>
         outNode(n)
@@ -236,11 +239,11 @@ object ScalaOut {
       out.submitLocation(s.pos, source.lines.next)
     }
 
-    def outputVarDef(name: Node.Identifier, initInput: js.UndefOr[Node.Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
+    def outputVarDef(name: Node.Identifier, initInput: Option[Node.Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
       out"$name"
 
       // handle a hack: uninitialized variable using Node.EmptyStatement
-      val init = if (initInput.nonNull.exists(_.isInstanceOf[Node.EmptyStatement])) None else initInput.nonNull
+      val init = if (initInput.exists(_.isInstanceOf[Node.EmptyStatement])) None else initInput
 
       //out(s"/*outputVarDef ${name.name} type: $sType init: ${init.map(_.toString)}*/")
       if (types || init.isEmpty) {
@@ -251,8 +254,8 @@ object ScalaOut {
 
       def trivialInit(i: Node.Node): Option[Node.Node] = {
         i match {
-          case a: Node.Array if a.elements.isEmpty => None
-          case o: Node.Object if o.properties.isEmpty => None
+          case a: NodeExt.Array if a.elements.isEmpty => None
+          case o: NodeExt.Object if o.properties.isEmpty => None
           case _ => Some(i)
         }
       }
@@ -314,14 +317,14 @@ object ScalaOut {
               outputVarDef(s, js.undefined, tpe, false)
           }
 
-        case Node.VarDef(s@Node.Identifier(name, _, Defined(sym)), init) =>
-          outValVar(init.isDefined)
+        case NodeExt.VarDef(s@Node.Identifier(name), init) =>
+          outValVar(Option(init).isDefined)
           //out("/*outputDefinitions 1*/")
           val sType = getSymbolType(sym)
           //out"/*Node.VarDef sym ${SymbolTypes.id(sym)} $sType*/"
           //println(s"Node.VarDef sym ${SymbolTypes.id(sym)} $sType")
           //println(getType(sym))
-          outputVarDef(s, init, sType, types)
+          outputVarDef(s, Option(init), sType, types)
       }
     }
 
@@ -349,7 +352,7 @@ object ScalaOut {
           out("var ")
         }
         out"$n"
-        outputArgType(n, n.init.nonNull.flatMap(_.headOption))
+        outputArgType(n, n.init.flatMap(_.headOption))
       }
       out(")")
     }
@@ -361,13 +364,13 @@ object ScalaOut {
           case d: Node.DefaultAssign =>
             d.left.asInstanceOf[Node.SymbolFunarg] -> Some(d.right)
           case _ =>
-            n -> n.init.nonNull.flatMap(_.headOption)
+            n -> n.init.flatMap(_.headOption)
         }
         out"$sym"
         if (types) {
           outputArgType(sym, init)
         } else {
-          val sid = n.thedef.nonNull.flatMap(SymbolTypes.id)
+          val sid = n.thedef.flatMap(SymbolTypes.id)
           for (t <- input.types.get(sid)) {
             out": ${t.declType.toOut}"
           }
@@ -460,7 +463,7 @@ object ScalaOut {
         forIn.body.walk {
           case _: Node.IterationStatement =>
             true // do not check inner loops
-          case Node.Call(expr Node.StaticMemberExpression "push", arg) =>
+          case Node.Call(expr Dot "push", arg) =>
             countPush += 1
             false
           case _ =>
@@ -473,7 +476,7 @@ object ScalaOut {
         // if it is, convert the loop to yield
         var push = Option.empty[(Node.Call, Node.Node, Node.Node)]
         Transform.walkLastNode(forIn.body) {
-          case call@Node.Call(expr Node.StaticMemberExpression "push", arg) =>
+          case call@Node.Call(expr Dot "push", arg) =>
             push = Some(call, expr, arg)
             false
           case _ =>
@@ -499,7 +502,7 @@ object ScalaOut {
 
     def outForHeader(forIn: Node.ForIn) = {
       out("for (")
-      forIn.name.nonNull.fold(nodeToOut(forIn.init))(nodeToOut)
+      forIn.name.fold(nodeToOut(forIn.init))(nodeToOut)
       out(" <- ")
       nodeToOut(forIn.`object`)
       out(") ")
@@ -667,7 +670,7 @@ object ScalaOut {
         out("(")
         nodeToOut(tn.property)
         out(")")
-      case tn: Node.StaticMemberExpression =>
+      case tn: Dot =>
         termToOut(tn.expression)
         out(".")
         identifierToOut(out, tn.property)
@@ -704,14 +707,14 @@ object ScalaOut {
       //case tn: Node.LoopControl => outputUnknownNode(tn)
       case tn: Node.Throw =>
         out("throw")
-        tn.value.nonNull.foreach { v =>
+        tn.value.foreach { v =>
           out(" ")
           nodeToOut(v)
           out.eol()
         }
       case tn: Node.Return =>
         out("return")
-        tn.value.nonNull.foreach { v =>
+        tn.value.foreach { v =>
           out(" ")
           nodeToOut(v)
           out.eol()
@@ -721,7 +724,7 @@ object ScalaOut {
       case tn: Node.IfStatement =>
         out"if (${tn.condition}) "
         nodeToOut(tn.body)
-        tn.alternative.nonNull.foreach { a =>
+        tn.alternative.foreach { a =>
           out(" else ")
           nodeToOut(a)
         }
@@ -739,7 +742,7 @@ object ScalaOut {
           nodeToOut(expr)
           out" ++= "
 
-          out"${tn.`object`}.map { ${tn.name.nonNull.getOrElse(tn.init)} =>\n"
+          out"${tn.`object`}.map { ${tn.name.getOrElse(tn.init)} =>\n"
           out.indent()
 
           val yieldBody = tn.body.transformBefore {(node, descend, walker) =>
@@ -768,7 +771,7 @@ object ScalaOut {
         tn match {
           case ForRange(name, until, init, end, step) =>
             (init, until, end, step) match {
-              case (Node.Number(0), "until", expr Node.StaticMemberExpression "length", Node.Number(1)) =>
+              case (Node.Number(0), "until", expr Dot "length", Node.Number(1)) =>
                 out"for (${name.name} <- $expr.indices) ${tn.body}"
 
               case _ =>
@@ -782,7 +785,7 @@ object ScalaOut {
 
           case _ => // generic solution using while - reliable, but ugly
             // new scope never needed in classical JS, all variables exists on a function scope
-            val isScoped = tn.init.nonNull match {
+            val isScoped = tn.init match {
               case Some(Node.Let(_*)) => true
               case _ => false
             }
@@ -792,17 +795,17 @@ object ScalaOut {
               out.indent()
             }
             //out("\n\n{\n")
-            tn.init.nonNull.foreach { init =>
+            tn.init.foreach { init =>
               nodeToOut(init)
             }
             out.eol()
             out("while (")
-            tn.condition.nonNull.fold(out("true"))(nodeToOut)
+            tn.condition.fold(out("true"))(nodeToOut)
             out(") {\n")
             out.indent()
             nodeToOut(tn.body)
             out.eol()
-            tn.step.nonNull.foreach(nodeToOut)
+            tn.step.foreach(nodeToOut)
             out.unindent()
             out.eol()
             out("}\n")
@@ -848,8 +851,8 @@ object ScalaOut {
       case tn: Node.Try =>
         out("try ")
         blockBracedToOut(tn.body)
-        tn.bcatch.nonNull.foreach(nodeToOut)
-        tn.bfinally.nonNull.foreach(nodeToOut)
+        tn.bcatch.foreach(nodeToOut)
+        tn.bfinally.foreach(nodeToOut)
       case tn: Node.Case =>
         out("case ")
 
@@ -901,7 +904,7 @@ object ScalaOut {
       case tn: Node.Defun =>
         out.eol(2)
         out("def ")
-        tn.name.nonNull.foreach(n => nodeToOut(n))
+        tn.name.foreach(n => nodeToOut(n))
         outputArgNames(tn, true)
         out(" = ")
         blockBracedToOut(tn.body)
@@ -1041,7 +1044,7 @@ object ScalaOut {
                   } yield {
                     // check method signature
                     def getArgTypes(m: Node.ConciseMethod) = {
-                      m.value.argnames.flatMap(_.thedef.nonNull).map(SymbolTypes.id).map(input.types.get)
+                      m.value.argnames.flatMap(_.thedef).map(SymbolTypes.id).map(input.types.get)
                     }
 
                     val myParTypes = getArgTypes(p)
@@ -1081,7 +1084,7 @@ object ScalaOut {
       case ex: Node.Export if ex.module_name.isEmpty && ex.exported_definition.nonEmpty =>
         out("/* export */ ")
         ex.exported_definition.foreach(nodeToOut)
-      case ex: Node.Export if ex.module_name.isEmpty && ex.exported_definition.isEmpty && ex.exported_value.nonNull.nonEmpty =>
+      case ex: Node.Export if ex.module_name.isEmpty && ex.exported_definition.isEmpty && ex.exported_value.nonEmpty =>
         out("/* export default: */\n")
         ex.exported_value.foreach(nodeToOut)
       case tn: Node.Export =>
@@ -1090,7 +1093,7 @@ object ScalaOut {
       case tn: Node.Import =>
         // try to create a package name from the import directive
         // start from the root
-        val imported_names = tn.imported_names.nonNull.toSeq.flatMap(_.map(_.foreign_name.name))
+        val imported_names = tn.imported_names.toSeq.flatMap(_.map(_.foreign_name.name))
         val module_name = tn.module_name.value
         val toOut = outConfig.formatImport(imported_names, module_name, source)
         out(toOut)

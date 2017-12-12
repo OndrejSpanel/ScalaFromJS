@@ -205,12 +205,12 @@ object ClassesByMembers {
         descend(node, walker)
 
         node match {
-          case Node.Identifier(sym) Node.StaticMemberExpression member =>
+          case Node.Identifier(sym) Dot member =>
             //println(s"Symbol ${sym.name}")
             val tpe = ctx.types.get(sym)
             if (tpe.isEmpty) {
-              //println(s"Symbol ${sym.name} parent ${walker.parent().nonNull.map(nodeClassName)}")
-              walker.parent().nonNull match {
+              //println(s"Symbol ${sym.name} parent ${walker.parent().map(nodeClassName)}")
+              walker.parent() match {
                 case Some(c: Node.Call) if c.expression == node =>
                   byMembers.addFunMember(sym, member, c.args.length)
                 case _ =>

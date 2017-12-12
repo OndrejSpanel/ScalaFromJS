@@ -14,7 +14,7 @@ import scala.collection.mutable
 object Rules {
   def deleteMembers(n: NodeExtended, member: ConvertProject.MemberDesc) = {
     processAllClasses(n, Some(member.cls)) { c =>
-      val ret = c.clone()
+      val ret = c.copy()
       // filter member functions and properties
       ret.properties = c.properties.filterNot(p => member.name.test(propertyName(p)))
 
@@ -52,7 +52,7 @@ object Rules {
 
         val newC = constructor.transformAfter { (node, transformer) =>
           node match {
-            case Node.SimpleStatement(Node.Assign(Node.This() Node.StaticMemberExpression MatchName(prop), "=", CheckPropertyInit(init))) =>
+            case Node.SimpleStatement(Node.Assign(Node.This() Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
               //println(s"Found property definition ${nodeClassName(init)}")
               val ss = Node.SimpleStatement(init) {
                 Classes.transformClassParameters(c, init.clone())
@@ -109,7 +109,7 @@ object Rules {
       def matches(dot: Node.Node, seq: List[String]): Boolean = {
         val seqHead = seq.head
         dot match {
-          case expr Node.StaticMemberExpression `seqHead` if seq.tail.nonEmpty && matches(expr, seq.tail) =>
+          case expr Dot `seqHead` if seq.tail.nonEmpty && matches(expr, seq.tail) =>
             true
           case Node.Identifier(`seqHead`) =>
             true
@@ -118,10 +118,10 @@ object Rules {
         }
       }
 
-      def unapply(arg: Node.StaticMemberExpression): Option[String] = {
+      def unapply(arg: Dot): Option[String] = {
         val seq = scope.reverse
         arg match {
-          case expr Node.StaticMemberExpression name if matches(expr, seq) =>
+          case expr Dot name if matches(expr, seq) =>
             Some(name)
           case _ =>
             None
@@ -174,7 +174,7 @@ object Rules {
 
     val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case callOn Node.StaticMemberExpression GetClass(Node.DefClass(Defined(Node.SymbolName(prop)), _, _)) =>
+        case callOn Dot GetClass(Node.DefClass(Defined(Node.SymbolName(prop)), _, _)) =>
           //println(s"Detect call $prop")
           Node.BinaryExpression(node) (callOn, instanceof, Node.Identifier(node)(prop))
         case _ =>
@@ -191,11 +191,11 @@ object Rules {
 
     object DetectClassCompare {
       def unapply(arg: Node.BinaryExpression)(implicit tokensFrom: Node.Node)= arg match {
-        case Node.BinaryExpression(callOn Node.StaticMemberExpression prop, "=="|"===", expr) if member.name.test(prop) =>
+        case Node.BinaryExpression(callOn Dot prop, "=="|"===", expr) if member.name.test(prop) =>
           val className = expr match {
             case s: Node.String =>
               Some(s.value)
-            case _ Node.StaticMemberExpression s =>
+            case _ Dot s =>
               Some(s)
             case Node.Identifier(s) =>
               Some(s)

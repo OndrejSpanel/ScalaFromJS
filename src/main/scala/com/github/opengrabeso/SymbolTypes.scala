@@ -189,15 +189,8 @@ object SymbolTypes {
     maybeDesc.map(MemberId(_, name))
   }
 
-  implicit def id(sym: SymbolDef): Option[SymbolMapId] = {
-    val token = sym.orig.headOption.flatMap { _.start.nonNull }
-
-    //println(s"id ${sym.name} ${sym.orig.map(UglifyExt.nodeClassName)} ${token.map(_.pos)}")
-    token.map { t =>
-      // global undeclared symbols are often static libraries
-      val pos = if (sym.global && sym.undeclared) 0 else t.pos
-      SymbolMapId(sym.name, pos)
-    }
+  implicit def id(sym: SymbolMapId): Option[SymbolMapId] = {
+    Some(sym)
   }
 
   def classFromType(tpe: Option[TypeInfo]): Option[SymbolMapId] = {

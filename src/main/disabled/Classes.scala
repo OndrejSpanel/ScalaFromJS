@@ -16,7 +16,7 @@ object Classes {
       case Some(s: Node.DefClass) => Some(s)
       case Some(f: Node.Lambda) => Some(f)
       case Some(x) =>
-        val s = x.parent_scope.nonNull
+        val s = x.parent_scope
         findDefScope(s)
       case _ => None
     }
@@ -50,14 +50,14 @@ object Classes {
     scope match {
       case Some(s: Node.DefClass) => Some(s)
       case Some(x) =>
-        val s = x.parent_scope.nonNull
+        val s = x.parent_scope
         findThisClass(s)
       case _ => None
     }
   }
 
   def superClassSymbolDef(cls: Node.DefClass): Option[SymbolDef] = {
-    cls.`extends`.nonNull.collect {
+    cls.`extends`.collect {
       case Node.Identifier(c) =>
         // symbol defined, use it directly
         //println(s"  Node.Identifier ${c.name}")
@@ -68,9 +68,9 @@ object Classes {
 
         val thisCls = cls
         val superSym = for {
-          thisClsSymbol <- thisCls.name.nonNull
-          scope <- thisClsSymbol.scope.nonNull
-          scopeSymbols <- scope.enclosed.nonNull
+          thisClsSymbol <- thisCls.name
+          scope <- thisClsSymbol.scope
+          scopeSymbols <- scope.enclosed
           baseSym <- scopeSymbols.find(_.name == name)
         } yield {
           baseSym
@@ -97,15 +97,15 @@ object Classes {
   }
 
   def getClassId(cls: Node.DefClass): Option[Int] = {
-    val sid = cls.name.nonNull.flatMap(_.thedef.nonNull.flatMap(id))
+    val sid = cls.name.flatMap(_.thedef.flatMap(id))
     sid.map(_.sourcePos)
   }
 
 
   def includeParents(clazz: Node.DefClass, ret: Seq[Node.DefClass])(ctx: ExpressionTypeContext): Seq[Node.DefClass] = {
-    clazz.`extends`.nonNull match {
+    clazz.`extends` match {
       case Some(cls: Node.Identifier) =>
-        val c = cls.thedef.nonNull.flatMap(id).flatMap(ctx.classes.get)
+        val c = cls.thedef.flatMap(id).flatMap(ctx.classes.get)
         c.fold(ret) { parent =>
           if (ret contains parent) {
             //println(s"includeParents: Prevented recursion for $parent in $ret")
@@ -233,7 +233,7 @@ object Classes {
       case d: Node.DefClass =>
         for {
           name <- d.name
-          id <- name.thedef.nonNull.flatMap(id)
+          id <- name.thedef.flatMap(id)
         } {
           classes += id -> d
         }

@@ -6,5 +6,5 @@ import org.scalajs.dom.Event
 import scala.util.{Success, Try}
 
 object ScalaFromJS {
-
+  def fingerprint = ""
 }

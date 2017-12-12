@@ -40,7 +40,7 @@ object ForRange {
       }
     }
 
-    (arg.init.nonNull, arg.condition.nonNull, arg.step.nonNull) match {
+    (arg.init, arg.condition, arg.step) match {
       // for ( var i = 0; i < xxxx; i += step )
       case (
         Some(VarOrLet(Node.Definitions(Node.VarDef(Node.Identifier(vName), Defined(vValue))))),
