@@ -1,7 +1,6 @@
-package net.gamatron.esprima
+package com.github.opengrabeso.esprima
 
 import esprima.Esprima._
-import esprima.Node
 import esprima.Node._
 import org.scalatest.FunSuite
 
@@ -12,7 +11,7 @@ class WalkTest extends FunSuite with TestInputs {
   def countASTNodes(ast: Node): (Int, mutable.Map[Class[_], Int]) = {
     var count = 0
     val countNodes = collection.mutable.Map.empty[Class[_], Int].withDefaultValue(0)
-    walk(ast) { node =>
+    ast.walk { node =>
       count += 1
       countNodes(node.getClass) += 1
       false
@@ -26,7 +25,7 @@ class WalkTest extends FunSuite with TestInputs {
   test("Walk simple expression") {
     val ast = parse(answer42)
     var hit = false
-    walk(ast) {
+    ast.walk {
       case node: AssignmentExpression =>
         hit = true
         false
@@ -40,7 +39,7 @@ class WalkTest extends FunSuite with TestInputs {
     val ast = parse(es6)
     var countBinary = 0
     var countOther = 0
-    walk(ast) {
+    ast.walk {
       case _: BinaryExpression =>
         countBinary += 1
         false

@@ -1,4 +1,4 @@
-package net.gamatron.esprima
+package com.github.opengrabeso.esprima
 
 trait TestInputs {
   val answer42 ="answer = 42"

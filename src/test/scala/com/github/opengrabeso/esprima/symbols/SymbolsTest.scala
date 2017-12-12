@@ -1,4 +1,4 @@
-package net.gamatron.esprima
+package com.github.opengrabeso.esprima
 package symbols
 
 import org.scalatest.FunSuite
@@ -39,7 +39,7 @@ class SymbolsTest extends FunSuite with TestInputs {
   test("Collect all symbols correctly") {
     val ast = parse(es6)
     val symbols = listAllSymbols(ast)
-    val nonGlobalNames = symbols.filter(_.scope >= 0).map(_.name)
+    val nonGlobalNames = symbols.filter(_.sourcePos >= 0).map(_.name)
     val known = Set("Identifier", "Literal", "useIfSimple", "key", "value", "i")
     val unknown = known -- nonGlobalNames
     assert(unknown.isEmpty)

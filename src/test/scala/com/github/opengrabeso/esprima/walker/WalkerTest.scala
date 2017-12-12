@@ -1,5 +1,5 @@
-package net.gamatron.esprima.walker
-
+package com.github.opengrabeso.esprima
+package walker
 import _root_.esprima.Node
 import _root_.esprima.Node._
 import scala.reflect.runtime.universe.{Literal => _,_}
@@ -23,7 +23,7 @@ class WalkerTest extends FunSuite {
   def testForObject[T <: Node: TypeTag](node: T, expectedCount: Int) = {
     val walker = createWalkerForNode(implicitly[TypeTag[T]])
     val counter = createCounter
-    walkNode(node, walker, counter)
+    walker(node, counter)
     assert(counter.count == expectedCount)
   }
 
