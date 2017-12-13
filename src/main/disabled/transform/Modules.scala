@@ -19,7 +19,7 @@ object Modules {
             value
           case _ =>
             println(s"Wrap export of $value")
-            new Node.SimpleStatement {
+            new Node.ExpressionStatement {
               fillTokens(this, value)
               body = value
             }

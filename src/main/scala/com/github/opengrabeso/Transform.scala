@@ -1,11 +1,11 @@
 package com.github.opengrabeso
 
-import JsUtils._
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
-
 import Classes._
 import Expressions._
+import com.github.opengrabeso.ScalaOut.SymbolDef
+import com.github.opengrabeso.esprima.symbols._
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -18,33 +18,33 @@ object Transform {
   import SymbolTypes._
   import Symbols._
 
-  def symbolType(types: SymbolTypes, symbol: Node.Identifier): Option[TypeInfo] = {
+  def symbolType(types: SymbolTypes, symbol: Node.Identifier)(implicit context: ScopeContext): Option[TypeInfo] = {
     types.get(symbolId(symbol))
   }
 
-  def symbolId(symbol: Node.Identifier): Option[SymbolMapId] = {
-    symbol.thedef.flatMap(id)
+  def symbolId(symbol: Node.Identifier)(implicit context: ScopeContext): Option[SymbolMapId] = {
+    symId(symbol)
   }
 
-  def funArg(p: Node.Node): Node.SymbolFunarg = (p: @unchecked) match {
-    case p: Node.SymbolFunarg =>
+  def funArg(p: Node.Node): Node.Identifier = (p: @unchecked) match {
+    case p: Node.Identifier =>
       p
-    case p: Node.DefaultAssign =>
+    case p: Node.AssignmentPattern =>
       p.left match {
-        case a: Node.SymbolFunarg =>
+        case a: Node.Identifier =>
           a
         case _ =>
           throw new UnsupportedOperationException(s"Unexpected argument node ${p.left} in Node.DefaultAssign")
       }
   }
 
-  def symbolFromPar(p: Node.Node): Option[SymbolDef] = p match {
-    case p: Node.SymbolFunarg =>
-      p.thedef
-    case p: Node.DefaultAssign =>
+  def symbolFromPar(p: Node.Node)(implicit context: ScopeContext): Option[SymId] = p match {
+    case p: Node.Identifier =>
+      symId(p)
+    case p: Node.AssignmentPattern =>
       p.left match {
-        case a: Node.SymbolFunarg =>
-          a.thedef
+        case a: Node.Identifier =>
+          symId(a)
         case _ =>
           None
       }
@@ -58,10 +58,10 @@ object Transform {
   def relations(n: Node.Node): Node.Node = {
     n.transformAfter { (node, _) =>
       node match {
-        case bin@Node.BinaryExpression(_, "===", _) =>
+        case bin@Binary(_, "===", _) =>
           bin.operator = "=="
           node
-        case bin@Node.BinaryExpression(_, "!==", _) =>
+        case bin@Binary(_, "!==", _) =>
           bin.operator = "!="
           node
         case _ =>
@@ -74,31 +74,27 @@ object Transform {
 
   def handleIncrement(n: Node.Node): Node.Node = {
 
-    def substitute(node: Node.Node, expr: Node.Node, op: String) = {
-      new Node.Assign {
-        fillTokens(this, node)
-        left = expr
+    def substitute(node: Node.Node, expr: Node.Expression, op: String) = {
+      new Node.AssignmentExpression(
         operator = op match {
           case "++" => "+="
           case "--" => "-="
-        }
-        right = new Node.Number {
-          fillTokens(this, node)
-          value = 1
-        }
-      }
+        },
+        left = expr,
+        right = new Node.Literal(1.0, "1").copyLoc(node)
+      ).copyLoc(node)
     }
 
     // walk the tree, check for increment / decrement
     n.transformAfter { (node, transformer) =>
       def nodeResultDiscarded(n: Node.Node, parentLevel: Int): Boolean = {
         transformer.parent(parentLevel) match {
-          case Some(_: Node.SimpleStatement) =>
+          case Some(_: Node.ExpressionStatement) =>
             true
-          case Some(f: Node.For) =>
+          case Some(f: Node.ForStatement) =>
             // can be substituted inside of for unless used as a condition
-            f.init.contains(n) || f.step.contains(n)
-          case Some(s: Node.Sequence) =>
+            Option(f.init).contains(n) || Option(f.update).contains(n)
+          case Some(s: Node.SequenceExpression) =>
             if (s.expressions.last !=n) true
             else if (parentLevel < transformer.stack.length - 2) {
               // even last item of seq can be substituted when the seq result is discarded
@@ -112,24 +108,22 @@ object Transform {
       }
 
       node match {
-        case Node.UnaryExpression(op@UnaryModification(), expr) =>
+        case Node.UpdateExpression(op, expr, prefix) =>
           if (nodeResultDiscarded(node, 0)) {
             substitute(node, expr, op)
           } else {
-            init(new Node.BlockStatement) { i =>
-
-              val operation = Node.SimpleStatement(node)(substitute(node, expr, op))
-              node match {
-                case _: Node.UnaryPrefix =>
-                  val value = Node.SimpleStatement(node)(expr.clone())
-                  i.body = js.Array(operation, value)
-                case _ /*: Node.UnaryPostfix*/ =>
-                  val tempName = "temp"
-                  val storeValue = Node.Const(node)(Node.VariableDeclarator.initialized(node)(tempName, expr.clone()))
-                  val loadValue = Node.SimpleStatement(node)(Node.Identifier(node)(tempName))
-                  i.body = js.Array(storeValue, operation, loadValue)
+            val operation = Node.ExpressionStatement(substitute(node, expr, op)).copyLoc(node)
+            new Node.BlockStatement({
+              if (prefix) {
+                val value = Node.ExpressionStatement(expr.cloneNode()).copyLoc(expr)
+                Seq(operation, value)
+              } else {
+                val tempName = "temp"
+                val storeValue = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(tempName), expr.cloneNode())), "val")
+                val loadValue = Node.ExpressionStatement(Node.Identifier(tempName)).copyLoc(expr)
+                Seq(storeValue, operation, loadValue)
               }
-            }.withTokens(node)
+            }).withTokensDeep(expr)
           }
         case _ =>
           node
@@ -137,25 +131,25 @@ object Transform {
     }
   }
 
-  def replaceReturnWithStatement(ret: Node.Return) = {
-    ret.value.fold[Node.Statement] {
-      Node.EmptyStatement(ret)
+  def replaceReturnWithStatement(ret: Node.ReturnStatement) = {
+    Option(ret.argument).fold[Node.Statement] {
+      Node.EmptyStatement().copyLoc(ret)
     } {
-      Node.SimpleStatement(ret)
+      Node.ExpressionStatement(_).copyLoc(ret)
     }
   }
 
   def walkLastNode(n: Node.Node)(callback: Node.Node => Boolean): Boolean = {
     n match {
-      case s: Node.Block =>
+      case s: Node.BlockStatement =>
         s.body.lastOption.fold(false) { l =>
           val r = callback(l)
           if (!r) walkLastNode(l)(callback)
           r
         }
-      case s: Node.SimpleStatement =>
-        val r = callback(s.body)
-        if (!r) walkLastNode(s.body)(callback)
+      case s: Node.ExpressionStatement =>
+        val r = callback(s.expression)
+        if (!r) walkLastNode(s.expression)(callback)
         r
       case _ =>
         false
@@ -167,14 +161,14 @@ object Transform {
   def nodeLast(n: Node.Node, parentLevel: Int, transformer: TreeTransformer): Boolean = {
     //println(s"nodeLast ${nodeClassName(n)}:$parentLevel:${transformer.parent(parentLevel).map(nodeClassName)}")
     transformer.parent(parentLevel) match {
-      case Some(ss: Node.SimpleStatement) =>
-        ss.body == n
-      case Some(fun: Node.Lambda) =>
-        fun.body.lastOption contains n
-      case Some(block: Node.Block) =>
+      case Some(ss: Node.ExpressionStatement) =>
+        ss.expression == n
+      case Some(fun: Node.FunctionExpression) =>
+        fun.body.body.lastOption contains n
+      case Some(block: Node.BlockStatement) =>
         (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1, transformer)
       case Some(ii: Node.IfStatement) =>
-        (ii.body == n || ii.alternative.contains(n)) && nodeLast(ii, parentLevel + 1, transformer)
+        (ii.consequent == n || Option(ii.alternate).contains(n)) && nodeLast(ii, parentLevel + 1, transformer)
       case None =>
         true
       case _ =>
@@ -186,7 +180,7 @@ object Transform {
     n.transformAfter { (node, transformer) =>
 
       node match {
-        case ret: Node.Return if nodeLast(ret, 0, transformer) =>
+        case ret: Node.ReturnStatement if nodeLast(ret, 0, transformer) =>
           // check if last in a function body
           //println("Remove trailing return")
           replaceReturnWithStatement(ret)
@@ -196,18 +190,18 @@ object Transform {
     }
   }
 
-  def removeReturnFromBody(body: Seq[Node.Statement]): Seq[Node.Statement] = {
+  def removeReturnFromBody(body: Seq[Node.StatementListItem]): Seq[Node.StatementListItem] = {
     // remove all direct returns
     for (s <- body) yield {
       s.transformBefore { (node, descend, transformer) =>
         node match {
-          case _: Node.Lambda =>
+          case _: Node.FunctionExpression =>
             // do not descend into any other functions
             node
-          case ret: Node.Return if nodeLast(ret, 0, transformer) =>
+          case ret: Node.ReturnStatement if nodeLast(ret, 0, transformer) =>
             //println(s"Remove return of ${nodeTreeToString(ret)}")
             replaceReturnWithStatement(ret)
-          case ret: Node.Return  =>
+          case ret: Node.ReturnStatement  =>
             //println(s"No remove return of ${nodeTreeToString(ret)}")
             node
           case _ =>
@@ -224,34 +218,34 @@ object Transform {
     n.transformAfter { (node, transformer) =>
 
       node match {
-        case sw: Node.Switch =>
+        case sw: Node.SwitchStatement =>
           // group conditions with empty body with the following non-empty one
-          def conditionGroups(s: Seq[Node.SwitchBranch], ret: Seq[Seq[Node.SwitchBranch]]): Seq[Seq[Node.SwitchBranch]] = s match {
+          def conditionGroups(s: Seq[Node.SwitchCase], ret: Seq[Seq[Node.SwitchCase]]): Seq[Seq[Node.SwitchCase]] = s match {
             case Seq() =>
               ret
             case seq =>
-              val (empty, nonEmpty) = seq.span (_.body.isEmpty)
+              val (empty, nonEmpty) = seq.span (_.consequent.isEmpty)
               conditionGroups(nonEmpty.drop(1), ret :+ (empty ++ nonEmpty.headOption))
           }
 
-          val body = sw._body.asInstanceOf[js.Array[Node.SwitchBranch]]
+          val body = sw.cases
           val conditionGrouped = conditionGroups(body, Seq())
 
           val groupedBody = for (g <- conditionGrouped) yield {
             // all but the last are empty
-            def processGroup(e: Seq[Node.SwitchBranch], ret: Node.SwitchBranch): Node.SwitchBranch = {
-              def join(c1: Node.SwitchBranch, c2: Node.SwitchBranch) = {
+            def processGroup(e: Seq[Node.SwitchCase], ret: Node.SwitchCase): Node.SwitchCase = {
+              def join(c1: Node.SwitchCase, c2: Node.SwitchCase) = {
                 //println(s"Join ${ScalaOut.outputNode(c1)} ${ScalaOut.outputNode(c2)}")
-                assert(c1.body.isEmpty)
+                assert(c1.consequent.isEmpty)
                 (c1, c2) match {
-                  case (case1: Node.Case, case2: Node.Case) =>
-                    case2.expression = Node.BinaryExpression(case1.expression) (case1.expression, "|", case2.expression)
-                    case2
-                  case (case1: Node.Default, case2: Node.Case) =>
-                    case1.body = case2.body
-                    case1
+                  case (Node.SwitchCase(Defined(test1), body1), Node.SwitchCase(Defined(test2), body2)) =>
+                    c2.test = Node.BinaryExpression("|", test1, test2).withTokens(c2)
+                    c2
+                  case (Node.SwitchCase(IsNull(), body1), Node.SwitchCase(Defined(_), body2)) =>
+                    c1.consequent = body2
+                    c1
                   case (_, case2) =>
-                    assert(case2.isInstanceOf[Node.Default])
+                    assert(case2.test == null)
                     case2
                 }
 
@@ -267,25 +261,25 @@ object Transform {
             processGroup(g.tail, g.head)
           }
 
-          val newBody = new mutable.ArrayBuffer[Node.Statement]
+          val newBody = new mutable.ArrayBuffer[Node.SwitchCase]
           for (s <- groupedBody) {
-            s.body.lastOption match {
-              case Some(_: Node.Break) =>
-                s.body = s.body.dropRight(1)
+            s.consequent.lastOption match {
+              case Some(_: Node.BreakStatement) =>
+                s.consequent = s.consequent.dropRight(1)
                 newBody append s
-              case Some(_: Node.Throw) =>
+              case Some(_: Node.ThrowStatement) =>
                 newBody append s
-              case Some(_: Node.Return) =>
+              case Some(_: Node.ReturnStatement) =>
                 newBody append s
               case _  =>
                 // fall through branches - warn
                 if (s != groupedBody.last) {
-                  s.body = s.body ++ js.Array(unsupported("Missing break", s))
+                  s.consequent = s.consequent :+ unsupported("Missing break", s)
                 }
                 newBody append s
             }
           }
-          sw.body = newBody.toJSArray
+          sw.cases = newBody
           sw
         case _ =>
           node
@@ -296,18 +290,19 @@ object Transform {
   def readJSDoc(n: NodeExtended): NodeExtended = {
     var commentsParsed = Set.empty[Int]
 
-    val declBuffer = new mutable.ArrayBuffer[(SymbolDef, TypeDesc)]()
+    val declBuffer = new mutable.ArrayBuffer[(SymId, TypeDesc)]()
 
-    n.top.walk { node =>
+    n.top.walkWithScope { (node, context) =>
+      implicit val ctx = context
       node match {
         case f: DefFun =>
           for {
-            start <- f.start
-            commentToken <- start.comments_before.lastOption
+            commentToken <- f.leadingComments.lastOption
+            pos <- f.start
           } {
-            val comment = commentToken.value.asInstanceOf[String]
-            if (!(commentsParsed contains commentToken.pos)) {
-              commentsParsed += commentToken.pos
+            val comment = commentToken.value
+            if (!(commentsParsed contains pos)) {
+              commentsParsed += pos
               for (commentLine <- comment.lines) {
                 // match anything in form:
 
@@ -316,20 +311,17 @@ object Transform {
                 commentLine match {
                   case JSDocParam(name, tpe) =>
                     // find a corresponding symbol
-                    val sym = f.argnames.find(_.name == name)
+                    val sym = f.params.find(parameterNameString(_) == name)
                     for {
                       s <- sym
-                      td <- s.thedef
                     } {
+                      val par = parameterName(s)._1
+                      val td = symbId(par)
                       declBuffer append td -> parseType(tpe)
                     }
                   case JSDocReturn(tpe) =>
-                    for {
-                      s <- f.name
-                      td <- s.thedef
-                    } {
-                      declBuffer append td -> parseType(tpe)
-                    }
+                    val td = symbId(f.id)
+                    declBuffer append td -> parseType(tpe)
                   case _ =>
                 }
               }
@@ -388,12 +380,12 @@ object Transform {
   }
 
   object ExpressionType {
-    def unapply(arg: Node.Node)(implicit ctx: ExpressionTypeContext): Option[Option[TypeInfo]] = {
+    def unapply(arg: Node.Node)(implicit ctx: ExpressionTypeContext, context: ScopeContext): Option[Option[TypeInfo]] = {
       Some(expressionType(arg))
     }
   }
 
-  def expressionType(n: Node.Node, log: Boolean = false)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
+  def expressionType(n: Node.Node, log: Boolean = false)(implicit ctx: ExpressionTypeContext, context: ScopeContext): Option[TypeInfo] = {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
 
@@ -403,7 +395,7 @@ object Transform {
     def typeInfoFromClassSym(classSym: SymbolDef, certain: Boolean = false): Option[TypeInfo] = {
       // is the symbol a class?
       for {
-        cls <- id(classSym)
+        cls <- classSym
         if certain || ctx.classes.get(cls).isDefined
       } yield {
         TypeInfo.target(ClassType(cls))
@@ -411,33 +403,34 @@ object Transform {
     }
 
     def typeInfoFromClassDef(classDef: Option[Node.ClassDeclaration]) = {
-      classDef.flatMap(_.name).flatMap(_.thedef).flatMap(typeInfoFromClassSym(_))
+      classDef.map(_.id).map(symbId).flatMap(typeInfoFromClassSym(_))
     }
 
     n match {
       case s: Node.Super =>
-        val sup = findSuperClass(s.scope)
+        val sup = findSuperClass(context)
         //println(s"super scope $sup")
         sup.map(t => TypeInfo.target(ClassType(t)))
 
-      case t: Node.This =>
-        val thisScope = findThisClass(t.scope) // TODO: consider this in a function
+      case t: Node.ThisExpression =>
+        val thisScope = findThisClass(context) // TODO: consider this in a function
         //println(s"this scope ${t.scope.map(_.nesting)}")
         typeInfoFromClassDef(thisScope)
         //println(s"this def scope $cls")
 
-      case Node.Identifier("undefined", _, thedef)  =>
+      case Node.Identifier("undefined")  =>
         // not allowing undefined overrides
         None // Some(TypeInfo(AnyType, NoType))
 
-      case Node.Identifier(symDef) =>
+      case Node.Identifier(Id(symDef)) =>
         // if the symbol is a class name, use it as a class type directly
         val rt = types.get(symDef).orElse(typeInfoFromClassSym(symDef))
         //println(s"    Sym ${symDef.name} type $rt")
         rt
 
+      /*
       case expr Dot name =>
-        val exprType = expressionType(expr, log)(ctx)
+        val exprType = expressionType(expr, log)(ctx, context)
         if (log) println(s"type of member $expr.$name, class $exprType")
         for {
           TypeDecl(ClassType(callOn)) <- exprType
@@ -447,10 +440,11 @@ object Transform {
           if (log) println(s"type of member $c.$name as $r")
           r
         }
+      */
 
-      case expr Node.Sub name =>
+      case expr Sub name =>
         //println(s"Infer type of array item $name, et ${expressionType(expr)(ctx)}")
-        expressionType(expr, log)(ctx) match {
+        expressionType(expr, log) match {
           case Some(TypeDecl(ArrayType(item))) =>
             val r = TypeInfo.target(item)
             if (log) println(s"type of array $expr.$name as $r")
@@ -464,7 +458,7 @@ object Transform {
         }
 
       case a: AArray =>
-        val elementTypes = a.elements.map(expressionType(_, log)(ctx))
+        val elementTypes = a.elements.map(expressionType(_, log))
         val elType = elementTypes.reduceOption(typeUnionOption).flatten
         if (log) {
           println(s"  elementTypes $elementTypes => $elType")
@@ -472,15 +466,20 @@ object Transform {
         Some(elType.map(_.map(ArrayType)).getOrElse(TypeInfo(ArrayType(AnyType), ArrayType(NoType))))
       case a: OObject =>
         Some(TypeInfo.target(ObjectOrMap))
-      case _: Node.Number =>
-        Some(TypeInfo.target(number))
-      case _: Node.String =>
-        Some(TypeInfo.target(string))
-      case _: Node.Boolean =>
-        Some(TypeInfo.target(boolean))
+      case Node.Literal(literal, _) =>
+        literal.value match {
+          case _: Double =>
+            Some(TypeInfo.target(number))
+          case _: String =>
+            Some(TypeInfo.target(string))
+          case _: Boolean =>
+            Some(TypeInfo.target(boolean))
+          case _ =>
+            None
+        }
 
       // Array.isArray( name ) ? name : [name]
-      case Node.Conditional(Node.CallExpression(Node.Identifier("Array") Dot "isArray", isArrayArg), exprTrue, exprFalse) =>
+      case Node.ConditionalExpression(Node.CallExpression(Node.Identifier("Array") Dot "isArray",  Seq(isArrayArg)), exprTrue, exprFalse) =>
         val exprType = expressionType(isArrayArg, log)
         //println(s"ExprType $exprType of Array.isArray( name ) ? name : [name] for $n1")
         if(exprType.exists(_.declType.isInstanceOf[ArrayType])) {
@@ -488,49 +487,50 @@ object Transform {
         } else {
           expressionType(exprFalse, log)
         }
-      case Node.Conditional(_, te, fe) =>
+      case Node.ConditionalExpression(_, te, fe) =>
         val t = expressionType(te, log)
         val f = expressionType(fe, log)
         val ret = typeUnionOption(t, f)
         if (log) println(s"Node.Conditional $te:$t / $fe:$f = $ret")
         ret
 
-      case Node.BinaryExpression(expr, `asinstanceof`, Node.Identifier(cls)) =>
-        typeInfoFromClassSym(cls, true)
+      case Binary(expr, `asinstanceof`, Node.Identifier(cls)) =>
+        typeInfoFromClassSym(symId(cls), true)
 
-      case Node.BinaryExpression(left, op, right) =>
+      case Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
         // result of any arithmetic op is a number
         op match {
           case IsArithmetic() => Some(TypeInfo.target(number))
           case IsComparison() => Some(TypeInfo.target(boolean))
           case "+" =>
-            val typeLeft = expressionType(left, log)(ctx)
-            val typeRight = expressionType(right, log)(ctx)
+            val typeLeft = expressionType(left, log)
+            val typeRight = expressionType(right, log)
             // string + anything is a string
             if (typeLeft == typeRight) typeLeft
             else if (typeLeft.exists(_.target == string) || typeRight.exists(_.target == string)) Some(TypeInfo.target(string))
             else None
           case IsBoolean() =>
             // boolean with the same type is the same type
-            val typeLeft = expressionType(left, log)(ctx)
-            val typeRight = expressionType(right, log)(ctx)
+            val typeLeft = expressionType(left, log)
+            val typeRight = expressionType(right, log)
             if (typeLeft == typeRight) typeLeft
             else None
           case _ =>
             None
         }
-      case Node.New(Node.Identifier(call), _*) =>
+      case Node.NewExpression(Node.Identifier(Id(call)), _) =>
         typeInfoFromClassSym(call, true)
-      case Node.New(Node.Identifier(pack) Dot call, _*) =>
+      case Node.NewExpression(Node.Identifier(pack) Dot call, _) =>
         // TODO: check if call is a known symbol and use it
         // TODO: handle package names properly
         Some(TypeInfo.both(ClassType(SymbolMapId(call, 0))))
-      case Node.CallExpression(Node.Identifier(call), _*) =>
+      case Node.CallExpression(Node.Identifier(Id(call)), _) =>
         val tid = id(call)
         if (log)  println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
         types.get(tid).map(callReturn)
 
+      /*
       case Node.CallExpression(cls Dot name, _*) =>
         val exprType = expressionType(cls, log)(ctx)
         if (log) println(s"Infer type of member call $cls.$name class $exprType")
@@ -542,14 +542,16 @@ object Transform {
           if (log) println(s"  Infer type of member call $c.$name as $r")
           callReturn(r)
         }
-      case seq: Node.Sequence =>
-        expressionType(seq.expressions.last, log)(ctx)
-      case Node.SimpleStatement(ExpressionType(t)) =>
+        */
+      case seq: Node.SequenceExpression =>
+        expressionType(seq.expressions.last, log)
+      case Node.ExpressionStatement(ExpressionType(t)) =>
         t
 
       case Node.BlockStatement( _ :+ ExpressionType(last)) =>
         last
-      case fun@Node.Lambda(args, body) =>
+      /*
+      case fun@Node.FunctionExpression(_, args, body, _) =>
         val returnType = transform.InferTypes.scanFunctionReturns(fun)(ctx)
         // TODO: use inferred argument types as well
         val argTypes = args.map(_ => any).toIndexedSeq
@@ -557,6 +559,7 @@ object Transform {
         returnType.map { rt =>
           TypeInfo.target(FunctionType(rt.declType, argTypes))
         }
+      */
       case _ =>
         None
 
@@ -564,10 +567,11 @@ object Transform {
   }
 
   def isReadOnlyProperty(cls: Node.ClassDeclaration, name: String): Option[Node.Node] = {
+    /*
     var getter = Option.empty[Node.Node]
     var setter = false
-    cls.properties.filter(p => propertyName(p) == name).foreach {
-      case Node.MethodDefinition(Node.SymbolName(p), _) =>
+    cls.body.body.filter(p => propertyName(p) == name).foreach {
+      case Node.MethodDefinition(Node.Identifier(p), _) =>
         //println(s"  function $p")
         //getter = true
       case ObjectKeyVal(p, value) =>
@@ -576,7 +580,7 @@ object Transform {
       case s: Node.ObjectSetter =>
         //println(s"  setter ${s.key.name}")
         setter = true
-      case Node.ObjectGetter(p, Node.Function(Seq(), Seq(Node.SimpleStatement(init)))) =>
+      case Node.ObjectGetter(p, Node.Function(Seq(), Seq(Node.ExpressionStatement(init)))) =>
         // check
         //println(s"  getter init $p}")
         getter = Some(init)
@@ -584,11 +588,14 @@ object Transform {
     }
     if (!setter) getter
     else None
+    */
+    None
   }
 
   def listPrototypeMemberNames(cls: Node.ClassDeclaration): Seq[String] = {
     var existingMembers = Seq.empty[String]
 
+    /*
     def addAccessor(s: Node.ObjectSetterOrGetter) = {
       s.key match {
         case Node.Identifier(name) =>
@@ -596,16 +603,19 @@ object Transform {
         case _ =>
       }
     }
+    */
 
-    cls.properties.foreach {
-      case Node.MethodDefinition(Node.SymbolName(p), _) =>
-        existingMembers = existingMembers :+ p
-      case ObjectKeyVal(p, _) =>
-        existingMembers = existingMembers :+ p
+    cls.body.body.foreach {
+      case md: Node.MethodDefinition =>
+        existingMembers = existingMembers :+ propertyKeyName(md.key)
+      //case ObjectKeyVal(p, _) =>
+      //  existingMembers = existingMembers :+ p
+      /*
       case s: Node.ObjectSetter =>
         addAccessor(s)
       case s: Node.ObjectGetter =>
         addAccessor(s)
+      */
       case _ =>
     }
     existingMembers
@@ -613,18 +623,20 @@ object Transform {
 
   def listDefinedClassMembers(node: NodeExtended) = {
     var listMembers = ClassInfo()
-    node.top.walk {
-      case cls@Node.ClassDeclaration(Defined(Node.Identifier(_, _, Defined(clsSym))), base, _) =>
-        for (clsId <- id(clsSym)) {
-          for {
-            Node.Identifier(parent) <- base
-            parentId <- id(parent)
-          } {
-            //println(s"Add parent $parent for $clsSym")
-            listMembers = listMembers.copy(parents = listMembers.parents + (clsId -> parentId))
-          }
-          val members = listPrototypeMemberNames(cls)
+    node.top.walkWithScope { (node, context) =>
+      implicit val ctx = context
+      node match {
+        case cls@Node.ClassDeclaration(Defined(Node.Identifier(Id(clsSym))), Node.Identifier(Id(parent)), _) =>
+          for (clsId <- id(clsSym)) {
+            for {
+              parentId <- parent
+            } {
+              //println(s"Add parent $parent for $clsSym")
+              listMembers = listMembers.copy(parents = listMembers.parents + (clsId -> parentId))
+            }
+            val members = listPrototypeMemberNames(cls)
 
+            /*
           // list data members
           //println(s"varMembers for $cls")
           val varMembers = for {
@@ -648,13 +660,16 @@ object Transform {
 
           //println(s"${clsSym.name}: parMembers $parMembers $parMembersInline")
           val clsMembers = clsId -> (members ++ varMembers ++ parMembers ++ parMembersInline).distinct
+          */
+            val clsMembers = clsId -> members.distinct
+            listMembers = listMembers.copy(members = listMembers.members + clsMembers)
 
-          listMembers = listMembers.copy(members = listMembers.members + clsMembers)
-          //println(s"listMembers $listMembers (++ $clsMembers)")
-        }
-        false
-      case _ =>
-        false
+            //println(s"listMembers $listMembers (++ $clsMembers)")
+          }
+          false
+        case _ =>
+          false
+      }
     }
     listMembers
   }
@@ -668,25 +683,28 @@ object Transform {
     object DefineAndReturnClass {
       private object ReturnedExpression {
         def unapply(arg: Node.Node) = arg match {
-          case Node.Return(Defined(x)) => // regular return
+          case Node.ReturnStatement(Defined(x)) => // regular return
             Some(x)
-          case Node.SimpleStatement(x) => // elided trailing return
+          case Node.ExpressionStatement(x) => // elided trailing return
             Some(x)
           case _ =>
             None
         }
       }
 
-      def unapply(arg: Seq[Node.Statement]) = arg match {
-        case Seq(defClass@Node.ClassDeclaration(Defined(c), _, _), ReturnedExpression(r : Node.Identifier)) if c.thedef == r.thedef =>
+      def unapply(arg: Seq[Node.Node@unchecked])(implicit context: ScopeContext) = arg match {
+        case Seq(defClass@Node.ClassDeclaration(Defined(Id(c)), _, _), ReturnedExpression(Node.Identifier(Id(r)))) if c == r =>
           Some(defClass, c)
         case _ => None
       }
     }
 
-    n.transformAfter { (node, _) =>
+    n.transformAfter { (node, transformer) =>
+      implicit val ctx = transformer
       node match {
-        case Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(sym), Defined(Node.BlockStatement(DefineAndReturnClass(defClass, r))))) if sym.name == r.name =>
+        case Node.VariableDeclaration(
+          Seq(Node.VariableDeclarator(Node.Identifier(sym), Defined(DefineAndReturnClass(defClass, r)))), _
+        ) if sym == r.name =>
           defClass
         case _ =>
           node
@@ -700,7 +718,7 @@ object Transform {
     // "Immediately-invoked function expression"
     object IIFE {
       def unapply(arg: Node.Node) = arg match {
-        case Node.CallExpression(Node.Lambda(args1, funcBody), args2@_*) if args1.isEmpty && args2.isEmpty =>
+        case Node.CallExpression(Node.FunctionExpression(_, args1, funcBody, _), args2) if args1.isEmpty && args2.isEmpty =>
           Some(funcBody)
         case _ => None
 
@@ -710,10 +728,9 @@ object Transform {
     n.transformAfter { (node, _) =>
       node match {
         case IIFE(funcBody) =>
-          new Node.BlockStatement {
-            fillTokens(this, node)
-            this.body = removeReturnFromBody(funcBody).toJSArray
-          }
+          Node.BlockStatement {
+            removeReturnFromBody(funcBody.body)
+          }.withTokens(node)
         case _ =>
           node
       }
@@ -725,12 +742,8 @@ object Transform {
     * */
   def processCall(n: Node.Node): Node.Node = {
     n.transformAfterSimple {
-      case call@Node.CallExpression(expr Dot "call", _: Node.This, a@_* ) =>
-        new Node.CallExpression {
-          fillTokens(this, call)
-          this.expression = expr
-          this.args = a.toJSArray
-        }
+      case call@Node.CallExpression(expr Dot "call", Seq(_: Node.ThisExpression, a@_*)) =>
+        Node.CallExpression (expr, a).withTokens(call)
       case node =>
         node
 
@@ -742,21 +755,13 @@ object Transform {
   def removeDoubleScope(n: Node.Node): Node.Node = {
     n.transformAfter { (node, transformer) =>
       node match {
-        case Node.SimpleStatement(inner: Node.BlockStatement) =>
-          //println("Remove Node.SimpleStatement <- Node.BlockStatement")
+        case Node.ExpressionStatement(inner: Node.BlockStatement) =>
+          //println("Remove Node.ExpressionStatement <- Node.BlockStatement")
           inner
         case Node.BlockStatement(Seq(inner: Node.BlockStatement)) =>
           //println("Remove Node.BlockStatement <- Node.BlockStatement")
           inner
-        case func@Node.Function(_, Seq(Node.BlockStatement(body))) =>
-          //println("Remove Node.Function <- Node.BlockStatement")
-          func.body = body.toJSArray
-          func
-        case func@Node.Accessor(_, Seq(Node.BlockStatement(body))) =>
-          //println("Remove Node.Accessor <- Node.BlockStatement")
-          func.body = body.toJSArray
-          func
-        case func@Node.Lambda(_, body) =>
+        case func@Node.FunctionExpression(_, _, body, _) =>
           //println(s"${nodeClassName(func)} in: ${transformer.parent().map(nodeClassName)}")
           func
         case Node.BlockStatement(seq) =>
@@ -775,26 +780,20 @@ object Transform {
       node match {
         case t: Node.Program =>
           val newBody = t.body.flatMap {
-            case s@Node.SimpleStatement(Node.CallExpression(Node.Identifier("Object") Dot "assign", ts@Node.Identifier(sym), x: OObject)) =>
+            case s@Node.ExpressionStatement(Node.CallExpression(Node.Identifier("Object") Dot "assign", Seq(ts@Node.Identifier(sym), x: OObject))) =>
               //println(s"Assign to ${sym.name}")
               // iterate through the object defintion
               // each property replace with an individual assignment statement
               x.properties.collect {
-                case p: ObjectKeyVal =>
+                case p: Node.Property =>
                   //println(s"${p.key}")
-                  Node.SimpleStatement(p) {
-                    new Node.Assign {
-                      fillTokens(this, p)
-                      left = new Dot {
-                        expression = ts
-                        property = p.key
-                        fillTokens(this, p)
-                        Node.Identifier(p)(p.key)
-                      }
-                      operator = "="
-                      right = p.value
-                    }
-                  }
+                  Node.ExpressionStatement {
+                    Node.AssignmentExpression (
+                      "=",
+                      new Dot(ts, Node.Identifier(propertyKeyName(p.key))),
+                      p.value.asInstanceOf[Node.Expression]
+                    )
+                  }.withTokensDeep(p)
               }
             case s =>
               Some(s)
@@ -816,45 +815,51 @@ object Transform {
 
   def apply(n: NodeExtended): NodeExtended = {
 
-    import transform._
+    //import transform._
 
     val transforms = Seq[NodeExtended => NodeExtended](
-      onTopNode(Modules.cleanupExports),
-      onTopNode(Modules.inlineImports),
+      //onTopNode(Modules.cleanupExports),
+      //onTopNode(Modules.inlineImports),
       onTopNode(handleIncrement),
-      onTopNode(Variables.splitMultipleDefinitions),
-      onTopNode(Variables.varInitialization),
+      //onTopNode(Variables.splitMultipleDefinitions),
+      //onTopNode(Variables.varInitialization),
       readJSDoc,
       onTopNode(iife), // removes also trailing return within the IIFE construct
       onTopNode(removeDoubleScope), // after iife (often introduced by it)
-      onTopNode(processCall),
+      onTopNode(processCall)
+      /*
       onTopNode(Variables.detectForVars),
       onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
       onTopNode(Variables.detectVals), // before convertConstToFunction
       onTopNode(Variables.detectMethods),
       onTopNode(Variables.convertConstToFunction)
-    ) ++ transform.classes.transforms ++ Seq(
+      */
+    ) ++ /* transform.classes.transforms ++*/ Seq(
+      /*
       onTopNode(Parameters.removeDeprecated),
       onTopNode(Parameters.defaultValues),
       onTopNode(Parameters.modifications),
       Parameters.simpleParameters _,
       onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
       Variables.instanceofImpliedCast _,
+      */
       objectAssign _,
       onTopNode(removeVarClassScope),
-      InferTypes.multipass _,
+      //InferTypes.multipass _,
       onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
+      /*
       Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
       onTopNode(Variables.detectVals),
       onTopNode(BoolComparison.apply), // after inferTypes (boolean comparisons may help to infer type as bool)
       onTopNode(Collections.apply),
+      */
       onTopNode(relations)
     )
 
     transforms.zipWithIndex.foldLeft(n) { (t,op) =>
       Time(s"step ${op._2}") {
-        t.top.figure_out_scope()
+        //t.top.figure_out_scope()
         op._1(t)
       }
     }

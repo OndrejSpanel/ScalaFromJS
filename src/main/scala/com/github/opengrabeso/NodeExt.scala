@@ -1,6 +1,7 @@
 package com.github.opengrabeso
 
 import _root_.esprima.Node
+import esprima._
 
 trait NodeExt {
 
@@ -13,7 +14,17 @@ trait NodeExt {
       n
     }
 
+    def withTokens(from: Node.Node): T = copyLoc(from)
+
     def cloneNode(): T = n.clone().asInstanceOf[T]
+
+    def withTokensDeep(from: Node.Node): T = {
+      n.walk { node =>
+        node.copyNode(from)
+        false
+      }
+      n
+    }
   }
 
   def nodeClassName(node: Node.Node): String = node.getClass.getSimpleName
@@ -21,7 +32,16 @@ trait NodeExt {
 
   // short aliases (often inspired by Uglify AST names)
   type Dot = Node.StaticMemberExpression
-  val Dot = Node.StaticMemberExpression
+
+  object Dot {
+    def unapply(arg: Node.StaticMemberExpression) = arg.property match{
+      case Node.Identifier(name) =>
+        Some(arg.`object`, name)
+      case _ =>
+        None
+    }
+    def apply(`object`: Node.Expression, property: Node.Expression) = Node.StaticMemberExpression.apply(`object`, property)
+  }
 
   type Sub = Node.ComputedMemberExpression
   val Sub = Node.ComputedMemberExpression
@@ -42,6 +62,10 @@ trait NodeExt {
   type DefFun = Node.FunctionDeclaration
   val DefFun = Node.FunctionDeclaration
 
+
+  object Binary {
+    def unapply(arg: Node.BinaryExpression): Option[(Node.Expression, String, Node.Expression)] = Some(arg.left, arg.operator, arg.right)
+  }
   object ObjectKeyVal {
     def unapply(arg: Node.Property) = {
       val key: String = arg.key match {
@@ -92,8 +116,12 @@ trait NodeExt {
       //case _: Node.ArrowParameterPlaceHolder =>
       //case _: Node.BindingPattern =>
     }
-
   }
+
+  def parameterNameString(n: Node.FunctionParameter): String = {
+    parameterName(n)._1.name
+  }
+
 
   def propertyKeyName(pk: Node.PropertyKey): String = {
     pk match {
@@ -114,6 +142,17 @@ trait NodeExt {
         }
     }
   }
+
+  def unsupported(message: String, source: Node.Node, include: Option[Node.Node] = None) = {
+    Node.ExpressionStatement {
+      Node.CallExpression(
+        Node.Identifier("????"), // force compile error
+        Seq(Node.Literal(message, message)) // ++ include.map(i => Node.ExpressionStatement.apply(i))
+      )
+    }.withTokensDeep(source)
+  }
+
+
 
   def propertyValue(n: Node.ObjectExpressionProperty): Option[Node.Node] = {
     n match {

@@ -12,15 +12,15 @@ import scala.language.implicitConversions
 
 object InferTypes {
 
-  def scanFunctionReturns(node: Node.Lambda)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
+  def scanFunctionReturns(node: Node.FunctionExpression)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
     import ctx.classOps
 
     var allReturns = Option.empty[TypeInfo]
     node.walk {
       // include any sub-scopes, but not local functions
-      case innerFunc: Node.Lambda if innerFunc != node =>
+      case innerFunc: Node.FunctionExpression if innerFunc != node =>
         true
-      case Node.Return(Defined(value)) =>
+      case Node.ReturnStatement(Defined(value)) =>
         //println(s"  return expression ${nodeClassName(value)}")
         val tpe = expressionType(value)(ctx)
         //println(s"  Return type $tpe: expr ${ScalaOut.outputNode(value)}")
@@ -34,7 +34,7 @@ object InferTypes {
     allReturns.orElse {
       //println("Infer no return function")
       node.body.toSeq match {
-        case Seq(Node.SimpleStatement(ex)) => expressionType(ex)(ctx)
+        case Seq(Node.ExpressionStatement(ex)) => expressionType(ex)(ctx)
         case _ => None
       }
     }
@@ -207,7 +207,7 @@ object InferTypes {
       }
     }
 
-    def inferParsOrArgs(pars: Seq[Node.SymbolFunarg], args: Seq[Node.Node])(debug: String*) = {
+    def inferParsOrArgs(pars: Seq[Node.FunctionParameter], args: Seq[Node.Node])(debug: String*) = {
 
       //println(s"inferParsOrArgs $pars")
       val parIds = pars.map(symbolFromPar).flatMap(_.map(id))
@@ -242,7 +242,7 @@ object InferTypes {
         case fType: FunctionType =>
           walkLastNode(value) {
             // find any direct returns, when returning a function, infer argument symbol types
-            case Node.Lambda(args, body) =>
+            case Node.FunctionExpression(args, body) =>
               //println(s"fun ${args.map(_.name).mkString(",")} -- ${fType.args}")
               //println(s"  $allTypes")
 
@@ -485,10 +485,10 @@ object InferTypes {
             }
           }
 
-        case Node.SymbolFunarg(Defined(symDef), _, Defined(JsArray(init))) =>
+        case Node.FunctionParameter(Defined(symDef), _, Defined(JsArray(init))) =>
           if (n.types.get(symDef).isEmpty) {
             val tpe = expressionType(init)(ctx)
-            addInferredType(symDef, tpe)(s"Node.SymbolFunarg ${symDef.name}")
+            addInferredType(symDef, tpe)(s"Node.FunctionParameter ${symDef.name}")
           }
 
         // a few special forms of assignment should infer no type - cyclic dependencies
@@ -513,19 +513,19 @@ object InferTypes {
             }
           }
 
-        case Node.BinaryExpression(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
+        case Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
           if symLeft.unknownType(n.types) && symRight.unknownType(n.types) =>
           //println(s"Infer arithmetic: both unknown $symLeft $symRight")
           val numType = Some(TypeInfo.both(number))
           symLeft.addSymbolInferredType(numType)(s"Infer arithmetic: both unknown $symLeft $symRight")
           symRight.addSymbolInferredType(numType)(s"Infer arithmetic: both unknown $symLeft $symRight")
 
-        case Node.BinaryExpression(SymbolInfo(symInfo), op, expr) if symInfo.unknownType(n.types) =>
+        case Binary(SymbolInfo(symInfo), op, expr) if symInfo.unknownType(n.types) =>
           val tpe = typeFromOperation(op, expr)
           //println(s"Infer binary: left unknown $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)(s"Infer binary: left unknown $symInfo $tpe")
 
-        case Node.BinaryExpression(expr, op, SymbolInfo(symInfo)) if symInfo.unknownType(n.types) =>
+        case Binary(expr, op, SymbolInfo(symInfo)) if symInfo.unknownType(n.types) =>
           val tpe = typeFromOperation(op, expr)
           //println(s"Infer binary: right unknown $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)(s"Infer binary: right unknown $symInfo $tpe")
@@ -553,7 +553,7 @@ object InferTypes {
           }
 
         // TODO: derive getters and setters as well
-        case Node.MethodDefinition(Node.SymbolName(sym), fun: Node.Lambda) =>
+        case Node.MethodDefinition(Node.SymbolName(sym), fun: Node.FunctionExpression) =>
           val allReturns = scanFunctionReturns(fun)(ctx)
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope)
@@ -567,7 +567,7 @@ object InferTypes {
             val funType = FunctionType(retType.declType, IndexedSeq())
             addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(s"Infer return type for method ${cls.name}.$sym as $retType")
           }
-        case Node.ObjectGetter(Node.SymbolName(sym), fun: Node.Lambda) =>
+        case Node.ObjectGetter(Node.SymbolName(sym), fun: Node.FunctionExpression) =>
           val allReturns = scanFunctionReturns(fun)(ctx)
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope)
@@ -581,7 +581,7 @@ object InferTypes {
             val classId = MemberId(clsId, sym)
             addInferredMemberType(Some(classId), Some(retType))(s"Infer return type for getter ${cls.name}.$sym as $retType")
           }
-        case Node.ObjectSetter(Node.SymbolName(sym), fun: Node.Lambda) =>
+        case Node.ObjectSetter(Node.SymbolName(sym), fun: Node.FunctionExpression) =>
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope)
           //println(s"Infer setter $sym")

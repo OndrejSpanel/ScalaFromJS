@@ -26,19 +26,19 @@ object InlineConstructors {
     }
   }
   private object DefinePrivateFunction {
-    def unapply(arg: Node.Statement): Option[(String, Node.Lambda)] = arg match {
-      case AssignToMember(funName, lambda: Node.Lambda) =>
+    def unapply(arg: Node.Statement): Option[(String, Node.FunctionExpression)] = arg match {
+      case AssignToMember(funName, lambda: Node.FunctionExpression) =>
         Some(funName, lambda)
       case _ =>
         None
     }
   }
 
-  private def detectPrivateFunctions(n: Node.Lambda) = {
+  private def detectPrivateFunctions(n: Node.FunctionExpression) = {
     // detect exported functions
-    var localLambdas = Set.empty[Node.Lambda]
+    var localLambdas = Set.empty[Node.FunctionExpression]
     n.walk {
-      case fun: Node.Lambda if fun != n =>
+      case fun: Node.FunctionExpression if fun != n =>
         localLambdas += fun
         true
       case _ =>
@@ -48,11 +48,11 @@ object InlineConstructors {
     //println(s"localLambdas $localLambdas")
     // detect functions which are not exported - i.e. local named function not assigned to anything
 
-    def localLambdaByName(name: String): Option[Node.Lambda] = {
+    def localLambdaByName(name: String): Option[Node.FunctionExpression] = {
       localLambdas.find(_.name.exists(_.name == name))
     }
 
-    var isExported = Set.empty[Node.Lambda]
+    var isExported = Set.empty[Node.FunctionExpression]
     n.walk {
       case DefinePrivateFunction(_, lambda) =>
         assert(localLambdas contains lambda)
@@ -70,7 +70,7 @@ object InlineConstructors {
     val definedFunctions = localLambdas.filter(_.isInstanceOf[DefFun])
     //println(s"definedFunctions $definedFunctions")
 
-    var definedAndExported = Set.empty[Node.Lambda]
+    var definedAndExported = Set.empty[Node.FunctionExpression]
     n.walk {
       case Node.CallExpression(Node.Identifier(_), _*) =>
         true // a plain call, do not dive into
@@ -95,19 +95,19 @@ object InlineConstructors {
 
     // detect calls from exported functions
 
-    def transitiveClosure(functions: Set[Node.Lambda]): Set[Node.Lambda] = {
+    def transitiveClosure(functions: Set[Node.FunctionExpression]): Set[Node.FunctionExpression] = {
       var called = functions
       var someChange = false
       n.walkWithDescend { (node, _, walker) =>
         node match {
           // any use other than a definition should be enough to export the function as well
-          case _: Node.Lambda =>
+          case _: Node.FunctionExpression =>
             false
           case Node.Identifier(sym) =>
             for {
               fun <- localLambdaByName(sym)
               inFunction <- walker.stack.reverse.collectFirst {
-                case c: Node.Lambda =>
+                case c: Node.FunctionExpression =>
                   //println(s"Found ${c.name.map(_.name)}")
                   c
               }
@@ -129,7 +129,7 @@ object InlineConstructors {
     transitiveClosure(exportedDirectly)
   }
 
-  private def detectPrivateMembers(n: Node.Lambda): Seq[PrivateMember] = {
+  private def detectPrivateMembers(n: Node.FunctionExpression): Seq[PrivateMember] = {
     // any variable defined in the main body scope and references from any function is considered a private member
     //n.variables = Dictionary.empty[SymbolDef]
     val functions = detectPrivateFunctions(n)
@@ -165,7 +165,7 @@ object InlineConstructors {
       node match {
         case cls: Node.ClassDeclaration =>
           for {
-            constructorProperty@Node.MethodDefinition(_, rawConstructor: Node.Lambda) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, rawConstructor: Node.FunctionExpression) <- findConstructor(cls)
           } {
             val allLocals = detectPrivateMembers(rawConstructor)
             // convert private variables to members (TODO: mark them as private somehow)
@@ -187,7 +187,7 @@ object InlineConstructors {
 
             val constructor = locals.foldLeft(rawConstructor) { (constructor, privateVar) =>
               val replacedInit = replaceVariableInit(constructor, privateVar.sym) { (sym, init) =>
-                new Node.SimpleStatement {
+                new Node.ExpressionStatement {
                   body = new Node.Assign {
                     left = newThisDotMember(sym.name)
                     operator = "="
@@ -238,7 +238,7 @@ object InlineConstructors {
       node match {
         case cls: Node.ClassDeclaration =>
           for {
-            constructorProperty@Node.MethodDefinition(_, rawConstructor: Node.Lambda) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, rawConstructor: Node.FunctionExpression) <- findConstructor(cls)
           } {
             val functionsToConvert = detectPrivateFunctions(rawConstructor)
             if (log) println(s"functionsToConvert ${functionsToConvert.toSeq.map(_.name)}")
@@ -253,7 +253,7 @@ object InlineConstructors {
             val restRaw = rawConstructor.body diff functions.map(_._1)
 
             val rest = restRaw.filter {
-              case Node.SimpleStatement(Node.Assign(Node.This() Dot tgtName, "=", Node.Identifier(funName)))
+              case Node.ExpressionStatement(Node.Assign(Node.This() Dot tgtName, "=", Node.Identifier(funName)))
                 // TODO: relax tgtName == funName requirement
                 if tgtName == funName && (functionsToConvert exists (_.name.exists(_.name==funName))) =>
                 //if (log) println(s"Drop assign $funName")
@@ -305,7 +305,7 @@ object InlineConstructors {
         case cls: Node.ClassDeclaration =>
           val clsTokenDef = classTokenSource(cls)
           for {
-            constructorProperty@Node.MethodDefinition(_, constructor: Node.Lambda) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, constructor: Node.FunctionExpression) <- findConstructor(cls)
           } {
             // anything before a first variable declaration can be inlined, variables need to stay private
             val (inlined, rest_?) = constructor.body.span {
@@ -384,7 +384,7 @@ object InlineConstructors {
 
 
             // add the constructor call itself, so that type inference binds its parameters and arguments
-            val constructorCall = if (rest.nonEmpty) Some(Node.SimpleStatement(constructorProperty) {
+            val constructorCall = if (rest.nonEmpty) Some(Node.ExpressionStatement(constructorProperty) {
               new Node.CallExpression {
                 fillTokens(this, constructorProperty)
                 expression = new Dot {

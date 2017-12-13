@@ -24,6 +24,9 @@ package object symbols {
 
   }
 
+  def symbId(name: String)(implicit context: ScopeContext): SymId = context.findSymId(name)
+  def symbId(name: Node.Identifier)(implicit context: ScopeContext): SymId = context.findSymId(name.name)
+
   // TODO: refactor: simplify - SymId is always known
   def symId(name: String)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name))
   def symId(name: Node.Identifier)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name.name))
@@ -70,6 +73,9 @@ package object symbols {
       // symbol not found in any scope, consider it a global one
       SymId(sym, -1)
     }
+
+    def parent(level: Int): Option[Node] = if (level < parents.length) Some(parents(parents.length - 1 - level)) else None
+    def stack = parents
   }
 
   /**

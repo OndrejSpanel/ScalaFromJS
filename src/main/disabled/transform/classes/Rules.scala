@@ -52,9 +52,9 @@ object Rules {
 
         val newC = constructor.transformAfter { (node, transformer) =>
           node match {
-            case Node.SimpleStatement(Node.Assign(Node.This() Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
+            case Node.ExpressionStatement(Node.Assign(Node.This() Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
               //println(s"Found property definition ${nodeClassName(init)}")
-              val ss = Node.SimpleStatement(init) {
+              val ss = Node.ExpressionStatement(init) {
                 Classes.transformClassParameters(c, init.clone())
               }
               cc.properties += newMethod(prop, Seq(), Seq(ss), init)
@@ -149,7 +149,7 @@ object Rules {
         val matching = cls.properties
           .collect{
             // we expect getter, no parameters, containing a single true statement
-            case Node.ObjectGetter(Node.SymbolName(name), Node.Function(Seq(), Seq(Node.SimpleStatement(_: Node.True)))) =>
+            case Node.ObjectGetter(Node.SymbolName(name), Node.Function(Seq(), Seq(Node.ExpressionStatement(_: Node.True)))) =>
               name
           }.filter { n =>
           val matched = member.name.exec(n)
@@ -176,7 +176,7 @@ object Rules {
       node match {
         case callOn Dot GetClass(Node.ClassDeclaration(Defined(Node.SymbolName(prop)), _, _)) =>
           //println(s"Detect call $prop")
-          Node.BinaryExpression(node) (callOn, instanceof, Node.Identifier(node)(prop))
+          Binary(node) (callOn, instanceof, Node.Identifier(node)(prop))
         case _ =>
           node
       }
@@ -191,7 +191,7 @@ object Rules {
 
     object DetectClassCompare {
       def unapply(arg: Node.BinaryExpression)(implicit tokensFrom: Node.Node)= arg match {
-        case Node.BinaryExpression(callOn Dot prop, "=="|"===", expr) if member.name.test(prop) =>
+        case Binary(callOn Dot prop, "=="|"===", expr) if member.name.test(prop) =>
           val className = expr match {
             case s: Node.String =>
               Some(s.value)
@@ -220,7 +220,7 @@ object Rules {
       implicit val tokensFrom = node
       node match {
         case DetectClassCompare(callOn, symRef) =>
-          Node.BinaryExpression(node)(callOn, instanceof, symRef)
+          Binary(node)(callOn, instanceof, symRef)
         case _ =>
           node
       }

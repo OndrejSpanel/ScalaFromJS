@@ -48,16 +48,7 @@ object Classes {
   }
 
     // ignore function scopes, find a class one
-  def findThisClass(scope: Option[Node.IsScope]): Option[Node.ClassDeclaration] = {
-    //println(s"  ${scope.map(nodeClassName)} ${scope.map(_.nesting)}")
-    scope match {
-      case Some(s: Node.ClassDeclaration) => Some(s)
-      case Some(x) =>
-        val s = ???
-        findThisClass(s)
-      case _ => None
-    }
-  }
+  def findThisClass(walker: ScopeContext): Option[Node.ClassDeclaration] = findThisClassInWalker(walker)
 
   def superClassSymbolDef(cls: Node.ClassDeclaration)(implicit context: ScopeContext): Option[SymId] = {
     symId(cls.superClass)
@@ -75,8 +66,9 @@ object Classes {
     baseId
   }
 
-  def findSuperClass(scope: Option[Node.IsScope])(implicit context: ScopeContext): Option[SymbolMapId] = {
-    val thisScope = findThisClass(scope)
+  def findSuperClass(context: ScopeContext): Option[SymbolMapId] = {
+    implicit val ctx = context
+    val thisScope = findThisClass(context)
     thisScope.flatMap(superClass)
   }
 

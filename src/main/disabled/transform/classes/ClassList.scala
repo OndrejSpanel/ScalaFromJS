@@ -56,7 +56,7 @@ object ClassList {
       // use of this in a function most likely means the function is a constructor
       case (_: Node.This) Dot _ =>
         for {
-          fun <- walker.stack.reverse.collectFirst { case c: Node.Lambda => c }
+          fun <- walker.stack.reverse.collectFirst { case c: Node.FunctionExpression => c }
           sym <- fun.name
           Some(sym: Node.SymbolDefun) <- sym.thedef.map(_.orig.headOption)
         } {
@@ -139,7 +139,7 @@ object ClassList {
       // note: we do not currently handle property definitions in any inner scopes
       val bodyFiltered = body.filter {
         //Object.defineProperty( this, 'id', { value: textureId ++ } );
-        case Node.SimpleStatement(Node.CallExpression(
+        case Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier("Object") Dot "defineProperty", _: Node.This, prop: Node.String,
         OObject(properties)
         )) =>
@@ -226,7 +226,7 @@ object ClassList {
                 case Node.SymbolName(`name`) => // same name, no need for any action
                 case Node.SymbolName(other) =>
                   res.clazz = res.clazz.renameMember(other, name)
-                case Node.Lambda(fArgs, fBody) =>
+                case Node.FunctionExpression(fArgs, fBody) =>
                   val member = ClassFunMember(fArgs, transformReferencesInBody(fBody))
                   res.clazz = res.clazz.addMember(name, member)
                 case _ =>

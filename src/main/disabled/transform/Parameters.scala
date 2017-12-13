@@ -12,7 +12,7 @@ import Expressions._
 object Parameters {
 
   /*
-  * AST types are incorrect - function parameters may be of a type other than Node.SymbolFunarg
+  * AST types are incorrect - function parameters may be of a type other than Node.FunctionParameter
   * This allows us to hotfix this.
   * */
   def isNormalPar(par: Node.Node): Boolean = {
@@ -22,7 +22,7 @@ object Parameters {
         false
       case _: Node.DefaultAssign =>
         false
-      case _: Node.SymbolFunarg =>
+      case _: Node.FunctionParameter =>
         true
       case _ =>
         false
@@ -34,11 +34,11 @@ object Parameters {
     * @param process process the function - once this returns None, scan is aborted
     * */
 
-  def processAllFunctions(n: Node.Node, process: (Node.Lambda, Node.SymbolFunarg) => Option[Node.Lambda]): Node.Node = {
+  def processAllFunctions(n: Node.Node, process: (Node.FunctionExpression, Node.FunctionParameter) => Option[Node.FunctionExpression]): Node.Node = {
 
-    def processOneFunction(f: Node.Lambda): Node.Lambda = {
+    def processOneFunction(f: Node.FunctionExpression): Node.FunctionExpression = {
 
-      def processArguments(f: Node.Lambda, args: Seq[Node.SymbolFunarg]): Node.Lambda = args match {
+      def processArguments(f: Node.FunctionExpression, args: Seq[Node.FunctionParameter]): Node.FunctionExpression = args match {
         case Seq() =>
           f
         case head +: tail =>
@@ -68,7 +68,7 @@ object Parameters {
 
   class CompareWithUndefined(parName: String) {
     def unapply(arg: Node.Node) = arg match {
-      case Node.BinaryExpression(Node.Identifier(`parName`), op, Node.Identifier("undefined")) =>
+      case Binary(Node.Identifier(`parName`), op, Node.Identifier("undefined")) =>
         Some(op)
       case _ =>
         None
@@ -78,7 +78,7 @@ object Parameters {
   def defaultValues(n: Node.Node): Node.Node = {
 
     // the only use of a parameter is in a `x_par || value` form
-    def introduceDefaultValue(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
+    def introduceDefaultValue(f: Node.FunctionExpression, par: Node.FunctionParameter): Option[Node.FunctionExpression] = {
       if (!isNormalPar(par)) return None
       val parName = par.name
       //println(s"introduceDefaultValue $parName")
@@ -114,7 +114,7 @@ object Parameters {
 
       object IsParDefaultHandling {
         def unapply(arg: Node.Node) = arg match {
-          case Node.BinaryExpression(symRef@Node.Identifier(`parName`), "||", InitStatement(init)) =>
+          case Binary(symRef@Node.Identifier(`parName`), "||", InitStatement(init)) =>
             Some(symRef, init)
           case Node.Conditional(CheckParNotUndefined(), symRef@Node.Identifier(`parName`), InitStatement(init)) =>
             Some(symRef, init)
@@ -127,7 +127,7 @@ object Parameters {
 
       object IsParDefaultHandlingAssignment {
         def unapply(arg: Node.Node) = arg match {
-          case Node.SimpleStatement(Node.Assign(Node.Identifier(`parName`), "=", IsParDefaultHandling(_, init))) =>
+          case Node.ExpressionStatement(Node.Assign(Node.Identifier(`parName`), "=", IsParDefaultHandling(_, init))) =>
             Some(init)
 
           case Node.IfStatement(CheckParIsUndefined(), SingleStatement(Node.Assign(Node.Identifier(`parName`), "=", init)), None) =>
@@ -185,7 +185,7 @@ object Parameters {
 
   }
 
-  private def renameParameter(f: Node.Lambda, par: Node.SymbolFunarg, newName: String) = {
+  private def renameParameter(f: Node.FunctionExpression, par: Node.FunctionParameter, newName: String) = {
     val parIndex = f.argnames.indexOf(par)
     val parNode = par.clone()
 
@@ -204,7 +204,7 @@ object Parameters {
 
     val refs = buildReferenceStacks(n)
 
-    def handleModification(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
+    def handleModification(f: Node.FunctionExpression, par: Node.FunctionParameter): Option[Node.FunctionExpression] = {
       par.thedef.map { parDef =>
         val parName = par.name
         //println(s"Checking $parName")
@@ -245,7 +245,7 @@ object Parameters {
 
     var types = n.types
 
-    def handleSimpleParameters(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
+    def handleSimpleParameters(f: Node.FunctionExpression, par: Node.FunctionParameter): Option[Node.FunctionExpression] = {
 
       if (!f.name.exists(_.name == Classes.inlineBodyName)) Some(f)
       else {
@@ -291,13 +291,13 @@ object Parameters {
 
 
   def removeDeprecated(n: Node.Node): Node.Node = {
-    def removeOneDeprecated(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
+    def removeOneDeprecated(f: Node.FunctionExpression, par: Node.FunctionParameter): Option[Node.FunctionExpression] = {
       if (!isNormalPar(par)) return None
       val parName = par.name
 
       def containsDeprecation(body: Seq[Node.Statement]) = {
         body.exists {
-          case Node.SimpleStatement(Node.CallExpression(Node.Identifier("console") Dot "warn", _)) =>
+          case Node.ExpressionStatement(Node.CallExpression(Node.Identifier("console") Dot "warn", _)) =>
             true
           case _: Node.Throw =>
             true
@@ -358,7 +358,7 @@ object Parameters {
   def inlineConstructorVars(n: NodeExtended): NodeExtended = {
     var types = n.types
     val logging = false
-    def handleConstructorVars(f: Node.Lambda, par: Node.SymbolFunarg): Option[Node.Lambda] = {
+    def handleConstructorVars(f: Node.FunctionExpression, par: Node.FunctionParameter): Option[Node.FunctionExpression] = {
       if (!f.name.exists(_.name == Classes.inlineBodyName)) Some(f)
       else {
         // inline all parameters, or constructor only?

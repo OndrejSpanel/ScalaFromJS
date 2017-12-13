@@ -477,7 +477,7 @@ object ScalaOut {
         forIn.body.walk {
           // do not check inner loops
           case IsLoop() => true
-          case Node.CallExpression(expr Dot StringLiteral("push"), arg) =>
+          case Node.CallExpression(expr Dot "push", arg) =>
             countPush += 1
             false
           case _ =>
@@ -576,7 +576,7 @@ object ScalaOut {
       //case tn: Node.SymbolLambda => out("Node.SymbolLambda")
       //case tn: Node.SymbolDefun => out("Node.SymbolDefun")
       //case tn: Node.SymbolConst => out("Node.SymbolConst")
-      //case tn: Node.SymbolFunarg => out(tn.name)
+      //case tn: Node.FunctionParameter => out(tn.name)
       //case tn: Node.SymbolVar => out("Node.SymbolVar")
       //case tn: Node.SymbolDeclaration => out(tn.name)
       //case tn: Node.SymbolAccessor => out("Node.SymbolAccessor")
@@ -903,7 +903,7 @@ object ScalaOut {
             outputCaseBody(tn.consequent)
         }
 
-      //case tn: Node.SwitchBranch => outputUnknownNode(tn)
+      //case tn: Node.SwitchCase => outputUnknownNode(tn)
       case tn: Node.SwitchStatement =>
         nodeToOut(tn.discriminant)
         out(" match {\n")

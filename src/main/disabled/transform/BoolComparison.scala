@@ -9,9 +9,9 @@ object BoolComparison {
 
     object IsTrue {
       def unapply(op: Node.BinaryExpression) = op match {
-        case Node.BinaryExpression(expr, "!="|"!==", _: Node.False) =>
+        case Binary(expr, "!="|"!==", _: Node.False) =>
           Some(expr)
-        case Node.BinaryExpression(expr, "=="|"===", _: Node.True) =>
+        case Binary(expr, "=="|"===", _: Node.True) =>
           Some(expr)
         case _ =>
           None
@@ -19,9 +19,9 @@ object BoolComparison {
     }
     object IsFalse {
       def unapply(op: Node.BinaryExpression) = op match {
-        case Node.BinaryExpression(expr, "=="|"===", _: Node.False) =>
+        case Binary(expr, "=="|"===", _: Node.False) =>
           Some(expr)
-        case Node.BinaryExpression(expr, "!="|"!==", _: Node.True) =>
+        case Binary(expr, "!="|"!==", _: Node.True) =>
           Some(expr)
         case _ =>
           None

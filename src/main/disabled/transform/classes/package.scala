@@ -29,7 +29,7 @@ package object classes {
   object ClassDefineValue {
     // function C() {return {a: x, b:y}
     def unapply(arg: DefFun) = arg match {
-      case DefFun(Defined(sym), args, body :+ Node.Return(OObject(proto))) =>
+      case DefFun(Defined(sym), args, body :+ Node.ReturnStatement(OObject(proto))) =>
         Some(sym, args, body, proto)
       case _ =>
         None
@@ -37,17 +37,17 @@ package object classes {
 
   }
   object ClassDefine {
-    def unapply(arg: Node.Node): Option[(Node.Identifier, Seq[Node.SymbolFunarg], Seq[Node.Statement])] = arg match {
+    def unapply(arg: Node.Node): Option[(Node.Identifier, Seq[Node.FunctionParameter], Seq[Node.Statement])] = arg match {
       // function ClassName() {}
       case DefFun(Defined(sym), args, body) =>
         Some(sym, args, body)
 
       // ClassName = function() {}
-      case Node.Assign(sym: Node.Identifier, "=", Node.Lambda(args, body)) =>
+      case Node.Assign(sym: Node.Identifier, "=", Node.FunctionExpression(args, body)) =>
         Some(sym, args, body)
 
       // var ClassName = function() {}
-      case Node.VariableDeclaration(Node.VariableDeclarator(sym: Node.Identifier, Defined(Node.Lambda(args, body)))) =>
+      case Node.VariableDeclaration(Node.VariableDeclarator(sym: Node.Identifier, Defined(Node.FunctionExpression(args, body)))) =>
         Some(sym, args, body)
 
       case _ =>
@@ -60,9 +60,9 @@ package object classes {
     def definedFrom(init: Node.Node): Boolean
   }
 
-  case class ClassFunMember(args: Seq[Node.SymbolFunarg], body: Seq[Node.Statement]) extends ClassMember {
+  case class ClassFunMember(args: Seq[Node.FunctionParameter], body: Seq[Node.Statement]) extends ClassMember {
     def definedFrom(init: Node.Node) = init match {
-      case func: Node.Lambda =>
+      case func: Node.FunctionExpression =>
         // reference equality of the first member is enough, nodes are unique
         //println(s"Defined func from: ${ScalaOut.outputNode(body.head)} ${ScalaOut.outputNode(func.body.head)}")
         func.body.head == body.head
@@ -99,7 +99,7 @@ package object classes {
 
   object ClassPropertyDef {
     def unapply(arg: Node.Node) = arg match {
-      case Node.SimpleStatement(Node.Assign(Node.Identifier(_, _, Defined(symDef)) Dot "prototype" Dot funName, "=", value)) =>
+      case Node.ExpressionStatement(Node.Assign(Node.Identifier(_, _, Defined(symDef)) Dot "prototype" Dot funName, "=", value)) =>
         Some(ClassId(symDef), funName, value)
       case _ => None
     }
@@ -117,11 +117,11 @@ package object classes {
 
     object DefinePropertiesObject {
       def unapply(arg: Node.Node) = arg match {
-        case Node.SimpleStatement(Node.CallExpression(Node.Identifier("Object") Dot "defineProperties",
+        case Node.ExpressionStatement(Node.CallExpression(Node.Identifier("Object") Dot "defineProperties",
         Node.Identifier(_, _, Defined(symDef)) Dot "prototype", properties@_*)) =>
           Some(ClassId(symDef), properties)
 
-        case Node.SimpleStatement(Node.CallExpression(Node.Identifier("Object") Dot "defineProperties",
+        case Node.ExpressionStatement(Node.CallExpression(Node.Identifier("Object") Dot "defineProperties",
         Node.Identifier(_, _, Defined(symDef)), properties@_*)) =>
           Some(ClassId(symDef), properties)
 
@@ -139,7 +139,7 @@ package object classes {
   object DefineProperty {
     def unapply(arg: Node.Node) = arg match {
       // Object.defineProperty(XXXX.prototype, "name", {...} //
-      case Node.SimpleStatement(Node.CallExpression(
+      case Node.ExpressionStatement(Node.CallExpression(
       Node.Identifier("Object") Dot "defineProperty",
       Node.Identifier(sym) Dot "prototype",
       prop: Node.String,
@@ -154,7 +154,7 @@ package object classes {
     def unapply(arg: Node.Node) = arg match {
       // Cls.defX = 0;
       // Cls.defY = function() {return 0;};
-      case Node.SimpleStatement(Node.Assign(Node.Identifier(_, Defined(scope), Defined(clsSym)) Dot member, "=", value)) =>
+      case Node.ExpressionStatement(Node.Assign(Node.Identifier(_, Defined(scope), Defined(clsSym)) Dot member, "=", value)) =>
         Some(ClassId(clsSym), clsSym, scope, member, value)
       case _ => None
     }
@@ -163,7 +163,7 @@ package object classes {
   object ClassParentAndPrototypeDef {
     def unapply(arg: Node.Node) = arg match {
       // name.prototype = Object.assign( Object.create( sym.prototype ), {... prototype object ... } )
-      case Node.SimpleStatement(
+      case Node.ExpressionStatement(
       Node.Assign(Node.Identifier(name) Dot "prototype", "=",
       Node.CallExpression(
       Node.Identifier("Object") Dot "assign",
@@ -173,7 +173,7 @@ package object classes {
         Some(ClassId(name), ClassId(sym), prototypeDef)
 
       // Object.assign( name.prototype, sym.prototype, {prototype object} )
-      case Node.SimpleStatement(Node.CallExpression(
+      case Node.ExpressionStatement(Node.CallExpression(
       Node.Identifier("Object") Dot "assign",
       Node.Identifier(name) Dot "prototype",
       Node.Identifier(sym) Dot "prototype",
@@ -190,18 +190,18 @@ package object classes {
   object ClassParentDef {
     def unapply(arg: Node.Node) = arg match {
       // name.prototype = new sym.prototype
-      case Node.SimpleStatement(Node.Assign(Node.Identifier(name) Dot "prototype", "=", Node.New(Node.Identifier(sym), _*))) =>
+      case Node.ExpressionStatement(Node.Assign(Node.Identifier(name) Dot "prototype", "=", Node.New(Node.Identifier(sym), _*))) =>
         Some(ClassId(name), sym)
 
       // name.prototype = Object.create( sym.prototype );
-      case Node.SimpleStatement(Node.Assign(
+      case Node.ExpressionStatement(Node.Assign(
       Node.Identifier(name) Dot "prototype", "=",
       Node.CallExpression(Node.Identifier("Object") Dot "create", Node.Identifier(sym) Dot "prototype")
       )) =>
         Some(ClassId(name), sym)
 
       // Object.assign( name.prototype, sym.prototype)
-      case Node.SimpleStatement(Node.CallExpression(
+      case Node.ExpressionStatement(Node.CallExpression(
       Node.Identifier("Object") Dot "assign",
       Node.Identifier(name) Dot "prototype",
       Node.Identifier(sym) Dot "prototype"
@@ -216,7 +216,7 @@ package object classes {
     def unapply(arg: Node.Node) = arg match {
 
       //Object.assign( XXX.prototype, { ... })
-      case Node.SimpleStatement(Node.CallExpression(
+      case Node.ExpressionStatement(Node.CallExpression(
       Node.Identifier("Object") Dot "assign",
       Node.Identifier(name) Dot "prototype", prototypeDef: OObject
       )) =>
@@ -224,7 +224,7 @@ package object classes {
         Some(ClassId(name),prototypeDef)
 
       /// XXX.prototype = new { ... }
-      case Node.SimpleStatement(Node.Assign(Node.Identifier(name) Dot "prototype", "=", prototypeDef: OObject)) =>
+      case Node.ExpressionStatement(Node.Assign(Node.Identifier(name) Dot "prototype", "=", prototypeDef: OObject)) =>
         //println(s"Match prototype def $name")
         Some(ClassId(name),prototypeDef)
 
@@ -320,9 +320,9 @@ package object classes {
 
           object ReturnValue {
             def unapply(arg: Node.Statement) = arg match {
-              case Node.Return(Defined(body)) =>
+              case Node.ReturnStatement(Defined(body)) =>
                 Some(body)
-              case Node.SimpleStatement(body) =>
+              case Node.ExpressionStatement(body) =>
                 Some(body)
               case _ =>
                 None
@@ -360,7 +360,7 @@ package object classes {
           }
         }
 
-        def newGetterOrSetter(node: Node.ObjectSetterOrGetter, k: String, args: Seq[Node.SymbolFunarg], body: Seq[Node.Statement], isStatic: Boolean) = {
+        def newGetterOrSetter(node: Node.ObjectSetterOrGetter, k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean) = {
           fillTokens(node, tokensFrom)
           node.key = keyNode(tokensFrom, k)
           node.`static` = isStatic
@@ -378,19 +378,19 @@ package object classes {
               newMethod(k, args, body, tokensFrom, isStatic): Node.ObjectProperty
 
             case (m: ClassVarMember, false) =>
-              newGetter(k, Seq(), Seq(Node.SimpleStatement(tokensFrom)(m.value)), isStatic)
+              newGetter(k, Seq(), Seq(Node.ExpressionStatement(tokensFrom)(m.value)), isStatic)
             case (m: ClassVarMember, true) =>
               newValue(k, m.value, isStatic)
 
           }
         }
 
-        def newGetter(k: String, args: Seq[Node.SymbolFunarg], body: Seq[Node.Statement], isStatic: Boolean = false): Node.ObjectProperty = {
+        def newGetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean = false): Node.ObjectProperty = {
           newGetterOrSetter(new Node.ObjectGetter, k, args, body, isStatic)
         }
 
 
-        def newSetter(k: String, args: Seq[Node.SymbolFunarg], body: Seq[Node.Statement], isStatic: Boolean = false): Node.ObjectProperty = {
+        def newSetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean = false): Node.ObjectProperty = {
           newGetterOrSetter(new Node.ObjectSetter, k, args, body, isStatic)
         }
 
@@ -661,7 +661,7 @@ package object classes {
 
     object PrototypeVariable {
       def unapply(arg: Node.Node) = arg match  {
-        case Node.SimpleStatement(assign@Node.Assign((clsSym: Node.Identifier) Dot "prototype", "=", Node.Identifier(protoFunSym))) =>
+        case Node.ExpressionStatement(assign@Node.Assign((clsSym: Node.Identifier) Dot "prototype", "=", Node.Identifier(protoFunSym))) =>
           Some(clsSym, protoFunSym, assign)
         case _ => None
       }
@@ -779,7 +779,7 @@ package object classes {
 
     object PrototypeConstructor {
       def unapply(arg: Node.Node) = arg match {
-        case s@Node.SimpleStatement(Node.Assign(
+        case s@Node.ExpressionStatement(Node.Assign(
         Node.Identifier(clsSym) Dot "prototype" Dot "constructor", "=", Node.Identifier(protoFunSym)
         )) if clsSym.name == protoFunSym.name =>
           Some(clsSym, s)
@@ -801,7 +801,7 @@ package object classes {
     // function XXXXX( name, times, values, interpolation ) { YYYYY.apply( this, arguments ); }
     n.walk {
       case DefFun(
-      Defined(Node.Identifier(fun)), args, Seq(Node.SimpleStatement(Node.CallExpression(
+      Defined(Node.Identifier(fun)), args, Seq(Node.ExpressionStatement(Node.CallExpression(
       Node.Identifier(implementFun) Dot "apply", _: Node.This, Node.Identifier("arguments")
       )))) if constructorSymbols contains fun =>
         //println(s"Defined function ${fun.name} using ${implementFun.name}")
@@ -834,7 +834,7 @@ package object classes {
             n
           }
         // inline XXXXX.apply(this, arguments) - was already rewritten from YYYYY (transformAfter transforms children first)
-        case defun@DefFun(_, _, Seq(Node.SimpleStatement(Node.CallExpression(
+        case defun@DefFun(_, _, Seq(Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier(symDef) Dot "apply", _: Node.This, Node.Identifier("arguments")
         )))) =>
           //println(s"Detect ${symDef.name}.apply")

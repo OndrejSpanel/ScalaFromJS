@@ -296,11 +296,11 @@ object Variables {
     object MatchInitWithAssign {
       def unapply(arg: Node.Node) = arg match {
         // sr = xxx
-        case Node.SimpleStatement(Node.Assign(sr@Node.Identifier(name, scope, thedef), "=", right)) if refs contains sr =>
+        case Node.ExpressionStatement(Node.Assign(sr@Node.Identifier(name, scope, thedef), "=", right)) if refs contains sr =>
           Some(sr, name, scope, thedef, right)
         // if (m1 == undefined) m1 = xxx
         case Node.IfStatement(
-        Node.BinaryExpression(sr@Node.Identifier(name, scope, thedef), "==" | "===", Node.Identifier("undefined")),
+        Binary(sr@Node.Identifier(name, scope, thedef), "==" | "===", Node.Identifier("undefined")),
         SingleStatement(Node.Assign(sr2@Node.Identifier(_, _, thedef2), "=", right)),
         None
         ) if thedef == thedef2 && (refs contains sr) =>
@@ -551,7 +551,7 @@ object Variables {
       def unapplySeq(arg: Node.Node): Option[Seq[(SymbolDef, SymbolDef)]] = {
         val buffer = ArrayBuffer.empty[(SymbolDef, SymbolDef)]
         arg.walk {
-          case Node.BinaryExpression(Node.Identifier(symDef), `instanceof`, Node.Identifier(cs)) =>
+          case Binary(Node.Identifier(symDef), `instanceof`, Node.Identifier(cs)) =>
             buffer.append((symDef, cs))
             false
           case _ =>
@@ -565,10 +565,10 @@ object Variables {
     def condition(sym: Node.Identifier, cs: Seq[String])(from: Node.Node): Node.BinaryExpression = {
       cs match {
         case Seq(head) =>
-          Node.BinaryExpression(from) (sym, asinstanceof, Node.Identifier(from)(head))
+          Binary(from) (sym, asinstanceof, Node.Identifier(from)(head))
         case head +: tail =>
           Node.BinaryExpression(from) (
-            Node.BinaryExpression(from) (sym, asinstanceof, Node.Identifier(from)(head)),
+            Binary(from) (sym, asinstanceof, Node.Identifier(from)(head)),
             "||",
             condition(sym, tail)(from)
           )
@@ -688,11 +688,11 @@ object Variables {
       implicit val tokensFrom = node
       node match {
         // TODO: allow other forms of callOn, not only Node.Identifier
-        case Node.BinaryExpression(right@Node.BinaryExpression(callExpr@Node.Identifier(callOn), "instanceof", classExpr), "&&", expr) =>
+        case Binary(right@Binary(callExpr@Node.Identifier(callOn), "instanceof", classExpr), "&&", expr) =>
           //println(s"Detected cast && on $callExpr")
-          val instancedExpr = Node.BinaryExpression(node)(callExpr, asinstanceof, classExpr)
+          val instancedExpr = Binary(node)(callExpr, asinstanceof, classExpr)
           Variables.replaceVariable(expr, callOn, instancedExpr)
-          Node.BinaryExpression(node)(right, "&&", expr)
+          Binary(node)(right, "&&", expr)
         case _ =>
           node
       }
