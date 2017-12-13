@@ -297,7 +297,7 @@ object Transform {
       node match {
         case f: DefFun =>
           for {
-            commentToken <- f.leadingComments.lastOption
+            commentToken <- Option(f.leadingComments).flatMap(_.lastOption)
             pos <- f.start
           } {
             val comment = commentToken.value
