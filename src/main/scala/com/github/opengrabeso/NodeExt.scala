@@ -106,6 +106,13 @@ trait NodeExt {
 
     }
   }
+  object NumberLiteral {
+    def unapply(arg: Node.Literal): Option[Double] = arg.value.value match {
+      case s: Double => Some(s)
+      case _ => None
+
+    }
+  }
 
   def parameterName(n: Node.FunctionParameter): (Node.Identifier, Option[Node.Node]) = {
     (n: @unchecked) match {

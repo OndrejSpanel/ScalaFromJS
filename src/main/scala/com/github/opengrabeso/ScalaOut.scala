@@ -774,21 +774,19 @@ object ScalaOut {
         }
       case tn: Node.ForStatement =>
         tn match {
-            /*
           case ForRange(name, until, init, end, step) =>
             (init, until, end, step) match {
-              case (Node.Number(0), "until", expr Dot "length", Node.Number(1)) =>
+              case (NumberLiteral(0), "until", expr Dot "length", NumberLiteral(1)) =>
                 out"for (${name.name} <- $expr.indices) ${tn.body}"
 
               case _ =>
                 out"for (${name.name} <- $init $until $end"
                 step match {
-                  case Node.Number(1) =>
+                  case NumberLiteral(1) =>
                   case _ => out" by $step"
                 }
                 out") ${tn.body}"
             }
-            */
 
           case _ => // generic solution using while - reliable, but ugly
             // new scope never needed in classical JS, all variables exists on a function scope
