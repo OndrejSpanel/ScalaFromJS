@@ -2,30 +2,25 @@ package com.github.opengrabeso
 
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
-
 import JsUtils._
+import com.github.opengrabeso.esprima.symbols.{Id, ScopeContext, SymId}
 
 // extractor for special cases of the for loop
 object ForRange {
   object VarOrLet {
-    def unapply(arg: Node.VariableDeclaration): Option[Node.VariableDeclaration] = arg match {
-      case _: Node.Var => Some(arg)
-      case _: Node.Let => Some(arg)
+    def unapply(arg: Node.VariableDeclaration): Option[Node.VariableDeclaration] = arg.kind match {
+      case "var" => Some(arg)
+      case "let" => Some(arg)
       case _ => None
     }
   }
 
-  def unapply(arg: Node.For): Option[(SymbolDef, String, Node.Node, Node.Node, Node.Node)] = {
-    def negateStep(step: Node.Node): Node.Node = {
-      new Node.UnaryPrefix {
-        fillTokens(this, step)
-        operator = "-"
-        expression = step.clone()
-      }
-
+  def unapply(arg: Node.ForStatement)(implicit context: ScopeContext): Option[(SymId, String, Node.Node, Node.Node, Node.Node)] = {
+    def negateStep(step: Node.Expression): Node.Node = {
+      Node.UnaryExpression("-", step.clone().asInstanceOf[Node.Expression]).copyNode(step)
     }
 
-    def createRange(vName: SymbolDef, vValue: Node.Node, rel: String, cRight: Node.Node, assign: String, step: Node.Node) = {
+    def createRange(vName: SymId, vValue: Node.Node, rel: String, cRight: Node.Node, assign: String, step: Node.Expression) = {
       (rel, assign) match {
         case ("<", "+=") =>
           Some((vName, "until", vValue, cRight, step))
@@ -40,20 +35,22 @@ object ForRange {
       }
     }
 
-    (arg.init, arg.condition, arg.step) match {
+    (Option(arg.init), Option(arg.test), Option(arg.update)) match {
       // for ( var i = 0; i < xxxx; i += step )
       case (
-        Some(VarOrLet(Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(vName), Defined(vValue))))),
-        Some(Node.BinaryExpression(Node.Identifier(cLeftName), rel, cRight)),
-        Some(Node.BinaryExpression(Node.Identifier(exprName), assign, step))
-        ) if cLeftName == vName.name && exprName == vName.name =>
+        Some(VarOrLet(Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(Id(vName)), Defined(vValue))), _))),
+        Some(Node.BinaryExpression(rel, Node.Identifier(Id(cLeftName)), cRight)),
+        Some(Node.BinaryExpression(assign, Node.Identifier(Id(exprName)), step))
+        ) if cLeftName == vName && exprName == vName =>
         createRange(vName, vValue, rel, cRight, assign, step)
       // for ( var i = 0, limit = xxxx; i < limit; i += step )
       case (
-        Some(VarOrLet(Node.VariableDeclaration(Node.VariableDeclarator(Node.Identifier(vName), Defined(vValue)), Node.VariableDeclarator(Node.SymbolName(limitName), Defined(limitValue))))),
-        Some(Node.BinaryExpression(Node.Identifier(cLeftName), rel, Node.Identifier(cRightName))),
-        Some(Node.BinaryExpression(Node.Identifier(exprName), assign, step))
-        ) if cRightName == limitName && cLeftName == vName.name && exprName == vName.name =>
+        Some(VarOrLet(Node.VariableDeclaration(
+          Seq(Node.VariableDeclarator(Node.Identifier(Id(vName)), Defined(vValue)), Node.VariableDeclarator(Node.Identifier(Id(limitName)), Defined(limitValue))), _
+        ))),
+        Some(Node.BinaryExpression(rel, Node.Identifier(Id(cLeftName)), Node.Identifier(Id(cRightName)))),
+        Some(Node.BinaryExpression(assign, Node.Identifier(Id(exprName)), step))
+        ) if cRightName == limitName && cLeftName == vName && exprName == vName =>
         createRange(vName, vValue, rel, limitValue, assign, step)
 
       case _ => None

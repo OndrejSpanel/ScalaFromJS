@@ -28,6 +28,17 @@ package object symbols {
   def symId(name: String)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name))
   def symId(name: Node.Identifier)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name.name))
 
+  object Id {
+    def unapply(name: String)(implicit context: ScopeContext): Option[SymId] = {
+      symId(name)
+    }
+    def unapply(name: Node.Identifier)(implicit context: ScopeContext): Option[SymId] = {
+      symId(name)
+    }
+  }
+
+
+
   class ScopeContext {
     def enterScope(node: Node) = {
       val isScope = node.isInstanceOf[IsScope]

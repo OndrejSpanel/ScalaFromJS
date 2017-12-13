@@ -6,8 +6,8 @@ import _root_.esprima._
 object Expressions {
   object IsConstant {
     def unapply(arg: Node.Node): Boolean = arg match {
-      case _: Node.Constant => true
-      case Node.Identifier("Infinity", _, _) => true
+      case _: Node.Literal => true
+      case Node.Identifier("Infinity") => true
       case _ =>
         //println(s"Not constant $arg")
         false
@@ -22,13 +22,13 @@ object Expressions {
     def unapply(arg: Node.Node): Option[Node.Node] = arg match {
       case c if allow(c) =>
         Some(c)
-      case Node.New(cls, args@_*) if args.forall(check) =>
+      case Node.NewExpression(cls, args) if args.forall(check) =>
         Some(arg)
-      case AArray(args@_*) if args.forall(check) =>
+      case AArray(args) if args.forall(check) =>
         Some(arg)
-      case OObject(props) if props.map(_.value).forall(check) =>
+      case OObject(props) if props.flatMap(propertyValue).forall(check) =>
         Some(arg)
-      case Node.BinaryExpression(a, _, b) if check(a) && check(b) =>
+      case Node.BinaryExpression(_, a, b) if check(a) && check(b) =>
         Some(arg)
       case Node.UnaryExpression(UnaryModification(), _) =>
         None
@@ -52,7 +52,7 @@ object Expressions {
       case c@IsConstant() => Some(c)
       // TODO: accept only some forms of new or Array (avoid reordering dependent expressions)
       case c: AArray => Some(c)
-      case c: Node.New => Some(c)
+      case c: Node.NewExpression => Some(c)
       case c@OObject(Seq()) => Some(c)
       // TODO: check for dependent expressions
       case c: Node.Identifier => Some(c)
@@ -70,15 +70,15 @@ object Expressions {
   object Statements {
     def unapply(arg: Node.Statement) = arg match {
       case Node.BlockStatement(body) => Some(body)
-      case s@Node.SimpleStatement(body) => Some(Seq(s))
+      case s@Node.ExpressionStatement(body) => Some(Seq(s))
       case _ => None
     }
   }
 
   object SingleStatement {
     def unapply(arg: Node.Statement): Option[Node.Node] = arg match {
-      case Node.BlockStatement(Seq(Node.SimpleStatement(body))) => Some(body)
-      case Node.SimpleStatement(body) => Some(body)
+      case Node.BlockStatement(Seq(Node.ExpressionStatement(body))) => Some(body)
+      case Node.ExpressionStatement(body) => Some(body)
       case _ => None
     }
   }

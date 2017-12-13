@@ -100,6 +100,15 @@ trait NodeExt {
     }
   }
 
+  def propertyValue(n: Node.ObjectExpressionProperty): Option[Node.Node] = {
+    n match {
+      case p: Node.Property =>
+        Some(p.value)
+      case _ =>
+        None
+    }
+  }
+
   def keyValIsTemplate(kv: Node.Property): Boolean = propertyName(kv) startsWith Symbols.templatePrefix
 
   def propertyIsStatic(p: Node.ClassBodyElement): Boolean = {

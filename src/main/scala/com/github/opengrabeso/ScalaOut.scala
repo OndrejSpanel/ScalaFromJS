@@ -877,10 +877,8 @@ object ScalaOut {
           out.eol()
           out.unindent()
         }
-        /*
         import Casting._
         object AsInstanceOfCondition extends InstanceOfCondition(asinstanceof)
-
 
         tn.test match {
           // CASE_CAST
@@ -893,20 +891,17 @@ object ScalaOut {
                 out(matchClasses)
             }
 
-            tn.body.toSeq match {
-              case Seq(Node.BlockStatement(Node.VariableDeclaration(Node.VariableDeclarator(sv, AsInstanceOfCondition(_, _))) +: body)) =>
+            tn.consequent match {
+              case Seq(Node.BlockStatement(Node.VariableDeclaration(Seq(Node.VariableDeclarator(sv, AsInstanceOfCondition(_, _))), _) +: body)) =>
                 // we might check sv - variable name correspondence
-                outputCaseBody(body)
+                outputCaseBody(tn.consequent)
               case _ =>
-                outputCaseBody(tn.body)
+                outputCaseBody(tn.consequent)
             }
           case _ =>
-            nodeToOut(tn.expression)
-            outputCaseBody(tn.body)
+            nodeToOut(tn.test)
+            outputCaseBody(tn.consequent)
         }
-        */
-        nodeToOut(tn.test)
-        outputCaseBody(tn.consequent)
 
       //case tn: Node.SwitchBranch => outputUnknownNode(tn)
       case tn: Node.SwitchStatement =>

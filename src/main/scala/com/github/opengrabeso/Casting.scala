@@ -2,17 +2,17 @@ package com.github.opengrabeso
 
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
-
 import Symbols._
+import com.github.opengrabeso.esprima.symbols._
 
 object Casting {
   class InstanceOf(op: String) {
-    def unapply(arg: Node.BinaryExpression) = arg match {
+    def unapply(arg: Node.BinaryExpression)(implicit context: ScopeContext): Option[(SymId, Node.Identifier)] = arg match {
       // a && (a op b)
-      case Node.BinaryExpression(Node.Identifier(sym), "&&",Node.BinaryExpression(Node.Identifier(symDef), `op`, cs: Node.Identifier)) if sym == symDef =>
+      case Node.BinaryExpression("&&", Node.Identifier(Id(sym)), Node.BinaryExpression(`op`, Node.Identifier(Id(symDef)), cs: Node.Identifier)) if sym == symDef =>
         Some(symDef, cs)
       // a op b
-      case Node.BinaryExpression(Node.Identifier(symDef), `op`, cs: Node.Identifier) =>
+      case Node.BinaryExpression(`op`, Node.Identifier(Id(symDef)), cs: Node.Identifier) =>
         Some(symDef, cs)
       case _ =>
         None
@@ -24,8 +24,8 @@ object Casting {
 
     object InstanceOf extends InstanceOf(op)
 
-    def unapply(arg: Node.BinaryExpression): Option[(SymbolDef, Seq[Node.Identifier])] = arg match {
-      case Node.BinaryExpression(InstanceOf(symDef, cs), "||", self(symDef2, cond)) if symDef == symDef2 =>
+    def unapply(arg: Node.BinaryExpression)(implicit context: ScopeContext): Option[(SymId, Seq[Node.Identifier])] = arg match {
+      case Node.BinaryExpression("||", InstanceOf(symDef, cs), self(symDef2, cond)) if symDef == symDef2 =>
         //println(s"$op Node.BinaryExpression")
         Some(symDef, cs +: cond)
       case InstanceOf(symDef, cs) =>
