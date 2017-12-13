@@ -54,6 +54,13 @@ trait NodeExt {
     }
   }
 
+  object IsNull {
+    // extract value from a potential null only if non-null
+    def unapply[T](some: T): Boolean = {
+      some == null
+    }
+  }
+
   object MayBeNull {
     // extract value from a potential null as an option
     def unapply[T](some: T): Option[Option[T]] = {

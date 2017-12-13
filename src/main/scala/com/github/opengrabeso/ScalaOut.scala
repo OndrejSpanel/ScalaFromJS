@@ -860,6 +860,13 @@ object ScalaOut {
           out(" finally ")
           blockBracedToOut(fin.body)
         }
+      case Node.SwitchCase(IsNull(), body) =>
+        out("case _ =>\n")
+        out.indent()
+        blockToOut(body)
+        out.eol()
+        out.unindent()
+
       case tn: Node.SwitchCase =>
         out("case ")
 
@@ -901,14 +908,6 @@ object ScalaOut {
         nodeToOut(tn.test)
         outputCaseBody(tn.consequent)
 
-      /*
-      case tn: Node.Default =>
-        out("case _ =>\n")
-        out.indent()
-        blockToOut(tn.body)
-        out.eol()
-        out.unindent()
-        */
       //case tn: Node.SwitchBranch => outputUnknownNode(tn)
       case tn: Node.SwitchStatement =>
         nodeToOut(tn.discriminant)
