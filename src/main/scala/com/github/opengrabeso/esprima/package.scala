@@ -1,10 +1,11 @@
 package com.github.opengrabeso
 
 import _root_.esprima.Node.Node
+import com.github.opengrabeso.esprima.symbols.ScopeContext
 
 package object esprima extends NodeExt {
   // interface inspired by uglify-js
-  trait TreeTransformer {
+  trait TreeTransformer extends ScopeContext {
     def before(node: Node, descend: (Node, TreeTransformer) => Node): Node = null
 
     def after(node: Node): Node = null
@@ -15,15 +16,23 @@ package object esprima extends NodeExt {
       walker.walkRecursive(ast)(callback)()
     }
 
+    def walkWithScope(callback: (Node, ScopeContext) => Boolean) = {
+      symbols.walk(ast)(callback)
+    }
+
     def transform(transformer: TreeTransformer): T = {
       import walker._
       if (ast != null) {
+        transformer.enterScope(ast)
         val before = transformer.before(ast, _ transform _)
+        transformer.leaveScope(ast)
         if (before != null) {
           before.asInstanceOf[T]
         } else {
           val cloned = ast.clone
+          transformer.enterScope(cloned)
           transformInto(cloned)(node => transformer.after(node).transform(transformer) )
+          transformer.leaveScope(cloned)
           cloned.asInstanceOf[T]
         }
       } else {

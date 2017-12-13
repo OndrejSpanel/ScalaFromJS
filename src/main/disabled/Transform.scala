@@ -410,7 +410,7 @@ object Transform {
       }
     }
 
-    def typeInfoFromClassDef(classDef: Option[Node.DefClass]) = {
+    def typeInfoFromClassDef(classDef: Option[Node.ClassDeclaration]) = {
       classDef.flatMap(_.name).flatMap(_.thedef).flatMap(typeInfoFromClassSym(_))
     }
 
@@ -563,7 +563,7 @@ object Transform {
     }
   }
 
-  def isReadOnlyProperty(cls: Node.DefClass, name: String): Option[Node.Node] = {
+  def isReadOnlyProperty(cls: Node.ClassDeclaration, name: String): Option[Node.Node] = {
     var getter = Option.empty[Node.Node]
     var setter = false
     cls.properties.filter(p => propertyName(p) == name).foreach {
@@ -586,7 +586,7 @@ object Transform {
     else None
   }
 
-  def listPrototypeMemberNames(cls: Node.DefClass): Seq[String] = {
+  def listPrototypeMemberNames(cls: Node.ClassDeclaration): Seq[String] = {
     var existingMembers = Seq.empty[String]
 
     def addAccessor(s: Node.ObjectSetterOrGetter) = {
@@ -614,7 +614,7 @@ object Transform {
   def listDefinedClassMembers(node: NodeExtended) = {
     var listMembers = ClassInfo()
     node.top.walk {
-      case cls@Node.DefClass(Defined(Node.Identifier(_, _, Defined(clsSym))), base, _) =>
+      case cls@Node.ClassDeclaration(Defined(Node.Identifier(_, _, Defined(clsSym))), base, _) =>
         for (clsId <- id(clsSym)) {
           for {
             Node.Identifier(parent) <- base
@@ -678,7 +678,7 @@ object Transform {
       }
 
       def unapply(arg: Seq[Node.Statement]) = arg match {
-        case Seq(defClass@Node.DefClass(Defined(c), _, _), ReturnedExpression(r : Node.Identifier)) if c.thedef == r.thedef =>
+        case Seq(defClass@Node.ClassDeclaration(Defined(c), _, _), ReturnedExpression(r : Node.Identifier)) if c.thedef == r.thedef =>
           Some(defClass, c)
         case _ => None
       }

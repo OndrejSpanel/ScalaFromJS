@@ -3,7 +3,7 @@ package com.github.opengrabeso
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
 import JsUtils._
-//import Classes._
+import Classes._
 
 import scala.util.Try
 
@@ -973,22 +973,27 @@ object ScalaOut {
           out.eol(2)
 
           out"class ${tn.id}"
-          /*
           val inlineBodyOpt = Classes.findInlineBody(tn)
 
           val constructor = Classes.findConstructor(tn).map(_.value)
 
-          for (inlineBody <- inlineBodyOpt) {
-            outputClassArgNames(inlineBody.value)
+          for {
+            inlineBody <- inlineBodyOpt
+            method <- getMethodMethod(inlineBody)
+          } {
+            outputClassArgNames(method.params)
           }
 
           for (base <- Option(tn.superClass)) {
             out" extends $base"
 
-            for (inlineBody <- inlineBodyOpt) {
+            for {
+              inlineBody <- inlineBodyOpt
+              method <- getMethodMethod(inlineBody)
+            } {
               // find the super constructor call and use its parameters
-              inlineBody.value.body.foreach {
-                case Node.SimpleStatement(call@Node.CallExpression(_: Node.Super, pars@_*)) =>
+              method.body.body.foreach {
+                case Node.ExpressionStatement(call@Node.CallExpression(_: Node.Super, pars)) =>
                   out("(")
                   outputNodes(pars)(nodeToOut)
                   out(")")
@@ -999,25 +1004,26 @@ object ScalaOut {
           out" {\n"
           out.indent()
 
-          for (inlineBody <- inlineBodyOpt) {
+          for {
+            inlineBody <- inlineBodyOpt
+            method <- getMethodMethod(inlineBody)
+          } {
             //out"/* inlineBody count ${inlineBody.value.body.length} */\n"
             //out"/* inlineBody ${inlineBody.value.body.mkString(",")} */\n"
             if (false) {
               out"/* inlineBody defs ${
-                inlineBody.value.body.collect {
-                  case Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(vn), _)) =>
+                method.body.body.collect {
+                  case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(vn), _)), _) =>
                     vn
                 }.mkString(",")
               } */\n"
             }
 
             // class body should be a list of variable declarations, constructor statements may follow
-            inlineBody.value.body.foreach {
-              case df: Node.Const =>
-                outputDefinitions(true, df, true)
+            method.body.body.foreach {
               case df: Node.VariableDeclaration =>
-                outputDefinitions(false, df, true)
-              case Node.SimpleStatement(Node.CallExpression(_: Node.Super, _*)) =>
+                outputDefinitions(df.kind == "const", df, true)
+              case Node.ExpressionStatement(Node.CallExpression(_: Node.Super, _)) =>
               case ss =>
                 //out(nodeTreeToString(ss))
                 nodeToOut(ss)
@@ -1027,8 +1033,8 @@ object ScalaOut {
           //blockToOut(tn.body)
 
           val (functionMembers, varMembers) = nonStaticProperties.partition {
-            case _: Node.MethodDefinition => true
-            case kv: ObjectKeyVal if keyValIsTemplate(kv) => true
+            case md: Node.MethodDefinition if md.value.isInstanceOf[Node.FunctionExpression] => true
+            //case kv: Node.Property if keyValIsTemplate(kv) => true
             case _ => false
           }
 
@@ -1039,7 +1045,7 @@ object ScalaOut {
             nodeToOut(n)
           }
 
-          if ((varMembers.nonEmpty || tn.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
+          if ((varMembers.nonEmpty || tn.body.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
 
           if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
@@ -1050,9 +1056,9 @@ object ScalaOut {
                 def isObjectOverride = {
                   // special case: override AnyRef (java.lang.Object) methods:
                   val objectMethods = Set("clone", "toString", "hashCode", "getClass")
-                  p.value.argnames.isEmpty && objectMethods.contains(p.key.name)
+                  getMethodMethod(p).exists(_.params.isEmpty) && objectMethods.contains(propertyKeyName(p.key))
                 }
-
+                /*
                 def isNormalOverride = {
                   val isOverride = for {
                     parentSym <- Classes.superClass(tn)
@@ -1072,7 +1078,19 @@ object ScalaOut {
                 }
 
                 if (isObjectOverride || isNormalOverride) out("override ")
-                out"def ${p.key}${p.value}\n"
+                */
+                p.value match {
+                  case Node.FunctionExpression(id, params, body, generator) =>
+                    out"def ${p.key}"
+                    outputArgNames(params)
+                    out(" = ")
+                    //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
+                    blockBracedToOut(body.body)
+                    out.eol()
+
+                  case _ =>
+                    out"def ${p.key}${p.value}\n"
+                }
               case _ =>
                 nodeToOut(pm)
             }
@@ -1081,7 +1099,6 @@ object ScalaOut {
           out.unindent()
           out.eol()
           out("}\n\n")
-          */
           // classes have no body
           //blockBracedToOut(tn.body)
         }

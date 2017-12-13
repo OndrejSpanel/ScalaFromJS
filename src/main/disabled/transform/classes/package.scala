@@ -394,8 +394,8 @@ package object classes {
           newGetterOrSetter(new Node.ObjectSetter, k, args, body, isStatic)
         }
 
-        def newClass(sym: Node.Identifier, base: Option[Node.Node], props: Iterable[Node.ObjectProperty]): Node.DefClass = {
-          new Node.DefClass {
+        def newClass(sym: Node.Identifier, base: Option[Node.Node], props: Iterable[Node.ObjectProperty]): Node.ClassDeclaration = {
+          new Node.ClassDeclaration {
             fillTokens(this, tokensFrom)
             name = new Node.SymbolDefClass {
               /*_*/
@@ -466,19 +466,19 @@ package object classes {
           emptyNode
         case DefineProperty(name, _, _) if classes.contains(name) =>
           emptyNode
-        case classNode@Node.DefClass(Defined(sym), _, _) if classes contains ClassId(sym) =>
+        case classNode@Node.ClassDeclaration(Defined(sym), _, _) if classes contains ClassId(sym) =>
           // add any prototype member definitions as needed
 
           val mergeProperties = classProperties(classes(ClassId(sym)))
 
           classNode.properties ++= mergeProperties
-          //println(s"Node.DefClass $classNode - merge members (${mergeProperties.size})")
+          //println(s"Node.ClassDeclaration $classNode - merge members (${mergeProperties.size})")
 
           classNode
         //case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
         //  emptyNode
-        case classNode@Node.DefClass(_, _, _)  =>
-          //println(s"Node.DefClass $classNode - not in ${classes.keys}")
+        case classNode@Node.ClassDeclaration(_, _, _)  =>
+          //println(s"Node.ClassDeclaration $classNode - not in ${classes.keys}")
 
           node
         case _ =>
@@ -571,7 +571,7 @@ package object classes {
     cleanupClasses
   }
 
-  def classTokenSource(cls: Node.DefClass): Node.Node = {
+  def classTokenSource(cls: Node.ClassDeclaration): Node.Node = {
     // prefer class name symbol as the token source
     // ES6 classes parse class name as it is, we do not want to change this
     // instead we change the class token root so that all symbols in the class have the same offset as the class symbol
@@ -587,8 +587,8 @@ package object classes {
   def convertClassMembers(n: Node.Node): Node.Node = {
     val ret = n.transformAfter { (node, _) =>
       node match {
-        case cls: Node.DefClass  =>
-          //println(s"convertClassMembers Node.DefClass ${ClassId(cls.name.get)}")
+        case cls: Node.ClassDeclaration  =>
+          //println(s"convertClassMembers Node.ClassDeclaration ${ClassId(cls.name.get)}")
 
           val newMembers = mutable.ArrayBuffer.empty[Node.Var]
           cls.properties.foreach {
@@ -622,10 +622,10 @@ package object classes {
   }
 
 
-  def processAllClasses(n: NodeExtended, c: Option[RegExp] = None)(p: Node.DefClass => Node.DefClass): NodeExtended = {
+  def processAllClasses(n: NodeExtended, c: Option[RegExp] = None)(p: Node.ClassDeclaration => Node.ClassDeclaration): NodeExtended = {
     val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case cls@Node.DefClass(Defined(Node.SymbolName(cName)), _, _) if c.forall(_ test cName)=>
+        case cls@Node.ClassDeclaration(Defined(Node.SymbolName(cName)), _, _) if c.forall(_ test cName)=>
           p(cls)
         case _ =>
           node

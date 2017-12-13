@@ -1,85 +1,69 @@
 package com.github.opengrabeso
 
-import Transform._
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
-
 import JsUtils._
 import SymbolTypes._
+import com.github.opengrabeso.esprima.symbols._
+
+import scala.util.matching.Regex
 
 object Classes {
 
 
-  def findDefScope(scope: Option[Node.Scope]): Option[Node.Scope] = {
+  def findDefScope(scope: Option[Node.IsScope]): Option[Node.IsScope] = {
     //println(s"  ${scope.map(nodeClassName)} ${scope.map(_.nesting)}")
     scope match {
-      case Some(s: Node.DefClass) => Some(s)
-      case Some(f: Node.Lambda) => Some(f)
+      case Some(s: Node.ClassDeclaration) => Some(s)
+      case Some(f: Node.FunctionExpression) => Some(f)
+      case Some(f: Node.FunctionDeclaration) => Some(f)
       case Some(x) =>
-        val s = x.parent_scope
+        val s = ???
         findDefScope(s)
       case _ => None
     }
   }
 
   // TODO: rename to findClassScope
-  def findThisScope(scope: Option[Node.Scope]): Option[Node.DefClass] = {
+  def findThisScope(scope: Option[Node.IsScope]): Option[Node.ClassDeclaration] = {
     findDefScope(scope).collect {
-      case c: Node.DefClass => c
+      case c: Node.ClassDeclaration => c
     }
   }
 
-  def findThisFunction(scope: Option[Node.Scope]): Option[Node.Lambda] = {
+  def findThisFunction(scope: Option[Node.IsScope]): Option[Node.Node] = {
     findDefScope(scope).collect {
-      case c: Node.Lambda => c
+      case c: Node.FunctionExpression => c
+      case c: Node.FunctionDeclaration => c
     }
   }
 
-  def findThisClassInWalker(walker: TreeWalker): Option[Node.DefClass] = {
+  def findThisClassInWalker(walker: ScopeContext): Option[Node.ClassDeclaration] = {
     //println(walker.stack.map(nodeClassName).mkString(":"))
-    walker.stack.reverse.collectFirst {
-      case c: Node.DefClass =>
+    walker.scopes.map(_._1).reverse.collectFirst {
+      case c: Node.ClassDeclaration =>
         //println(s"Found ${c.name.map(_.name)}")
         c
     }
   }
 
     // ignore function scopes, find a class one
-  def findThisClass(scope: Option[Node.Scope]): Option[Node.DefClass] = {
+  def findThisClass(scope: Option[Node.IsScope]): Option[Node.ClassDeclaration] = {
     //println(s"  ${scope.map(nodeClassName)} ${scope.map(_.nesting)}")
     scope match {
-      case Some(s: Node.DefClass) => Some(s)
+      case Some(s: Node.ClassDeclaration) => Some(s)
       case Some(x) =>
-        val s = x.parent_scope
+        val s = ???
         findThisClass(s)
       case _ => None
     }
   }
 
-  def superClassSymbolDef(cls: Node.DefClass): Option[SymbolDef] = {
-    cls.`extends`.collect {
-      case Node.Identifier(c) =>
-        // symbol defined, use it directly
-        //println(s"  Node.Identifier ${c.name}")
-        Some(c)
-      case Node.Identifier(name, _, _) =>
-        // symbol not defined, search for it
-        //println(s"  Node.Identifier $name $scope $thedef")
-
-        val thisCls = cls
-        val superSym = for {
-          thisClsSymbol <- thisCls.name
-          scope <- thisClsSymbol.scope
-          scopeSymbols <- scope.enclosed
-          baseSym <- scopeSymbols.find(_.name == name)
-        } yield {
-          baseSym
-        }
-        superSym
-    }.flatten
+  def superClassSymbolDef(cls: Node.ClassDeclaration)(implicit context: ScopeContext): Option[SymId] = {
+    symId(cls.superClass)
   }
 
-  def superClass(cls: Node.DefClass): Option[SymbolMapId] = {
+  def superClass(cls: Node.ClassDeclaration)(implicit context: ScopeContext): Option[SymbolMapId] = {
     //println(s"superClass ${cls.name.get.name}")
 
     val baseSym = superClassSymbolDef(cls)
@@ -91,18 +75,19 @@ object Classes {
     baseId
   }
 
-  def findSuperClass(scope: Option[Node.Scope]): Option[SymbolMapId] = {
+  def findSuperClass(scope: Option[Node.IsScope])(implicit context: ScopeContext): Option[SymbolMapId] = {
     val thisScope = findThisClass(scope)
     thisScope.flatMap(superClass)
   }
 
-  def getClassId(cls: Node.DefClass): Option[Int] = {
-    val sid = cls.name.flatMap(_.thedef.flatMap(id))
+  def getClassId(cls: Node.ClassDeclaration)(implicit context: ScopeContext): Option[Int] = {
+    val sid = symId(cls.id)
     sid.map(_.sourcePos)
   }
 
 
-  def includeParents(clazz: Node.DefClass, ret: Seq[Node.DefClass])(ctx: ExpressionTypeContext): Seq[Node.DefClass] = {
+  /*
+  def includeParents(clazz: Node.ClassDeclaration, ret: Seq[Node.ClassDeclaration])(ctx: ExpressionTypeContext): Seq[Node.ClassDeclaration] = {
     clazz.`extends` match {
       case Some(cls: Node.Identifier) =>
         val c = cls.thedef.flatMap(id).flatMap(ctx.classes.get)
@@ -127,7 +112,7 @@ object Classes {
     /*
     for {
       clazz <- ctx.classes.get(tpe)
-      parent@Node.DefClass(Defined(Node.SymbolName(c)), _, _) <- includeParents(clazz, Seq(clazz))(ctx)
+      parent@Node.ClassDeclaration(Defined(Node.SymbolName(c)), _, _) <- includeParents(clazz, Seq(clazz))(ctx)
       ... search parent
     } {
       return Some(c)
@@ -135,85 +120,118 @@ object Classes {
     None
     */
   }
+  */
 
-  val isConstructorProperty: PartialFunction[Node.ObjectProperty, Node.MethodDefinition] = {
-    case m: Node.MethodDefinition if m.key.name == "constructor" =>
+  val isConstructorProperty: PartialFunction[Node.ClassBodyElement, Node.MethodDefinition] = {
+    case m: Node.MethodDefinition if propertyKeyName(m.key) == "constructor" =>
       m
   }
 
-  def findConstructor(c: Node.DefClass): Option[Node.MethodDefinition] = {
-    c.properties.collectFirst(isConstructorProperty)
+  def findConstructor(c: Node.ClassDeclaration): Option[Node.MethodDefinition] = {
+    c.body.body.collectFirst(isConstructorProperty)
   }
 
   val inlineBodyName = "inline_^"
 
-  def findInlineBody(c: Node.DefClass):  Option[Node.MethodDefinition] = {
+  def findInlineBody(c: Node.ClassDeclaration): Option[Node.MethodDefinition] = {
     findMethod(c, inlineBodyName)
-
   }
 
-  def classInlineBody(cls: Node.DefClass, tokensFrom: Node.Node): Node.Accessor = {
+  def getMethodMethod(m: Node.MethodDefinition): Option[Node.FunctionExpression] = {
+    m.value match {
+      case x: Node.FunctionExpression =>
+        Some(x)
+      case _ =>
+        None
+    }
+  }
+
+  def getMethodBody(m: Node.MethodDefinition): Option[Node.BlockStatement] = {
+    m.value match {
+      case Node.FunctionExpression(id, params, body, generator) =>
+        Some(body)
+      case _ =>
+        None
+    }
+  }
+
+  def newMethod(k: String, args: Seq[Node.FunctionParameter], methodBody: Seq[Node.Statement], tokensFrom: Node.Node, isStatic: Boolean = false) = new Node.MethodDefinition(
+    key = new Node.Identifier(k).copyLoc(tokensFrom),
+    false,
+    new Node.FunctionExpression(null, args, new Node.BlockStatement(methodBody).copyLoc(tokensFrom), false).copyLoc(tokensFrom),
+    if (k == "constructor") "constructor" else "method",
+    isStatic
+  ).copyLoc(tokensFrom)
+
+  def classInlineBody(cls: Node.ClassDeclaration, tokensFrom: Node.Node): Node.MethodDefinition = {
     //println(s"Class inline body $cls")
     val present = findInlineBody(cls)
     val method = present.getOrElse {
       val newInlineBody = newMethod(inlineBodyName, Seq(), Seq(), tokensFrom)
-      cls.properties = cls.properties :+ newInlineBody
+      cls.body.body = cls.body.body :+ newInlineBody
       newInlineBody
     }
-    method.value
+    method
   }
 
 
 
-  def findMethod(c: Node.DefClass, name: String): Option[Node.MethodDefinition] = {
-    c.properties.collectFirst {
-      case m: Node.MethodDefinition if m.key.name == name => m
+  def findMethod(c: Node.ClassDeclaration, name: String): Option[Node.MethodDefinition] = {
+    c.body.body.collectFirst {
+      case m: Node.MethodDefinition if propertyKeyName(m.key) == name => m
     }
   }
 
-  def findProperty(c: Node.DefClass, name: String): Option[ObjectKeyVal] = {
-    c.properties.collectFirst {
-      case m: ObjectKeyVal if m.key == name => m
+  def findProperty(c: Node.ClassDeclaration, name: String): Option[Node.MethodDefinition] = {
+    c.body.body.collectFirst {
+      case m: Node.MethodDefinition if propertyKeyName(m.key) == name => m
     }
   }
 
-  def propertyIsStatic(prop: Node.ObjectProperty): Boolean = prop match {
-    case m: Node.MethodDefinition => m.`static`
-    case m: Node.ObjectSetter => m.`static`
-    case m: Node.ObjectGetter => m.`static`
-    case m: ObjectKeyVal => m.quote == "'"
-    case _ => false
+  def propertyIsStatic(p: Node.ClassBodyElement): Boolean = {
+    p match {
+      case p: Node.MethodDefinition =>
+        p.static
+    }
   }
 
-  def replaceProperty(c: Node.DefClass, oldP: Node.ObjectProperty, newP: Node.ObjectProperty): Node.DefClass = {
-    c.properties = c.properties.map(p => if (p == oldP) newP else p)
+  def replaceProperty(c: Node.ClassDeclaration, oldP: Node.ClassBodyElement, newP: Node.ClassBodyElement): Node.ClassDeclaration = {
+    c.body.body = c.body.body.map(p => if (p == oldP) newP else p)
     c
   }
 
-  def deleteVarMember(c: Node.DefClass, member: RegExp) = {
+  def deleteVarMember(c: Node.ClassDeclaration, member: Regex): Unit = {
     val inlineBody = Classes.findInlineBody(c)
     inlineBody.fold(c) { ib =>
       // filter member variables as well
-      val retIB = ib.clone()
-      retIB.value.body = retIB.value.body.filterNot {
-        case Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(v), _)) if member.test(v) =>
-          true
-        case _ =>
-          false
+      val retIB = ib.cloneNode()
+      val body = getMethodBody(retIB)
+      for (b <- body) {
+        b.body.filterNot {
+          case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(v), _)), _) if member.findFirstIn(v).isDefined =>
+            true
+          case _ =>
+            false
+        }
+        Classes.replaceProperty(c, ib, retIB)
       }
-      Classes.replaceProperty(c, ib, retIB)
+      c
     }
   }
 
 
-  def transformClassParameters(c: Node.DefClass, init: Node.Node): Node.Node = {
-    val transformed = for (cons <- findConstructor(c)) yield {
+  def transformClassParameters(c: Node.ClassDeclaration, init: Node.Node): Node.Node = {
+    val transformed = for {
+      cons <- findConstructor(c)
+      constructorMethod <- getMethodMethod(cons)
+    } yield {
       init.transformAfter { (node, transformer) =>
+        implicit val ctx = transformer
         node match {
           case sym@Node.Identifier(name) =>
-            val pn = cons.value.argnames.find(_.name == name)
+            val pn = constructorMethod.params.find(parameterName(_)._1.name == name)
             pn.fold(sym) { p =>
-              val c = sym.clone()
+              val c = sym.copy().copyLoc(sym)
               c.name = c.name + Symbols.parSuffix
               //println(s"transformClassParameters ${c.name}")
               c
@@ -228,29 +246,31 @@ object Classes {
 
 
   def classListHarmony(n: NodeExtended) = {
-    var classes = Map.empty[SymbolMapId, Node.DefClass]
-    n.top.walk {
-      case d: Node.DefClass =>
-        for {
-          name <- d.name
-          id <- name.thedef.flatMap(id)
-        } {
-          classes += id -> d
-        }
-        true
-      case _ : Node.Program =>
-        false
-      case _ =>
-        false
+    var classes = Map.empty[SymbolMapId, Node.ClassDeclaration]
+    n.top.walkWithScope { (node, context) =>
+      implicit val ctx = context
+      node match {
+        case d: Node.ClassDeclaration =>
+          for {
+            id <- symId(d.id)
+          } {
+            classes += id -> d
+          }
+          true
+        case _: Node.Program =>
+          false
+        case _ =>
+          false
+      }
     }
     classes
   }
 
-  case class ClassListHarmony(classes: Map[SymbolMapId, Node.DefClass]) {
+  case class ClassListHarmony(classes: Map[SymbolMapId, Node.ClassDeclaration]) {
 
     def this(n: NodeExtended) = this(classListHarmony(n))
 
-    def get(name: SymbolMapId): Option[Node.DefClass] = classes.get(name)
+    def get(name: SymbolMapId): Option[Node.ClassDeclaration] = classes.get(name)
 
     def classPos(name: SymbolMapId): Int = name.sourcePos
 

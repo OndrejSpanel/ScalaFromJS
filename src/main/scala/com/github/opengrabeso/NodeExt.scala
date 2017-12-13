@@ -4,9 +4,16 @@ import _root_.esprima.Node
 
 trait NodeExt {
 
-  implicit class NodeOps(n: Node.Node) {
+  implicit class NodeOps[T <: Node.Node](n: T) {
     def start: Option[Int] = Option(n.range).map(_._1)
     def end: Option[Int] = Option(n.range).map(_._2)
+
+    def copyLoc(from: Node.Node): T = {
+      n.copyNode(from)
+      n
+    }
+
+    def cloneNode(): T = n.clone().asInstanceOf[T]
   }
 
   def nodeClassName(node: Node.Node): String = node.getClass.getSimpleName
@@ -88,6 +95,14 @@ trait NodeExt {
 
   }
 
+  def propertyKeyName(pk: Node.PropertyKey): String = {
+    pk match {
+      case Node.Identifier(name) =>
+        name
+      case Node.Literal(value, raw) =>
+        value
+    }
+  }
   def propertyName(n: Node.ObjectExpressionProperty): String = {
     (n: @unchecked) match {
       case p: Node.Property =>
@@ -109,14 +124,7 @@ trait NodeExt {
     }
   }
 
-  def keyValIsTemplate(kv: Node.Property): Boolean = propertyName(kv) startsWith Symbols.templatePrefix
-
-  def propertyIsStatic(p: Node.ClassBodyElement): Boolean = {
-    p match {
-      case p: Node.MethodDefinition =>
-        p.static
-    }
-  }
+  def keyValIsTemplate(kv: Node.ObjectExpressionProperty): Boolean = propertyName(kv) startsWith Symbols.templatePrefix
 
   object ExportFromSource {
     def unapply(arg: Node.ExportDeclaration) = arg match {

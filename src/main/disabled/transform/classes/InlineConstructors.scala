@@ -163,7 +163,7 @@ object InlineConstructors {
   def privateVariables(n: Node.Node): Node.Node = {
     n.transformAfter { (node, _) =>
       node match {
-        case cls: Node.DefClass =>
+        case cls: Node.ClassDeclaration =>
           for {
             constructorProperty@Node.MethodDefinition(_, rawConstructor: Node.Lambda) <- findConstructor(cls)
           } {
@@ -236,7 +236,7 @@ object InlineConstructors {
 
     n.transformAfter { (node, _) =>
       node match {
-        case cls: Node.DefClass =>
+        case cls: Node.ClassDeclaration =>
           for {
             constructorProperty@Node.MethodDefinition(_, rawConstructor: Node.Lambda) <- findConstructor(cls)
           } {
@@ -302,7 +302,7 @@ object InlineConstructors {
     var types = n.types
     val r = n.top.transformAfter { (node, _) =>
       node match {
-        case cls: Node.DefClass =>
+        case cls: Node.ClassDeclaration =>
           val clsTokenDef = classTokenSource(cls)
           for {
             constructorProperty@Node.MethodDefinition(_, constructor: Node.Lambda) <- findConstructor(cls)

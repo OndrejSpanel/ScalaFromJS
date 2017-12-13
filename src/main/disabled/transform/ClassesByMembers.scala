@@ -22,7 +22,7 @@ object ClassesByMembers {
     )
   }
 
-  case class MemberList(classes: Map[SymbolMapId, Node.DefClass]) {
+  case class MemberList(classes: Map[SymbolMapId, Node.ClassDeclaration]) {
 
     case class ClassUseInfo(members: Set[String] = Set.empty, funMembers: Map[String, Int] = Map.empty) {
       def addMember(member: String): ClassUseInfo = {

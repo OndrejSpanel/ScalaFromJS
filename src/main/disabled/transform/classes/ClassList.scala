@@ -35,7 +35,7 @@ object ClassList {
 
     n.walk {
       // new XXX()
-      case `n` => // the scope itself should never be considered a symbol (can be Node.DefClass)
+      case `n` => // the scope itself should never be considered a symbol (can be Node.ClassDeclaration)
         false
       case Node.New(Node.Identifier(call), _*) =>
         //println(s"Node.New ${call.name}")
@@ -47,8 +47,8 @@ object ClassList {
         //println(s"Node.Identifier ${name.name}")
         classNames += ClassId(name)
         false
-      case Node.DefClass(Defined(name), _, _) =>
-        //println(s"Node.DefClass ${name.name}")
+      case Node.ClassDeclaration(Defined(name), _, _) =>
+        //println(s"Node.ClassDeclaration ${name.name}")
         classNames += ClassId(name)
         true
 
@@ -325,7 +325,7 @@ object ClassList {
           classes.defineStaticMember(clsName, member, value)
         }
         true
-      case Node.DefClass(Defined(clsSym), _, _) =>
+      case Node.ClassDeclaration(Defined(clsSym), _, _) =>
         createClassAsNeeded(ClassId(clsSym))
         true
       case _: Node.Scope =>

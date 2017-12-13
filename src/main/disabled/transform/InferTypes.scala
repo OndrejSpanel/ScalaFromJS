@@ -559,7 +559,7 @@ object InferTypes {
           val scope = findThisClass(fun.parent_scope)
           for {
             retType <- allReturns
-            Node.DefClass(Defined(Node.Identifier(cls)), _, _) <- scope
+            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
             clsId <- id(cls)
           } {
             //println(s"Infer return type for method ${cls.name}.$sym as $retType")
@@ -574,7 +574,7 @@ object InferTypes {
           //println(s"Infer getter $sym as $allReturns")
           for {
             retType <- allReturns
-            Node.DefClass(Defined(Node.Identifier(cls)), _, _) <- scope
+            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
             clsId <- id(cls)
           } {
             //println(s"Infer return type for getter ${cls.name}.$sym as $retType")
@@ -589,7 +589,7 @@ object InferTypes {
           for {
             arg <- fun.argnames.headOption
             retType <- allTypes.get(symbolFromPar(arg).flatMap(id))
-            Node.DefClass(Defined(Node.Identifier(cls)), _, _) <- scope
+            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
             clsId <- id(cls)
           } {
             //println(s"Infer return type for setter $cls.$sym as $retType")
@@ -600,7 +600,7 @@ object InferTypes {
         case ObjectKeyVal(name, value) =>
           val scope = findThisClassInWalker(walker)
           for {
-            Node.DefClass(Defined(Node.Identifier(cls)), _, _) <- scope
+            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
             clsId <- id(cls)
           } {
             val classId = MemberId(clsId, name)

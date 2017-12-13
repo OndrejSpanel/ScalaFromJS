@@ -142,10 +142,10 @@ object Rules {
 
   def replaceIsClass(n: NodeExtended, member: ConvertProject.MemberDesc): NodeExtended = {
     // first scan for all symbols matching the rule
-    var isClassMembers = Map.empty[String, Node.DefClass]
+    var isClassMembers = Map.empty[String, Node.ClassDeclaration]
 
     n.top.walk {
-      case cls@Node.DefClass(Defined(Node.SymbolName(cName)), _, _) if member.cls test cName =>
+      case cls@Node.ClassDeclaration(Defined(Node.SymbolName(cName)), _, _) if member.cls test cName =>
         val matching = cls.properties
           .collect{
             // we expect getter, no parameters, containing a single true statement
@@ -169,12 +169,12 @@ object Rules {
     //println(s"Detected isClass members $isClassMembers")
 
     object GetClass {
-      def unapply(arg: String): Option[Node.DefClass] = isClassMembers.get(arg)
+      def unapply(arg: String): Option[Node.ClassDeclaration] = isClassMembers.get(arg)
     }
 
     val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case callOn Dot GetClass(Node.DefClass(Defined(Node.SymbolName(prop)), _, _)) =>
+        case callOn Dot GetClass(Node.ClassDeclaration(Defined(Node.SymbolName(prop)), _, _)) =>
           //println(s"Detect call $prop")
           Node.BinaryExpression(node) (callOn, instanceof, Node.Identifier(node)(prop))
         case _ =>

@@ -21,9 +21,9 @@ object FillVarMembers {
     // TODO: detect access other than this (see Node.This in expressionType to check general this handling)
     val retTop = n.top.transformAfter { (node, _) =>
       node match {
-        case cls: Node.DefClass =>
+        case cls: Node.ClassDeclaration =>
           val accessor = findInlineBody(cls)
-          //println(s"Node.DefClass ${cls.name.get.name} ${cls.start.get.pos}")
+          //println(s"Node.ClassDeclaration ${cls.name.get.name} ${cls.start.get.pos}")
           var newMembers = collection.immutable.ListMap.empty[String, Option[Node.Node]]
           // scan known prototype members (both function and var) first
           val existingInlineMembers = accessor.map { _.value.body.toSeq.collect {
@@ -94,7 +94,7 @@ object FillVarMembers {
     // remove members already present in a parent from a derived class
     val cleanup = ret.top.transformAfter { (node, _) =>
       node match {
-        case cls: Node.DefClass =>
+        case cls: Node.ClassDeclaration =>
           for {
             Node.Identifier(base) <- cls.`extends`
             baseId <- SymbolTypes.id(base)
