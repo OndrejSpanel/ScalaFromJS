@@ -709,8 +709,8 @@ object ScalaOut {
       case tn@Node.VariableDeclaration(decl, kind) =>
         outputDefinitions(kind == "const", tn)
       //case tn: Node.VariableDeclaration => outputUnknownNode(tn)
-      case tn: Node.ContinueStatement => outputUnknownNode(tn, true)
-      case tn: Node.BreakStatement => outputUnknownNode(tn, true)
+      case tn: Node.ContinueStatement => out("/* Unsupported: Continue */ continue;\n")
+      case tn: Node.BreakStatement => out("/* Unsupported: Break */ break;\n")
       //case tn: Node.LoopControl => outputUnknownNode(tn)
       case tn: Node.ThrowStatement =>
         out("throw")
