@@ -298,7 +298,7 @@ object InferTypes {
       def unknownType(types: SymbolTypes): Boolean = tpe(types).isEmpty
     }
 
-    case class SymbolAccessSymbol(symbol: SymbolDef) extends SymbolAccessInfo {
+    class SymbolAccessSymbol(symbol: SymbolDef) extends SymbolAccessInfo {
       override def toString = s"Symbol($symbol)"
 
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
@@ -313,7 +313,7 @@ object InferTypes {
 
     }
 
-    case class SymbolAccessDot(symbol: MemberId) extends SymbolAccessInfo {
+    class SymbolAccessDot(symbol: MemberId) extends SymbolAccessInfo {
       override def toString = s"Member(${symbol.cls}.${symbol.name})"
 
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
@@ -331,7 +331,7 @@ object InferTypes {
       }
     }
 
-    case class SymbolAccessArray(symbol: SymbolDef) extends SymbolAccessInfo {
+    class SymbolAccessArray(symbol: SymbolDef) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
         //println(s"SymbolAccessArray: addSymbolInferredType $this $tpe")
 
@@ -346,7 +346,7 @@ object InferTypes {
       }
     }
 
-    case class SymbolAccessMap(symbol: SymbolDef) extends SymbolAccessInfo {
+    class SymbolAccessMap(symbol: SymbolDef) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
         //println(s"SymbolAccessMap: addSymbolInferredType $this $tpe")
 
@@ -361,7 +361,7 @@ object InferTypes {
       }
     }
 
-    case class SymbolAccessDotMap(symbol: MemberId) extends SymbolAccessInfo {
+    class SymbolAccessDotMap(symbol: MemberId) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
         val mappedTpe = tpe.map(_.map(MapType))
         addInferredMemberType(Some(symbol), mappedTpe, kind)(s"Dot $symbol" +: debug:_*)
@@ -377,7 +377,7 @@ object InferTypes {
       }
     }
 
-    case class SymbolAccessDotArray(symbol: MemberId) extends SymbolAccessInfo {
+    class SymbolAccessDotArray(symbol: MemberId) extends SymbolAccessInfo {
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
         //println(s"SymbolAccessDotArray: addSymbolInferredType $symbol $tpe")
         val mappedTpe = tpe.map(_.map(ArrayType))
@@ -397,17 +397,17 @@ object InferTypes {
     object SymbolInfo {
       def unapply(arg: Node.Node)(implicit context: ScopeContext): Option[SymbolAccessInfo] = arg match {
         case Node.Identifier(Id(symDef)) =>
-          Some(SymbolAccessSymbol(symDef))
+          Some(new SymbolAccessSymbol(symDef))
 
         case Node.Identifier(Id(symDef)) Sub property =>
           //println(s"Node.Sub - ${symDef.name}")
           expressionType(property).flatMap {
             _.declType match {
               case `number` =>
-                Some(SymbolAccessArray(symDef)) // TODO: derive property is most likely Int, not Double
+                Some(new SymbolAccessArray(symDef)) // TODO: derive property is most likely Int, not Double
               case `string` =>
                 //println(s"${symDef.name} - map")
-                Some(SymbolAccessMap(symDef))
+                Some(new SymbolAccessMap(symDef))
               case _ =>
                 None
             }
@@ -421,11 +421,11 @@ object InferTypes {
               case `number` =>
                 val clsId = memberId(classFromType(expressionType(expr)), name)
                 //println(s"$clsId - dot - array")
-                clsId.map(SymbolAccessDotArray)
+                clsId.map(new SymbolAccessDotArray(_))
               case `string` =>
                 val clsId = memberId(classFromType(expressionType(expr)), name)
                 //println(s"$clsId - dot - map")
-                clsId.map(SymbolAccessDotMap)
+                clsId.map(new SymbolAccessDotMap(_))
               case _ =>
                 None
             }
@@ -435,7 +435,7 @@ object InferTypes {
 
         case expr Dot name =>
           val clsId = memberId(classFromType(expressionType(expr)), name)
-          clsId.map(SymbolAccessDot)
+          clsId.map(new SymbolAccessDot(_))
 
         case _ =>
           None
@@ -496,7 +496,7 @@ object InferTypes {
 
           if (log) println(s"Infer var $symId $leftT - $rightT `$node` $right")
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
-            for (symInfo <- Some(SymbolAccessSymbol(symDef))) {
+            for (symInfo <- Some(new SymbolAccessSymbol(symDef))) {
               if (log) println(s"  Infer var: $symInfo = $rightT")
               symInfo.addSymbolInferredType(rightT)(s"Infer var $symInfo = $rightT")
               if (log) println(s"  as: ${allTypes.get(symDef)}")
