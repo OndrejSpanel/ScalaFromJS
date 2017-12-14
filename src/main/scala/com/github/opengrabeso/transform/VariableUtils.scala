@@ -3,8 +3,8 @@ package transform
 
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
-
 import Expressions._
+import com.github.opengrabeso.esprima.symbols.{Id, ScopeContext, SymId}
 
 import scala.language.implicitConversions
 
@@ -17,8 +17,10 @@ object VariableUtils {
     def unapply(arg: Node.Node): Option[X] = {
       //println(s"Check modification of $arg")
       arg match {
-        case Node.Assign(extract(x), _, _) =>
+        case Assign(extract(x), _, _) =>
           //println(s"  Detected assignment modification of ${df.name}")
+          Some(x)
+        case Node.UpdateExpression(_, extract(x), _) =>
           Some(x)
         case Node.UnaryExpression(UnaryModification(), extract(x)) =>
           Some(x)
@@ -28,17 +30,19 @@ object VariableUtils {
     }
   }
 
-  class IsSym(sym: SymbolDef) extends Extractor[Unit] {
+  class IsSym(sym: SymId) extends Extractor[Unit] {
     def unapply(arg: Node.Node) = arg match {
-      case Node.Identifier(`sym`) => Some(())
+      // no need to check the scope, we are already traversing only scopes where the symbol is known to exist
+      case Node.Identifier(name) if name == sym.name =>
+        Some(())
       case _ => None
     }
   }
 
-  def listSymbols(n: Node.Node): Set[SymbolDef] = {
-    val symbols = Set.newBuilder[SymbolDef]
+  def listSymbols(n: Node.Node)(implicit context: ScopeContext): Set[SymId] = {
+    val symbols = Set.newBuilder[SymId]
     n walk {
-      case Node.Identifier(symDef) =>
+      case Node.Identifier(Id(symDef)) =>
         symbols += symDef
         false
       case _ =>
@@ -47,17 +51,17 @@ object VariableUtils {
     symbols.result()
   }
 
-  class VarIsModified(sym: SymbolDef) extends IsModified(new IsSym(sym))
+  class VarIsModified(sym: SymId) extends IsModified(new IsSym(sym))
 
-  case class ReferenceScopes(refs: Map[SymbolDef, Set[Node.Scope]]) {
-    def walkReferences[X](df: SymbolDef, isDfModified: Extractor[X])(onModification: X => Boolean = (_: X) => true): Boolean = {
+  case class ReferenceScopes(refs: Map[SymId, Set[Node.IsScope]]) {
+    def walkReferences[X](df: SymId, isDfModified: Extractor[X])(onModification: X => Boolean = (_: X) => true): Boolean = {
       val scopes = refs.getOrElse(df, Set())
 
       scopes.exists { s =>
         //println(s"Reference to ${df.name} in scope ${scopeName(s)}")
         var abort = false
         s.walk {
-          case ss: Node.Scope =>
+          case ss: Node.IsScope =>
             //println(s"Enter scope $ss")
             ss != s // do not descend into any other scopes, they are listed in references if needed
           //noinspection ScalaUnusedSymbol
@@ -72,21 +76,22 @@ object VariableUtils {
       }
     }
 
-    def isModified(df: SymbolDef): Boolean = walkReferences(df, new VarIsModified(df))()
+    def isModified(df: SymId): Boolean = walkReferences(df, new VarIsModified(df))()
   }
 
   def buildReferenceStacks(n: Node.Node) = {
 
     Time.disabled("buildReferenceStacks") {
-      var refs = Map.empty[SymbolDef, Set[Node.Scope]]
+      var refs = Map.empty[SymId, Set[Node.IsScope]]
 
-      n.walkWithDescend { (node, _, walker) =>
+      n.walkWithScope { (node, walker) =>
+        implicit val ctx = walker
         node match {
-          case Node.Identifier(symDef) =>
+          case Node.Identifier(Id(symDef)) =>
             val old = refs.getOrElse(symDef, Set())
 
-            val stack = walker.stack.toSeq.collect {
-              case s: Node.Scope => s
+            val stack = walker.stack.collect {
+              case s: Node.IsScope => s
             }
 
             refs += symDef -> (old ++ stack)

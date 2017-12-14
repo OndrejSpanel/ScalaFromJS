@@ -139,7 +139,8 @@ package object walker {
     // optimization: provide statical implementations of frequently used node types
     def walkStaticMemberExpression(node: Node.StaticMemberExpression, callback: Node => Unit) = {
       callback(node.`object`)
-      callback(node.property)
+      // do not enter the property - it looks like an identifier, but it is respecting normal scoping rules
+      // callback(node.property)
     }
     def walkExpressionStatement(node: Node.ExpressionStatement, callback: Node => Unit) = {
       callback(node.expression)
@@ -150,9 +151,21 @@ package object walker {
       classOf[Node.ExpressionStatement] -> (walkExpressionStatement _).asInstanceOf[NodeWalker]
     )
   }
+  def specializedTransformers(walkers: Map[Class[_], NodeTransformer]): Map[Class[_], NodeTransformer] = {
+    // optimization: provide statical implementations of frequently used node types
+    def walkStaticMemberExpression(node: Node.StaticMemberExpression, callback: Node => Node) = {
+      node.`object` = callback(node.`object`).asInstanceOf[Node.Expression]
+      // do not enter the property - it looks like an identifier, but it is respecting normal scoping rules
+      // callback(node.property)
+    }
+
+    walkers ++ Seq(
+      classOf[Node.StaticMemberExpression] -> (walkStaticMemberExpression _).asInstanceOf[NodeTransformer]
+    )
+  }
 
   var allWalkers = specializedWalkers(createAllWalkers)
-  var allTransformers = createAllTransformers
+  var allTransformers = specializedTransformers(createAllTransformers)
 
   /*
   * Extend AST types with all classes inherited from Node in given object

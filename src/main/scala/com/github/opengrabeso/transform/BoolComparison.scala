@@ -9,9 +9,9 @@ object BoolComparison {
 
     object IsTrue {
       def unapply(op: Node.BinaryExpression) = op match {
-        case Binary(expr, "!="|"!==", _: Node.False) =>
+        case Binary(expr, "!="|"!==", BooleanLiteral(false)) =>
           Some(expr)
-        case Binary(expr, "=="|"===", _: Node.True) =>
+        case Binary(expr, "=="|"===", BooleanLiteral(true)) =>
           Some(expr)
         case _ =>
           None
@@ -19,9 +19,9 @@ object BoolComparison {
     }
     object IsFalse {
       def unapply(op: Node.BinaryExpression) = op match {
-        case Binary(expr, "=="|"===", _: Node.False) =>
+        case Binary(expr, "=="|"===", BooleanLiteral(false)) =>
           Some(expr)
-        case Binary(expr, "!="|"!==", _: Node.True) =>
+        case Binary(expr, "!="|"!==", BooleanLiteral(true)) =>
           Some(expr)
         case _ =>
           None
@@ -34,15 +34,10 @@ object BoolComparison {
         case IsTrue(expr) =>
           expr
         case IsFalse(expr) =>
-          new Node.UnaryPrefix {
-            fillTokens(this, node)
-            this.operator = "!"
-            this.expression = expr
-          }
+          Node.UnaryExpression("!", expr)
         case _ =>
           node
       }
     }
-    n
   }
 }

@@ -323,11 +323,11 @@ object Transform {
                       s <- sym
                     } {
                       val par = parameterName(s)._1
-                      val td = symbId(par)
+                      val td = Id(par)
                       declBuffer append td -> parseType(tpe)
                     }
                   case JSDocReturn(tpe) =>
-                    val td = symbId(f.id)
+                    val td = Id(f.id)
                     declBuffer append td -> parseType(tpe)
                   case _ =>
                 }
@@ -410,7 +410,7 @@ object Transform {
     }
 
     def typeInfoFromClassDef(classDef: Option[Node.ClassDeclaration]) = {
-      classDef.map(_.id).map(symbId).flatMap(typeInfoFromClassSym(_))
+      classDef.map(_.id).map(Id.apply).flatMap(typeInfoFromClassSym(_))
     }
 
     n match {
@@ -828,7 +828,7 @@ object Transform {
 
   def apply(n: NodeExtended): NodeExtended = {
 
-    //import transform._
+    import transform._
 
     val transforms = Seq[NodeExtended => NodeExtended](
       //onTopNode(Modules.cleanupExports),
@@ -861,12 +861,10 @@ object Transform {
       //InferTypes.multipass _,
       onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
-      /*
-      Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
-      onTopNode(Variables.detectVals),
+      //Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
+      //onTopNode(Variables.detectVals),
       onTopNode(BoolComparison.apply), // after inferTypes (boolean comparisons may help to infer type as bool)
-      onTopNode(Collections.apply),
-      */
+      //onTopNode(Collections.apply),
       onTopNode(relations)
     )
 

@@ -83,6 +83,11 @@ trait NodeExt {
   object Binary {
     def unapply(arg: Node.BinaryExpression): Option[(Node.Expression, String, Node.Expression)] = Some(arg.left, arg.operator, arg.right)
   }
+
+  object Assign {
+    def unapply(arg: Node.AssignmentExpression): Option[(Node.Expression, String, Node.Expression)] = Some(arg.left, arg.operator, arg.right)
+  }
+
   object ObjectKeyVal {
     def unapply(arg: Node.Property) = {
       val key: String = arg.key match {
@@ -127,7 +132,12 @@ trait NodeExt {
     def unapply(arg: Node.Literal): Option[Double] = arg.value.value match {
       case s: Double => Some(s)
       case _ => None
-
+    }
+  }
+  object BooleanLiteral {
+    def unapply(arg: Node.Literal): Option[Boolean] = arg.value.value match {
+      case s: Boolean => Some(s)
+      case _ => None
     }
   }
 

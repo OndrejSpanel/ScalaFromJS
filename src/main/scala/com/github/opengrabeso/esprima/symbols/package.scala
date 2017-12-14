@@ -24,9 +24,6 @@ package object symbols {
 
   }
 
-  def symbId(name: String)(implicit context: ScopeContext): SymId = context.findSymId(name)
-  def symbId(name: Node.Identifier)(implicit context: ScopeContext): SymId = context.findSymId(name.name)
-
   // TODO: refactor: simplify - SymId is always known
   def symId(name: String)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name))
   def symId(name: Node.Identifier)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name.name))
@@ -38,6 +35,9 @@ package object symbols {
     def unapply(name: Node.Identifier)(implicit context: ScopeContext): Option[SymId] = {
       symId(name)
     }
+
+    def apply(name: String)(implicit context: ScopeContext): SymId = context.findSymId(name)
+    def apply(name: Node.Identifier)(implicit context: ScopeContext): SymId = context.findSymId(name.name)
   }
 
 
