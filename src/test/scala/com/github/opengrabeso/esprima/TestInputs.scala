@@ -1,6 +1,8 @@
 package com.github.opengrabeso.esprima
 
-trait TestInputs {
+import com.github.opengrabeso.TestUtils
+
+trait TestInputs extends TestUtils {
   val answer42 ="answer = 42"
 
   //language=JavaScript
@@ -55,7 +57,7 @@ trait TestInputs {
       }
       """
 
-  lazy val threeSource = scala.io.Source.fromResource("three.js").mkString
+  lazy val threeSource = rsc("three.js")
 
-  lazy val esprimaSource = scala.io.Source.fromResource("esprima.js").mkString
+  lazy val esprimaSource = rsc("esprima.js")
 }

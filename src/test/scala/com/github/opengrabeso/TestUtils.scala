@@ -57,7 +57,7 @@ trait TestUtils extends Assertions {
   def rsc(path: String) = {
 
     def readFile(name: String): String = {
-      val in = io.Source.fromResource(name)
+      val in = io.Source.fromInputStream(getClass.getResourceAsStream("/" + name))
       in.mkString
     }
 
