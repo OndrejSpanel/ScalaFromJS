@@ -5,13 +5,7 @@ import org.scalatest.FunSuite
 class ExpressionTests extends FunSuite with TestUtils {
 
   test("Handle single unary operator") {
-    exec check ConversionCheck(
-      //language=Javascript
-      """
-      a++
-      """).required(
-      "a += 1"
-    )
+    exec check ConversionCheck("a++").required("a += 1")
   }
 
   test("Handle unary operators") {

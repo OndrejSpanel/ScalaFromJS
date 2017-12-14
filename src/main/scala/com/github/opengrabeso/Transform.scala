@@ -122,7 +122,7 @@ object Transform {
                   Seq(operation, value)
                 } else {
                   val tempName = "temp"
-                  val storeValue = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(tempName), expr.cloneNode())), "val")
+                  val storeValue = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(tempName), expr.cloneNode())), "const")
                   val loadValue = Node.ExpressionStatement(Node.Identifier(tempName)).copyLoc(expr)
                   Seq(storeValue, operation, loadValue)
                 }
