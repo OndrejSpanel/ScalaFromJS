@@ -539,7 +539,8 @@ object ScalaOut {
         // prefer the same representation as in the original source
         tn.value.value match {
           case value: Double =>
-            val src = source
+            // note: raw coming from esprima often contains trailing semicolon, trim it if needed
+            val src = if (tn.raw.lastOption.contains(';')) tn.raw.dropRight(1) else tn.raw
 
             def decodeInt(s: String) = {
               val prefixes = Seq("0x", "0X", "#")
