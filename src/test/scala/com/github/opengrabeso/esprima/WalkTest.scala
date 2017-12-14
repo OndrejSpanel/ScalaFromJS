@@ -71,18 +71,8 @@ class WalkTest extends FunSuite with TestInputs {
     assert(count >= 100000)
   }
 
-  test("transformAfter") {
-    val ast = parse(answer42)
 
-    val transformed = ast.transformAfterSimple {
-      case Identifier("answer") =>
-        Identifier("question")
-      case Literal(esprima.OrType(42), _) =>
-        Literal(24, "24")
-      case node =>
-        node
-    }
-
+  private def verifyTransformResults(transformed: Node) = {
     var oldHits = 0
     var newHits = 0
     transformed.walk {
@@ -105,7 +95,40 @@ class WalkTest extends FunSuite with TestInputs {
     assert(newHits == 2)
   }
 
+  test("transformAfter") {
+    val ast = parse(answer42)
+
+    val transformed = ast.transformAfterSimple {
+      case Identifier("answer") =>
+        Identifier("question")
+      case Literal(esprima.OrType(42), _) =>
+        Literal(24, "24")
+      case node =>
+        node
+    }
+
+    verifyTransformResults(transformed)
+  }
+
   test("transformBefore") {
+    val ast = parse(answer42)
+
+    val transformed = ast.transformBefore { (node, descend, transformer) =>
+      val cloned = node.cloneNode()
+      val transformed = cloned match {
+        case Identifier("answer") =>
+          Identifier("question")
+        case Literal(esprima.OrType(42), _) =>
+          Literal(24, "24")
+        case _ =>
+          cloned
+      }
+
+      descend(transformed, transformer)
+      transformed
+    }
+
+    verifyTransformResults(transformed)
 
   }
 
