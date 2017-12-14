@@ -40,7 +40,7 @@ object ForRange {
       case (
         Some(VarOrLet(Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(Id(vName)), Defined(vValue))), _))),
         Some(Node.BinaryExpression(rel, Node.Identifier(Id(cLeftName)), cRight)),
-        Some(Node.BinaryExpression(assign, Node.Identifier(Id(exprName)), step))
+        Some(Node.AssignmentExpression(assign, Node.Identifier(Id(exprName)), step))
         ) if cLeftName == vName && exprName == vName =>
         createRange(vName, vValue, rel, cRight, assign, step)
       // for ( var i = 0, limit = xxxx; i < limit; i += step )
@@ -49,7 +49,7 @@ object ForRange {
           Seq(Node.VariableDeclarator(Node.Identifier(Id(vName)), Defined(vValue)), Node.VariableDeclarator(Node.Identifier(Id(limitName)), Defined(limitValue))), _
         ))),
         Some(Node.BinaryExpression(rel, Node.Identifier(Id(cLeftName)), Node.Identifier(Id(cRightName)))),
-        Some(Node.BinaryExpression(assign, Node.Identifier(Id(exprName)), step))
+        Some(Node.AssignmentExpression(assign, Node.Identifier(Id(exprName)), step))
         ) if cRightName == limitName && cLeftName == vName && exprName == vName =>
         createRange(vName, vValue, rel, limitValue, assign, step)
 
