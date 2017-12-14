@@ -16,12 +16,15 @@ object Expressions {
 
   trait RecursiveExpressionCondition {
     def allow(c: Node.Node): Boolean
+    def forbid(c: Node.Node): Boolean
 
     def check(c: Node.Node): Boolean = unapply(c).isDefined
 
     def unapply(arg: Node.Node): Option[Node.Node] = arg match {
       case c if allow(c) =>
         Some(c)
+      case c if forbid(c) =>
+        None
       case Node.NewExpression(cls, args) if args.forall(check) =>
         Some(arg)
       case AArray(args) if args.forall(check) =>
@@ -30,8 +33,6 @@ object Expressions {
         Some(arg)
       case Node.BinaryExpression(_, a, b) if check(a) && check(b) =>
         Some(arg)
-      case Node.UnaryExpression(UnaryModification(), _) =>
-        None
       case Node.UnaryExpression(_, a) if check(a) =>
         Some(arg)
       case _ =>
@@ -42,6 +43,12 @@ object Expressions {
 
   object IsConstantInitializer extends RecursiveExpressionCondition {
     def allow(c: Node.Node): Boolean = IsConstant.unapply(c)
+    def forbid(c: Node.Node): Boolean = c match {
+      case _ : Node.UpdateExpression =>
+        true
+      case _ : Node.AssignmentExpression =>
+        true
+    }
   }
 
   // a bit relaxed, some non-constant expression allowed as well
