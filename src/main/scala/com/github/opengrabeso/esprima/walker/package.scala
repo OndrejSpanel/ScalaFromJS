@@ -102,11 +102,12 @@ package object walker {
     }
   }
 
-  def createAllWalkers: Map[Class[_], NodeWalker] = {
+
+  def createWalkers(from: Type): Map[Class[_], NodeWalker] = {
     // https://stackoverflow.com/questions/27189258/list-all-classes-in-object-using-reflection
     import scala.reflect.runtime.universe._
     val mirror = runtimeMirror(this.getClass.getClassLoader)
-    val nodes = typeOf[Node.type].decls.collect {
+    val nodes = from.decls.collect {
       case c: ClassSymbol if c.toType <:< typeOf[Node] =>
         val t = c.selfType
         mirror.runtimeClass(t) -> createWalkerForType(t)
@@ -115,11 +116,11 @@ package object walker {
     nodes.toMap
   }
 
-  def createAllTransformers: Map[Class[_], NodeTransformer] = {
+  def createTransformers(from: Type): Map[Class[_], NodeTransformer] = {
     // https://stackoverflow.com/questions/27189258/list-all-classes-in-object-using-reflection
     import scala.reflect.runtime.universe._
     val mirror = runtimeMirror(this.getClass.getClassLoader)
-    val nodes = typeOf[Node.type].decls.collect {
+    val nodes = from.decls.collect {
       case c: ClassSymbol if c.toType <:< typeOf[Node] =>
         val t = c.selfType
         mirror.runtimeClass(t) -> createTransformerForType(t)
@@ -127,6 +128,9 @@ package object walker {
 
     nodes.toMap
   }
+
+  def createAllWalkers: Map[Class[_], NodeWalker] = createWalkers(typeOf[Node.type])
+  def createAllTransformers: Map[Class[_], NodeTransformer] = createTransformers(typeOf[Node.type])
 
   def specializedWalkers(walkers: Map[Class[_], NodeWalker]): Map[Class[_], NodeWalker] = {
     // optimization: provide statical implementations of frequently used node types
@@ -144,8 +148,16 @@ package object walker {
     )
   }
 
-  lazy val allWalkers = specializedWalkers(createAllWalkers)
-  lazy val allTransformers = createAllTransformers
+  var allWalkers = specializedWalkers(createAllWalkers)
+  var allTransformers = createAllTransformers
+
+  /*
+  * Extend AST types with all classes inherited from Node in given object
+   * */
+  def addNodeTypes(from: Type): Unit = {
+    allWalkers ++= createWalkers(from)
+    allTransformers ++= createTransformers(from)
+  }
 
   /*
   call callback, if it returns false, descend recursively into children nodes
