@@ -34,9 +34,10 @@ package object esprima extends NodeExt {
         } else {
           val cloned = ast.clone
           transformer.enterScope(cloned)
-          transformInto(cloned)(node => transformer.after(node).transform(transformer) )
+          transformInto(cloned)(node => node.transform(transformer) )
           transformer.leaveScope(cloned)
-          cloned.asInstanceOf[T]
+          val after = transformer.after(cloned)
+          after.asInstanceOf[T]
         }
       } else {
         ast

@@ -5,6 +5,7 @@ import esprima.Node._
 import org.scalatest.FunSuite
 
 import scala.collection.mutable
+import scala.language.implicitConversions
 
 class WalkTest extends FunSuite with TestInputs {
 
@@ -71,8 +72,23 @@ class WalkTest extends FunSuite with TestInputs {
     assert(count >= 100000)
   }
 
+  implicit def toPair(node: Node): (Node, Node) = node -> node
 
-  private def verifyTransformResults(transformed: Node) = {
+  private def transformAnswer42(node: Node): (Node, Node) = node match {
+    case Identifier("answer") =>
+      Identifier("question")
+    case Literal(esprima.OrType(42), _) =>
+      Literal(24, "24")
+    case AssignmentExpression(op, left, right) =>
+      AssignmentExpression("+=", left, right)
+    case node@ExpressionStatement(_) =>
+      BlockStatement(Seq(node)) -> node
+    case _ =>
+      node
+
+  }
+
+  private def verifyTransformResults(transformed: Node, isOld: Boolean) = {
     var oldHits = 0
     var newHits = 0
     transformed.walk {
@@ -88,26 +104,32 @@ class WalkTest extends FunSuite with TestInputs {
       case Literal(esprima.OrType(24), _) =>
         newHits += 1
         false
+      case AssignmentExpression("=", _, _) =>
+        oldHits += 1
+        false
+      case AssignmentExpression("+=", _, _) =>
+        newHits += 1
+        false
       case _ =>
         false
     }
-    assert(oldHits == 0)
-    assert(newHits == 2)
+    val totalHits = 3
+    if (isOld) {
+      assert(oldHits == totalHits)
+      assert(newHits == 0)
+    } else {
+      assert(oldHits == 0)
+      assert(newHits == totalHits)
+    }
   }
 
   test("transformAfter") {
     val ast = parse(answer42)
 
-    val transformed = ast.transformAfterSimple {
-      case Identifier("answer") =>
-        Identifier("question")
-      case Literal(esprima.OrType(42), _) =>
-        Literal(24, "24")
-      case node =>
-        node
-    }
+    val transformed = ast.transformAfterSimple(transformAnswer42(_)._1)
 
-    verifyTransformResults(transformed)
+    verifyTransformResults(ast, true)
+    verifyTransformResults(transformed, false)
   }
 
   test("transformBefore") {
@@ -115,21 +137,16 @@ class WalkTest extends FunSuite with TestInputs {
 
     val transformed = ast.transformBefore { (node, descend, transformer) =>
       val cloned = node.cloneNode()
-      val transformed = cloned match {
-        case Identifier("answer") =>
-          Identifier("question")
-        case Literal(esprima.OrType(42), _) =>
-          Literal(24, "24")
-        case _ =>
-          cloned
-      }
+      val (transformed, descendInto) = transformAnswer42(cloned)
 
-      descend(transformed, transformer)
+      // prevent recursion when e.g. ExpressionStatement is enclosed in a BlockStatement
+      // not a general solution, prevents descending into any modified nodes
+      descend(descendInto, transformer)
       transformed
     }
 
-    verifyTransformResults(transformed)
-
+    verifyTransformResults(ast, true)
+    verifyTransformResults(transformed, false)
   }
 
 

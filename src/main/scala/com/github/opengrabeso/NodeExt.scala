@@ -3,6 +3,23 @@ package com.github.opengrabeso
 import _root_.esprima.Node
 import esprima._
 
+import scala.reflect.runtime.universe.{Literal => _,_}
+
+object NodeExt {
+
+  // Scala specific node extensions for the JS AST tree
+  object Scala {
+    case class StatementExpression(var statement: Node.Statement) extends Node.Node with Node.Expression {
+
+      override def clone() = copy()
+    }
+  }
+
+  walker.addNodeTypes(typeOf[Scala.type])
+
+  def apply() = {}
+
+}
 trait NodeExt {
 
   implicit class NodeOps[T <: Node.Node](n: T) {

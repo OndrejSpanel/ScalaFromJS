@@ -1106,6 +1106,8 @@ object ScalaOut {
       case tn: Node.ExpressionStatement =>
         nodeToOut(tn.expression)
         out.eol()
+      case tn: NodeExt.Scala.StatementExpression =>
+        nodeToOut(tn.statement)
       case tn: Node.Directive =>
         if (source != """"use strict";""" && source != "'use strict';") { // east use strict silently
           outputUnknownNode(tn)

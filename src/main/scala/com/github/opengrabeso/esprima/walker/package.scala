@@ -66,19 +66,22 @@ package object walker {
         case NullaryMethodType(resultType) if resultType <:< typeOf[Node] =>
           Some[TermTransformerCallback] {(oMirror, callback) =>
             val termMirror = oMirror.reflectField(term)
-            termMirror set callback(termMirror.get.asInstanceOf[Node])
+            val transformed = callback(termMirror.get.asInstanceOf[Node])
+            termMirror set transformed
           }
         case NullaryMethodType(resultType) if resultType <:< typeOf[Seq[Node]] =>
           Some[TermTransformerCallback]{(oMirror, callback) =>
             val termMirror = oMirror.reflectField(term)
-            termMirror set termMirror.get.asInstanceOf[Seq[Node]].map(callback)
+            val transformed = termMirror.get.asInstanceOf[Seq[Node]].map(callback)
+            termMirror set transformed
           }
         case NullaryMethodType(resultType) if resultType <:< typeOf[Array[_]] =>
           resultType.typeArgs match {
             case at :: Nil if at <:< typeOf[Node] =>
               Some[TermTransformerCallback]{(oMirror, callback) =>
                 val termMirror = oMirror.reflectField(term)
-                termMirror set termMirror.get.asInstanceOf[Array[Node]].map(callback)
+                val transformed = termMirror.get.asInstanceOf[Array[Node]].map(callback)
+                termMirror set transformed
               }
             case _ =>
               None
@@ -153,6 +156,9 @@ package object walker {
 
   /*
   * Extend AST types with all classes inherited from Node in given object
+  * Note: from should be a type of a singleton object Xxxxx, obtained as typeOf[Xxxx.type]
+  * The singleton object may be nested in other singletons, but not in a class or trait
+  * Note: this is not thread safe. Take care if you have multiple extensions.
    * */
   def addNodeTypes(from: Type): Unit = {
     allWalkers ++= createWalkers(from)

@@ -85,6 +85,8 @@ object Transform {
       ).copyLoc(node)
     }
 
+    NodeExt() // force initialization
+
     // walk the tree, check for increment / decrement
     n.transformAfter { (node, transformer) =>
       def nodeResultDiscarded(n: Node.Node, parentLevel: Int): Boolean = {
@@ -113,17 +115,19 @@ object Transform {
             substitute(node, expr, op)
           } else {
             val operation = Node.ExpressionStatement(substitute(node, expr, op)).copyLoc(node)
-            new Node.BlockStatement({
-              if (prefix) {
-                val value = Node.ExpressionStatement(expr.cloneNode()).copyLoc(expr)
-                Seq(operation, value)
-              } else {
-                val tempName = "temp"
-                val storeValue = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(tempName), expr.cloneNode())), "val")
-                val loadValue = Node.ExpressionStatement(Node.Identifier(tempName)).copyLoc(expr)
-                Seq(storeValue, operation, loadValue)
+            NodeExt.Scala.StatementExpression {
+              Node.BlockStatement {
+                if (prefix) {
+                  val value = Node.ExpressionStatement(expr.cloneNode()).copyLoc(expr)
+                  Seq(operation, value)
+                } else {
+                  val tempName = "temp"
+                  val storeValue = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(tempName), expr.cloneNode())), "val")
+                  val loadValue = Node.ExpressionStatement(Node.Identifier(tempName)).copyLoc(expr)
+                  Seq(storeValue, operation, loadValue)
+                }
               }
-            }).withTokensDeep(expr)
+            }.withTokensDeep(expr)
           }
         case _ =>
           node
@@ -550,6 +554,10 @@ object Transform {
 
       case Node.BlockStatement( _ :+ ExpressionType(last)) =>
         last
+      case NodeExt.Scala.StatementExpression(expression) =>
+        expressionType(expression)
+      case Node.ExpressionStatement(expression) =>
+        expressionType(expression)
       /*
       case fun@Node.FunctionExpression(_, args, body, _) =>
         val returnType = transform.InferTypes.scanFunctionReturns(fun)(ctx)
