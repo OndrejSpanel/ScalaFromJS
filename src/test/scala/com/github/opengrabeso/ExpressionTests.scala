@@ -62,7 +62,25 @@ class ExpressionTests extends FunSuite with TestUtils {
   }
 
   test("Remove trailing return in various positions") {
-    exec check ConversionCheck(rsc("expressions/return.js"))
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      function a() {
+          return 0;
+      }
+
+      function b() {
+          if (x) return 0;
+          else return 1;
+      }
+
+      function c() {
+          if (y) {
+              if (x) return 0;
+              else return 1;
+          }
+      }
+      """)
       .required(
       )
       .forbidden(

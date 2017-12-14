@@ -167,10 +167,14 @@ object Transform {
     transformer.parent(parentLevel) match {
       case Some(ss: Node.ExpressionStatement) =>
         ss.expression == n
+      case Some(ss: NodeExt.Scala.StatementExpression) =>
+        ss.statement == n
+      case Some(fun: Node.FunctionDeclaration) =>
+        fun.body == n
       case Some(fun: Node.FunctionExpression) =>
-        fun.body.body.lastOption contains n
+        fun.body == n
       case Some(block: Node.BlockStatement) =>
-        (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1, transformer)
+        (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 1 && nodeLast(block, parentLevel + 1, transformer)
       case Some(ii: Node.IfStatement) =>
         (ii.consequent == n || Option(ii.alternate).contains(n)) && nodeLast(ii, parentLevel + 1, transformer)
       case None =>
@@ -196,8 +200,8 @@ object Transform {
 
   def removeReturnFromBody(body: Seq[Node.StatementListItem]): Seq[Node.StatementListItem] = {
     // remove all direct returns
-    for (s <- body) yield {
-      s.transformBefore { (node, descend, transformer) =>
+    body.dropRight(1) ++ body.lastOption.map {
+      _.transformBefore { (node, descend, transformer) =>
         node match {
           case _: Node.FunctionExpression =>
             // do not descend into any other functions
@@ -205,14 +209,13 @@ object Transform {
           case ret: Node.ReturnStatement if nodeLast(ret, 0, transformer) =>
             //println(s"Remove return of ${nodeTreeToString(ret)}")
             replaceReturnWithStatement(ret)
-          case ret: Node.ReturnStatement  =>
+          case ret: Node.ReturnStatement =>
             //println(s"No remove return of ${nodeTreeToString(ret)}")
             node
           case _ =>
             descend(node, transformer)
             node
         }
-
       }
     }
   }

@@ -24,18 +24,18 @@ package object esprima extends NodeExt {
       import walker._
       if (ast != null) {
         val before = transformer.before(ast, {(node, transformer) =>
-          transformer.enterScope(node)
+          transformer.enterScope(ast)
           transformInto(node)(node => node.transform(transformer) )
-          transformer.leaveScope(node)
+          transformer.leaveScope(ast)
           node
         })
         if (before != null) {
           before.asInstanceOf[T]
         } else {
           val cloned = ast.clone
-          transformer.enterScope(cloned)
+          transformer.enterScope(ast)
           transformInto(cloned)(node => node.transform(transformer) )
-          transformer.leaveScope(cloned)
+          transformer.leaveScope(ast)
           val after = transformer.after(cloned)
           after.asInstanceOf[T]
         }
