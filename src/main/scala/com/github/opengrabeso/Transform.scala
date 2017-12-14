@@ -858,7 +858,7 @@ object Transform {
       */
       objectAssign _,
       onTopNode(removeVarClassScope),
-      //InferTypes.multipass _,
+      InferTypes.multipass _,
       onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
       //Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred

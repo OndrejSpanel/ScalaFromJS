@@ -20,6 +20,12 @@ package object esprima extends NodeExt {
       symbols.walk(ast)(callback)
     }
 
+    /*
+    def walkWithDescend(callback: (Node, (Node, ScopeContext) => Unit, ScopeContext) => Boolean) = {
+      symbols.walk(ast)(callback)
+    }
+    */
+
     def transform(transformer: TreeTransformer): T = {
       import walker._
       if (ast != null) {

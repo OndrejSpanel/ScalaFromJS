@@ -85,15 +85,15 @@ package object symbols {
     val context = new ScopeContext
 
     def callbackWithPrefix(node: Node): Boolean = {
-      val ret = callback(node, context)
-      if (!ret) {
-        context.enterScope(node)
-      }
       // scan for nodes defining symbols
       node match {
         case Node.SymbolDeclaration(id@_*) =>
           context.scopes.last._2.symbols ++= id
         case _ =>
+      }
+      val ret = callback(node, context)
+      if (!ret) {
+        context.enterScope(node)
       }
       ret
     }

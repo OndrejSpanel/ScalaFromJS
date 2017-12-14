@@ -4,37 +4,43 @@ package transform
 import JsUtils._
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
-
 import Classes._
 import Transform._
 import SymbolTypes._
+import com.github.opengrabeso.ScalaOut.SymbolDef
+import com.github.opengrabeso.esprima.symbols.{Id, ScopeContext, SymId}
+
 import scala.language.implicitConversions
 
 object InferTypes {
 
-  def scanFunctionReturns(node: Node.FunctionExpression)(ctx: ExpressionTypeContext): Option[TypeInfo] = {
+  def scanFunctionReturns(node: Node.BlockStatement)(implicit ctx: ExpressionTypeContext, context: ScopeContext): Option[TypeInfo] = {
     import ctx.classOps
 
     var allReturns = Option.empty[TypeInfo]
-    node.walk {
-      // include any sub-scopes, but not local functions
-      case innerFunc: Node.FunctionExpression if innerFunc != node =>
-        true
-      case Node.ReturnStatement(Defined(value)) =>
-        //println(s"  return expression ${nodeClassName(value)}")
-        val tpe = expressionType(value)(ctx)
-        //println(s"  Return type $tpe: expr ${ScalaOut.outputNode(value)}")
-        if (tpe.isDefined) { // unknown types introduce Any return value, which we never get rid of
-          allReturns = typeUnionOption(allReturns, tpe)
-        }
-        false
-      case _ =>
-        false
+    node.walkWithScope { (node, context) =>
+      implicit val scopeCtx = context
+      node match {
+        // include any sub-scopes, but not local functions
+        case innerFunc: Node.FunctionExpression if innerFunc != node =>
+          true
+        case Node.ReturnStatement(Defined(value)) =>
+          //println(s"  return expression ${nodeClassName(value)}")
+          val tpe = expressionType(value)
+          //println(s"  Return type $tpe: expr ${ScalaOut.outputNode(value)}")
+          if (tpe.isDefined) { // unknown types introduce Any return value, which we never get rid of
+            allReturns = typeUnionOption(allReturns, tpe)
+          }
+          false
+        case _ =>
+          false
+      }
     }
+
     allReturns.orElse {
       //println("Infer no return function")
-      node.body.toSeq match {
-        case Seq(Node.ExpressionStatement(ex)) => expressionType(ex)(ctx)
+      node.body match {
+        case Seq(Node.ExpressionStatement(ex)) => expressionType(ex)
         case _ => None
       }
     }
@@ -56,11 +62,11 @@ object InferTypes {
     import ctx.classPos
     import ctx.classOps
 
-    def typeFromOperation(op: String, n: Node.Node) = {
+    def typeFromOperation(op: String, n: Node.Node)(implicit context: ScopeContext) = {
       op match {
         case IsComparison() =>
           // comparison - most like the type we are comparing to
-          expressionType(n)(ctx)
+          expressionType(n)
         case IsArithmetic() =>
           // arithmetics - must be a number,
           // hint: most likely the same type as we are operating with
@@ -185,18 +191,21 @@ object InferTypes {
     }
 
     // list all functions so that we can look-up them from call sites
-    var functions = Map.empty[Node.SymbolDeclaration, DefFun]
-    n.top.walk {
-      case defun@DefFun(Defined(name),_,_) =>
-        functions += name -> defun
-        false
-      case _ =>
-        false
+    var functions = Map.empty[SymId, DefFun]
+    n.top.walkWithScope {(node, scope) =>
+      implicit val scopeCtx = scope
+      node match {
+        case defun@DefFun(Defined(Id(name)), _, _, _) =>
+          functions += name -> defun
+          false
+        case _ =>
+          false
+      }
     }
 
     //println(functions.map(f => f._1.name))
 
-    def inferArgsFromPars(pars: Seq[(Option[SymbolMapId], Option[TypeInfo])], args: Seq[Node.Node])(debug: String*) = {
+    def inferArgsFromPars(pars: Seq[(Option[SymbolMapId], Option[TypeInfo])], args: Seq[Node.Node])(debug: String*)(implicit context: ScopeContext) = {
       for (((parId, Some(par)), arg) <- pars zip args) {
         arg match {
           case SymbolInfo(a) =>
@@ -207,14 +216,14 @@ object InferTypes {
       }
     }
 
-    def inferParsOrArgs(pars: Seq[Node.FunctionParameter], args: Seq[Node.Node])(debug: String*) = {
+    def inferParsOrArgs(pars: Seq[Node.FunctionParameter], args: Seq[Node.Node])(debug: String*)(implicit context: ScopeContext) = {
 
       //println(s"inferParsOrArgs $pars")
       val parIds = pars.map(symbolFromPar).flatMap(_.map(id))
       //println(s"  parIds $parIds")
 
       for ((Some(par), arg) <- parIds zip args) {
-        val tp = expressionType(arg)(ctx)
+        val tp = expressionType(arg)
         if (tp.exists(_.nonEmpty)) {
           //println(s"Infer par $par as $tp")
           addInferredType(Some(par), tp)(s"inferParsOrArgs $par $arg" +: debug:_*)
@@ -224,25 +233,25 @@ object InferTypes {
       inferArgsFromPars(parIds.map(p => p -> allTypes.get(p)), args)(debug:_*)
     }
 
-    def inferArgs(funType: FunctionType, args: Seq[Node.Node])(debug: String*) = {
+    def inferArgs(funType: FunctionType, args: Seq[Node.Node])(debug: String*)(implicit context: ScopeContext) = {
       val argTypes = funType.args.map(par => None -> Some(TypeInfo.target(par)))
       //println(s"Infer args for $funType, $args, $argTypes")
       inferArgsFromPars(argTypes, args)(debug:_*)
     }
 
 
-    def inferFunction(pars: Seq[Node.Node], log: Boolean) = {
-      val parTypes = pars.map(expressionType(_, log)(ctx))
+    def inferFunction(pars: Seq[Node.Node], log: Boolean)(implicit context: ScopeContext) = {
+      val parTypes = pars.map(expressionType(_, log))
       //println(s"  $pars $parTypes")
       FunctionType(AnyType, parTypes.map(_.fold[TypeDesc](NoType)(_.target)).toIndexedSeq)
     }
 
-    def inferFunctionReturn(value: Node.Node, r: TypeInfo) = {
+    def inferFunctionReturn(value: Node.Node, r: TypeInfo)(implicit context: ScopeContext) = {
       r.declType match {
         case fType: FunctionType =>
           walkLastNode(value) {
             // find any direct returns, when returning a function, infer argument symbol types
-            case Node.FunctionExpression(args, body) =>
+            case Node.FunctionExpression(_, args, body, _) =>
               //println(s"fun ${args.map(_.name).mkString(",")} -- ${fType.args}")
               //println(s"  $allTypes")
 
@@ -290,11 +299,11 @@ object InferTypes {
     }
 
     case class SymbolAccessSymbol(symbol: SymbolDef) extends SymbolAccessInfo {
-      override def toString = s"Symbol(${id(symbol)})"
+      override def toString = s"Symbol($symbol)"
 
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
         //println(s"SymbolAccessSymbol: addSymbolInferredType $this $tpe")
-        addInferredType(id(symbol), tpe, kind)(debug:_*)
+        addInferredType(symbol, tpe, kind)(debug:_*)
       }
 
       def tpe(types: SymbolTypes) = {
@@ -313,9 +322,12 @@ object InferTypes {
       }
 
       def tpe(types: SymbolTypes) =  {
+        /*
         val p = findInParents(symbol.cls, symbol.name)(ctx)
         //println(s"Check $d => $p = ${n.types.getMember(dot)}")
         types.getMember(p.map(pp => symbol.copy(cls = pp)))
+        */
+        ???
       }
     }
 
@@ -325,11 +337,11 @@ object InferTypes {
 
         val mappedTpe = tpe.map(_.map(ArrayType))
         //println(s"${symbol.name}: Array type $tpe $mappedTpe")
-        addInferredType(id(symbol), mappedTpe, kind)("Array" +: debug:_*)
+        addInferredType(symbol, mappedTpe, kind)("Array" +: debug:_*)
       }
 
       def tpe(types: SymbolTypes) =  {
-        val t = types.get(id(symbol))
+        val t = types.get(symbol)
         t.map(_.map(ArrayType))
       }
     }
@@ -340,11 +352,11 @@ object InferTypes {
 
         val mappedTpe = tpe.map(_.map(MapType))
         //println(s"${symbol.name}: Map type $tpe $mappedTpe")
-        addInferredType(id(symbol), mappedTpe, kind)("Map" +: debug:_*)
+        addInferredType(symbol, mappedTpe, kind)("Map" +: debug:_*)
       }
 
       def tpe(types: SymbolTypes) =  {
-        val t = types.get(id(symbol))
+        val t = types.get(symbol)
         t.map(_.map(MapType))
       }
     }
@@ -356,9 +368,12 @@ object InferTypes {
       }
 
       def tpe(types: SymbolTypes) =  { // TODO: verify
+        /*
         val p = findInParents(symbol.cls, symbol.name)(ctx)
         //println(s"Check $d => $p = ${n.types.getMember(dot)}")
         types.getMember(p.map(pp => symbol.copy(cls = pp)))
+        */
+        ???
       }
     }
 
@@ -370,20 +385,23 @@ object InferTypes {
       }
 
       def tpe(types: SymbolTypes) =  { // TODO: verify
+        /*
         val p = findInParents(symbol.cls, symbol.name)(ctx)
         //println(s"Check $d => $p = ${n.types.getMember(dot)}")
         types.getMember(p.map(pp => symbol.copy(cls = pp)))
+        */
+        ???
       }
     }
 
     object SymbolInfo {
-      def unapply(arg: Node.Node): Option[SymbolAccessInfo] = arg match {
-        case Node.Identifier(symDef) =>
+      def unapply(arg: Node.Node)(implicit context: ScopeContext): Option[SymbolAccessInfo] = arg match {
+        case Node.Identifier(Id(symDef)) =>
           Some(SymbolAccessSymbol(symDef))
 
-        case Node.Identifier(symDef) Node.Sub property =>
+        case Node.Identifier(Id(symDef)) Sub property =>
           //println(s"Node.Sub - ${symDef.name}")
-          expressionType(property)(ctx).flatMap {
+          expressionType(property).flatMap {
             _.declType match {
               case `number` =>
                 Some(SymbolAccessArray(symDef)) // TODO: derive property is most likely Int, not Double
@@ -395,17 +413,17 @@ object InferTypes {
             }
           }
 
-        case expr Dot name Node.Sub property =>
+        case expr Dot name Sub property =>
           //println(s"Dot Node.Sub - $name $property")
           // consider DRY with the case above
-          expressionType(property)(ctx).flatMap {
+          expressionType(property).flatMap {
             _.declType match {
               case `number` =>
-                val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
+                val clsId = memberId(classFromType(expressionType(expr)), name)
                 //println(s"$clsId - dot - array")
                 clsId.map(SymbolAccessDotArray)
               case `string` =>
-                val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
+                val clsId = memberId(classFromType(expressionType(expr)), name)
                 //println(s"$clsId - dot - map")
                 clsId.map(SymbolAccessDotMap)
               case _ =>
@@ -416,7 +434,7 @@ object InferTypes {
 
 
         case expr Dot name =>
-          val clsId = memberId(classFromType(expressionType(expr)(ctx)), name)
+          val clsId = memberId(classFromType(expressionType(expr)), name)
           clsId.map(SymbolAccessDot)
 
         case _ =>
@@ -424,6 +442,7 @@ object InferTypes {
       }
     }
 
+    /*
     def inferConstructorCall(args: Seq[Node.Node], className: SymbolMapId) = {
       //println(s"Infer arg types for class $className")
       for (c <- classes.get(className)) {
@@ -439,17 +458,18 @@ object InferTypes {
         }
       }
     }
+    */
 
     object KnownType {
-      def unapply(arg: Node.Node)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
-        val tpe = expressionType(arg)(ctx)
+      def unapply(arg: Node.Node)(implicit ctx: ExpressionTypeContext, context: ScopeContext): Option[TypeInfo] = {
+        val tpe = expressionType(arg)
         //println(s"  check type of ${ScalaOut.outputNode(arg)} as $tpe")
         tpe
       }
     }
     object GetArrayType {
-      def unapply(arg: Node.Node)(implicit ctx: ExpressionTypeContext): Option[TypeInfo] = {
-        val exprType = expressionType(arg)(ctx).map(_.declType)
+      def unapply(arg: Node.Node)(implicit ctx: ExpressionTypeContext, context: ScopeContext): Option[TypeInfo] = {
+        val exprType = expressionType(arg).map(_.declType)
         exprType match {
           case Some(ArrayType(tpe)) =>
             Some(TypeInfo.source(tpe))
@@ -460,16 +480,18 @@ object InferTypes {
       }
     }
 
-    n.top.walkWithDescend { (node, descend, walker) =>
+    // TODO: walkWithDescend (must change return value to false)
+    n.top.walkWithScope { (node, walker) =>
       //println(s"${nodeClassName(node)} ${node.toLocaleString()}")
-      descend(node, walker)
+      //descend(node, walker)
+      implicit val scopeCtx = walker
 
       node match {
-        case Node.VariableDeclarator(Node.Identifier(symDef), Defined(right)) =>
+        case Node.VariableDeclarator(Node.Identifier(Id(symDef)), Defined(right)) =>
           val log = watched(symDef.name)
           val symId = id(symDef)
           val leftT = n.types.get(symId)
-          val rightT = expressionType(right, log)(ctx)
+          val rightT = expressionType(right, log)
 
 
           if (log) println(s"Infer var $symId $leftT - $rightT `$node` $right")
@@ -485,22 +507,24 @@ object InferTypes {
             }
           }
 
+        /*
         case Node.FunctionParameter(Defined(symDef), _, Defined(JsArray(init))) =>
           if (n.types.get(symDef).isEmpty) {
             val tpe = expressionType(init)(ctx)
             addInferredType(symDef, tpe)(s"Node.FunctionParameter ${symDef.name}")
           }
+        */
 
         // a few special forms of assignment should infer no type - cyclic dependencies
-        case Node.Assign(SymbolInfo(symLeft), _, SymbolInfo(symRight)) if symLeft == symRight =>
+        case Assign(SymbolInfo(symLeft), _, SymbolInfo(symRight)) if symLeft == symRight =>
 
-        case Node.Assign(left, _, right) =>
+        case Assign(left, _, right) =>
           val log = left match {
-            case Node.Identifier(symDef) if watched(symDef.name) => true
+            case Node.Identifier(Id(symDef)) if watched(symDef.name) => true
             case _ => false
           }
-          val leftT = expressionType(left, log)(ctx)
-          val rightT = expressionType(right, log)(ctx)
+          val leftT = expressionType(left, log)
+          val rightT = expressionType(right, log)
           //if (log) println(s"Infer assign $leftT - $rightT ${ScalaOut.outputNode(node)}")
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
             for (SymbolInfo(symInfo) <- Some(left)) {
@@ -530,31 +554,31 @@ object InferTypes {
           //println(s"Infer binary: right unknown $symInfo $tpe")
           symInfo.addSymbolInferredType(tpe)(s"Infer binary: right unknown $symInfo $tpe")
 
-        case Node.Switch(SymbolInfo(symInfo), body) =>
+        case Node.SwitchStatement(SymbolInfo(symInfo), body) =>
           var allCases = Option.empty[TypeInfo]
           body.foreach {
-            case cc: Node.Case =>
-              val cType = expressionType(cc.expression)(ctx)
+            case cc: Node.SwitchCase =>
+              val cType = expressionType(cc.test)
               allCases = typeUnionOption(allCases, cType)
             case _ =>
           }
           symInfo.addSymbolInferredType(allCases)(s"Infer switch")
 
-        case fun@DefFun(Defined(symDef), _, _) =>
-          val allReturns = scanFunctionReturns(fun)(ctx)
+        case fun@DefFun(Defined(Id(symDef)), _, _, _) =>
+          val allReturns = scanFunctionReturns(fun.body)
           //println(s"${symDef.name} returns $allReturns")
           for {
             retType <- allReturns
-            sd <- symDef.thedef
+            sd <- symDef
           } {
             // parameters do not matter here, they are infered as separate symbols
             val funType = FunctionType(retType.declType, IndexedSeq())
             addInferredType(sd, Some(TypeInfo.target(funType)))(s"Infer fun ${symDef.name}")
           }
 
-        // TODO: derive getters and setters as well
-        case Node.MethodDefinition(Node.SymbolName(sym), fun: Node.FunctionExpression) =>
-          val allReturns = scanFunctionReturns(fun)(ctx)
+        /*
+        case Node.MethodDefinition(Node.Identifier(Id(sym)), _, fun: Node.FunctionExpression, _, _) =>
+          val allReturns = scanFunctionReturns(fun.body)
           // method of which class is this?
           val scope = findThisClass(fun.parent_scope)
           for {
@@ -609,10 +633,11 @@ object InferTypes {
             //println(s"Infer type for value $cls.$name as $tpe")
             addInferredMemberType(Some(classId), tpe)(s"Infer type for value $cls.$name as $tpe")
           }
+        */
 
-
-        case Node.CallExpression(Node.Identifier(call), args@_*) =>
+        case Node.CallExpression(Node.Identifier(Id(call)), args) =>
           //println(s"Call ${call.name}")
+          /*
           call.orig.headOption match {
             case Some(clazz: Node.SymbolDefClass) => // constructor call in the new Class(x)
               for {
@@ -640,19 +665,24 @@ object InferTypes {
             // TODO: reverse inference
             case _ =>
           }
-        case Node.CallExpression(s: Node.Super, args@_*) =>
+          */
+          /*
+        case Node.CallExpression(s: Node.Super, args) =>
           for (sup <- findSuperClass(s.scope)) {
             //println(s"Super call of $sup")
             inferConstructorCall(args, sup)
           }
+          */
+
+          /*
 
         case Node.CallExpression(expr Dot call, args@_*) =>
-          val exprType = expressionType(expr)(ctx)
+          val exprType = expressionType(expr)
 
           (exprType.map(_.declType),call,expr) match {
             case (Some(ArrayType(arrayElemType)), "push", SymbolInfo(sym)) =>
               if (args.nonEmpty) {
-                val elemType = args.map(expressionType(_)(ctx)).reduce(typeUnionOption)
+                val elemType = args.map(expressionType(_)).reduce(typeUnionOption)
                 sym.addSymbolInferredType(elemType.map(_.map(ArrayType)))(s"Array.push $sym elem: $elemType array: $arrayElemType")
               }
             case _ =>
@@ -694,8 +724,9 @@ object InferTypes {
                 inferParsOrArgs(m.value.argnames, args)(s"Method call $callOn: $expr.$call offset ${expr.start.map(_.pos)}")
               }
           }
+          */
 
-        case SymbolInfo(symbol) Node.Sub property =>
+        case SymbolInfo(symbol) Sub property =>
           val tpe = symbol.tpe(ctx.types)
           //println(s"$symbol Node.Sub $property `$tpe` -> `${tpe.map(_.declType)}`")
           tpe.map(_.declType) match {
@@ -717,7 +748,7 @@ object InferTypes {
               }
               // once determined, do not change
             case _ =>
-              expressionType(property)(ctx).map(_.declType) match {
+              expressionType(property).map(_.declType) match {
                 case Some(`number`) =>
                   symbol.addSymbolInferredType(Some(TypeInfo.target(ArrayType(NoType))))(s"Array index $symbol[$property]")
                 case Some(`string`) =>
@@ -729,7 +760,7 @@ object InferTypes {
 
         case _ =>
       }
-      true
+      false
     }
     // TODO: protect JSDoc explicit types
     //println(s"inferred ${inferred.types}")
@@ -747,7 +778,7 @@ object InferTypes {
     def inferTypesOneStep(n: NodeExtended, depth: Int, doByMembers: Boolean, desperate: Boolean): NodeExtended = {
 
       val now = System.currentTimeMillis()
-      val r = if (doByMembers) ClassesByMembers(n, desperate) else inferTypes(n)
+      val r = /*if (doByMembers) ClassesByMembers(n, desperate) else*/ inferTypes(n)
       val again = System.currentTimeMillis()
       def condString(cond: Boolean, s: String) = if (cond) s else ""
       if (log) println(s"Infer types ${condString(doByMembers, "by members ")}${condString(desperate, "desperate ")}step $depth, metrics: ${r.types.knownItems}: ${again - now} ms")
