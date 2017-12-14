@@ -736,9 +736,11 @@ object Transform {
     n.transformAfter { (node, _) =>
       node match {
         case IIFE(funcBody) =>
-          Node.BlockStatement {
-            removeReturnFromBody(funcBody.body)
-          }.withTokens(node)
+          NodeExt.Scala.StatementExpression{
+            Node.BlockStatement {
+              removeReturnFromBody(funcBody.body)
+            }.withTokens(node)
+          }
         case _ =>
           node
       }
