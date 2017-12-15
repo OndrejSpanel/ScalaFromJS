@@ -61,7 +61,13 @@ package object symbols {
     }
 
     def scanSymbols(node: Node) = {
-      scopes.lastOption.foreach(_._2.symbols ++= SymbolDeclaration.declaredSymbols(node, parent()))
+      if (scopes.length >= 2) {
+        val parentScope = scopes(scopes.length - 2)
+        parentScope._2.symbols ++= SymbolDeclaration.declaredSymbolsExtern(node)
+      }
+      if (scopes.nonEmpty) {
+        scopes.last._2.symbols ++= SymbolDeclaration.declaredSymbols(node)
+      }
     }
 
     def leaveScope(node: Node) = {

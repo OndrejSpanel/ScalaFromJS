@@ -3,28 +3,9 @@ package com.github.opengrabeso.esprima.symbols
 import esprima.Node._
 
 object SymbolDeclaration {
-  def declaredSymbols(node: Node, parent: Option[Node]): Seq[String] = {
-    val directDeclarations: Seq[Node] = node match {
-      case cls: ClassDeclaration =>
-        Seq(cls.id)
-      case v: VariableDeclarator =>
-        Seq(v.id)
-      case f: FunctionDeclaration =>
-        Seq(f.id)
-      case _ =>
-        Seq()
-    }
-    // some symbols are defined in the parent, like function parameters
-    val parentDeclarations: Seq[Node] = parent match {
-      case Some(f: FunctionDeclaration) =>
-        f.params
-      case Some(f: FunctionExpression) =>
-        f.params
-      case _ =>
-        Seq()
-    }
-
-    val names = (directDeclarations ++ parentDeclarations).flatMap {
+  // some symbols should be declared in the parent scope (function name)
+  def processNodes(nodes: Seq[Node]) = {
+    nodes.flatMap {
       case Identifier(id) =>
         Some(id)
       case AssignmentPattern(Identifier(id), _) =>
@@ -32,6 +13,42 @@ object SymbolDeclaration {
       case _ =>
         None
     }
-    names
+  }
+
+  def declaredSymbolsExtern(node: Node): Seq[String] = {
+    val nodes = node match {
+      case cls: ClassDeclaration =>
+        Seq(cls.id)
+      case v: VariableDeclarator =>
+        Seq(v.id)
+      case f: FunctionDeclaration =>
+        Seq(f.id)
+      case f: AsyncFunctionDeclaration =>
+        Seq(f.id)
+      case _ =>
+        Seq()
+    }
+    processNodes(nodes)
+  }
+
+  def declaredSymbols(node: Node): Seq[String] = {
+    // some symbols are defined in the parent, like function parameters
+    val nodes = node match {
+      case f: FunctionDeclaration =>
+        f.params
+      case f: FunctionExpression =>
+        f.params
+      case f: ArrowFunctionExpression =>
+        f.params
+      case f: AsyncFunctionDeclaration =>
+        f.params
+      case f: AsyncFunctionExpression =>
+        f.params
+      case f: AsyncArrowFunctionExpression =>
+        f.params
+      case _ =>
+        Seq()
+    }
+    processNodes(nodes)
   }
 }
