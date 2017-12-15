@@ -45,9 +45,11 @@ object Parameters {
         case Seq() =>
           f
         case head +: tail =>
-          process(f, head, context).fold(f) {
-            processArguments(_, tail)
-          }
+          context.enterScope(f.body)
+          val processed = process(f, head, context)
+          context.leaveScope(f.body)
+
+          processed.fold(f)(processArguments(_, tail))
       }
 
       f match {
@@ -76,8 +78,6 @@ object Parameters {
           node
       }
     }
-
-    n
   }
 
   class CompareWithUndefined(parName: SymId)(implicit context: ScopeContext) {
@@ -237,7 +237,7 @@ object Parameters {
 
             val body = decl +: f.body.body
 
-            Some(FunctionBodyAndParams(Node.BlockStatement(body), params))
+            Some(FunctionBodyAndParams(Node.BlockStatement(body).withTokens(f.body), params))
 
           } else {
             Some(f)
