@@ -47,7 +47,7 @@ package object symbols {
       // TODO: would be much more efficient with parents and scopes implemented as lists
       val ret = new ScopeContext
       ret.parents appendAll parents.takeWhile(_ != before)
-      ret.scopes appendAll scopes.takeWhile(_ != before)
+      ret.scopes appendAll scopes.takeWhile(_._1 != before)
       ret
     }
 
@@ -60,11 +60,7 @@ package object symbols {
     }
 
     def scanSymbols(node: Node) = {
-      node match {
-        case Node.SymbolDeclaration(id@_*) =>
-          scopes.last._2.symbols ++= id
-        case _ =>
-      }
+      scopes.lastOption.foreach(_._2.symbols ++= SymbolDeclaration.declaredSymbols(node))
     }
 
     def leaveScope(node: Node) = {
