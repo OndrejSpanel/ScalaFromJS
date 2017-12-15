@@ -294,8 +294,7 @@ object InferTypes {
     * */
     trait SymbolAccessInfo {
       // workaround for https://issues.scala-lang.org/browse/SI-5252
-      def tgt: TypeInferenceKind = target
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind)(debug: String*): Unit
       def tpe(types: SymbolTypes): Option[TypeInfo]
       def unknownType(types: SymbolTypes): Boolean = tpe(types).isEmpty
     }
@@ -303,7 +302,7 @@ object InferTypes {
     class SymbolAccessSymbol(symbol: SymbolDef) extends SymbolAccessInfo {
       override def toString = s"Symbol($symbol)"
 
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind)(debug: String*): Unit = {
         //println(s"SymbolAccessSymbol: addSymbolInferredType $this $tpe")
         addInferredType(symbol, tpe, kind)(debug:_*)
       }
@@ -318,7 +317,7 @@ object InferTypes {
     class SymbolAccessDot(symbol: MemberId) extends SymbolAccessInfo {
       override def toString = s"Member(${symbol.cls}.${symbol.name})"
 
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind)(debug: String*): Unit = {
         //println(s"SymbolAccessDot: addSymbolInferredType $this $tpe")
         addInferredMemberType(Some(symbol), tpe, kind)(s"Member $symbol" +: debug:_*)
       }
@@ -334,7 +333,7 @@ object InferTypes {
     }
 
     class SymbolAccessArray(symbol: SymbolDef) extends SymbolAccessInfo {
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind)(debug: String*): Unit = {
         //println(s"SymbolAccessArray: addSymbolInferredType $this $tpe")
 
         val mappedTpe = tpe.map(_.map(ArrayType))
@@ -349,7 +348,7 @@ object InferTypes {
     }
 
     class SymbolAccessMap(symbol: SymbolDef) extends SymbolAccessInfo {
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind)(debug: String*): Unit = {
         //println(s"SymbolAccessMap: addSymbolInferredType $this $tpe")
 
         val mappedTpe = tpe.map(_.map(MapType))
@@ -364,7 +363,7 @@ object InferTypes {
     }
 
     class SymbolAccessDotMap(symbol: MemberId) extends SymbolAccessInfo {
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind)(debug: String*): Unit = {
         val mappedTpe = tpe.map(_.map(MapType))
         addInferredMemberType(Some(symbol), mappedTpe, kind)(s"Dot $symbol" +: debug:_*)
       }
@@ -380,7 +379,7 @@ object InferTypes {
     }
 
     class SymbolAccessDotArray(symbol: MemberId) extends SymbolAccessInfo {
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind)(debug: String*): Unit = {
         //println(s"SymbolAccessDotArray: addSymbolInferredType $symbol $tpe")
         val mappedTpe = tpe.map(_.map(ArrayType))
         addInferredMemberType(Some(symbol), mappedTpe, kind)(debug:_*)
@@ -500,7 +499,7 @@ object InferTypes {
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
             for (symInfo <- Some(new SymbolAccessSymbol(symDef))) {
               if (log) println(s"  Infer var: $symInfo = $rightT")
-              symInfo.addSymbolInferredType(rightT)(s"Infer var $symInfo = $rightT")
+              symInfo.addSymbolInferredType(rightT, target)(s"Infer var $symInfo = $rightT")
               if (log) println(s"  as: ${allTypes.get(symDef)}")
             }
             for (SymbolInfo(symInfo) <- Some(right)) {
@@ -531,7 +530,7 @@ object InferTypes {
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
             for (SymbolInfo(symInfo) <- Some(left)) {
               if (log) println(s"Infer assign: $symInfo = $rightT")
-              symInfo.addSymbolInferredType(rightT)(s"  Infer assign: $symInfo = $rightT right $right")
+              symInfo.addSymbolInferredType(rightT, target)(s"  Infer assign: $symInfo = $rightT right $right")
             }
             for (SymbolInfo(symInfo) <- Some(right)) {
               if (log) println(s"Infer reverse assign: $leftT = $symInfo")
@@ -543,18 +542,18 @@ object InferTypes {
           if symLeft.unknownType(n.types) && symRight.unknownType(n.types) =>
           //println(s"Infer arithmetic: both unknown $symLeft $symRight")
           val numType = Some(TypeInfo.both(number))
-          symLeft.addSymbolInferredType(numType)(s"Infer arithmetic: both unknown $symLeft $symRight")
-          symRight.addSymbolInferredType(numType)(s"Infer arithmetic: both unknown $symLeft $symRight")
+          symLeft.addSymbolInferredType(numType, target)(s"Infer arithmetic: both unknown $symLeft $symRight")
+          symRight.addSymbolInferredType(numType, target)(s"Infer arithmetic: both unknown $symLeft $symRight")
 
         case Binary(SymbolInfo(symInfo), op, expr) if symInfo.unknownType(n.types) =>
           val tpe = typeFromOperation(op, expr)
           //println(s"Infer binary: left unknown $symInfo $tpe")
-          symInfo.addSymbolInferredType(tpe)(s"Infer binary: left unknown $symInfo $tpe")
+          symInfo.addSymbolInferredType(tpe, target)(s"Infer binary: left unknown $symInfo $tpe")
 
         case Binary(expr, op, SymbolInfo(symInfo)) if symInfo.unknownType(n.types) =>
           val tpe = typeFromOperation(op, expr)
           //println(s"Infer binary: right unknown $symInfo $tpe")
-          symInfo.addSymbolInferredType(tpe)(s"Infer binary: right unknown $symInfo $tpe")
+          symInfo.addSymbolInferredType(tpe, target)(s"Infer binary: right unknown $symInfo $tpe")
 
         case Node.SwitchStatement(SymbolInfo(symInfo), body) =>
           var allCases = Option.empty[TypeInfo]
@@ -564,7 +563,7 @@ object InferTypes {
               allCases = typeUnionOption(allCases, cType)
             case _ =>
           }
-          symInfo.addSymbolInferredType(allCases)(s"Infer switch")
+          symInfo.addSymbolInferredType(allCases, target)(s"Infer switch")
 
         case fun@DefFun(Defined(Id(symDef)), _, _, _) =>
           val allReturns = scanFunctionReturns(fun.body)
@@ -735,26 +734,26 @@ object InferTypes {
             case Some(ObjectOrMap) =>
               // initialized as {}, cannot be an Array, must be a map
 
-              symbol.addSymbolInferredType(Some(TypeInfo.target(MapType(NoType))))(s"ObjectOrMap $symbol")
+              symbol.addSymbolInferredType(Some(TypeInfo.target(MapType(NoType))), target)(s"ObjectOrMap $symbol")
             case Some(_: MapType) =>
               // addressing map, we know index must be a string
               for (SymbolInfo(symbol) <- Some(property)) {
                 val indexType = Some(TypeInfo.target(string))
-                symbol.addSymbolInferredType(indexType)(s"Map $symbol.$property")
+                symbol.addSymbolInferredType(indexType, target)(s"Map $symbol.$property")
               }
             case Some(_: ArrayType) =>
               // addressing array, we know index must be a number
               for (SymbolInfo(symbol) <- Some(property)) {
                 val indexType = Some(TypeInfo.target(number))
-                symbol.addSymbolInferredType(indexType)(s"Array $symbol[$property]")
+                symbol.addSymbolInferredType(indexType, target)(s"Array $symbol[$property]")
               }
               // once determined, do not change
             case _ =>
               expressionType(property).map(_.declType) match {
                 case Some(`number`) =>
-                  symbol.addSymbolInferredType(Some(TypeInfo.target(ArrayType(NoType))))(s"Array index $symbol[$property]")
+                  symbol.addSymbolInferredType(Some(TypeInfo.target(ArrayType(NoType))), target)(s"Array index $symbol[$property]")
                 case Some(`string`) =>
-                  symbol.addSymbolInferredType(Some(TypeInfo.target(MapType(NoType))))(s"Map index $symbol[$property]")
+                  symbol.addSymbolInferredType(Some(TypeInfo.target(MapType(NoType))), target)(s"Map index $symbol[$property]")
                 case _ =>
               }
           }
