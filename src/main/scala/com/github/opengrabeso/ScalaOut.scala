@@ -4,6 +4,7 @@ import com.github.opengrabeso.esprima._
 import _root_.esprima._
 import JsUtils._
 import Classes._
+import com.github.opengrabeso.esprima.symbols.{Id, SymId}
 
 import scala.util.Try
 
@@ -272,9 +273,9 @@ object ScalaOut {
       out.eol()
     }
 
-    def getSymbolType(symDef: SymbolDef): Option[SymbolTypes.TypeDesc] = {
+    def getSymbolType(symDef: SymId): Option[SymbolTypes.TypeDesc] = {
       //println(s"getSymbolType ${input.types.types}")
-      input.types.get(symDef).map(_.declType)
+      input.types.types.get(symDef).map(_.declType)
     }
 
     def outputDefinitions(isVal: Boolean, tn: Node.VariableDeclaration, types: Boolean = false) = {
@@ -284,51 +285,54 @@ object ScalaOut {
         out(if (isVal && isInitialized) "val " else "var ")
       }
 
-      tn.declarations.foreach {
+      tn.declarations.foreach { node =>
+        context.scanSymbols(node)
+        node match {
 
-        case Node.VariableDeclarator(name, Defined(OObject(props))) if props.nonEmpty && isVal =>
-          // special case handling for isResource marked object (see readFileAsJs)
-          val propNames = props.map(propertyName)
-          //println(s"propNames $propNames")
-          val markerKey = "isResource"
-          if ((propNames diff Seq("value", markerKey)).isEmpty) {
-            out"object $name extends Resource {\n"
-            out.indent()
-            for (elem <- props if propertyName(elem)!= markerKey) nodeToOut(elem)
-            out.unindent()
-            out("}\n")
-          } else {
-            out"object $name {\n"
-            out.indent()
-            for (elem <- props) nodeToOut(elem)
-            out.unindent()
-            out("}\n")
-          }
-        // empty object - might be a map instead
-        case v@Node.VariableDeclarator(s@Node.Identifier(name), Defined(OObject(Seq()))) =>
-          val sid = symId(s)
-          val tpe = input.types.get(sid).map(_.declType)
-          //println(s"Var $name ($sid) type $tpe empty object")
-          tpe match {
-            case Some(mType: SymbolTypes.MapType) =>
-              outValVar(true)
-              out"$s = ${mType.scalaConstruct}"
-              out.eol()
-            case _ =>
-              outValVar(false)
-              // it has no sense for uninitialized variable to be "val", fix it
-              // such variables can be created by extracting class private variables when their initialization cannot be extracted
-              outputVarDef(s, None, tpe, false)
-          }
+          case Node.VariableDeclarator(name, Defined(OObject(props))) if props.nonEmpty && isVal =>
+            // special case handling for isResource marked object (see readFileAsJs)
+            val propNames = props.map(propertyName)
+            //println(s"propNames $propNames")
+            val markerKey = "isResource"
+            if ((propNames diff Seq("value", markerKey)).isEmpty) {
+              out"object $name extends Resource {\n"
+              out.indent()
+              for (elem <- props if propertyName(elem) != markerKey) nodeToOut(elem)
+              out.unindent()
+              out("}\n")
+            } else {
+              out"object $name {\n"
+              out.indent()
+              for (elem <- props) nodeToOut(elem)
+              out.unindent()
+              out("}\n")
+            }
+          // empty object - might be a map instead
+          case v@Node.VariableDeclarator(s@Node.Identifier(name), Defined(OObject(Seq()))) =>
+            val sid = symId(s)
+            val tpe = input.types.get(sid).map(_.declType)
+            //println(s"Var $name ($sid) type $tpe empty object")
+            tpe match {
+              case Some(mType: SymbolTypes.MapType) =>
+                outValVar(true)
+                out"$s = ${mType.scalaConstruct}"
+                out.eol()
+              case _ =>
+                outValVar(false)
+                // it has no sense for uninitialized variable to be "val", fix it
+                // such variables can be created by extracting class private variables when their initialization cannot be extracted
+                outputVarDef(s, None, tpe, false)
+            }
 
-        case VarDef(s@Node.Identifier(name), MayBeNull(init)) =>
-          outValVar(init.isDefined)
-          //out("/*outputDefinitions 1*/")
-          val sType = getSymbolType(symId(name))
-          //out"/*Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType*/"
-          //println(s"Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType")
-          //println(getType(sym))
-          outputVarDef(s, init, sType, types)
+          case v@VarDef(s@Node.Identifier(Id(name)), MayBeNull(init)) =>
+            outValVar(init.isDefined)
+            //out("/*outputDefinitions 1*/")
+            val sType = getSymbolType(name)
+            //out"/*Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType*/"
+            //println(s"Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType")
+            //println(getType(sym))
+            outputVarDef(s, init, sType, types)
+        }
       }
     }
 
@@ -703,8 +707,8 @@ object ScalaOut {
       case tn: Node.CallExpression =>
         outputCall(tn.callee, tn.arguments)
 
-      case Node.VariableDeclarator(s@Node.Identifier(name), MayBeNull(init)) =>
-        val sType = getSymbolType(symId(name))
+      case Node.VariableDeclarator(s@Node.Identifier(Id(name)), MayBeNull(init)) =>
+        val sType = getSymbolType(name)
         outputVarDef(s, init, sType, false)
 
       case tn@Node.VariableDeclaration(decl, kind) =>
