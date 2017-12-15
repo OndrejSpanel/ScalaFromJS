@@ -82,7 +82,7 @@ class WalkTest extends FunSuite with TestInputs {
     case AssignmentExpression(op, left, right) =>
       AssignmentExpression("+=", left, right)
     case node@ExpressionStatement(_) =>
-      BlockStatement(Seq(node)) -> node
+      BlockStatement(Seq(node)).withTokens(node) -> node
     case _ =>
       node
 

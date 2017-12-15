@@ -26,7 +26,7 @@ class ExtensionsTest extends FunSuite with TestInputs {
     val transformed = ast.transformBefore {(node, descend, transformer) =>
       node match {
         case node: Node.Literal =>
-          Extension.StatementAsExpression(Node.BlockStatement(Seq(Node.ExpressionStatement(node.cloneNode()))))
+          Extension.StatementAsExpression(Node.BlockStatement(Seq(Node.ExpressionStatement(node.cloneNode()))).withTokens(node))
         case _ =>
           descend(node.cloneNode(), transformer)
       }
