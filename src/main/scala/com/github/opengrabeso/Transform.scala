@@ -85,7 +85,7 @@ object Transform {
       ).copyLoc(node)
     }
 
-    NodeExt() // force initialization
+    ScalaNode() // force initialization
 
     // walk the tree, check for increment / decrement
     n.transformAfter { (node, transformer) =>
@@ -115,7 +115,7 @@ object Transform {
             substitute(node, expr, op)
           } else {
             val operation = Node.ExpressionStatement(substitute(node, expr, op)).copyLoc(node)
-            NodeExt.Scala.StatementExpression {
+            ScalaNode.StatementExpression {
               Node.BlockStatement {
                 if (prefix) {
                   val value = Node.ExpressionStatement(expr.cloneNode()).copyLoc(expr)
@@ -167,7 +167,7 @@ object Transform {
     transformer.parent(parentLevel) match {
       case Some(ss: Node.ExpressionStatement) =>
         ss.expression == n
-      case Some(ss: NodeExt.Scala.StatementExpression) =>
+      case Some(ss: ScalaNode.StatementExpression) =>
         ss.statement == n
       case Some(fun: Node.FunctionDeclaration) =>
         fun.body == n
@@ -557,7 +557,7 @@ object Transform {
 
       case Node.BlockStatement( _ :+ ExpressionType(last)) =>
         last
-      case NodeExt.Scala.StatementExpression(expression) =>
+      case ScalaNode.StatementExpression(expression) =>
         expressionType(expression)
       case Node.ExpressionStatement(expression) =>
         expressionType(expression)
@@ -739,7 +739,7 @@ object Transform {
     n.transformAfter { (node, _) =>
       node match {
         case IIFE(funcBody) =>
-          NodeExt.Scala.StatementExpression{
+          ScalaNode.StatementExpression{
             Node.BlockStatement {
               removeReturnFromBody(funcBody.body)
             }.withTokens(node)
