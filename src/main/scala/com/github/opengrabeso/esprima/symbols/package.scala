@@ -43,12 +43,28 @@ package object symbols {
 
 
   class ScopeContext {
+    def parentScope(before: IsScope): ScopeContext = {
+      // TODO: would be much more efficient with parents and scopes implemented as lists
+      val ret = new ScopeContext
+      ret.parents appendAll parents.takeWhile(_ != before)
+      ret.scopes appendAll scopes.takeWhile(_ != before)
+      ret
+    }
+
     def enterScope(node: Node) = {
       val isScope = node.isInstanceOf[IsScope]
       if (isScope) {
         scopes.push(node -> new ScopeInfo)
       }
       parents.push(node)
+    }
+
+    def scanSymbols(node: Node) = {
+      node match {
+        case Node.SymbolDeclaration(id@_*) =>
+          scopes.last._2.symbols ++= id
+        case _ =>
+      }
     }
 
     def leaveScope(node: Node) = {
@@ -86,11 +102,7 @@ package object symbols {
 
     def callbackWithPrefix(node: Node): Boolean = {
       // scan for nodes defining symbols
-      node match {
-        case Node.SymbolDeclaration(id@_*) =>
-          context.scopes.last._2.symbols ++= id
-        case _ =>
-      }
+      context.scanSymbols(node)
       val ret = callback(node, context)
       if (!ret) {
         context.enterScope(node)

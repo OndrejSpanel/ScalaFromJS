@@ -12,7 +12,7 @@ object Convert {
     val files = code.split("\\/\\/file\\:")
     if (files.lengthCompare(1) <= 0) {
 
-      val ast = Esprima.parse(code)
+      val ast = parse(code)
 
       val ext = NodeExtended(ast).loadConfig
 

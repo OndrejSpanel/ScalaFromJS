@@ -321,7 +321,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       val code = readSourceFile(path)
       // try parsing, if unable, return a comment file instead
       try {
-        Esprima.parse(code)
+        parse(code)
         code -> path
       } catch {
         case _: Exception =>
@@ -365,7 +365,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
 
     val ast = try {
       //println("** Parse\n" + items.mkString("\n"))
-      Esprima.parse(code)
+      parse(code)
     } catch {
       case ex: Exception =>
         println(s"Parse error $ex")
@@ -454,7 +454,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       for (ConvertProject.Item(code, _, name) <- exportsImports) {
         try {
           println(s"Parse $name")
-          Esprima.parse(code)
+          parse(code)
         } catch {
           case util.control.NonFatal(ex) =>
             ex.printStackTrace()
@@ -470,7 +470,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     val compositeFile = exportsImports.map(_.code).mkString
 
     val ast = Time(s"Parse ${compositeFile.lines.length} lines") {
-      Esprima.parse(compositeFile)
+      parse(compositeFile)
     }
 
     val ext = NodeExtended(ast).loadConfig

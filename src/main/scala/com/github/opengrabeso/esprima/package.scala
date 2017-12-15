@@ -1,6 +1,7 @@
 package com.github.opengrabeso
 
-import _root_.esprima.Node.Node
+import _root_.esprima.Node._
+import _root_.esprima.{Esprima, Parser}
 import com.github.opengrabeso.esprima.symbols.ScopeContext
 
 package object esprima extends NodeExt {
@@ -75,5 +76,12 @@ package object esprima extends NodeExt {
     }
   }
 
+  object ParseOptions extends Parser.Options {
+    range = true
+    attachComment = true
+  }
+  def parse(code: String): Program = {
+    Esprima.parse(code, ParseOptions)
+  }
 
 }

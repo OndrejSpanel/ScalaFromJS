@@ -236,6 +236,7 @@ object ScalaOut {
   def nodeToOut(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
 
     context.enterScope(n)
+    context.scanSymbols(n)
 
     def source = nodeSource(n, input.input)
     // http://lisperator.net/uglifyjs/ast
@@ -1197,7 +1198,9 @@ object ScalaOut {
     val classListHarmony = new ClassListHarmony(ast)
     val inputContext = InputContext(input, ast.types, classListHarmony)
     val scopeContext = new ScopeContext
+    scopeContext.enterScope(ast.top)
     blockToOut(ast.top.body)(outConfig, inputContext, ret, scopeContext)
+    scopeContext.leaveScope(ast.top)
     sb.map(_.result)
   }
 

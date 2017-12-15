@@ -327,7 +327,8 @@ object Transform {
                       declBuffer append td -> parseType(tpe)
                     }
                   case JSDocReturn(tpe) =>
-                    val td = Id(f.id)
+                    //implicit val ctx = context.parentScope(f)
+                    val td = Id(f.id) // for the function we need the parent scope
                     declBuffer append td -> parseType(tpe)
                   case _ =>
                 }
