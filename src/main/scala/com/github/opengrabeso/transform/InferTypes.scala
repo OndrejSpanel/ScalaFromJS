@@ -293,7 +293,9 @@ object InferTypes {
       }
     * */
     trait SymbolAccessInfo {
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit
+      // workaround for https://issues.scala-lang.org/browse/SI-5252
+      def tgt: TypeInferenceKind = target
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit
       def tpe(types: SymbolTypes): Option[TypeInfo]
       def unknownType(types: SymbolTypes): Boolean = tpe(types).isEmpty
     }
@@ -301,7 +303,7 @@ object InferTypes {
     class SymbolAccessSymbol(symbol: SymbolDef) extends SymbolAccessInfo {
       override def toString = s"Symbol($symbol)"
 
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
         //println(s"SymbolAccessSymbol: addSymbolInferredType $this $tpe")
         addInferredType(symbol, tpe, kind)(debug:_*)
       }
@@ -316,7 +318,7 @@ object InferTypes {
     class SymbolAccessDot(symbol: MemberId) extends SymbolAccessInfo {
       override def toString = s"Member(${symbol.cls}.${symbol.name})"
 
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
         //println(s"SymbolAccessDot: addSymbolInferredType $this $tpe")
         addInferredMemberType(Some(symbol), tpe, kind)(s"Member $symbol" +: debug:_*)
       }
@@ -332,7 +334,7 @@ object InferTypes {
     }
 
     class SymbolAccessArray(symbol: SymbolDef) extends SymbolAccessInfo {
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
         //println(s"SymbolAccessArray: addSymbolInferredType $this $tpe")
 
         val mappedTpe = tpe.map(_.map(ArrayType))
@@ -347,7 +349,7 @@ object InferTypes {
     }
 
     class SymbolAccessMap(symbol: SymbolDef) extends SymbolAccessInfo {
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
         //println(s"SymbolAccessMap: addSymbolInferredType $this $tpe")
 
         val mappedTpe = tpe.map(_.map(MapType))
@@ -362,7 +364,7 @@ object InferTypes {
     }
 
     class SymbolAccessDotMap(symbol: MemberId) extends SymbolAccessInfo {
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
         val mappedTpe = tpe.map(_.map(MapType))
         addInferredMemberType(Some(symbol), mappedTpe, kind)(s"Dot $symbol" +: debug:_*)
       }
@@ -378,7 +380,7 @@ object InferTypes {
     }
 
     class SymbolAccessDotArray(symbol: MemberId) extends SymbolAccessInfo {
-      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*): Unit = {
+      def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind = tgt)(debug: String*): Unit = {
         //println(s"SymbolAccessDotArray: addSymbolInferredType $symbol $tpe")
         val mappedTpe = tpe.map(_.map(ArrayType))
         addInferredMemberType(Some(symbol), mappedTpe, kind)(debug:_*)
