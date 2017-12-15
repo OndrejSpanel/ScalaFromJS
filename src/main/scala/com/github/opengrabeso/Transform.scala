@@ -174,7 +174,7 @@ object Transform {
       case Some(fun: Node.FunctionExpression) =>
         fun.body == n
       case Some(block: Node.BlockStatement) =>
-        (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 1 && nodeLast(block, parentLevel + 1, transformer)
+        (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1, transformer)
       case Some(ii: Node.IfStatement) =>
         (ii.consequent == n || Option(ii.alternate).contains(n)) && nodeLast(ii, parentLevel + 1, transformer)
       case None =>
@@ -319,16 +319,14 @@ object Transform {
                   case JSDocParam(name, tpe) =>
                     // find a corresponding symbol
                     val sym = f.params.find(parameterNameString(_) == name)
-                    for {
-                      s <- sym
-                    } {
-                      val par = parameterName(s)._1
-                      val td = Id(par)
+                    for (s <- sym) {
+                      context.enterScope(f.body)
+                      val td = Id(parameterName(s)._1)
+                      context.leaveScope(f.body)
                       declBuffer append td -> parseType(tpe)
                     }
                   case JSDocReturn(tpe) =>
-                    //implicit val ctx = context.parentScope(f)
-                    val td = Id(f.id) // for the function we need the parent scope
+                    val td = Id(f.id)
                     declBuffer append td -> parseType(tpe)
                   case _ =>
                 }

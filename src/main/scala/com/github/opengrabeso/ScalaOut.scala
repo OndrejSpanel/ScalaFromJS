@@ -236,7 +236,6 @@ object ScalaOut {
   def nodeToOut(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
 
     context.enterScope(n)
-    context.scanSymbols(n)
 
     def source = nodeSource(n, input.input)
     // http://lisperator.net/uglifyjs/ast
@@ -915,9 +914,11 @@ object ScalaOut {
       case tn: DefFun =>
         out.eol(2)
         out"def ${tn.id}"
+        context.enterScope(tn.body)
         outputArgNames(tn.params, true)
         out(" = ")
         blockBracedToOut(tn.body.body)
+        context.leaveScope(tn.body)
         out.eol()
 
       /*

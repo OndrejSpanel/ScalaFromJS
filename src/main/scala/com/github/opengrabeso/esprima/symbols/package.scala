@@ -57,10 +57,11 @@ package object symbols {
         scopes.push(node -> new ScopeInfo)
       }
       parents.push(node)
+      scanSymbols(node)
     }
 
     def scanSymbols(node: Node) = {
-      scopes.lastOption.foreach(_._2.symbols ++= SymbolDeclaration.declaredSymbols(node))
+      scopes.lastOption.foreach(_._2.symbols ++= SymbolDeclaration.declaredSymbols(node, parent()))
     }
 
     def leaveScope(node: Node) = {
@@ -86,7 +87,7 @@ package object symbols {
       SymId(sym, -1)
     }
 
-    def parent(level: Int): Option[Node] = if (level < parents.length) Some(parents(parents.length - 1 - level)) else None
+    def parent(level: Int = 0): Option[Node] = if (level + 1 < parents.length) Some(parents(parents.length - 2 - level)) else None
     def stack = parents
   }
 
@@ -98,10 +99,10 @@ package object symbols {
 
     def callbackWithPrefix(node: Node): Boolean = {
       // scan for nodes defining symbols
-      context.scanSymbols(node)
+      context.enterScope(node)
       val ret = callback(node, context)
-      if (!ret) {
-        context.enterScope(node)
+      if (ret) {
+        context.leaveScope(node)
       }
       ret
     }
