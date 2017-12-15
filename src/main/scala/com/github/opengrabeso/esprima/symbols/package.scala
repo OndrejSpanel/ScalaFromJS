@@ -77,7 +77,7 @@ package object symbols {
 
     def getNodeId(n: Node.Node) = {
       if (n.range != null) n.range._1
-      else System.identityHashCode(n)
+      else ??? // System.identityHashCode(n)
     }
     def findSymId(sym: String): SymId = {
       for (i <- scopes.indices.reverse) {

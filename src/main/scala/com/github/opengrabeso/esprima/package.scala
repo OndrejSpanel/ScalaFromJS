@@ -31,6 +31,24 @@ package object esprima extends NodeExt {
     }
 
     /*
+    * Used after each transform to detect any missing scope loc information early
+    * */
+    def verifyScopesValid(): T = {
+      // walking through whole AST creates all scopes, this way we verify their loc is setup correctly
+      //symbols.walk(ast, new ScopeContext)((_, _) => false)
+
+      // this is a bit longer, but it makes locating issue easier
+      walk {
+        case scope: IsScope =>
+          assert(scope.range != null)
+          false
+        case _ =>
+          false
+      }
+      ast
+    }
+
+    /*
     def walkWithDescend(callback: (Node, (Node, ScopeContext) => Unit, ScopeContext) => Boolean) = {
       symbols.walk(ast)(callback)
     }
@@ -67,7 +85,7 @@ package object esprima extends NodeExt {
 
         override def before(node: Node, descend: (Node, TreeTransformer) => Node) = _before(node, descend, tr)
       }
-      ast.transform(tr)
+      ast.transform(tr).verifyScopesValid()
     }
 
     def transformAfter(ctx: ScopeContext)(_after: (Node, TreeTransformer) => Node): T = {
@@ -77,7 +95,7 @@ package object esprima extends NodeExt {
 
         override def after(node: Node) = _after(node, tr)
       }
-      ast.transform(tr)
+      ast.transform(tr).verifyScopesValid()
     }
 
     def transformAfterSimple(ctx: ScopeContext)(_after: Node => Node): T = {
@@ -87,7 +105,7 @@ package object esprima extends NodeExt {
 
         override def after(node: Node) = _after(node)
       }
-      ast.transform(tr)
+      ast.transform(tr).verifyScopesValid()
     }
 
     def transformBefore(_before: (Node, (Node, TreeTransformer) => Node, TreeTransformer) => Node): T = {
