@@ -43,7 +43,7 @@ package object symbols {
 
 
   class ScopeContext {
-    def parentScope(before: IsScope): ScopeContext = {
+    def parentScope(before: Node.Node): ScopeContext = {
       // TODO: would be much more efficient with parents and scopes implemented as lists
       val ret = new ScopeContext
       ret.parents appendAll parents.takeWhile(_ != before)
@@ -52,7 +52,7 @@ package object symbols {
     }
 
     def enterScope(node: Node) = {
-      val isScope = node.isInstanceOf[IsScope]
+      val isScope = IsScope.unapply(node)
       if (isScope) {
         scopes.push(node -> new ScopeInfo)
       }
@@ -65,7 +65,7 @@ package object symbols {
     }
 
     def leaveScope(node: Node) = {
-      val isScope = node.isInstanceOf[IsScope]
+      val isScope = IsScope.unapply(node)
       parents.pop()
       if (isScope) {
         scopes.pop()

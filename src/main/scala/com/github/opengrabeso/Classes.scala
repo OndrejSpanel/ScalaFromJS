@@ -11,12 +11,10 @@ import scala.util.matching.Regex
 object Classes {
 
 
-  def findDefScope(scope: Option[Node.IsScope]): Option[Node.IsScope] = {
+  def findDefScope(scope: Option[Node.Node]): Option[Node.Node] = {
     //println(s"  ${scope.map(nodeClassName)} ${scope.map(_.nesting)}")
     scope match {
-      case Some(s: Node.ClassDeclaration) => Some(s)
-      case Some(f: Node.FunctionExpression) => Some(f)
-      case Some(f: Node.FunctionDeclaration) => Some(f)
+      case Some(s@IsScope()) => Some(s)
       case Some(x) =>
         val s = ???
         findDefScope(s)
@@ -25,16 +23,15 @@ object Classes {
   }
 
   // TODO: rename to findClassScope
-  def findThisScope(scope: Option[Node.IsScope]): Option[Node.ClassDeclaration] = {
+  def findThisScope(scope: Option[Node.Node]): Option[Node.ClassDeclaration] = {
     findDefScope(scope).collect {
       case c: Node.ClassDeclaration => c
     }
   }
 
-  def findThisFunction(scope: Option[Node.IsScope]): Option[Node.Node] = {
+  def findThisFunction(scope: Option[Node.Node]): Option[Node.Node] = {
     findDefScope(scope).collect {
-      case c: Node.FunctionExpression => c
-      case c: Node.FunctionDeclaration => c
+      case c@IsFunctionScope() => c
     }
   }
 

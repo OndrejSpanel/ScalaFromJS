@@ -53,7 +53,7 @@ object VariableUtils {
 
   class VarIsModified(sym: SymId) extends IsModified(new IsSym(sym))
 
-  case class ReferenceScopes(refs: Map[SymId, Set[Node.IsScope]]) {
+  case class ReferenceScopes(refs: Map[SymId, Set[Node.Node]]) {
     def walkReferences[X](df: SymId, isDfModified: Extractor[X])(onModification: X => Boolean = (_: X) => true): Boolean = {
       val scopes = refs.getOrElse(df, Set())
 
@@ -61,7 +61,7 @@ object VariableUtils {
         //println(s"Reference to ${df.name} in scope ${scopeName(s)}")
         var abort = false
         s.walk {
-          case ss: Node.IsScope =>
+          case ss@IsScope() =>
             //println(s"Enter scope $ss")
             ss != s // do not descend into any other scopes, they are listed in references if needed
           //noinspection ScalaUnusedSymbol
@@ -82,7 +82,7 @@ object VariableUtils {
   def buildReferenceStacks(n: Node.Node) = {
 
     Time.disabled("buildReferenceStacks") {
-      var refs = Map.empty[SymId, Set[Node.IsScope]]
+      var refs = Map.empty[SymId, Set[Node.Node]]
 
       n.walkWithScope { (node, walker) =>
         implicit val ctx = walker
@@ -91,7 +91,7 @@ object VariableUtils {
             val old = refs.getOrElse(symDef, Set())
 
             val stack = walker.stack.collect {
-              case s: Node.IsScope => s
+              case s@IsScope() => s
             }
 
             refs += symDef -> (old ++ stack)

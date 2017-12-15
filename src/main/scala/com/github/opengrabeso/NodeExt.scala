@@ -131,6 +131,39 @@ trait NodeExt {
     }
   }
 
+  object IsFunctionScope {
+    def unapply(arg: Node.Node): Boolean = arg match {
+      case _: Node.FunctionExpression =>
+        true
+      case _: Node.ArrowFunctionExpression =>
+        true
+      case _: Node.FunctionDeclaration =>
+        true
+      case _: Node.AsyncFunctionExpression =>
+        true
+      case _: Node.AsyncFunctionDeclaration =>
+        true
+      case _: Node.AsyncArrowFunctionExpression =>
+        true
+      case _ =>
+        false
+    }
+  }
+  object IsScope {
+    def unapply(arg: Node.Node): Boolean = arg match {
+      case _: Node.BlockStatement =>
+        true
+      case _: Node.ClassBody =>
+        true
+      case _: Node.Program =>
+        true
+      case IsFunctionScope() =>
+        true
+      case _ =>
+        false
+    }
+  }
+
   def parameterName(n: Node.FunctionParameter): (Node.Identifier, Option[Node.Node]) = {
     (n: @unchecked) match {
       case Node.AssignmentPattern(left: Node.Identifier, right) =>

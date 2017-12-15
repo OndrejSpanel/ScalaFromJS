@@ -269,7 +269,7 @@ object ConvertProject {
         false
       case _: Node.Program =>
         false
-      case _: Node.IsScope =>
+      case IsScope() =>
         true // do not descend into any other scopes, we expect the config at the top level only
       case _ =>
         false
