@@ -1,13 +1,12 @@
 package com.github.opengrabeso
 package transform
 
-import JsUtils._
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
-
 import Transform._
 import Symbols._
 import Expressions._
+import com.github.opengrabeso.esprima.symbols.{Id, ScopeContext, SymId, symId}
 
 object Parameters {
 
@@ -18,10 +17,6 @@ object Parameters {
   def isNormalPar(par: Node.Node): Boolean = {
     //
     par match {
-      case _: Node.Destructuring =>
-        false
-      case _: Node.DefaultAssign =>
-        false
       case _: Node.FunctionParameter =>
         true
       case _ =>
@@ -29,34 +24,53 @@ object Parameters {
     }
   }
 
+  case class FunctionBodyAndParams(body: Node.BlockStatement, params: Seq[Node.FunctionParameter]) {
+    def replaceParam(name: Node.FunctionParameter, replace: Node.FunctionParameter) = {
+      params.map { x =>
+        if (x == name) replace
+        else x
+      }
+    }
+  }
+
   /**
     * Scan all parameters in all functions, parameters are scaned from last to first (right to left)
     * @param process process the function - once this returns None, scan is aborted
     * */
+  def processAllFunctions(n: Node.Node, process: (FunctionBodyAndParams, Node.FunctionParameter, ScopeContext) => Option[FunctionBodyAndParams]): Node.Node = {
 
-  def processAllFunctions(n: Node.Node, process: (Node.FunctionExpression, Node.FunctionParameter) => Option[Node.FunctionExpression]): Node.Node = {
+    def processOneFunction[T <: Node.Node](f: Node.Node, context: ScopeContext): T = {
 
-    def processOneFunction(f: Node.FunctionExpression): Node.FunctionExpression = {
-
-      def processArguments(f: Node.FunctionExpression, args: Seq[Node.FunctionParameter]): Node.FunctionExpression = args match {
+      def processArguments(f: FunctionBodyAndParams, args: Seq[Node.FunctionParameter]): FunctionBodyAndParams = args match {
         case Seq() =>
           f
         case head +: tail =>
-          process(f, head).fold(f) {
+          process(f, head, context).fold(f) {
             processArguments(_, tail)
           }
       }
 
-      processArguments(f, f.argnames.toSeq.reverse)
+      f match {
+        case f: Node.FunctionExpression =>
+          val func = processArguments(FunctionBodyAndParams(f.body, f.params), f.params.reverse)
+          f.body = func.body
+          f.params = func.params
+          f.asInstanceOf[T]
+        case f: Node.FunctionDeclaration =>
+          val func = processArguments(FunctionBodyAndParams(f.body, f.params), f.params.reverse)
+          f.body = func.body
+          f.params = func.params
+          f.asInstanceOf[T]
+      }
     }
 
-    n.transformAfter { (node, _) =>
+    n.transformAfter { (node, transformer) =>
       node match {
         case f: DefFun =>
-          processOneFunction(f)
+          processOneFunction(f, transformer.context)
         case m: Node.MethodDefinition =>
           //println(s"introduceDefaultValues ${m.key.name}")
-          m.value = processOneFunction(m.value)
+          m.value = processOneFunction(m.value, transformer.context)
           m
         case _ =>
           node
@@ -66,9 +80,9 @@ object Parameters {
     n
   }
 
-  class CompareWithUndefined(parName: String) {
+  class CompareWithUndefined(parName: SymId)(implicit context: ScopeContext) {
     def unapply(arg: Node.Node) = arg match {
-      case Binary(Node.Identifier(`parName`), op, Node.Identifier("undefined")) =>
+      case Binary(Node.Identifier(Id(`parName`)), op, Node.Identifier("undefined")) =>
         Some(op)
       case _ =>
         None
@@ -78,103 +92,115 @@ object Parameters {
   def defaultValues(n: Node.Node): Node.Node = {
 
     // the only use of a parameter is in a `x_par || value` form
-    def introduceDefaultValue(f: Node.FunctionExpression, par: Node.FunctionParameter): Option[Node.FunctionExpression] = {
-      if (!isNormalPar(par)) return None
-      val parName = par.name
-      //println(s"introduceDefaultValue $parName")
+    def introduceDefaultValue(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
+      implicit val ctx = context
+      par match {
+        case par: Node.Identifier =>
+          if (!isNormalPar(par)) return None
+          val parName = Id(parameterName(par)._1)
+          //println(s"introduceDefaultValue $parName")
 
-      // if there is only one reference, check if it is handling the default value
-      object CompareParWithUndefined extends CompareWithUndefined(parName)
+          // if there is only one reference, check if it is handling the default value
+          object CompareParWithUndefined extends CompareWithUndefined(parName)
 
-      object CheckParIsUndefined {
-        def unapply(arg: Node.Node): Boolean = arg match {
-          // par == undefined
-          case CompareParWithUndefined("==" | "===") =>
-            true
-          // !par
-          case Node.UnaryPrefix("!", Node.Identifier(`parName`)) =>
-            true
-          case _ =>
-            false
-        }
-      }
-
-      object CheckParNotUndefined {
-        def unapply(arg: Node.Node): Boolean = arg match {
-          // par != undefined
-          case CompareParWithUndefined("!=" | "!==") =>
-            true
-          // par
-          case Node.Identifier(`parName`) =>
-            true
-          case _ =>
-            false
-        }
-      }
-
-      object IsParDefaultHandling {
-        def unapply(arg: Node.Node) = arg match {
-          case Binary(symRef@Node.Identifier(`parName`), "||", InitStatement(init)) =>
-            Some(symRef, init)
-          case Node.Conditional(CheckParNotUndefined(), symRef@Node.Identifier(`parName`), InitStatement(init)) =>
-            Some(symRef, init)
-          case Node.Conditional(CheckParIsUndefined(), InitStatement(init), symRef@Node.Identifier(`parName`)) =>
-            Some(symRef, init)
-          case _ =>
-            None
-        }
-      }
-
-      object IsParDefaultHandlingAssignment {
-        def unapply(arg: Node.Node) = arg match {
-          case Node.ExpressionStatement(Node.Assign(Node.Identifier(`parName`), "=", IsParDefaultHandling(_, init))) =>
-            Some(init)
-
-          case Node.IfStatement(CheckParIsUndefined(), SingleStatement(Node.Assign(Node.Identifier(`parName`), "=", init)), None) =>
-            Some(init)
-
-          case _ => None
-        }
-      }
-
-      var defValueCond = Option.empty[Node.Node]
-      var defValueAssign = Option.empty[Node.Node]
-      var otherUse = false
-      var alreadyUsed = false
-      f.walk {
-        case IsParDefaultHandling(_, init) =>
-          //println(s"Detected def value for $parName")
-          if (!otherUse) defValueCond = Some(init)
-          otherUse = true
-          true // use inside of the def. value pattern must not set otherUse
-        case IsParDefaultHandlingAssignment(init) =>
-          //println(s"Detected def value assignment for $parName")
-          if (!alreadyUsed) defValueAssign = Some(init)
-          alreadyUsed = true
-          true // use inside of the def. value pattern must not set otherUse
-        case Node.Identifier(`parName`) =>
-          otherUse = true
-          alreadyUsed = true
-          defValueCond = None
-          false
-        case _ =>
-          false
-      }
-
-      defValueCond.toSeq ++ defValueAssign match { // use only one option - two are bad
-        case Seq(init) =>
-          par.init = js.Array(init)
-          // remove the use
-          Some(f.transformBefore { (node, descend, transform) =>
-            node match {
-              case IsParDefaultHandlingAssignment(_) if defValueAssign.isDefined =>
-                Node.EmptyStatement(node)
-              case IsParDefaultHandling(symRef, _) if defValueCond.isDefined =>
-                symRef.clone()
+          object CheckParIsUndefined {
+            def unapply(arg: Node.Node): Boolean = arg match {
+              // par == undefined
+              case CompareParWithUndefined("==" | "===") =>
+                true
+              // !par
+              case Node.UnaryExpression("!", Node.Identifier(Id(`parName`))) =>
+                true
               case _ =>
-                descend(node.clone(), transform)
+                false
             }
-          })
+          }
+
+          object CheckParNotUndefined {
+            def unapply(arg: Node.Node): Boolean = arg match {
+              // par != undefined
+              case CompareParWithUndefined("!=" | "!==") =>
+                true
+              // par
+              case Node.Identifier(Id(`parName`)) =>
+                true
+              case _ =>
+                false
+            }
+          }
+
+          object IsParDefaultHandling {
+            def unapply(arg: Node.Node) = arg match {
+              case Binary(symRef@Node.Identifier(Id(`parName`)), "||", InitStatement(init)) =>
+                Some(symRef, init)
+              case Node.ConditionalExpression(CheckParNotUndefined(), symRef@Node.Identifier(Id(`parName`)), InitStatement(init)) =>
+                Some(symRef, init)
+              case Node.ConditionalExpression(CheckParIsUndefined(), InitStatement(init), symRef@Node.Identifier(Id(`parName`))) =>
+                Some(symRef, init)
+              case _ =>
+                None
+            }
+          }
+
+          object IsParDefaultHandlingAssignment {
+            def unapply(arg: Node.Node) = arg match {
+              case Node.ExpressionStatement(Node.AssignmentExpression("=", Node.Identifier(Id(`parName`)), IsParDefaultHandling(_, init))) =>
+                Some(init)
+
+              case Node.IfStatement(CheckParIsUndefined(), SingleStatement(Node.AssignmentExpression("=", Node.Identifier(Id(`parName`)), init)), IsNull()) =>
+                Some(init)
+
+              case _ => None
+            }
+          }
+
+          var defValueCond = Option.empty[Node.Expression]
+          var defValueAssign = Option.empty[Node.Expression]
+          var otherUse = false
+          var alreadyUsed = false
+          f.body.walkWithScope(context) {(node, context) =>
+            implicit val ctx = context
+            node match {
+              case IsParDefaultHandling(_, init) =>
+                //println(s"Detected def value for $parName")
+                if (!otherUse) defValueCond = Some(init)
+                otherUse = true
+                true // use inside of the def. value pattern must not set otherUse
+              case IsParDefaultHandlingAssignment(init) =>
+                //println(s"Detected def value assignment for $parName")
+                if (!alreadyUsed) defValueAssign = Some(init)
+                alreadyUsed = true
+                true // use inside of the def. value pattern must not set otherUse
+              case Node.Identifier(Id(`parName`)) =>
+                otherUse = true
+                alreadyUsed = true
+                defValueCond = None
+                false
+              case _ =>
+                false
+            }
+          }
+
+          defValueCond.toSeq ++ defValueAssign match { // use only one option - two are bad
+            case Seq(init) =>
+              val params = f.replaceParam(par, Node.AssignmentPattern(par, init))
+
+              // remove the use
+              val body = f.body.transformBefore { (node, descend, transform) =>
+                node match {
+                  case IsParDefaultHandlingAssignment(_) if defValueAssign.isDefined =>
+                    Node.EmptyStatement()
+                  case IsParDefaultHandling(symRef, _) if defValueCond.isDefined =>
+                    symRef.clone()
+                  case _ =>
+                    descend(node.clone(), transform)
+                }
+              }
+              Some(FunctionBodyAndParams(body, params))
+
+            case _ =>
+              None
+          }
         case _ =>
           None
       }
@@ -185,51 +211,39 @@ object Parameters {
 
   }
 
-  private def renameParameter(f: Node.FunctionExpression, par: Node.FunctionParameter, newName: String) = {
-    val parIndex = f.argnames.indexOf(par)
-    val parNode = par.clone()
-
-    // introduce a new symbol
-    parNode.thedef = js.undefined
-    parNode.name = newName
-
-    f.argnames(parIndex) = parNode
-
-    parNode
-  }
-
 
   def modifications(n: Node.Node): Node.Node = {
     import VariableUtils._
 
     val refs = buildReferenceStacks(n)
 
-    def handleModification(f: Node.FunctionExpression, par: Node.FunctionParameter): Option[Node.FunctionExpression] = {
-      par.thedef.map { parDef =>
-        val parName = par.name
-        //println(s"Checking $parName")
+    def handleModification(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
+      implicit val ctx = context
+      par match {
+        case Node.Identifier(parName@Id(parDef)) =>
+          //println(s"Checking $parName")
 
+          // TODO: cloning destroys reference stacks - gather first
 
-        // TODO: cloning destroys reference stacks - gather first
+          // check if the parameter is ever modified
+          val assignedInto = refs.isModified(parDef)
+          if (assignedInto) {
+            //println(s"Detected assignment into $parName")
+            // we need to replace parameter x with x_par and intruduce var x = x_par
 
-        // check if the parameter is ever modified
-        val assignedInto = refs.isModified(parDef)
-        if (assignedInto) {
-          //println(s"Detected assignment into $parName")
-          // we need to replace parameter x with x_par and intruduce var x = x_par
-          val newF = f.clone()
+            val params = f.replaceParam(par, Node.Identifier(parName + Symbols.parSuffix))
 
-          val parNode = renameParameter(newF, par, parName + Symbols.parSuffix)
+            val decl = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(parName), Node.Identifier(parName + Symbols.parSuffix))), "let")
 
-          newF.body = js.Array(
-            Node.Let(parNode)(Node.VariableDeclarator.initialized(parNode)(parName, Node.Identifier(parNode)(parName + Symbols.parSuffix)))
-          ) ++ f.body
+            val body = decl +: f.body.body
 
-          newF
+            Some(FunctionBodyAndParams(Node.BlockStatement(body), params))
 
-        } else {
-          f
-        }
+          } else {
+            Some(f)
+          }
+        case _ =>
+          None
       }
 
 
@@ -245,44 +259,48 @@ object Parameters {
 
     var types = n.types
 
-    def handleSimpleParameters(f: Node.FunctionExpression, par: Node.FunctionParameter): Option[Node.FunctionExpression] = {
+    def handleSimpleParameters(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
+      val InlineBodyName = Classes.inlineBodyName
+      if (context.parent().collect {case Node.MethodDefinition(Node.Identifier(InlineBodyName), _, _, _, _) => ()}.nonEmpty) {
+        Some(f)
+      } else {
+        implicit val ctx = context
+        par match {
+          case Node.Identifier(parName@Id(parDef)) =>
 
-      if (!f.name.exists(_.name == Classes.inlineBodyName)) Some(f)
-      else {
-        par.thedef.map { parDef =>
-          val parName = par.name
-
-          if (parName endsWith parSuffix) {
-            // check for existence of variable without a suffix
-            val shortName = parName dropRight parSuffix.length
-            val conflict = f.body.exists {
-              case Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(`shortName`), _)) =>
-                true
-              case _ =>
-                false
-            }
-            if (!conflict) {
-              // we may rename the variable now
-              val renamedBody = f.body.map { s =>
-                //println(s"Renaming $s")
-                Variables.renameVariable(s, parDef, shortName)
+            if (parName endsWith parSuffix) {
+              // check for existence of variable without a suffix
+              val shortName = parName dropRight parSuffix.length
+              val conflict = f.body.body.exists {
+                case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(`shortName`), _)), _) =>
+                  true
+                case _ =>
+                  false
               }
-              f._body = renamedBody
+              if (!conflict) {
+                // we may rename the variable now
+                val body = f.body
+                /*
+                val renamedBody = f.body.map { s =>
+                  //println(s"Renaming $s")
+                  Variables.renameVariable(s, parDef, shortName)
+                }
+                f.body = renamedBody
+                */
+                val params = f.replaceParam(par, Node.Identifier(shortName))
 
-              renameParameter(f, par, shortName)
-              // rename hints as well
-              for (parId <- symbolId(par)) {
-                types = types.renameHint(parId, parId.copy(name = shortName))
+                // rename hints as well
+                types = types.renameHint(parDef, parDef.copy(name = shortName))
+
+                Some(f)
               }
+              else Some(f)
+            } else Some(f)
+          case _ =>
+            None
 
-              f
-            }
-            else f
-
-          } else f
         }
       }
-
     }
 
     val ret = processAllFunctions(n.top, handleSimpleParameters).asInstanceOf[Node.Program]
@@ -291,15 +309,16 @@ object Parameters {
 
 
   def removeDeprecated(n: Node.Node): Node.Node = {
-    def removeOneDeprecated(f: Node.FunctionExpression, par: Node.FunctionParameter): Option[Node.FunctionExpression] = {
+    def removeOneDeprecated(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
+      implicit val ctx = context
       if (!isNormalPar(par)) return None
-      val parName = par.name
+      val parName = Id(parameterName(par)._1)
 
-      def containsDeprecation(body: Seq[Node.Statement]) = {
+      def containsDeprecation(body: Seq[Node.StatementListItem]) = {
         body.exists {
           case Node.ExpressionStatement(Node.CallExpression(Node.Identifier("console") Dot "warn", _)) =>
             true
-          case _: Node.Throw =>
+          case _: Node.ThrowStatement =>
             true
           case _ =>
             false
@@ -311,7 +330,7 @@ object Parameters {
         object CompareParWithUndefined extends CompareWithUndefined(parName)
 
         def unapply(arg: Node.Node) = arg match {
-          case Node.IfStatement(CompareParWithUndefined("!=" | "!=="), Statements(body), None) if containsDeprecation(body) =>
+          case Node.IfStatement(CompareParWithUndefined("!=" | "!=="), Statements(body), IsNull()) if containsDeprecation(body) =>
             //println("IsParDeprecated")
             true
           case _ =>
@@ -322,29 +341,33 @@ object Parameters {
 
       var isDeprecated = false
       var otherUse = false
-      f.walk {
-        case IsParDeprecated() =>
-          //println(s"Detected deprecated par for $parName")
-          isDeprecated = true
-          true // use inside of the current pattern must not set otherUse
-        case Node.Identifier(`parName`) =>
-          otherUse = true
-          true
-        case _ =>
-          otherUse
-
+      f.body.walkWithScope(context) {(node, scope) =>
+        implicit val ctx = scope
+        node match {
+          case IsParDeprecated() =>
+            //println(s"Detected deprecated par for $parName")
+            isDeprecated = true
+            true // use inside of the current pattern must not set otherUse
+          case Node.Identifier(Id(`parName`)) =>
+            otherUse = true
+            true
+          case _ =>
+            otherUse
+        }
       }
 
       if (isDeprecated && !otherUse) Some {
-        f.argnames = f.argnames diff Seq(par)
-        f.transformAfter { (node, _) =>
-          node match {
-            case s@IsParDeprecated() =>
-              Node.EmptyStatement(s)
-            case _ =>
-              node
-          }
-        }
+        FunctionBodyAndParams(
+          f.body.transformAfter { (node, _) =>
+            node match {
+              case s@IsParDeprecated() =>
+                Node.EmptyStatement()
+              case _ =>
+                node
+            }
+          },
+          f.params diff Seq(par)
+        )
       } else None
     }
 
@@ -358,23 +381,27 @@ object Parameters {
   def inlineConstructorVars(n: NodeExtended): NodeExtended = {
     var types = n.types
     val logging = false
-    def handleConstructorVars(f: Node.FunctionExpression, par: Node.FunctionParameter): Option[Node.FunctionExpression] = {
-      if (!f.name.exists(_.name == Classes.inlineBodyName)) Some(f)
-      else {
+    def handleConstructorVars(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
+      val InlineBodyName = Classes.inlineBodyName
+      if (context.parent().collect {case Node.MethodDefinition(Node.Identifier(InlineBodyName), _, _, _, _) => ()}.nonEmpty) {
+        Some(f)
+      } else {
+        implicit val ctx = context
         // inline all parameters, or constructor only?
         // check hints: is it a variable?
+        val parSym = parameterName(par)._1
 
-        val isPurePar = n.types.getHint(symbolId(par)).contains(IsConstructorParameter)
+        val isPurePar = n.types.getHint(symbolId(parSym)).contains(IsConstructorParameter)
 
-        val parName = par.name
-        if (logging) println(s"Checking par $parName in ${f.name.map(_.name)}")
+        val parName = parSym.name
+        if (logging) println(s"Checking par $parName")
         if (isPurePar) {
           if (logging) println(s"  is a pure parameter")
-          val parDef = par.thedef.get
+          val parDef = Id(parName)
           object IsVarPar {
 
             def unapply(arg: Node.Node) = arg match {
-              case Node.Var(Node.VariableDeclarator(Node.Identifier(symName, _, Defined(symDef)), Defined(Node.Identifier(_, _, Defined(`parDef`))))) =>
+              case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(Id(symDef)), Defined(Node.Identifier(Id(`parDef`))))), _) =>
                 //println(s"IsVarPar $symName ${parDef.name}")
                 Some(symDef)
               case _ =>
@@ -393,9 +420,9 @@ object Parameters {
 
           }
 
-          var isVarPar = Option.empty[SymbolDef]
+          var isVarPar = Option.empty[SymId]
           var otherUse = false
-          f.walk {
+          f.body.walk {
             case IsVarPar(varSym) =>
               if (logging) println(s"Detected variable par ${varSym.name} for $parName")
               // only one var-par is allowed
@@ -406,7 +433,7 @@ object Parameters {
                 otherUse = true
               }
               true // use inside of the current pattern must not set otherUse
-            case Node.CallExpression(Node.This() Dot "constructor", args@_*) if args.exists(isParRef) =>
+            case Node.CallExpression(Node.ThisExpression() Dot "constructor", args) if args.exists(isParRef) =>
               // passed to the constructor - this is always allowed
               // should we check what the constructor does with the value?
               //println(s"Detected constructor call for $parName")
@@ -422,39 +449,28 @@ object Parameters {
           }
 
           isVarPar.map { varSym =>
-            if (logging) println(s"Rename ${varSym.name} in ${f.name.get.name}")
+            if (logging) println(s"Rename ${varSym.name}")
 
-            val parIndex = f.argnames.indexOf(par)
-            val parNode = f.argnames(parIndex).clone()
+            val params = f.params.map { f =>
+              if (f == par) Node.Identifier(varSym.name)
+              else f
 
-            val oldParSym = parNode.thedef
-
-            // change varSym declaration location, so that type information works
-            varSym.orig = js.Array(parNode)
-
-            parNode.thedef = varSym
-            parNode.name = varSym.name
-
-            f.argnames(parIndex) = parNode
-
+            }
             // redirect also a symbol type
-            for {
-              parSym <- oldParSym
-              tpe <- types.get(parSym)
-            } {
               //println(s"${parSym.name} -> ${varSym.name} Redirect type $tpe")
-              types += SymbolTypes.id(varSym) -> tpe
+            for (tpe <- types.get(symId(parSym))) {
+              types += Some(varSym) -> tpe
             }
 
-
-            f.transformAfter { (node, _) =>
+            val body = f.body.transformAfter { (node, _) =>
               node match {
                 case IsVarPar(`varSym`) =>
-                  Node.EmptyStatement(node)
+                  Node.EmptyStatement()
                 case _ =>
                   node
               }
             }
+            FunctionBodyAndParams(body, params)
           }.orElse(Some(f))
 
         } else Some(f)

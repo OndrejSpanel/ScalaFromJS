@@ -98,7 +98,7 @@ object Transform {
             Option(f.init).contains(n) || Option(f.update).contains(n)
           case Some(s: Node.SequenceExpression) =>
             if (s.expressions.last !=n) true
-            else if (parentLevel < transformer.stack.length - 2) {
+            else if (parentLevel < transformer.parentCount -1) {
               // even last item of seq can be substituted when the seq result is discarded
               nodeResultDiscarded(s, parentLevel+1)
             } else false
@@ -174,7 +174,7 @@ object Transform {
       case Some(fun: Node.FunctionExpression) =>
         fun.body == n
       case Some(block: Node.BlockStatement) =>
-        (block.body.lastOption contains n) && parentLevel < transformer.stack.length - 2 && nodeLast(block, parentLevel + 1, transformer)
+        (block.body.lastOption contains n) && parentLevel < transformer.parentCount - 1 && nodeLast(block, parentLevel + 1, transformer)
       case Some(ii: Node.IfStatement) =>
         (ii.consequent == n || Option(ii.alternate).contains(n)) && nodeLast(ii, parentLevel + 1, transformer)
       case None =>
@@ -710,7 +710,7 @@ object Transform {
     }
 
     n.transformAfter { (node, transformer) =>
-      implicit val ctx = transformer
+      implicit val ctx = transformer.context
       node match {
         case Node.VariableDeclaration(
           Seq(Node.VariableDeclarator(Node.Identifier(sym), Defined(DefineAndReturnClass(defClass, r)))), _
@@ -830,8 +830,8 @@ object Transform {
     import transform._
 
     val transforms = Seq[NodeExtended => NodeExtended](
-      //onTopNode(Modules.cleanupExports),
-      //onTopNode(Modules.inlineImports),
+      onTopNode(Modules.cleanupExports),
+      onTopNode(Modules.inlineImports),
       onTopNode(handleIncrement),
       //onTopNode(Variables.splitMultipleDefinitions),
       //onTopNode(Variables.varInitialization),
@@ -847,11 +847,11 @@ object Transform {
       onTopNode(Variables.convertConstToFunction)
       */
     ) ++ /* transform.classes.transforms ++*/ Seq(
-      /*
       onTopNode(Parameters.removeDeprecated),
       onTopNode(Parameters.defaultValues),
       onTopNode(Parameters.modifications),
       Parameters.simpleParameters _,
+      /*
       onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
       Variables.instanceofImpliedCast _,
       */
@@ -860,10 +860,10 @@ object Transform {
       InferTypes.multipass _,
       onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
-      //Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
+      Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
       //onTopNode(Variables.detectVals),
       onTopNode(BoolComparison.apply), // after inferTypes (boolean comparisons may help to infer type as bool)
-      //onTopNode(Collections.apply),
+      onTopNode(Collections.apply),
       onTopNode(relations)
     )
 

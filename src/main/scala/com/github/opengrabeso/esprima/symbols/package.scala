@@ -94,9 +94,9 @@ package object symbols {
   /**
     * Walk while tracking a scope stack and a symbol information
     * */
-  def walk(node: Node)(callback: (Node, ScopeContext) => Boolean): Unit = {
-    val context = new ScopeContext
-
+  def walk(node: Node, context: ScopeContext = new ScopeContext)(callback: (Node, ScopeContext) => Boolean): Unit = {
+    val origScopes = context.scopes.length
+    val origParents = context.parents.length
     def callbackWithPrefix(node: Node): Boolean = {
       // scan for nodes defining symbols
       context.enterScope(node)
@@ -113,8 +113,8 @@ package object symbols {
 
     walker.walkRecursive(node)(callbackWithPrefix)(post)
 
-    assert(context.scopes.isEmpty)
-    assert(context.parents.isEmpty)
+    assert(context.scopes.length == origScopes)
+    assert(context.parents.length == origParents)
   }
 
   def listAllSymbols(node: Node): Set[SymId] = {

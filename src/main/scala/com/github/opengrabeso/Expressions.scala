@@ -55,7 +55,7 @@ object Expressions {
   // while this theoretically incorrect, in practice the results seem good
   // TODO: use RecursiveExpressionCondition trait instead, define relaxed requirements explicitely
   object InitStatement {
-    def unapply(arg: Node.Node) = arg match {
+    def unapply(arg: Node.Expression) = arg match {
       case c@IsConstant() => Some(c)
       // TODO: accept only some forms of new or Array (avoid reordering dependent expressions)
       case c: AArray => Some(c)

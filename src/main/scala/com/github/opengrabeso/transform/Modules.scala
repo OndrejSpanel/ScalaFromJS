@@ -3,7 +3,6 @@ package transform
 
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
-
 import JsUtils._
 
 object Modules {
@@ -12,17 +11,16 @@ object Modules {
   * We remove them */
   def cleanupExports(n: Node.Node): Node.Node = {
     n.transformAfterSimple {
-      case Node.Export(Undefined(), Undefined(), Defined(value)) =>
+      case Node.ExportDefaultDeclaration(Defined(value)) =>
         // sometimes we might need to wrap in a statement?
         value match {
           case value: Node.Statement =>
             value
-          case _ =>
+          case value: Node.Expression =>
             println(s"Wrap export of $value")
-            new Node.ExpressionStatement {
-              fillTokens(this, value)
-              body = value
-            }
+            Node.ExpressionStatement(value)
+          case node =>
+            node
         }
       case node =>
         node
@@ -38,11 +36,9 @@ object Modules {
   def inlineImports(n: Node.Node): Node.Node = {
     val namespacesToRemoveBuilder = Set.newBuilder[String]
     n.walk {
-      case Node.Import(str, Defined(syms), _) =>
-        if (syms.length == 1) {
-          if (syms.head.foreign_name.name == "*") {
-            namespacesToRemoveBuilder += syms.head.name.name
-          }
+      case Node.ImportDeclaration(Seq(Node.ImportSpecifier(Node.Identifier(local), Node.Identifier(imported))), _) =>
+        if (imported == "*") {
+          namespacesToRemoveBuilder += local
         }
         false
       case _ =>
@@ -52,8 +48,8 @@ object Modules {
     //println(s"namespacesToRemove $namespacesToRemove")
 
     n.transformAfterSimple {
-      case node@Node.SymbolName(x) Dot name if namespacesToRemove contains x =>
-        Node.Identifier(node)(name)
+      case Node.StaticMemberExpression(Node.Identifier(x), name: Node.Identifier) if namespacesToRemove contains x =>
+        name
       case node =>
         node
     }

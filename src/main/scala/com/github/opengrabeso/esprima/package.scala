@@ -6,10 +6,15 @@ import com.github.opengrabeso.esprima.symbols.ScopeContext
 
 package object esprima extends NodeExt {
   // interface inspired by uglify-js
-  trait TreeTransformer extends ScopeContext {
+  trait TreeTransformer {
+
+    implicit val context: ScopeContext
     def before(node: Node, descend: (Node, TreeTransformer) => Node): Node = null
 
     def after(node: Node): Node = null
+
+    def parent(level: Int = 0) = context.parent(level)
+    def parentCount: Int = context.parents.length - 1
   }
 
   implicit class ASTOps[T <: Node](ast: T) {
@@ -17,8 +22,12 @@ package object esprima extends NodeExt {
       walker.walkRecursive(ast)(callback)()
     }
 
+    def walkWithScope(scope: ScopeContext)(callback: (Node, ScopeContext) => Boolean) = {
+      symbols.walk(ast, scope)(callback)
+    }
+
     def walkWithScope(callback: (Node, ScopeContext) => Boolean) = {
-      symbols.walk(ast)(callback)
+      symbols.walk(ast, new ScopeContext)(callback)
     }
 
     /*
@@ -30,20 +39,20 @@ package object esprima extends NodeExt {
     def transform(transformer: TreeTransformer): T = {
       import walker._
       if (ast != null) {
-        transformer.enterScope(ast)
-        val before = transformer.before(ast, {(node, transformer) =>
-          transformInto(node)(node => node.transform(transformer) )
+        transformer.context.enterScope(ast)
+        val before = transformer.before(ast, { (node, transformer) =>
+          transformInto(node)(node => node.transform(transformer))
           node
         })
-        transformer.leaveScope(ast)
+        transformer.context.leaveScope(ast)
         if (before != null) {
           before.asInstanceOf[T]
         } else {
           val cloned = ast.clone
-          transformer.enterScope(ast)
-          transformInto(cloned)(node => node.transform(transformer) )
+          transformer.context.enterScope(ast)
+          transformInto(cloned)(node => node.transform(transformer))
           val after = transformer.after(cloned)
-          transformer.leaveScope(ast)
+          transformer.context.leaveScope(ast)
           after.asInstanceOf[T]
         }
       } else {
@@ -51,28 +60,46 @@ package object esprima extends NodeExt {
       }
     }
 
-    def transformBefore(_before: (Node, (Node, TreeTransformer) => Node, TreeTransformer) => Node): T = {
+    def transformBefore(ctx: ScopeContext)(_before: (Node, (Node, TreeTransformer) => Node, TreeTransformer) => Node): T = {
       var tr: TreeTransformer = null
       tr = new TreeTransformer {
+        override val context = ctx
+
         override def before(node: Node, descend: (Node, TreeTransformer) => Node) = _before(node, descend, tr)
       }
       ast.transform(tr)
     }
 
-    def transformAfter(_after: (Node, TreeTransformer) => Node): T = {
+    def transformAfter(ctx: ScopeContext)(_after: (Node, TreeTransformer) => Node): T = {
       var tr: TreeTransformer = null
       tr = new TreeTransformer {
+        override val context = ctx
+
         override def after(node: Node) = _after(node, tr)
       }
       ast.transform(tr)
     }
 
-    def transformAfterSimple(_after: Node => Node): T = {
+    def transformAfterSimple(ctx: ScopeContext)(_after: Node => Node): T = {
       var tr: TreeTransformer = null
       tr = new TreeTransformer {
+        override val context = ctx
+
         override def after(node: Node) = _after(node)
       }
       ast.transform(tr)
+    }
+
+    def transformBefore(_before: (Node, (Node, TreeTransformer) => Node, TreeTransformer) => Node): T = {
+      transformBefore(new ScopeContext)(_before)
+    }
+
+    def transformAfter(_after: (Node, TreeTransformer) => Node): T = {
+      transformAfter(new ScopeContext)(_after)
+    }
+
+    def transformAfterSimple(_after: Node => Node): T = {
+      transformAfterSimple(new ScopeContext)(_after)
     }
   }
 

@@ -3,6 +3,7 @@ package transform
 
 import com.github.opengrabeso.esprima._
 import _root_.esprima._
+import com.github.opengrabeso.esprima.symbols.{Id, ScopeContext, SymId}
 
 object Collections {
 
@@ -10,13 +11,13 @@ object Collections {
     def append(member: String) = MemberValuePath(this, member)
     def parent: ValuePath
 
-    def unapply(arg: Node.Node): Boolean
+    def unapply(arg: Node.Node)(implicit context: ScopeContext): Boolean
   }
 
   case object ThisValuePath extends ValuePath {
     def parent: ValuePath = throw new NoSuchFieldException(s"No more parents in $this")
-    def unapply(arg: Node.Node) = arg match {
-      case _: Node.This => // Node.Identifier does not match against this
+    def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
+      case _: Node.ThisExpression => // Node.Identifier does not match against this
         //println(s"ThisValuePath: match $arg")
         true
       case _ =>
@@ -25,11 +26,11 @@ object Collections {
     }
 
   }
-  case class VariableValuePath(name: SymbolDef) extends ValuePath {
+  case class VariableValuePath(name: SymId) extends ValuePath {
     def parent: ValuePath = throw new NoSuchFieldException(s"No more parents in $this")
 
-    def unapply(arg: Node.Node) = arg match {
-      case Node.Identifier(`name`) => // Node.Identifier does not match against this
+    def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
+      case Node.Identifier(Id(`name`)) => // Node.Identifier does not match against this
         //println(s"VariableValuePath $this: match $arg against ${name.name}")
         true
       case _ =>
@@ -39,7 +40,7 @@ object Collections {
   }
   case class MemberValuePath(parent: ValuePath, member: String) extends ValuePath {
 
-    def unapply(arg: Node.Node): Boolean = {
+    def unapply(arg: Node.Node)(implicit context: ScopeContext): Boolean = {
       arg match {
         case parent() Dot `member` =>
           //println(s"MemberValuePath $this: match $arg against $parent.$member")
@@ -53,13 +54,13 @@ object Collections {
   }
 
   object ValuePath {
-    def unapply(arg: Node.Node): Option[ValuePath] = {
+    def unapply(arg: Node.Node)(implicit context: ScopeContext): Option[ValuePath] = {
       //println(s"ValuePath Unapply $arg")
       arg match {
-        case Node.Identifier(refDef) => // Node.Identifier does not match against this
+        case Node.Identifier(Id(refDef)) => // Node.Identifier does not match against this
           //println(s"ValuePath: Match $arg as ${refDef.name}")
           Some(VariableValuePath(refDef))
-        case _: Node.This =>
+        case _: Node.ThisExpression =>
           Some(ThisValuePath)
         case ValuePath(parent) Dot name =>
           //println(s"ValuePath: Match $arg as $parent.$name")
@@ -72,10 +73,10 @@ object Collections {
     }
   }
 
-  def usedOnlyAsIndex(body: Node.Node, varName: SymbolDef, objName: ValuePath): Boolean = {
+  def usedOnlyAsIndex(body: Node.Node, varName: SymId, objName: ValuePath)(implicit context: ScopeContext): Boolean = {
     object IndexUsage {
-      def unapply(arg: Node.Sub) = arg match {
-        case objName() Node.Sub Node.Identifier(`varName`) =>
+      def unapply(arg: Sub) = arg match {
+        case objName() Sub Node.Identifier(Id(`varName`)) =>
           true
         case _ =>
           false
@@ -83,7 +84,7 @@ object Collections {
     }
     var otherUse = false
     body.walk {
-      case node@Node.Assign(IndexUsage(), _, _) =>
+      case node@Assign(IndexUsage(), _, _) =>
         // use on the left side of assignment - that is not allowed
         //println(s"L-value use $node")
         otherUse = true
@@ -91,7 +92,7 @@ object Collections {
       case node@IndexUsage() =>
         //println(s"Allowed use $node")
         true
-      case node@Node.Identifier(`varName`) =>
+      case node@Node.Identifier(Id(`varName`)) =>
         //println(s"Forbidden use $node")
         otherUse = true
         otherUse
@@ -101,10 +102,10 @@ object Collections {
     !otherUse
   }
 
-  def transformIndexUse(body: Node.Node, varName: SymbolDef, objName: ValuePath): Node.Node = {
-    body.transformAfter {(node, _) =>
+  def transformIndexUse(body: Node.Node, varName: SymId, objName: ValuePath)(implicit context: ScopeContext): Node.Node = {
+    body.transformAfter(context) {(node, _) =>
       node match {
-        case objName() Node.Sub (varRef@Node.Identifier(`varName`)) =>
+        case objName() Sub (varRef@Node.Identifier(Id(`varName`))) =>
           varRef
         case _ =>
           node
@@ -113,21 +114,24 @@ object Collections {
     }
   }
 
-  def substituteIndex(forStatement: Node.ForIn, varName: SymbolDef) = {
+  def substituteIndex(forStatement: Node.ForInStatement, varName: SymId) = {
     // if there is a single variable inside of the body as const xx = varName and varName it not used otherwise, substitute it
     var otherUse = false
-    var subst = Option.empty[SymbolDef]
-    forStatement.body.walk {
-      case Node.Const(Node.VariableDeclarator(Node.Identifier(name), Defined(Node.Identifier(`varName`)))) =>
-        subst = Some(name)
-        true
-      case Node.Identifier(`varName`) =>
-        otherUse = true
-        otherUse
-      case _ =>
-        otherUse
-
+    var subst = Option.empty[SymId]
+    forStatement.body.walkWithScope { (node, scope) =>
+      implicit val ctx = scope
+      node match {
+        case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(Id(name)), Defined(Node.Identifier(Id(`varName`))))), "const") =>
+          subst = Some(name)
+          true
+        case Node.Identifier(Id(`varName`)) =>
+          otherUse = true
+          otherUse
+        case _ =>
+          otherUse
+      }
     }
+    /*
     for {
       substName <- subst if !otherUse
     } {
@@ -145,30 +149,29 @@ object Collections {
       Variables.renameVariable(forStatement.init, varName, substName.name, substName)
       forStatement.name = Node.Identifier.symDef(forStatement.init)(substName)
     }
+    */
   }
 
 
-  def transformFor(forStatement: Node.ForIn, varName: SymbolDef, objName: ValuePath): Node.ForIn = {
+  def transformFor(forStatement: Node.ForInStatement, varName: SymId, objName: ValuePath)(implicit ctx: ScopeContext): Node.ForInStatement = {
     transformIndexUse(forStatement.body, varName, objName)
     substituteIndex(forStatement, varName)
     forStatement
   }
   def apply(n: Node.Node): Node.Node = {
-
-    n.transformAfter { (node, _) =>
+    n.transformAfter { (node, transformer) =>
+      import transformer.context
       node match {
 
-        case forStatement@ForRange(varName, "until", initVar@Node.Number(0), (obj@ValuePath(objName)) Dot "length", Node.Number(1))
+        case forStatement@ForRange(varName, "until", initVar@NumberLiteral(0), (obj@ValuePath(objName)) Dot "length", NumberLiteral(1))
           if usedOnlyAsIndex(forStatement.body, varName, objName) =>
           // note: Node.ForOf would be more appropriate, however it is not present yet in the Uglify AST we use
           //println(s"Detect for ..in $forStatement")
-          val newFor = new Node.ForIn {
-            fillTokens(this, node)
-            this.`object` = obj
-            this.init = Node.Let(node)(Node.VariableDeclarator.uninitialized(node)(varName.name))
-            this.name = Node.Identifier.symDef(node)(varName)
-            this.body = forStatement.body
-          }
+          val newFor = new Node.ForInStatement (
+            left = Node.Identifier(varName.name),
+            right = obj,
+            body = forStatement.body
+          )
           transformFor(newFor, varName, objName).asInstanceOf[Node.Statement]
         case _ =>
           node
