@@ -216,10 +216,12 @@ object InferTypes {
       }
     }
 
-    def inferParsOrArgs(pars: Seq[Node.FunctionParameter], args: Seq[Node.Node])(debug: String*)(implicit context: ScopeContext) = {
+    def inferParsOrArgs(fun: Node.Node, pars: Seq[Node.FunctionParameter], args: Seq[Node.Node])(debug: String*)(implicit context: ScopeContext) = {
 
       //println(s"inferParsOrArgs $pars")
+      val s = context.enterScope(fun) // pars need to be evaluated in the scope of the function
       val parIds = pars.map(symbolFromPar).flatMap(_.map(id))
+      context.leaveScope(fun, s)
       //println(s"  parIds $parIds")
 
       for ((Some(par), arg) <- parIds zip args) {
@@ -638,35 +640,42 @@ object InferTypes {
 
         case Node.CallExpression(Node.Identifier(Id(call)), args) =>
           //println(s"Call ${call.name}")
-          /*
-          call.orig.headOption match {
-            case Some(clazz: Node.SymbolDefClass) => // constructor call in the new Class(x)
-              for {
-                clsSym <- clazz.thedef
-                clsId <- id(clsSym)
-              } {
-                inferConstructorCall(args, clsId)
-              }
-
-            case Some(defunSym: Node.SymbolDefun) => // normal function call
-              //println(s"Infer arg types for ${defunSym.name}")
-              functions.get(defunSym) match {
-                case Some(DefFun(_, pars, _)) =>
-                  // now match arguments to parameters
-                  inferParsOrArgs(pars, args)(s"Call function ${defunSym.name}")
-                case _ =>
-              }
-            case Some(varSym: Node.SymbolVar) =>
-              //println(s"Infer arg types for a var call ${varSym.name} as $tpe")
-              varSym.thedef.foreach { td =>
-                val log = watched(td.name)
-                val tpe = inferFunction(args, log)
-                addInferredType(td, Some(TypeInfo.target(tpe)))(s"Infer ${td.name} args $args")
-              }
-            // TODO: reverse inference
+          functions.get(call) match {
+            case Some(fun@DefFun(_, pars, _, _)) =>
+              // now match arguments to parameters
+              inferParsOrArgs(fun, pars, args)(s"Call function $call")
             case _ =>
           }
-          */
+
+        /*
+        call.orig.headOption match {
+          case Some(clazz: Node.SymbolDefClass) => // constructor call in the new Class(x)
+            for {
+              clsSym <- clazz.thedef
+              clsId <- id(clsSym)
+            } {
+              inferConstructorCall(args, clsId)
+            }
+
+          case Some(defunSym: Node.SymbolDefun) => // normal function call
+            //println(s"Infer arg types for ${defunSym.name}")
+            functions.get(defunSym) match {
+              case Some(DefFun(_, pars, _)) =>
+                // now match arguments to parameters
+                inferParsOrArgs(pars, args)(s"Call function ${defunSym.name}")
+              case _ =>
+            }
+          case Some(varSym: Node.SymbolVar) =>
+            //println(s"Infer arg types for a var call ${varSym.name} as $tpe")
+            varSym.thedef.foreach { td =>
+              val log = watched(td.name)
+              val tpe = inferFunction(args, log)
+              addInferredType(td, Some(TypeInfo.target(tpe)))(s"Infer ${td.name} args $args")
+            }
+          // TODO: reverse inference
+          case _ =>
+        }
+        */
           /*
         case Node.CallExpression(s: Node.Super, args) =>
           for (sup <- findSuperClass(s.scope)) {
