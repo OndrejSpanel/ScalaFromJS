@@ -17,10 +17,6 @@ object SymbolDeclaration {
 
   def declaredSymbolsExtern(node: Node): Seq[String] = {
     val nodes = node match {
-      case cls: ClassDeclaration =>
-        Seq(cls.id)
-      case v: VariableDeclarator =>
-        Seq(v.id)
       case f: FunctionDeclaration =>
         Seq(f.id)
       case f: AsyncFunctionDeclaration =>
@@ -34,6 +30,14 @@ object SymbolDeclaration {
   def declaredSymbols(node: Node): Seq[String] = {
     // some symbols are defined in the parent, like function parameters
     val nodes = node match {
+      case cls: ClassDeclaration =>
+        Seq(cls.id)
+      // scan VariableDeclaration so that the declaration is already available when pattern matching against it
+      case v: VariableDeclaration =>
+        v.declarations.map(_.id)
+      // most often the variable is already defined from VariableDeclaration, but it does no harm to define it again
+      case v: VariableDeclarator =>
+        Seq(v.id)
       case f: FunctionDeclaration =>
         f.params
       case f: FunctionExpression =>
