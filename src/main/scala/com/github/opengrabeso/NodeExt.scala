@@ -62,9 +62,9 @@ trait NodeExt {
   type DefFun = Node.FunctionDeclaration
   val DefFun = Node.FunctionDeclaration
 
-
   object Binary {
     def unapply(arg: Node.BinaryExpression): Option[(Node.Expression, String, Node.Expression)] = Some(arg.left, arg.operator, arg.right)
+    def apply(left: Node.Expression, op: String, right: Node.Expression): Node.BinaryExpression = Node.BinaryExpression(op, left, right)
   }
 
   object Assign {
@@ -76,6 +76,7 @@ trait NodeExt {
       case _ =>
         None
     }
+    def apply(left: Node.Expression, op: String, right: Node.Expression): Node.AssignmentExpression = Node.AssignmentExpression(op, left, right)
   }
 
   object ObjectKeyVal {
@@ -131,19 +132,48 @@ trait NodeExt {
     }
   }
 
+  object Block {
+    def apply(node: Node.BlockStatementOrExpression): Node.BlockStatement = node match {
+      case node: Node.BlockStatement =>
+        node
+      case expr: Node.Expression =>
+        Node.BlockStatement(Seq(Node.ExpressionStatement(expr))).withTokens(expr)
+
+    }
+  }
+
+  object AnyFunctionExpression {
+    def unapply(arg: Node.Node): Option[(Seq[Node.FunctionParameter], Node.BlockStatementOrExpression)] = arg match {
+      case f: Node.FunctionExpression =>
+        Some(f.params, f.body)
+      case f: Node.ArrowFunctionExpression =>
+        Some(f.params, f.body)
+    }
+  }
+
+  object AnyFun {
+    def unapply(arg: Node.Node): Option[(Seq[Node.FunctionParameter], Node.BlockStatementOrExpression)] = arg match {
+      case f: Node.FunctionExpression =>
+        Some(f.params, f.body)
+      case f: Node.ArrowFunctionExpression =>
+        Some(f.params, f.body)
+      case f: Node.FunctionDeclaration =>
+        Some(f.params, f.body)
+      case f: Node.AsyncFunctionExpression =>
+        Some(f.params, f.body)
+      case f: Node.AsyncFunctionDeclaration =>
+        Some(f.params, f.body)
+      case f: Node.AsyncArrowFunctionExpression =>
+        Some(f.params, f.body)
+      case _ =>
+        None
+    }
+  }
+
+
   object IsFunctionScope {
     def unapply(arg: Node.Node): Boolean = arg match {
-      case _: Node.FunctionExpression =>
-        true
-      case _: Node.ArrowFunctionExpression =>
-        true
-      case _: Node.FunctionDeclaration =>
-        true
-      case _: Node.AsyncFunctionExpression =>
-        true
-      case _: Node.AsyncFunctionDeclaration =>
-        true
-      case _: Node.AsyncArrowFunctionExpression =>
+      case AnyFun(_, _) =>
         true
       case _ =>
         false
@@ -164,6 +194,19 @@ trait NodeExt {
     }
   }
 
+  object VarDecl {
+    def unapply(arg: Node.VariableDeclaration): Option[(String, Option[Node.Expression], String)] = arg match {
+      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), MayBeNull(init))), kind) =>
+        Some(name, init, kind)
+      case _ =>
+        None
+    }
+
+    def apply(name: String, init: Option[Node.Expression], kind: String): Node.VariableDeclaration = {
+      Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), init.orNull)), kind)
+    }
+  }
+
   def parameterName(n: Node.FunctionParameter): (Node.Identifier, Option[Node.Node]) = {
     (n: @unchecked) match {
       case Node.AssignmentPattern(left: Node.Identifier, right) =>
@@ -179,6 +222,11 @@ trait NodeExt {
     parameterName(n)._1.name
   }
 
+  object KeyName {
+    def unapply(arg: Node.PropertyKey) = {
+      Some(propertyKeyName(arg))
+    }
+  }
 
   def propertyKeyName(pk: Node.PropertyKey): String = {
     pk match {

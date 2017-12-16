@@ -144,19 +144,21 @@ object Classes {
     }
   }
 
-  def newMethod(k: String, args: Seq[Node.FunctionParameter], methodBody: Seq[Node.Statement], tokensFrom: Node.Node, isStatic: Boolean = false) = new Node.MethodDefinition(
-    key = new Node.Identifier(k).copyLoc(tokensFrom),
-    false,
-    new Node.FunctionExpression(null, args, new Node.BlockStatement(methodBody).copyLoc(tokensFrom), false).copyLoc(tokensFrom),
-    if (k == "constructor") "constructor" else "method",
-    isStatic
-  ).copyLoc(tokensFrom)
+  def newMethod(k: String, args: Seq[Node.FunctionParameter], methodBody: Node.BlockStatement, tokensFrom: Node.Node, isStatic: Boolean = false): Node.MethodDefinition = {
+    Node.MethodDefinition(
+      key = Node.Identifier(k).copyLoc(tokensFrom),
+      false,
+      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false).copyLoc(tokensFrom),
+      if (k == "constructor") "constructor" else "method",
+      isStatic
+    ).copyLoc(tokensFrom)
+  }
 
   def classInlineBody(cls: Node.ClassDeclaration, tokensFrom: Node.Node): Node.MethodDefinition = {
     //println(s"Class inline body $cls")
     val present = findInlineBody(cls)
     val method = present.getOrElse {
-      val newInlineBody = newMethod(inlineBodyName, Seq(), Seq(), tokensFrom)
+      val newInlineBody = newMethod(inlineBodyName, Seq(), Node.BlockStatement(Seq()), tokensFrom)
       cls.body.body = cls.body.body :+ newInlineBody
       newInlineBody
     }

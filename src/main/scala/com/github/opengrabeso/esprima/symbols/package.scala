@@ -85,16 +85,30 @@ package object symbols {
       if (n.range != null) n.range._1
       else ??? // System.identityHashCode(n)
     }
-    def findSymId(sym: String): SymId = {
+    def findScope(sym: String): Option[(Node.Node, ScopeInfo)] = {
       for (i <- scopes.indices.reverse) {
-        if (scopes(i)._2.symbols.contains(sym)) return SymId(sym, getNodeId(scopes(i)._1))
+        if (scopes(i)._2.symbols.contains(sym)) return Some(scopes(i))
       }
-      // symbol not found in any scope, consider it a global one
-      SymId(sym, -1)
+      None
+    }
+
+    def findScopeById(scopeId: Int): Option[(Node.Node, ScopeInfo)] = {
+      for (i <- scopes.indices.reverse) {
+        if (getNodeId(scopes(i)._1) == scopeId) return Some(scopes(i))
+      }
+      None
+    }
+
+    def findSymId(sym: String): SymId = {
+      val scope = findScope(sym)
+      // when symbol not found in any scope, consider it a global one
+      scope.fold(SymId(sym, -1))(info => SymId(sym, getNodeId(info._1)))
     }
 
     def parent(level: Int = 0): Option[Node] = if (level + 1 < parents.length) Some(parents(parents.length - 2 - level)) else None
     def stack = parents
+
+    def scopeId: Int = getNodeId(scopes.last._1)
   }
 
   /**
