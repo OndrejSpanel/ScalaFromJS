@@ -118,11 +118,11 @@ object Variables {
             if count > 1
           } yield {
             //println(s"Multiple definitions for $varName ($count) in $scope - decl $node")
-            Node.AssignmentExpression(
+            Node.ExpressionStatement(Node.AssignmentExpression(
               left = Node.Identifier(varName),
               operator = "=",
               right = value.cloneNode()
-            )
+            ))
           }
           replaced.getOrElse(node)
         case _ =>
@@ -269,7 +269,7 @@ object Variables {
     object MatchInitWithAssign {
       def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
         // sr = xxx
-        case Assign(Node.Identifier(Id(name)), "=", right) if refs contains name =>
+        case Node.ExpressionStatement(Assign(Node.Identifier(Id(name)), "=", right)) if refs contains name =>
           Some(name, right)
         // if (m1 == undefined) m1 = xxx
         case Node.IfStatement(
@@ -293,11 +293,9 @@ object Variables {
         case MatchInitWithAssign(vName, right) if ctx.scopeId == vName.sourcePos =>
           //println(s"ss match assign ${nodeClassName(left)} ${ScalaOut.outputNode(left, "")}")
           // checking if inside of a block statement, to prevent replacing inside of a compound statement
-          val stackTail = ctx.parent(1)
+          val stackTail = ctx.parent(0)
           stackTail match {
             case Some(_: Node.BlockStatement) =>
-              node
-            case _ =>
               if (!(replaced contains vName)) {
                 replaced += vName
                 val r = if (init(vName)) "const" else "let"
@@ -307,6 +305,8 @@ object Variables {
               } else {
                 node
               }
+            case _ =>
+              node
           }
         case _ =>
           //println(s"ss no match ${nodeClassName(node)}")
@@ -316,14 +316,12 @@ object Variables {
 
     //println(s"transform done, replaced ${replaced.map(SymbolTypes.id).mkString(",")}")
 
-    init = init.filterKeys(replaced.contains)
-
     // walk the tree, remove the variable declarations
     changeAssignToVar.transformAfter{ (node, transformer) =>
       implicit val ctx = transformer.context
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
-        case v@VarDecl(Id(name), init, kind) if (replaced contains name) =>
+        case VarDecl(Id(name), None, _) if replaced contains name =>
           Node.EmptyStatement()
         case c =>
           c

@@ -54,11 +54,11 @@ package object symbols {
     case class EnterScopeValue(isScope: Boolean)
 
     def enterScope(node: Node): EnterScopeValue = {
+      parents.push(node)
       val isScope = IsDeclScope.unapply(node)(this)
       if (isScope) {
         scopes.push(node -> new ScopeInfo)
       }
-      parents.push(node)
       scanSymbols(node)
       EnterScopeValue(isScope)
     }
