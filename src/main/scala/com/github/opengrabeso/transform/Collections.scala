@@ -114,7 +114,7 @@ object Collections {
     }
   }
 
-  def substituteIndex(forStatement: Node.ForInStatement, varName: SymId) = {
+  def substituteIndex(forStatement: Node.ForInStatement, varName: SymId)(implicit ctx: ScopeContext) = {
     // if there is a single variable inside of the body as const xx = varName and varName it not used otherwise, substitute it
     var otherUse = false
     var subst = Option.empty[SymId]
@@ -131,25 +131,22 @@ object Collections {
           otherUse
       }
     }
-    /*
     for {
       substName <- subst if !otherUse
     } {
       //println(s"Detected substitution of ${varName.name} as ${substName.name}")
-      Variables.renameVariable(forStatement.body, varName, substName.name, substName)
+      Variables.renameVariable(forStatement.body, varName, substName.name)
       // the body now contains "const substName = substName, remove it
       forStatement.body = forStatement.body.transformAfter {(node, _) =>
         node match {
-          case Node.Const(Node.VariableDeclarator(Node.Identifier(`substName`), Defined(Node.Identifier(`substName`)))) =>
-            Node.EmptyStatement(node)
+          case VarDecl(Id(`substName`), Some(Node.Identifier(Id(`substName`))), "const") =>
+            Node.EmptyStatement()
           case _ =>
             node
         }
       }
-      Variables.renameVariable(forStatement.init, varName, substName.name, substName)
-      forStatement.name = Node.Identifier.symDef(forStatement.init)(substName)
+      Variables.renameVariable(forStatement.left, varName, substName.name)
     }
-    */
   }
 
 

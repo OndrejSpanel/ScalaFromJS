@@ -148,6 +148,8 @@ trait NodeExt {
         Some(f.params, f.body)
       case f: Node.ArrowFunctionExpression =>
         Some(f.params, f.body)
+      case _ =>
+        None
     }
   }
 

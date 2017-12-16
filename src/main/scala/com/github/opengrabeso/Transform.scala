@@ -830,35 +830,31 @@ object Transform {
       onTopNode(Modules.cleanupExports),
       onTopNode(Modules.inlineImports),
       onTopNode(handleIncrement),
-      //onTopNode(Variables.splitMultipleDefinitions),
-      //onTopNode(Variables.varInitialization),
+      onTopNode(Variables.splitMultipleDefinitions),
+      onTopNode(Variables.varInitialization),
       readJSDoc,
       onTopNode(iife), // removes also trailing return within the IIFE construct
       onTopNode(removeDoubleScope), // after iife (often introduced by it)
-      onTopNode(processCall)
-      /*
+      onTopNode(processCall),
       onTopNode(Variables.detectForVars),
       onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
       onTopNode(Variables.detectVals), // before convertConstToFunction
       onTopNode(Variables.detectMethods),
       onTopNode(Variables.convertConstToFunction)
-      */
     ) ++ /* transform.classes.transforms ++*/ Seq(
       onTopNode(Parameters.removeDeprecated),
       onTopNode(Parameters.defaultValues),
       onTopNode(Parameters.modifications),
       Parameters.simpleParameters _,
-      /*
       onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
       Variables.instanceofImpliedCast _,
-      */
       objectAssign _,
       onTopNode(removeVarClassScope),
       InferTypes.multipass _,
       onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
       Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
-      //onTopNode(Variables.detectVals),
+      onTopNode(Variables.detectVals),
       onTopNode(BoolComparison.apply), // after inferTypes (boolean comparisons may help to infer type as bool)
       onTopNode(Collections.apply),
       onTopNode(relations)

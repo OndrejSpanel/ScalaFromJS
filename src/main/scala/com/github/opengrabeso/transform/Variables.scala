@@ -39,7 +39,7 @@ object Variables {
 
           val assignedInto = refs.isModified(varName)
           val n = if (!assignedInto) {
-            VarDecl(varName.name, Some(value), "const")
+            VarDecl(varName.name, Some(value), "const").withTokens(node)
           } else {
             node.clone()
           }
@@ -198,12 +198,12 @@ object Variables {
     n.transformAfter { (node, context) =>
       node match {
         case VarDecl(sym, Some(AnyFunctionExpression(args, body)), "const") =>
-          DefFun (
+          Node.FunctionDeclaration(
             id = Node.Identifier(sym),
             params = args,
             body = Block(body),
             generator = false
-          )
+          ).withTokensDeep(node)
         case _ =>
           node
       }
@@ -303,7 +303,7 @@ object Variables {
                 val r = if (init(vName)) "const" else "let"
                 // use td.orig if possible to keep original initialization tokens
                 //println(s"  Replaced $sr Node.Identifier with $r, init ${nodeClassName(right)}")
-                VarDecl(vName.name, Some(right), r)
+                VarDecl(vName.name, Some(right), r).withTokens(node)
               } else {
                 node
               }
@@ -368,7 +368,7 @@ object Variables {
     }
   }
 
-  def renameVariable[T <: Node.Node](n: T, oldName: SymId, newName: String, newSymbol: Option[SymId] = None): T = {
+  def renameVariable[T <: Node.Node](n: T, oldName: SymId, newName: String): T = {
     n.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {
@@ -554,7 +554,7 @@ object Variables {
     def createCaseVariable(from: Node.Node, name: String, castTo: Seq[String]) = {
       //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
       val symRef = Node.Identifier(name)
-      VarDecl(name + castSuffix, Some(condition(symRef, castTo)), "let")
+      VarDecl(name + castSuffix, Some(condition(symRef, castTo)), "let").withTokens(from)
     }
 
     lazy val classInfo = Transform.listClassMembers(n)
@@ -612,7 +612,7 @@ object Variables {
                     // without renaming I was unable to convince Uglify scoper (figure_out_scope) this is a new variable
                     val transformedBlock = makeBlock(cast._2).map(renameVariable(_, symDef, symDef.name + castSuffix))
                     createCaseVariable(s, symDef.name, cast._1.map(_.name)) +: transformedBlock
-                  }, Node.BreakStatement(null)
+                  }.withTokens(s), Node.BreakStatement(null)
                 )
 
               ).withTokens(s)
@@ -621,8 +621,8 @@ object Variables {
               elseStatement.map { e =>
                 makeBlock(e.transform(transformer))
               }.getOrElse(Seq())
-            ).withTokens(node)
-          ).withTokens(node)
+            ).withTokens(s)
+          ).withTokens(s)
         case ifs@Node.IfStatement(ex@ExpressionWithCasts(extractedCasts@_*), ifStatement, MayBeNull(elseStatement)) =>
           // check which cast variables are used in the ifStatement
           val used = listSymbols(ifStatement)
@@ -642,7 +642,7 @@ object Variables {
                   renameVariable(s, c._1, c._1.name + castSuffix)
                 }
               }
-            ),
+            ).withTokens(ifs),
             elseStatement.orNull
           )
           descend(n, transformer)

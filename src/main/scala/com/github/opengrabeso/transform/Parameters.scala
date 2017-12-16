@@ -279,20 +279,14 @@ object Parameters {
               }
               if (!conflict) {
                 // we may rename the variable now
-                val body = f.body
-                /*
-                val renamedBody = f.body.map { s =>
-                  //println(s"Renaming $s")
-                  Variables.renameVariable(s, parDef, shortName)
-                }
-                f.body = renamedBody
-                */
+                //println(s"Renaming $s")
+                val renamedBody = Variables.renameVariable(f.body, parDef, shortName)
                 val params = f.replaceParam(par, Node.Identifier(shortName))
 
                 // rename hints as well
                 types = types.renameHint(parDef, parDef.copy(name = shortName))
 
-                Some(f)
+                Some(FunctionBodyAndParams(renamedBody, params))
               }
               else Some(f)
             } else Some(f)
