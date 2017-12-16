@@ -317,12 +317,9 @@ object Transform {
                 val JSDocReturn = """@return +\{([^ ]+)\}""".r.unanchored // @return {type}
                 commentLine match {
                   case JSDocParam(name, tpe) =>
-                    // find a corresponding symbol
-                    val sym = f.params.find(parameterNameString(_) == name)
-                    for (s <- sym) {
-                      context.enterScope(f.body)
-                      val td = Id(parameterName(s)._1)
-                      context.leaveScope(f.body)
+                    // verify the parameter exists
+                    if (f.params.exists(parameterNameString(_) == name)) {
+                      val td = Id(name)
                       declBuffer append td -> parseType(tpe)
                     }
                   case JSDocReturn(tpe) =>

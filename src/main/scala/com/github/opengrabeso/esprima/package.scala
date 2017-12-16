@@ -39,7 +39,7 @@ package object esprima extends NodeExt {
 
       // this is a bit longer, but it makes locating issue easier
       walk {
-        case scope: IsScope =>
+        case scope@IsScope() =>
           if (scope.range == null) {
             println(s"Null range in $scope")
           }
