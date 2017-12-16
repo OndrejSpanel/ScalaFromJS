@@ -45,9 +45,7 @@ object Parameters {
         case Seq() =>
           f
         case head +: tail =>
-          context.enterScope(f.body)
           val processed = process(f, head, context)
-          context.leaveScope(f.body)
 
           processed.fold(f)(processArguments(_, tail))
       }

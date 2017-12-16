@@ -1,6 +1,7 @@
 package com.github.opengrabeso
 
 import _root_.esprima.Node
+import com.github.opengrabeso.esprima.symbols.ScopeContext
 import esprima._
 
 trait NodeExt {
@@ -181,6 +182,28 @@ trait NodeExt {
         false
     }
   }
+  object IsDeclScope {
+    def unapply(arg: Node.Node)(implicit context: ScopeContext): Boolean = arg match {
+      case block: Node.BlockStatement =>
+        context.parent() match {
+          case Some(AnyFun(_, `block`)) =>
+            // body directly inside of a function is not considered a scope
+            false
+          case _ =>
+            true
+        }
+      case _: Node.ClassBody =>
+        true
+      case _: Node.Program =>
+        true
+      case IsFunctionScope() =>
+        true
+      case _ =>
+        false
+    }
+  }
+
+  // simplified variant, conservative, does not require implicit ScopeContext
   object IsScope {
     def unapply(arg: Node.Node): Boolean = arg match {
       case _: Node.BlockStatement =>

@@ -236,7 +236,7 @@ object ScalaOut {
 
   def nodeToOut(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
 
-    context.enterScope(n)
+    val es = context.enterScope(n)
 
     def source = nodeSource(n, input.input)
     // http://lisperator.net/uglifyjs/ast
@@ -918,11 +918,9 @@ object ScalaOut {
       case tn: DefFun =>
         out.eol(2)
         out"def ${tn.id}"
-        context.enterScope(tn.body)
         outputArgNames(tn.params, true)
         out(" = ")
         blockBracedToOut(tn.body.body)
-        context.leaveScope(tn.body)
         out.eol()
 
       /*
@@ -1146,7 +1144,7 @@ object ScalaOut {
         out.eol()
     }
 
-    context.leaveScope(n)
+    context.leaveScope(n, es)
 
   }
 
@@ -1203,9 +1201,9 @@ object ScalaOut {
     val classListHarmony = new ClassListHarmony(ast)
     val inputContext = InputContext(input, ast.types, classListHarmony)
     val scopeContext = new ScopeContext
-    scopeContext.enterScope(ast.top)
+    val es = scopeContext.enterScope(ast.top)
     blockToOut(ast.top.body)(outConfig, inputContext, ret, scopeContext)
-    scopeContext.leaveScope(ast.top)
+    scopeContext.leaveScope(ast.top, es)
     sb.map(_.result)
   }
 

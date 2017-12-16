@@ -60,20 +60,20 @@ package object esprima extends NodeExt {
     def transform(transformer: TreeTransformer): T = {
       import walker._
       if (ast != null) {
-        transformer.context.enterScope(ast)
+        val es = transformer.context.enterScope(ast)
         val before = transformer.before(ast, { (node, transformer) =>
           transformInto(node)(node => node.transform(transformer))
           node
         })
-        transformer.context.leaveScope(ast)
+        transformer.context.leaveScope(ast, es)
         if (before != null) {
           before.asInstanceOf[T]
         } else {
           val cloned = ast.clone
-          transformer.context.enterScope(ast)
+          val es = transformer.context.enterScope(ast)
           transformInto(cloned)(node => node.transform(transformer))
           val after = transformer.after(cloned)
-          transformer.context.leaveScope(ast)
+          transformer.context.leaveScope(ast, es)
           after.asInstanceOf[T]
         }
       } else {
@@ -83,22 +83,36 @@ package object esprima extends NodeExt {
 
     def transformBefore(ctx: ScopeContext)(_before: (Node, (Node, TreeTransformer) => Node, TreeTransformer) => Node): T = {
       var tr: TreeTransformer = null
+      val origScopes = ctx.scopes.length
+      val origParents = ctx.parents.length
       tr = new TreeTransformer {
         override val context = ctx
 
         override def before(node: Node, descend: (Node, TreeTransformer) => Node) = _before(node, descend, tr)
       }
-      ast.transform(tr).verifyScopesValid()
+      val ret = ast.transform(tr).verifyScopesValid()
+
+      assert(ctx.scopes.length == origScopes)
+      assert(ctx.parents.length == origParents)
+
+      ret
     }
 
     def transformAfter(ctx: ScopeContext)(_after: (Node, TreeTransformer) => Node): T = {
       var tr: TreeTransformer = null
+      val origScopes = ctx.scopes.length
+      val origParents = ctx.parents.length
       tr = new TreeTransformer {
         override val context = ctx
 
         override def after(node: Node) = _after(node, tr)
       }
-      ast.transform(tr).verifyScopesValid()
+      val ret = ast.transform(tr).verifyScopesValid()
+
+      assert(ctx.scopes.length == origScopes)
+      assert(ctx.parents.length == origParents)
+
+      ret
     }
 
     def transformAfterSimple(ctx: ScopeContext)(_after: Node => Node): T = {

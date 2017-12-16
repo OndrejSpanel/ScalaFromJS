@@ -51,13 +51,16 @@ package object symbols {
       ret
     }
 
-    def enterScope(node: Node) = {
-      val isScope = IsScope.unapply(node)
+    case class EnterScopeValue(isScope: Boolean)
+
+    def enterScope(node: Node): EnterScopeValue = {
+      val isScope = IsDeclScope.unapply(node)(this)
       if (isScope) {
         scopes.push(node -> new ScopeInfo)
       }
       parents.push(node)
       scanSymbols(node)
+      EnterScopeValue(isScope)
     }
 
     def scanSymbols(node: Node) = {
@@ -70,10 +73,9 @@ package object symbols {
       }
     }
 
-    def leaveScope(node: Node) = {
-      val isScope = IsScope.unapply(node)
+    def leaveScope(node: Node, entered: EnterScopeValue) = {
       parents.pop()
-      if (isScope) {
+      if (entered.isScope) {
         scopes.pop()
       }
     }
@@ -114,24 +116,17 @@ package object symbols {
   /**
     * Walk while tracking a scope stack and a symbol information
     * */
-  def walk(node: Node, context: ScopeContext = new ScopeContext)(callback: (Node, ScopeContext) => Boolean): Unit = {
+  def walk(ast: Node, context: ScopeContext = new ScopeContext)(callback: (Node, ScopeContext) => Boolean): Unit = {
     val origScopes = context.scopes.length
     val origParents = context.parents.length
-    def callbackWithPrefix(node: Node): Boolean = {
-      // scan for nodes defining symbols
-      context.enterScope(node)
-      val ret = callback(node, context)
-      if (ret) {
-        context.leaveScope(node)
+
+    if (ast != null) {
+      val es = context.enterScope(ast)
+      if (!callback(ast, context)) {
+        walker.walkInto(ast)(node => walk(node, context)(callback))
       }
-      ret
+      context.leaveScope(ast, es)
     }
-
-    def post(node: Node) = {
-      context.leaveScope(node)
-    }
-
-    walker.walkRecursive(node)(callbackWithPrefix)(post)
 
     assert(context.scopes.length == origScopes)
     assert(context.parents.length == origParents)
