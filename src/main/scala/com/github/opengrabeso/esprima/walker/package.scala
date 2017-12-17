@@ -17,7 +17,7 @@ package object walker {
   }
 
   def createWalkerForType(t: Type): NodeWalker = {
-    val members = t.members.filter(_.isTerm).map(_.asTerm).filter(_.isGetter)
+    val members = t.members.sorted.filter(_.isTerm).map(_.asTerm).filter(_.isGetter)
 
     val walker: Iterable[TermCallback] = members.flatMap { term =>
       term.typeSignature match {

@@ -37,6 +37,12 @@ class WalkerTest extends FunSuite {
     testForObject(o, 2)
   }
 
+  /*
+  test("Create walker for `for statement`") {
+    val o = createWalkerForNode(ForStatement(NumberLiteral(0),Hit(1),Hit(2),Hit(3)))
+  }
+  */
+
   test("Create walker for expression with Array of subnodes") {
     val o = new ArrayExpression(Array(createRValue, createRValue, createRValue))
     testForObject(o, 3)

@@ -182,12 +182,40 @@ trait NodeExt {
         false
     }
   }
+
+  object AnyLoop {
+    def unapply(arg: Node.Node): Option[(Node.Expression, Node.Statement)] = arg match {
+      case f: Node.ForStatement =>
+        Some(f.test, f.body)
+      case f: Node.ForInStatement =>
+        Some(f.right, f.body)
+      case f: Node.ForOfStatement =>
+        Some(f.right, f.body)
+      // should we handle do / while / if the same way?
+      case _ =>
+        None
+
+    }
+  }
+
+  object IsStatementScope {
+    def unapply(arg: Node.Node): Boolean = arg match {
+      case AnyLoop(_, _) =>
+        true
+      case _ =>
+        false
+    }
+  }
+
   object IsDeclScope {
     def unapply(arg: Node.Node)(implicit context: ScopeContext): Boolean = arg match {
       case block: Node.BlockStatement =>
         context.parent() match {
           case Some(AnyFun(_, `block`)) =>
             // body directly inside of a function is not considered a scope
+            false
+          case Some(AnyLoop(_, `block`)) =>
+            // body directly inside of a control statement is not considered a scope, as it shares the scope
             false
           case _ =>
             true
@@ -197,6 +225,8 @@ trait NodeExt {
       case _: Node.Program =>
         true
       case IsFunctionScope() =>
+        true
+      case IsStatementScope() =>
         true
       case _ =>
         false

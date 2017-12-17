@@ -339,9 +339,9 @@ object Variables {
     }
   }
 
-  def nodeContainsRef(init: Node.Node, sym: SymId) = {
+  def nodeContainsRef(init: Node.Node, sym: SymId)(implicit ctx: ScopeContext) = {
     var found = false
-    init.walkWithScope { (node, context) =>
+    init.walkWithScope(ctx) { (node, context) =>
       implicit val ctx = context
       node match {
         case Node.Identifier(Id(`sym`)) =>
@@ -423,6 +423,7 @@ object Variables {
     * i.e. transform for (i = 0; ..) {} into for (var i = 0; ..)
     */
   def detectForVars(n: Node.Node): Node.Node = {
+    val log = true
     n.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {
@@ -440,6 +441,7 @@ object Variables {
               val vScopes = vars.map(_._1)
 
               val forScopesOK = vScopes.forall { vId =>
+                if (log) println(s"Checking $vId in $f")
                 // walk the scope, ignore references before the for, check first after the for
                 var seenFor = false
                 var seenAfterFor = false
@@ -449,17 +451,21 @@ object Variables {
                     implicit val ctx = context
                     node match {
                       case `f` =>
+                        if (log) println(s"Seen $vId in for $f")
                         seenFor = true
                         true // no need to dive into the for
                       case Assign(Node.Identifier(Id(`vId`)), "=", init) if seenFor && !seenAfterFor && !nodeContainsRef(init, vId) =>
-                        //println(s"Seen ${v.name} after the for - in assignment")
+                        if (log) println(s"Seen $vId after the for - in assignment")
                         seenAfterForInAssignment = true
                         seenAfterFor = true
                         true
                       case Node.Identifier(Id(`vId`)) if seenFor =>
-                        //println(s"Seen ${v.name} after the for - in use")
+                        if (log) println(s"Seen $vId after the for - in use ${ctx.parents}")
                         seenAfterFor = true
                         true
+                      case Assign(Node.Identifier(Id(`vId`)), op, init) =>
+                        val contained = nodeContainsRef(init, vId)
+                        seenAfterFor
                       case _ =>
                         seenAfterFor
                     }
@@ -474,7 +480,7 @@ object Variables {
               Seq()
           }
           if (forOK.nonEmpty) {
-            //println("Transform for")
+            if (log) println(s"Transform for $forOK")
 
             val vars = forOK.map { case (vId, initV) =>
               Node.VariableDeclarator(Node.Identifier(vId.name), initV).withTokens(initV)
