@@ -70,10 +70,10 @@ package object esprima extends NodeExt {
           before.asInstanceOf[T]
         } else {
           val cloned = ast.clone
-          val es = transformer.context.enterScope(ast)
+          val es = transformer.context.enterScope(cloned)
           transformInto(cloned)(node => node.transform(transformer))
           val after = transformer.after(cloned)
-          transformer.context.leaveScope(ast, es)
+          transformer.context.leaveScope(cloned, es)
           after.asInstanceOf[T]
         }
       } else {

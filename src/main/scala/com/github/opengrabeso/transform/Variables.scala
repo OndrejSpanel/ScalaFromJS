@@ -424,6 +424,7 @@ object Variables {
     */
   def detectForVars(n: Node.Node): Node.Node = {
     val log = true
+    // TODO: transformAfter changing AST, ForStatement equality test not working
     n.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {
@@ -441,16 +442,19 @@ object Variables {
               val vScopes = vars.map(_._1)
 
               val forScopesOK = vScopes.forall { vId =>
-                if (log) println(s"Checking $vId in $f")
+                if (log) println(s"Checking $vId in $f ${System.identityHashCode(f)}")
                 // walk the scope, ignore references before the for, check first after the for
                 var seenFor = false
                 var seenAfterFor = false
                 var seenAfterForInAssignment = false
-                for ((scope, ctx) <- ctx.findScopeById(vId.sourcePos)) {
+                for {
+                  (scope, ctx) <- ctx.findScopeById(vId.sourcePos)
+                  _ = println(s"  scope $scope, ${ctx.scopeId}")
+                } {
                   scope.walkWithScope(ctx) {(node, context) =>
                     implicit val ctx = context
                     node match {
-                      case `f` =>
+                      case ff if ff eq f =>
                         if (log) println(s"Seen $vId in for $f")
                         seenFor = true
                         true // no need to dive into the for
@@ -464,9 +468,17 @@ object Variables {
                         seenAfterFor = true
                         true
                       case Assign(Node.Identifier(Id(`vId`)), op, init) =>
+                        if (log) println(s"Seen $vId before the for - in assignment $node")
                         val contained = nodeContainsRef(init, vId)
                         seenAfterFor
+                      case Node.Identifier(Id(`vId`))  =>
+                        if (log) println(s"Seen $vId before the for - in use $node")
+                        seenAfterFor
+                      case ff: Node.ForStatement =>
+                        if (log) println(s"  Seen for statement ${ff.init} ${ff.test} $f == $ff, ${System.identityHashCode(f)} == ${System.identityHashCode(ff)}")
+                        seenAfterFor
                       case _ =>
+                        //if (log) println(s"  Seen $node")
                         seenAfterFor
                     }
                   }
