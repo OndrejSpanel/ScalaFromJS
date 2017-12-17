@@ -18,7 +18,7 @@ object InferTypes {
     import ctx.classOps
 
     var allReturns = Option.empty[TypeInfo]
-    node.walkWithScope { (node, context) =>
+    node.walkWithScope(context) { (node, context) =>
       implicit val scopeCtx = context
       node match {
         // include any sub-scopes, but not local functions
