@@ -43,14 +43,6 @@ package object symbols {
 
 
   class ScopeContext {
-    def parentScope(before: Node.Node): ScopeContext = {
-      // TODO: would be much more efficient with parents and scopes implemented as lists
-      val ret = new ScopeContext
-      ret.parents appendAll parents.takeWhile(_ != before)
-      ret.scopes appendAll scopes.takeWhile(_._1 != before)
-      ret
-    }
-
     case class EnterScopeValue(isScope: Boolean)
 
     def enterScope(node: Node): EnterScopeValue = {
@@ -94,9 +86,29 @@ package object symbols {
       None
     }
 
-    def findScopeById(scopeId: Int): Option[(Node.Node, ScopeInfo)] = {
+    def parentScope(before: Node.Node): ScopeContext = {
+      // TODO: would be much more efficient with parents and scopes implemented as lists
+      val ret = new ScopeContext
+      ret.parents appendAll parents.takeWhile(_ != before)
+      ret.scopes appendAll scopes.takeWhile(_._1 != before)
+      ret
+    }
+
+    def contextUntil(node: Node.Node): ScopeContext = {
+      val parentsUntil = parents.takeWhile(_ != node)
+      val scopesUntil = scopes.takeWhile(_._1 != node)
+
+      val ret = new ScopeContext
+      ret.parents ++= parentsUntil
+      ret.scopes ++= scopesUntil
+      ret
+    }
+
+    def findScopeById(scopeId: Int): Option[(Node.Node, ScopeContext)] = {
       for (i <- scopes.indices.reverse) {
-        if (getNodeId(scopes(i)._1) == scopeId) return Some(scopes(i))
+        if (getNodeId(scopes(i)._1) == scopeId) {
+          return Some(scopes(i)._1, contextUntil(scopes(i)._1))
+        }
       }
       None
     }

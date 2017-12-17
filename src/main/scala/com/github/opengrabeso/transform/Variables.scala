@@ -355,10 +355,10 @@ object Variables {
   }
 
   object ExtractVariables {
-    def unapply(n: Node.Node): Option[Seq[(SymId, Node.Expression)]] = {
+    def unapply(n: Node.Node)(implicit ctx: ScopeContext): Option[Seq[(SymId, Node.Expression)]] = {
       val b = mutable.ArrayBuilder.make[(SymId, Node.Expression)]
       var assignsOnly = true
-      n.walkWithScope {(node, context) =>
+      n.walkWithScope(ctx) {(node, context) =>
         implicit val ctx = context
         node match {
           case _: Node.SequenceExpression =>
@@ -444,8 +444,8 @@ object Variables {
                 var seenFor = false
                 var seenAfterFor = false
                 var seenAfterForInAssignment = false
-                for ((scope, _) <- ctx.findScopeById(vId.sourcePos)) {
-                  scope.walkWithScope {(node, context) =>
+                for ((scope, ctx) <- ctx.findScopeById(vId.sourcePos)) {
+                  scope.walkWithScope(ctx) {(node, context) =>
                     implicit val ctx = context
                     node match {
                       case `f` =>
@@ -477,10 +477,10 @@ object Variables {
             //println("Transform for")
 
             val vars = forOK.map { case (vId, initV) =>
-              Node.VariableDeclarator(Node.Identifier(vId.name), initV)
+              Node.VariableDeclarator(Node.Identifier(vId.name), initV).withTokens(initV)
             }
 
-            f.init = Node.VariableDeclaration(vars, "let")
+            f.init = Node.VariableDeclaration(vars, "let").withTokens(f)
             f
           } else {
             f
@@ -489,8 +489,6 @@ object Variables {
           node
       }
     }
-    n
-
   }
 
   def instanceofImpliedCast(n: NodeExtended): NodeExtended = {
