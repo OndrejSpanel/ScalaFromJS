@@ -34,7 +34,7 @@ object Variables {
             n
           } else cm.clone()
 
-        case VarDecl(Id(varName), Some(value), kind) => // var with init - search for a modification
+        case VarDecl(Id(varName), Some(value), kind) if kind != "const" => // var with init - search for a modification
           // check if any reference is assignment target
 
           val assignedInto = refs.isModified(varName)
@@ -240,25 +240,35 @@ object Variables {
   def varInitialization(n: Node.Node): Node.Node = {
 
     // walk the tree, check for first reference of each var
-    var used = Set.empty[SymId] // symbol definition -> first reference
-    var init = Map.empty[SymId, Boolean] // symbol definition -> first reference
+    var defined = Set.empty[SymId] // symbol definition -> first reference
+    var used = Set.empty[SymId] // any use makes assignment not first
+    val init = mutable.Map.empty[SymId, Int] // one or multiple assignments?
     n.walkWithScope { (node, scopeContext) =>
       implicit val ctx = scopeContext
       node match {
-        case defs@VarDecl(Id(name), None, kind) =>
-          //println(s"varInitialization Node.VariableDeclarator $name")
-          //println(s"  refs ${df.references}")
-          if (!used(name)) {
-            // the same scope where the symbol is defined
-            if (scopeContext.scopeId == name.sourcePos) {
-              init += name -> (kind == "const")
-            }
-            used += name
+        case VarDecl(Id(name), None, _) =>
+          defined += name
+          true
+
+        case Assign(Node.Identifier(Id(name)), "=", _) if scopeContext.scopeId == name.sourcePos && !(used contains name) && (defined contains name) =>
+          if (!(init contains name)) {
+            init += name -> 0
+          } else {
+            init(name) += 1 // if already used, mark as var, not const
           }
+          false
+
+        case Assign(Node.Identifier(Id(name)), _, _) if init contains name =>
+          init(name) += 1 // if already used, mark as var, not const
+          false
+
+        case Node.Identifier(Id(name)) if defined contains name =>
+          used += name
+          false
 
         case _ =>
+          false
       }
-      false
     }
 
     val refs = init.keySet
@@ -298,7 +308,7 @@ object Variables {
             case Some(_: Node.BlockStatement) =>
               if (!(replaced contains vName)) {
                 replaced += vName
-                val r = if (init(vName)) "const" else "let"
+                val r = if (init(vName) == 0) "const" else "let"
                 // use td.orig if possible to keep original initialization tokens
                 //println(s"  Replaced $sr Node.Identifier with $r, init ${nodeClassName(right)}")
                 VarDecl(vName.name, Some(right), r).withTokens(node)
