@@ -423,7 +423,7 @@ object Variables {
     * i.e. transform for (i = 0; ..) {} into for (var i = 0; ..)
     */
   def detectForVars(n: Node.Node): Node.Node = {
-    val log = true
+    val log = false
     // TODO: transformAfter changing AST, ForStatement equality test not working
     n.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
@@ -442,20 +442,19 @@ object Variables {
               val vScopes = vars.map(_._1)
 
               val forScopesOK = vScopes.forall { vId =>
-                if (log) println(s"Checking $vId in $f ${System.identityHashCode(f)}")
+                if (log) println(s"Checking $vId in ${f.simpleName}, scopes ${ctx.scopes.map(_._1.simpleName).mkString(":")}")
                 // walk the scope, ignore references before the for, check first after the for
                 var seenFor = false
                 var seenAfterFor = false
                 var seenAfterForInAssignment = false
                 for {
                   (scope, ctx) <- ctx.findScopeById(vId.sourcePos)
-                  _ = println(s"  scope $scope, ${ctx.scopeId}")
                 } {
                   scope.walkWithScope(ctx) {(node, context) =>
                     implicit val ctx = context
                     node match {
-                      case ff if ff eq f =>
-                        if (log) println(s"Seen $vId in for $f")
+                      case ff: Node.ForStatement if ff.range._1 == f.range._1 =>
+                        if (log) println(s"Seen $vId in for ${ff.simpleName}")
                         seenFor = true
                         true // no need to dive into the for
                       case Assign(Node.Identifier(Id(`vId`)), "=", init) if seenFor && !seenAfterFor && !nodeContainsRef(init, vId) =>
@@ -464,19 +463,9 @@ object Variables {
                         seenAfterFor = true
                         true
                       case Node.Identifier(Id(`vId`)) if seenFor =>
-                        if (log) println(s"Seen $vId after the for - in use ${ctx.parents}")
+                        if (log) println(s"Seen $vId after the for - in use")
                         seenAfterFor = true
                         true
-                      case Assign(Node.Identifier(Id(`vId`)), op, init) =>
-                        if (log) println(s"Seen $vId before the for - in assignment $node")
-                        val contained = nodeContainsRef(init, vId)
-                        seenAfterFor
-                      case Node.Identifier(Id(`vId`))  =>
-                        if (log) println(s"Seen $vId before the for - in use $node")
-                        seenAfterFor
-                      case ff: Node.ForStatement =>
-                        if (log) println(s"  Seen for statement ${ff.init} ${ff.test} $f == $ff, ${System.identityHashCode(f)} == ${System.identityHashCode(ff)}")
-                        seenAfterFor
                       case _ =>
                         //if (log) println(s"  Seen $node")
                         seenAfterFor

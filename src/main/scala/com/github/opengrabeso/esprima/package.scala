@@ -45,6 +45,12 @@ package object esprima extends NodeExt {
           }
           assert(scope.range != null)
           false
+        case f: ForStatement =>
+          if (f.range == null) {
+            println(s"Null range in $f")
+          }
+          assert(f.range != null)
+          false
         case _ =>
           false
       }
@@ -69,7 +75,7 @@ package object esprima extends NodeExt {
         if (before != null) {
           before.asInstanceOf[T]
         } else {
-          val cloned = ast.clone
+          val cloned = ast.cloneNode()
           val es = transformer.context.enterScope(cloned)
           transformInto(cloned)(node => node.transform(transformer))
           val after = transformer.after(cloned)
