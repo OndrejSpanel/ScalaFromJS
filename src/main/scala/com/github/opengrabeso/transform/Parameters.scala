@@ -145,7 +145,7 @@ object Parameters {
               case Node.ExpressionStatement(Node.AssignmentExpression("=", Node.Identifier(Id(`parName`)), IsParDefaultHandling(_, init))) =>
                 Some(init)
 
-              case Node.IfStatement(CheckParIsUndefined(), SingleStatement(Node.AssignmentExpression("=", Node.Identifier(Id(`parName`)), init)), IsNull()) =>
+              case Node.IfStatement(CheckParIsUndefined(), SingleExpression(Node.AssignmentExpression("=", Node.Identifier(Id(`parName`)), init)), IsNull()) =>
                 Some(init)
 
               case _ => None

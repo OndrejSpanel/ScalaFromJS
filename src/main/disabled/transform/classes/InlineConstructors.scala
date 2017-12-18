@@ -19,7 +19,7 @@ object InlineConstructors {
 
   private object AssignToMember {
     def unapply(arg: Node.Node): Option[(String, Node.Node)] = arg match {
-      case SingleStatement(Node.Assign(Node.This() Dot funName, "=", value)) =>
+      case SingleExpression(Node.Assign(Node.This() Dot funName, "=", value)) =>
         Some(funName, value)
       case _ =>
         None
@@ -338,7 +338,7 @@ object InlineConstructors {
             }
 
             val (inlineVars, rest) = rest_?.partition {
-              case SingleStatement(Node.Assign((_: Node.This) Dot member, "=", IsConstantInitializerInThis(expr))) =>
+              case SingleExpression(Node.Assign((_: Node.This) Dot member, "=", IsConstantInitializerInThis(expr))) =>
                 //println(s"Assign const $expr")
                 true
               case _ =>

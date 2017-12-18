@@ -82,7 +82,7 @@ object Expressions {
     }
   }
 
-  object SingleStatement {
+  object SingleExpression {
     def unapply(arg: Node.Statement): Option[Node.Node] = arg match {
       case Node.BlockStatement(Seq(Node.ExpressionStatement(body))) => Some(body)
       case Node.ExpressionStatement(body) => Some(body)

@@ -239,6 +239,31 @@ object Variables {
   // merge variable declaration and first assignment if possible
   def varInitialization(n: Node.Node): Node.Node = {
 
+    object MatchInitWithAssign {
+      def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
+        // sr = xxx
+        case Node.ExpressionStatement(Assign(Node.Identifier(Id(name)), "=", right)) =>
+          Some(name, right)
+        // if (m1 == undefined) m1 = xxx
+        case Node.IfStatement(
+          Binary(sr@Node.Identifier(Id(thedef)), "==" | "===", Node.Identifier("undefined")),
+          SingleExpression(Assign(Node.Identifier(Id(thedef2)), "=", right)),
+          IsNull()
+        ) if thedef == thedef2 =>
+          Some(thedef, right)
+        case Node.IfStatement(
+          Binary(Node.Identifier(Id(thedef)), "==" | "===", Node.Identifier("undefined")),
+          SingleExpression(Assign(Node.Identifier(Id(thedef2)), "=", right)),
+          IsNull()
+        )  =>
+          None
+        case _ =>
+          None
+      }
+    }
+
+
+
     // walk the tree, check for first reference of each var
     var defined = Set.empty[SymId] // symbol definition -> first reference
     var used = Set.empty[SymId] // any use makes assignment not first
@@ -250,7 +275,7 @@ object Variables {
           defined += name
           true
 
-        case Assign(Node.Identifier(Id(name)), "=", _) if scopeContext.scopeId == name.sourcePos && !(used contains name) && (defined contains name) =>
+        case MatchInitWithAssign(name, _) if scopeContext.scopeId == name.sourcePos && !(used contains name) && (defined contains name) =>
           if (!(init contains name)) {
             init += name -> 0
           } else {
@@ -276,23 +301,6 @@ object Variables {
 
     //println(s"transform, vars ${pairs.keys.map(SymbolTypes.id).mkString(",")}")
 
-    object MatchInitWithAssign {
-      def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
-        // sr = xxx
-        case Node.ExpressionStatement(Assign(Node.Identifier(Id(name)), "=", right)) if refs contains name =>
-          Some(name, right)
-        // if (m1 == undefined) m1 = xxx
-        case Node.IfStatement(
-          Binary(sr@Node.Identifier(Id(thedef)), "==" | "===", Node.Identifier("undefined")),
-          SingleStatement(Assign(sr2@Node.Identifier(Id(thedef2)), "=", right)),
-          IsNull()
-        ) if thedef == thedef2 && (refs contains thedef) =>
-          Some(thedef, right)
-        case _ =>
-          None
-      }
-    }
-
     // walk the tree, check for possible val replacements and perform them
     val changeAssignToVar = n.transformAfter {(node, transformer) =>
       implicit val ctx = transformer.context
@@ -300,7 +308,7 @@ object Variables {
       //println(s"node ${nodeClassName(node)} ${ScalaOut.outputNode(node, "")}")
       // we need to descend into assignment definitions, as they may contain other assignments
       node match {
-        case MatchInitWithAssign(vName, right) if ctx.scopeId == vName.sourcePos =>
+        case MatchInitWithAssign(vName, right) if ctx.scopeId == vName.sourcePos && (refs contains vName) =>
           //println(s"ss match assign ${nodeClassName(left)} ${ScalaOut.outputNode(left, "")}")
           // checking if inside of a block statement, to prevent replacing inside of a compound statement
           val stackTail = ctx.parent(0)
