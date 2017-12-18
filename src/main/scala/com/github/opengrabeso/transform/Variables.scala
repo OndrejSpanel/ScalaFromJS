@@ -80,51 +80,26 @@ object Variables {
       }
     }
 
+    var declared = Set.empty[SymId]
+
     n.transformAfter {(node, transformer) =>
       implicit val ctx = transformer.context
       node match {
         // match only Node.Var, assume Node.Let and Node.Const are already well scoped
-        case VarDecl(varName, Some(value), _) if !usedAsForVar(varName, transformer) => // var with init - search for a modification
-          // if the orig is different from this, it is suspicions
+        case VarDecl(Id(varName), Some(value), _) if !usedAsForVar(varName.name, transformer) => // var with init - search for a modification
           //println(s"Node.VariableDeclarator ${varName.name}")
           //println(s"${varName.thedef.get.name} $varDef ${varName.thedef.get.orig} ${varName == varName.thedef.get.orig.head}")
 
-          def countDefsInScope(varDef: SymId, scope: Node.Node) = {
-            var count = 0
-
-            scope.walk {
-              case n@VarDecl(Id(`varDef`), _, _) =>
-                count += 1
-                false
-              case s@IsScope() if s != scope =>
-                // check only in the same block
-                // this is not exactly what JS does, but better transforms to Scala
-                // e.g. if () {var a = 1} else {var a = 2}
-                true
-              case _ =>
-                false
-            }
-            if (count <= 1) {
-              //println(s"Not multiple definitions for $varName in $scope, $count")
-            } else {
-              //println(s"Multiple definitions for $varName in $scope, $count - ${list.map(_.line).mkString(",")}")
-
-            }
-            count
-          }
-          val replaced = for {
-            (scope, _) <- transformer.context.findScope(varName)
-            count = countDefsInScope(Id(varName), scope)
-            if count > 1
-          } yield {
-            //println(s"Multiple definitions for $varName ($count) in $scope - decl $node")
+          if (!(declared contains varName)) {
+            declared += varName
+            node
+          } else {
             Node.ExpressionStatement(Node.AssignmentExpression(
-              left = Node.Identifier(varName),
+              left = Node.Identifier(varName.name),
               operator = "=",
               right = value.cloneNode()
             ))
           }
-          replaced.getOrElse(node)
         case _ =>
           node
       }

@@ -86,14 +86,6 @@ package object symbols {
       None
     }
 
-    def parentScope(before: Node.Node): ScopeContext = {
-      // TODO: would be much more efficient with parents and scopes implemented as lists
-      val ret = new ScopeContext
-      ret.parents appendAll parents.takeWhile(_ != before)
-      ret.scopes appendAll scopes.takeWhile(_._1 != before)
-      ret
-    }
-
     def contextUntil(node: Node.Node): ScopeContext = {
       val parentsUntil = parents.takeWhile(_ != node)
       val scopesUntil = scopes.takeWhile(_._1 != node)
