@@ -436,8 +436,8 @@ object Variables {
                   scope.walkWithScope(ctx) {(node, context) =>
                     implicit val ctx = context
                     node match {
-                      case ff: Node.ForStatement if ff.range._1 == f.range._1 =>
-                        if (log) println(s"Seen $vId in for ${ff.simpleName}")
+                      case `f` =>
+                        if (log) println(s"Seen $vId in for")
                         seenFor = true
                         true // no need to dive into the for
                       case Assign(Node.Identifier(Id(`vId`)), "=", init) if seenFor && !seenAfterFor && !nodeContainsRef(init, vId) =>

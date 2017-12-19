@@ -862,8 +862,10 @@ object Transform {
 
     transforms.zipWithIndex.foldLeft(n) { (t,op) =>
       Time(s"step ${op._2}") {
+        // TODO: check: is this ever needed? We do not need to keep the old AST around
+        val tClone = t.copy(top = t.top.cloneDeep())
         //t.top.figure_out_scope()
-        op._1(t)
+        op._1(tClone)
       }
     }
   }

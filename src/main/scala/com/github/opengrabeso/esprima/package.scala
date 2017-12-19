@@ -75,11 +75,10 @@ package object esprima extends NodeExt {
         if (before != null) {
           before.asInstanceOf[T]
         } else {
-          val cloned = ast.cloneNode()
-          val es = transformer.context.enterScope(cloned)
-          transformInto(cloned)(node => node.transform(transformer))
-          val after = transformer.after(cloned)
-          transformer.context.leaveScope(cloned, es)
+          val es = transformer.context.enterScope(ast)
+          transformInto(ast)(node => node.transform(transformer))
+          val after = transformer.after(ast)
+          transformer.context.leaveScope(ast, es)
           after.asInstanceOf[T]
         }
       } else {
@@ -142,6 +141,11 @@ package object esprima extends NodeExt {
     def transformAfterSimple(_after: Node => Node): T = {
       transformAfterSimple(new ScopeContext)(_after)
     }
+
+    def cloneDeep(): T = {
+      transformAfterSimple(_.cloneNode())
+    }
+
   }
 
   object ParseOptions extends Parser.Options {

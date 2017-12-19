@@ -126,9 +126,10 @@ class WalkTest extends FunSuite with TestInputs {
   test("transformAfter") {
     val ast = parse(answer42)
 
+    verifyTransformResults(ast, true)
+
     val transformed = ast.transformAfterSimple(transformAnswer42(_)._1)
 
-    verifyTransformResults(ast, true)
     verifyTransformResults(transformed, false)
   }
 
