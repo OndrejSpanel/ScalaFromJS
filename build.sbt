@@ -2,7 +2,7 @@ name := "ScalaFromJS"
 
 version := "0.2.1"
 
-scalaVersion := "2.12.4"
+scalaVersion := "2.11.11"
 
 scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation")
 
