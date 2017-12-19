@@ -1,10 +1,10 @@
-package com.github.opengrabeso
+package com.github.opengrabeso.scalafromjs
 package transform
 
 import Transform._
 import Classes._
+import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
-import _root_.esprima._
 
 import JsUtils._
 

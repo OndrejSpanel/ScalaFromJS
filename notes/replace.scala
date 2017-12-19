@@ -1,4 +1,4 @@
-package com.github.opengrabeso
+package com.github.opengrabeso.scalafromjs
 
 import scala.language.implicitConversions
 import scala.scalajs.js

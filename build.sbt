@@ -12,4 +12,4 @@ resolvers += "maven-public" at "https://www.gamatron.net/nexus/repository/maven-
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % "test"
 
-libraryDependencies += "net.gamatron" %% "esprimascala" % "0.0.1-SNAPSHOT"
+libraryDependencies += "com.github.opengrabeso" %% "esprimascala" % "0.0.1-SNAPSHOT"
