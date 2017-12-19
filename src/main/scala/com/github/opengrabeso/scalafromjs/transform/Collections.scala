@@ -118,7 +118,7 @@ object Collections {
     // if there is a single variable inside of the body as const xx = varName and varName it not used otherwise, substitute it
     var otherUse = false
     var subst = Option.empty[SymId]
-    forStatement.body.walkWithScope { (node, scope) =>
+    forStatement.body.walkWithScope(ctx) { (node, scope) =>
       implicit val ctx = scope
       node match {
         case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(Id(name)), Defined(Node.Identifier(Id(`varName`))))), "const") =>
@@ -137,7 +137,8 @@ object Collections {
       //println(s"Detected substitution of ${varName.name} as ${substName.name}")
       Variables.renameVariable(forStatement.body, varName, substName.name)
       // the body now contains "const substName = substName, remove it
-      forStatement.body = forStatement.body.transformAfter {(node, _) =>
+      forStatement.body = forStatement.body.transformAfter(ctx) {(node, t) =>
+        implicit val ctx = t.context
         node match {
           case VarDecl(Id(`substName`), Some(Node.Identifier(Id(`substName`))), "const") =>
             Node.EmptyStatement()

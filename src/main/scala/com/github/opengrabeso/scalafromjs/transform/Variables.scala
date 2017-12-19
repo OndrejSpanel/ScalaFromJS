@@ -359,8 +359,8 @@ object Variables {
     }
   }
 
-  def renameVariable[T <: Node.Node](n: T, oldName: SymId, newName: String): T = {
-    n.transformAfter { (node, transformer) =>
+  def renameVariable[T <: Node.Node](n: T, oldName: SymId, newName: String)(implicit ctx: ScopeContext): T = {
+    n.transformAfter(ctx) { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {
         case sym@Node.Identifier(Id(`oldName`)) =>
