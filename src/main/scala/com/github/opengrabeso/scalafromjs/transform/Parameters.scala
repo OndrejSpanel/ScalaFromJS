@@ -61,6 +61,9 @@ object Parameters {
           f.body = func.body
           f.params = func.params
           f.asInstanceOf[T]
+        case _ =>
+          f.asInstanceOf[T]
+
       }
     }
 

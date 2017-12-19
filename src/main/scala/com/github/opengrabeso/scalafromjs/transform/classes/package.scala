@@ -154,7 +154,11 @@ package object classes {
       // Cls.defX = 0;
       // Cls.defY = function() {return 0;};
       case Node.ExpressionStatement(Assign(Node.Identifier(Id(clsSym)) Dot member, "=", value)) =>
-        Some(clsSym, member, value)
+        if (member == "prototype") {
+          None
+        } else {
+          Some(clsSym, member, value)
+        }
       case _ => None
     }
   }
@@ -346,40 +350,33 @@ package object classes {
 
         def newValue(k: String, v: Node.Node, isStatic: Boolean): Node.ClassBodyElement = {
           //println(s"newValue $k $v $isStatic")
-          val prop = Node.Property(
-            "kind",
+          Node.MethodDefinition(
             Node.Identifier(k),
             false,
             v.asInstanceOf[Node.PropertyValue],
-            false,false
-            // hack - use quote to mark static values
-            //quote = if (isStatic) "'" else "\""
+            true,
+            isStatic
 
           )
-          ???
         }
 
-        /*
-        def newGetterOrSetter(node: Node.ObjectSetterOrGetter, k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean) = {
-          fillTokens(node, tokensFrom)
-          node.key = keyNode(tokensFrom, k)
-          node.`static` = isStatic
-          node.value = new Node.Function {
-            fillTokens(this, tokensFrom)
-            argnames = args.toJSArray
-            this.body = body.toJSArray
-          }
-          node
+        def newGetterOrSetter(kind: String, k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean) = {
+          Node.MethodDefinition(
+            Node.Identifier(k),
+            false,
+            Node.FunctionExpression(null, args, Node.BlockStatement(body).withTokens(tokensFrom), false).withTokens(tokensFrom),
+            true,
+            isStatic
+          )
         }
-        */
 
         def newMember(k: String, v: ClassMember, isStatic: Boolean = false) = {
           (v, isStatic) match {
             case AsFunction(args, body) =>
               newMethod(k, args, Node.BlockStatement(body).withTokens(tokensFrom), tokensFrom, isStatic)
 
-            //case (m: ClassVarMember, false) =>
-            //  newGetter(k, Seq(), Seq(Node.ExpressionStatement(m.value.asInstanceOf[Node.Expression])), isStatic)
+            case (m: ClassVarMember, false) =>
+              newGetter(k, Seq(), Seq(Node.ExpressionStatement(m.value.asInstanceOf[Node.Expression])), isStatic)
             case (m: ClassVarMember, true) =>
               newValue(k, m.value, isStatic)
 
@@ -389,16 +386,14 @@ package object classes {
           }
         }
 
-        /*
-        def newGetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean = false): Node.ObjectProperty = {
-          newGetterOrSetter(new Node.ObjectGetter, k, args, body, isStatic)
+        def newGetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean = false) = {
+          newGetterOrSetter("get", k, args, body, isStatic)
         }
 
 
-        def newSetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean = false): Node.ObjectProperty = {
-          newGetterOrSetter(new Node.ObjectSetter, k, args, body, isStatic)
+        def newSetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean = false) = {
+          newGetterOrSetter("set", k, args, body, isStatic)
         }
-        */
 
         def newClass(sym: Node.Identifier, base: Option[Node.Identifier], props: Seq[Node.ClassBodyElement]): Node.ClassDeclaration = {
           new Node.ClassDeclaration(sym, base.orNull, Node.ClassBody(props).withTokens(sym))

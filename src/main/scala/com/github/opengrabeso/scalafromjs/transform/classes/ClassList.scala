@@ -121,6 +121,23 @@ object ClassList {
               addSetter(ClassFunMember(p.value.argnames, p.value.body))
             */
 
+            case Node.Property(kind, _, _, value, method, shorthand) =>
+              value match {
+                case AnyFun(args, body) =>
+                  val funMember = ClassFunMember(args, Block.statements(body))
+                  kind match {
+                    case "get" =>
+                      addGetter(funMember)
+                    case "set" =>
+                      addSetter(funMember)
+                    case _ =>
+                      addMember(funMember)
+
+                  }
+                case _ =>
+                  addMember(ClassVarMember(value))
+              }
+
             case _ =>
               // prototype contains something other than a key: val pair - what to do with it?
               val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m, Some(m))
