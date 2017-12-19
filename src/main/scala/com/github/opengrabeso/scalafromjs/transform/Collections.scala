@@ -164,11 +164,11 @@ object Collections {
           if usedOnlyAsIndex(forStatement.body, varName, objName) =>
           // note: Node.ForOf would be more appropriate, however it is not present yet in the Uglify AST we use
           //println(s"Detect for ..in $forStatement")
-          val newFor = new Node.ForInStatement (
+          val newFor = Node.ForInStatement (
             left = Node.Identifier(varName.name),
             right = obj,
             body = forStatement.body
-          )
+          ).withTokens(forStatement)
           transformFor(newFor, varName, objName).asInstanceOf[Node.Statement]
         case _ =>
           node

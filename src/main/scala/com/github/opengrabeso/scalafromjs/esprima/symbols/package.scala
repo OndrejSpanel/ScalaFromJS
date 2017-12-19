@@ -43,7 +43,9 @@ package object symbols {
   object ScopeContext {
     def getNodeId(n: Node.Node) = {
       if (n.range != null) n.range._1
-      else ??? // System.identityHashCode(n)
+      else {
+        throw new NoSuchElementException("Missing node id for $n")
+      }
     }
     case class EnterScopeValue(isScope: Boolean)
   }
