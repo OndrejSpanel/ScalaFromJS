@@ -74,7 +74,10 @@ package object symbols {
     }
 
     def leaveScope(node: Node, entered: EnterScopeValue) = {
-      parents.pop()
+      val ss = parents.pop()
+
+      assert(ss == node)
+
       if (entered.isScope) {
         scopes.pop()
       }

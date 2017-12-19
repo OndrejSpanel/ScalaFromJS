@@ -50,7 +50,8 @@ object Parameters {
           processed.fold(f)(processArguments(_, tail))
       }
 
-      f match {
+      val s = context.enterScope(f)
+      val ret = f match {
         case f: Node.FunctionExpression =>
           val func = processArguments(FunctionBodyAndParams(f.body, f.params), f.params.reverse)
           f.body = func.body
@@ -65,6 +66,8 @@ object Parameters {
           f.asInstanceOf[T]
 
       }
+      context.leaveScope(f, s)
+      ret
     }
 
     n.transformAfter { (node, transformer) =>
@@ -216,7 +219,7 @@ object Parameters {
   def modifications(n: Node.Node): Node.Node = {
     import VariableUtils._
 
-    val refs = buildReferenceStacks(n)
+    val refs = buildReferenceStacks(n)(new ScopeContext)
 
     def handleModification(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
       implicit val ctx = context

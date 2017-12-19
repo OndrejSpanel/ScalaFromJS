@@ -21,7 +21,7 @@ object Variables {
   // detect variables which can be declared as val instead of var
   def detectVals(n: Node.Node): Node.Node = Time("detectVals") {
     // walk the tree, check for possible val replacements and perform them
-    val refs = buildReferenceStacks(n)
+    val refs = buildReferenceStacks(n)(new ScopeContext)
 
     n.transformBefore {(node, descend, transformer) =>
       implicit val ctx = transformer.context
@@ -108,7 +108,7 @@ object Variables {
 
   // detect function key values which can be declared as concise methods instead
   def detectMethods(n: Node.Node): Node.Node = {
-    val refs = buildReferenceStacks(n)
+    val refs = buildReferenceStacks(n)(new ScopeContext)
 
     n.transformBefore {(node, descend, transformer) =>
       implicit val ctx = transformer.context
