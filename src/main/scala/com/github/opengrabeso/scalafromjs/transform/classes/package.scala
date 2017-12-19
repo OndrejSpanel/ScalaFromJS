@@ -240,14 +240,14 @@ package object classes {
         //  node
         case IsDeclScope() =>
           //println(s"scope $node")
-          convertProtoClasses(node)
+          convertProtoClasses(node)(ctx)
         case _ =>
           node
       }
     }
   }
 
-  def convertProtoClasses(n: Node.Node)(implicit ctx: ScopeContext): Node.Node = {
+  def convertProtoClasses(n: Node.Node)(ctx: ScopeContext): Node.Node = {
     // for any class types try to find constructors and prototypes and try to transform them
     // start with global classes (are local classes even used in JS?)
 
@@ -279,38 +279,34 @@ package object classes {
       } else false
     }
 
-    val deleteProtos = n.transformAfter { (node, transformer) =>
+    val deleteProtos = n.transformAfter(ctx) { (node, transformer) =>
+      implicit val ctx = transformer.context
       node match {
-        case t: Node.BlockStatement =>
-          val newBody = t.body.filter {
-            case ClassMemberDef(name, _, _, _) if classes contains name =>
-              false
-            case ClassPropertyDef(name, _, _) if classes contains name =>
-              false
-            case ClassParentDef(name, _) if classes contains name =>
-              false
-            case ClassPrototypeDef(name, _) if classes contains name =>
-              false
-            case ClassParentAndPrototypeDef(name, _, _) if classes contains name =>
-              false
-            case DefineStaticMember(name, member, statement) if classes contains name =>
-              // verify we are deleting only the initialization, not any other use
-              val clsMember = classes.get(name).flatMap(_.membersStatic.get(member))
-              val isInit = clsMember.exists(_.definedFrom(statement))
-              //println(s"Static member $name.$member - init $isInit")
-              !isInit // return false for init to filter it out
-            case _  =>
-              true
-          }
-          t.body = newBody
-          t
-        case _ =>
+        case ClassMemberDef(name, _, _, _) if classes contains name =>
+          Node.EmptyStatement()
+        case ClassPropertyDef(name, _, _) if classes contains name =>
+          Node.EmptyStatement()
+        case ClassParentDef(name, _) if classes contains name =>
+          Node.EmptyStatement()
+        case ClassPrototypeDef(name, _) if classes contains name =>
+          Node.EmptyStatement()
+        case ClassParentAndPrototypeDef(name, _, _) if classes contains name =>
+          Node.EmptyStatement()
+        case DefineStaticMember(name, member, statement) if classes contains name =>
+          // verify we are deleting only the initialization, not any other use
+          val clsMember = classes.get(name).flatMap(_.membersStatic.get(member))
+          val isInit = clsMember.exists(_.definedFrom(statement))
+          //println(s"Static member $name.$member - init $isInit")
+          if (isInit) Node.EmptyStatement() else node
+        case _  =>
           node
       }
 
     }
 
-    val createClasses = deleteProtos.transformAfter { (node, walker) =>
+    val createClasses = deleteProtos.transformAfter { (node, transformer) =>
+      implicit val ctx = transformer.context
+
       def emptyNode = Node.EmptyStatement()
 
       class Helper(tokensFrom: Node.Node) {
@@ -387,6 +383,9 @@ package object classes {
             case (m: ClassVarMember, true) =>
               newValue(k, m.value, isStatic)
 
+            case _ =>
+              ???
+
           }
         }
 
@@ -421,7 +420,7 @@ package object classes {
 
       def classDefine(sym: Node.Identifier) = {
         val clsId = ClassId(sym)
-        //println(s"  ${walker.stack.map(nodeClassName).mkString("|")}")
+        //println(s"  ${transformer.stack.map(nodeClassName).mkString("|")}")
         // check if there exists a type with this name
         val clazz = classes(clsId)
 
