@@ -380,7 +380,7 @@ package object classes {
         def newMember(k: String, v: ClassMember, isStatic: Boolean = false) = {
           (v, isStatic) match {
             case AsFunction(args, body) =>
-              newMethod(k, args, Node.BlockStatement(body), tokensFrom, isStatic)
+              newMethod(k, args, Node.BlockStatement(body).withTokens(tokensFrom), tokensFrom, isStatic)
 
             //case (m: ClassVarMember, false) =>
             //  newGetter(k, Seq(), Seq(Node.ExpressionStatement(m.value.asInstanceOf[Node.Expression])), isStatic)
@@ -402,7 +402,7 @@ package object classes {
         */
 
         def newClass(sym: Node.Identifier, base: Option[Node.Identifier], props: Seq[Node.ClassBodyElement]): Node.ClassDeclaration = {
-          new Node.ClassDeclaration(sym, base.orNull, Node.ClassBody(props))
+          new Node.ClassDeclaration(sym, base.orNull, Node.ClassBody(props).withTokens(sym))
         }
       }
 
