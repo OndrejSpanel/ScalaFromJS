@@ -6,9 +6,9 @@ scalaVersion := "2.12.4"
 
 scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation")
 
-credentials += Credentials(Path.userHome / ".ivy2" / ".credentials")
+resolvers += Resolver.sonatypeRepo("releases")
 
-resolvers += "maven-public" at "https://www.gamatron.net/nexus/repository/maven-public/"
+resolvers += Resolver.sonatypeRepo("snapshots")
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % "test"
 
