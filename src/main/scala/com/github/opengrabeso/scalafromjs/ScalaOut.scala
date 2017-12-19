@@ -343,8 +343,9 @@ object ScalaOut {
       }
     }
 
-    def outputArgType(n: Node.Identifier, init: Option[Node.Node]) = {
-      val typeString = input.types.getAsScala(symId(n.name))
+    def outputArgType(n: Node.Identifier, init: Option[Node.Node])(scopeNode: Node.Node) = {
+      val scope = ScopeContext.getNodeId(scopeNode)
+      val typeString = input.types.getAsScala(Some(SymId(n.name, scope)))
       //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeString")
       out": $typeString"
       for (init <- init) {
@@ -352,7 +353,7 @@ object ScalaOut {
       }
     }
 
-    def outputClassArgNames(argnames: Seq[Node.FunctionParameter]) = {
+    def outputClassArgNames(argnames: Seq[Node.FunctionParameter])(scopeNode: Node.Node) = {
       out("(")
       outputNodes(argnames) { n =>
         val (sym, init) = parameterName(n)
@@ -361,21 +362,22 @@ object ScalaOut {
           out("var ")
         }
         out"$n"
-        outputArgType(sym, init)
+        outputArgType(sym, init)(scopeNode)
       }
       out(")")
     }
 
-    def outputArgNames(argnames: Seq[Node.FunctionParameter], types: Boolean = false) = {
+    def outputArgNames(argnames: Seq[Node.FunctionParameter], types: Boolean = false)(scopeNode: Node.Node) = {
       out("(")
       outputNodes(argnames) { n =>
         val (sym, init) = parameterName(n)
         out"$sym"
         if (types) {
-          outputArgType(sym, init)
+          outputArgType(sym, init)(scopeNode)
         } else {
-          val sid = symId(sym.name)
-          for (t <- input.types.get(sid)) {
+          val scope = ScopeContext.getNodeId(scopeNode)
+          val sid = SymId(sym.name, scope)
+          for (t <- input.types.get(Some(sid))) {
             out": ${t.declType.toOut}"
           }
         }
@@ -918,7 +920,7 @@ object ScalaOut {
       case tn: DefFun =>
         out.eol(2)
         out"def ${tn.id}"
-        outputArgNames(tn.params, true)
+        outputArgNames(tn.params, true)(tn)
         out(" = ")
         blockBracedToOut(tn.body.body)
         out.eol()
@@ -932,12 +934,12 @@ object ScalaOut {
         out.eol()
         */
       case tn: Node.FunctionExpression =>
-        outputArgNames(tn.params)
+        outputArgNames(tn.params)(tn)
         out(" => ")
         //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
         blockBracedToOut(tn.body.body)
       case tn: Node.ArrowFunctionExpression =>
-        outputArgNames(tn.params)
+        outputArgNames(tn.params)(tn)
         out(" => ")
         tn.body match {
           case body: Node.Expression =>
@@ -984,7 +986,7 @@ object ScalaOut {
             inlineBody <- inlineBodyOpt
             method <- getMethodMethod(inlineBody)
           } {
-            outputClassArgNames(method.params)
+            outputClassArgNames(method.params)(method)
           }
 
           for (base <- Option(tn.superClass)) {
@@ -1085,7 +1087,7 @@ object ScalaOut {
                 p.value match {
                   case Node.FunctionExpression(id, params, body, generator) =>
                     out"def ${p.key}"
-                    outputArgNames(params)
+                    outputArgNames(params, true)(p.value)
                     out(" = ")
                     //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
                     blockBracedToOut(body.body)
