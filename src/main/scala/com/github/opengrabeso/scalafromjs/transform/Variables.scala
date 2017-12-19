@@ -538,15 +538,6 @@ object Variables {
       }
     }
 
-    def makeBlock(s: Node.Statement): Seq[Node.Statement] = {
-      s match {
-        case b: Node.BlockStatement =>
-          b.body.asInstanceOf[Seq[Node.Statement]]
-        case _ =>
-          Seq(s)
-      }
-    }
-
     def createCaseVariable(from: Node.Node, name: String, castTo: Seq[String]) = {
       //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
       val symRef = Node.Identifier(name)
@@ -606,7 +597,7 @@ object Variables {
                 Seq(
                   Node.BlockStatement {
                     // without renaming I was unable to convince Uglify scoper (figure_out_scope) this is a new variable
-                    val transformedBlock = makeBlock(cast._2).map(renameVariable(_, symDef, symDef.name + castSuffix))
+                    val transformedBlock = Block.statements(cast._2).map(renameVariable(_, symDef, symDef.name + castSuffix))
                     createCaseVariable(s, symDef.name, cast._1.map(_.name)) +: transformedBlock
                   }.withTokens(s), Node.BreakStatement(null)
                 )
@@ -615,7 +606,7 @@ object Variables {
             } :+ new Node.SwitchCase (
               null,
               elseStatement.map { e =>
-                makeBlock(e.transform(transformer))
+                Block.statements(e.transform(transformer))
               }.getOrElse(Seq())
             ).withTokens(s)
           ).withTokens(s)
@@ -633,7 +624,7 @@ object Variables {
             Node.BlockStatement(
               casts.map { c =>
                 createCaseVariable(ex, c._1.name, Seq(c._2))
-              } ++ makeBlock(ifStatement).map { s =>
+              } ++ Block.statements(ifStatement).map { s =>
                 casts.foldLeft(s) { (s, c) =>
                   renameVariable(s, c._1, c._1.name + castSuffix)
                 }

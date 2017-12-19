@@ -1,6 +1,7 @@
 package com.github.opengrabeso.scalafromjs
 
 import com.github.opengrabeso.esprima.Node
+import com.github.opengrabeso.esprima.Node.BlockStatement
 import com.github.opengrabeso.scalafromjs.esprima.symbols.ScopeContext
 import esprima._
 
@@ -141,7 +142,19 @@ trait NodeExt {
         Node.BlockStatement(Seq(Node.ExpressionStatement(expr))).withTokens(expr)
 
     }
+
+    def statements(s: Node.Node): Seq[Node.Statement] = {
+      s match {
+        case b: Node.BlockStatement =>
+          b.body.asInstanceOf[Seq[Node.Statement]]
+        case s: Node.Statement =>
+          Seq(s)
+        case s: Node.Expression =>
+          Seq(Node.ExpressionStatement(s))
+      }
+    }
   }
+
 
   object AnyFunctionExpression {
     def unapply(arg: Node.Node): Option[(Seq[Node.FunctionParameter], Node.BlockStatementOrExpression)] = arg match {

@@ -40,10 +40,16 @@ package object symbols {
     def apply(name: Node.Identifier)(implicit context: ScopeContext): SymId = context.findSymId(name.name)
   }
 
-
+  object ScopeContext {
+    def getNodeId(n: Node.Node) = {
+      if (n.range != null) n.range._1
+      else ??? // System.identityHashCode(n)
+    }
+    case class EnterScopeValue(isScope: Boolean)
+  }
 
   class ScopeContext {
-    case class EnterScopeValue(isScope: Boolean)
+    import ScopeContext._
 
     def enterScope(node: Node): EnterScopeValue = {
       parents.push(node)
@@ -75,10 +81,6 @@ package object symbols {
     val parents = ArrayBuffer.empty[Node.Node]
     val scopes =  ArrayBuffer.empty[(Node.Node, ScopeInfo)]
 
-    def getNodeId(n: Node.Node) = {
-      if (n.range != null) n.range._1
-      else ??? // System.identityHashCode(n)
-    }
     def findScope(sym: String): Option[(Node.Node, ScopeInfo)] = {
       for (i <- scopes.indices.reverse) {
         if (scopes(i)._2.symbols.contains(sym)) return Some(scopes(i))
