@@ -148,10 +148,10 @@ object Classes {
     Node.MethodDefinition(
       key = Node.Identifier(k).copyLoc(tokensFrom),
       false,
-      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false).copyLoc(tokensFrom),
+      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false).withTokens(tokensFrom),
       if (k == "constructor") "constructor" else "method",
       isStatic
-    ).copyLoc(tokensFrom)
+    ).withTokens(tokensFrom)
   }
 
   def classInlineBody(cls: Node.ClassDeclaration, tokensFrom: Node.Node): Node.MethodDefinition = {

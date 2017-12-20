@@ -16,7 +16,10 @@ trait NodeExt {
       n
     }
 
-    def withTokens(from: Node.Node): T = copyLoc(from)
+    def withTokens(from: Node.Node): T = {
+      assert(from.range != null)
+      copyLoc(from)
+    }
 
     def cloneNode(): T = n.clone().asInstanceOf[T]
 

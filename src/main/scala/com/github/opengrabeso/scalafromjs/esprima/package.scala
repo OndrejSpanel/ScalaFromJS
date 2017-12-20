@@ -112,6 +112,7 @@ package object esprima extends NodeExt {
 
         override def after(node: Node) = _after(node, tr)
       }
+      ast.verifyScopesValid()
       val ret = ast.transform(tr).verifyScopesValid()
 
       assert(ctx.scopes.length == origScopes)

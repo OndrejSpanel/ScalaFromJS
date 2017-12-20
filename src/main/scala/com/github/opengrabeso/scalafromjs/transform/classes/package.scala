@@ -396,7 +396,7 @@ package object classes {
         }
 
         def newClass(sym: Node.Identifier, base: Option[Node.Identifier], props: Seq[Node.ClassBodyElement]): Node.ClassDeclaration = {
-          new Node.ClassDeclaration(sym, base.orNull, Node.ClassBody(props).withTokens(sym))
+          new Node.ClassDeclaration(sym, base.orNull, Node.ClassBody(props).withTokens(sym)).withTokens(sym)
         }
       }
 
