@@ -4,16 +4,16 @@ package classes
 
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
-
 import Classes._
 import Transform._
+import com.github.opengrabeso.scalafromjs.esprima.symbols.Id
 
 object FillVarMembers {
   def apply(n: NodeExtended): NodeExtended = {
     object IsThis {
       def unapply(arg: Node.Node) = arg match {
-        case _: Node.This => true
-        case Node.Identifier("this", _, _) => true // not used in practice, Node.This seems to catch all
+        case _: Node.ThisExpression => true
+        case Node.Identifier("this") => true // not used in practice, Node.This seems to catch all
         case _ => false
       }
     }
@@ -22,15 +22,15 @@ object FillVarMembers {
     val retTop = n.top.transformAfter { (node, _) =>
       node match {
         case cls: Node.ClassDeclaration =>
-          val accessor = findInlineBody(cls)
+          val accessor = findInlineBody(cls).flatMap(getMethodMethod)
           //println(s"Node.ClassDeclaration ${cls.name.get.name} ${cls.start.get.pos}")
-          var newMembers = collection.immutable.ListMap.empty[String, Option[Node.Node]]
+          var newMembers = collection.immutable.ListMap.empty[String, Option[Node.Expression]]
           // scan known prototype members (both function and var) first
-          val existingInlineMembers = accessor.map { _.value.body.toSeq.collect {
-            case Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(name), _)) =>
+          val existingInlineMembers = accessor.map { _.body.body.collect {
+            case VarDecl(name, _, _) =>
               name
           }}.getOrElse(Seq())
-          val existingParameters = accessor.map(_.value.argnames.toSeq.map(_.name)).getOrElse(Seq())
+          val existingParameters = accessor.map(_.params.map(parameterNameString)).getOrElse(Seq())
 
           val existingProtoMembers = listPrototypeMemberNames(cls)
           var existingMembers = existingProtoMembers ++ existingInlineMembers ++ existingParameters
@@ -38,7 +38,7 @@ object FillVarMembers {
           //println(s"  existingParameters ${existingParameters.mkString(",")}")
 
           cls.walk {
-            case Node.Assign(IsThis() Dot mem, _, _) =>
+            case Assign(IsThis() Dot mem, _, _) =>
               //println(s"Detect this.$mem = ...")
               if (!existingMembers.contains(mem)) {
                 newMembers += mem -> None
@@ -62,22 +62,18 @@ object FillVarMembers {
 
           val clsTokenDef = classTokenSource(cls)
           val vars = newMembers.map { case (memberName, init) =>
-            new Node.Var {
-              fillTokens(this, clsTokenDef)
-              val varDef = init.fold(Node.VariableDeclarator.uninitialized(clsTokenDef)(memberName))(Node.VariableDeclarator.initialized(clsTokenDef) (memberName, _))
-              //println(s"fillVarMembers $memberName $varDef ${cls.start.get.pos} init $init")
-              definitions = js.Array(varDef)
-            }
+            VarDecl(memberName, init, "var")
           }
 
           if (vars.nonEmpty) {
-            val accessor = classInlineBody(cls, clsTokenDef)
+            for (accessor <- getMethodBody(classInlineBody(cls, clsTokenDef))) {
 
-            accessor.body ++= (vars: Iterable[Node.Statement]).toJSArray
-            //println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
+              accessor.body ++= vars
+              //println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
 
-            // remove overwritten members
-            cls.properties = cls.properties.filterNot(p => newMembers.contains(propertyName(p)))
+              // remove overwritten members
+              cls.body.body = cls.body.body.filterNot(p => newMembers.contains(methodName(p)))
+            }
           }
 
           cls
@@ -92,17 +88,18 @@ object FillVarMembers {
     //println(s"Members ${classInfo.members}")
 
     // remove members already present in a parent from a derived class
-    val cleanup = ret.top.transformAfter { (node, _) =>
+    val cleanup = ret.top.transformAfter { (node, transformer) =>
+      implicit val ctx = transformer.context
       node match {
         case cls: Node.ClassDeclaration =>
           for {
-            Node.Identifier(base) <- cls.`extends`
-            baseId <- SymbolTypes.id(base)
+            Node.Identifier(Id(baseId)) <- Option(cls.superClass)
             inlineBody <- findInlineBody(cls)
+            body <- getMethodBody(inlineBody)
           } {
             //println(s"Detected base $base")
-            inlineBody.value.body = inlineBody.value.body.filter {
-              case VarName(member) => classInfo.classContains(baseId, member).isEmpty
+            body.body = body.body.filter {
+              case VarDecl(member, _, _) => classInfo.classContains(baseId, member).isEmpty
               case _ => true
             }
           }

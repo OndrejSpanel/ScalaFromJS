@@ -12,6 +12,7 @@ import SymbolTypes._
 import scala.language.implicitConversions
 
 object ClassesByMembers {
+  /*
 
   case class ClassDefInfo(members: Set[String], propMembers: Set[String], funMembers: Map[String, Int], parentCount: Int) {
     def + (that: ClassDefInfo): ClassDefInfo = ClassDefInfo(
@@ -244,4 +245,5 @@ object ClassesByMembers {
     }
 
   }
+  */
 }

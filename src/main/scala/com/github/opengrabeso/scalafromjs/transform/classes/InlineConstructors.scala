@@ -4,22 +4,20 @@ package classes
 
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
-
 import Classes._
 import Expressions._
 import Variables._
 import Symbols._
 import SymbolTypes._
 import VariableUtils._
-import JsUtils._
-import Transform._
+import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
 
 object InlineConstructors {
-  private case class PrivateMember(sym: SymbolDef, isVal: Boolean)
+  private case class PrivateMember(sym: SymId, isVal: Boolean)
 
   private object AssignToMember {
     def unapply(arg: Node.Node): Option[(String, Node.Node)] = arg match {
-      case SingleExpression(Node.Assign(Node.This() Dot funName, "=", value)) =>
+      case SingleExpression(Assign(Node.ThisExpression() Dot funName, "=", value)) =>
         Some(funName, value)
       case _ =>
         None
@@ -34,11 +32,11 @@ object InlineConstructors {
     }
   }
 
-  private def detectPrivateFunctions(n: Node.FunctionExpression) = {
+  private def detectPrivateFunctions(n: Node.Node) = {
     // detect exported functions
-    var localLambdas = Set.empty[Node.FunctionExpression]
+    var localLambdas = Set.empty[Node.Node]
     n.walk {
-      case fun: Node.FunctionExpression if fun != n =>
+      case fun@AnyFun(_, _) if fun != n =>
         localLambdas += fun
         true
       case _ =>
@@ -48,11 +46,14 @@ object InlineConstructors {
     //println(s"localLambdas $localLambdas")
     // detect functions which are not exported - i.e. local named function not assigned to anything
 
-    def localLambdaByName(name: String): Option[Node.FunctionExpression] = {
-      localLambdas.find(_.name.exists(_.name == name))
+    def localLambdaByName(name: String): Option[Node.Node] = {
+      localLambdas.collectFirst {
+        case f: Node.FunctionDeclaration if f.id.name == name =>
+          f
+      }
     }
 
-    var isExported = Set.empty[Node.FunctionExpression]
+    var isExported = Set.empty[Node.Node]
     n.walk {
       case DefinePrivateFunction(_, lambda) =>
         assert(localLambdas contains lambda)
@@ -70,12 +71,12 @@ object InlineConstructors {
     val definedFunctions = localLambdas.filter(_.isInstanceOf[DefFun])
     //println(s"definedFunctions $definedFunctions")
 
-    var definedAndExported = Set.empty[Node.FunctionExpression]
+    var definedAndExported = Set.empty[Node.Node]
     n.walk {
-      case Node.CallExpression(Node.Identifier(_), _*) =>
+      case Node.CallExpression(Node.Identifier(_), _) =>
         true // a plain call, do not dive into
-      case Node.Identifier(funName) if localLambdas.exists(_.name.exists(_.name == funName)) =>
-        definedAndExported ++= localLambdas.filter(_.name.exists(_.name == funName))
+      case Node.Identifier(funName) =>
+        definedAndExported ++= localLambdaByName(funName)
         true
       case _ =>
         false
@@ -95,10 +96,11 @@ object InlineConstructors {
 
     // detect calls from exported functions
 
-    def transitiveClosure(functions: Set[Node.FunctionExpression]): Set[Node.FunctionExpression] = {
+    def transitiveClosure(functions: Set[Node.Node]): Set[Node.Node] = {
       var called = functions
       var someChange = false
-      n.walkWithDescend { (node, _, walker) =>
+      n.walkWithScope { (node, walker) =>
+        implicit val ctx = walker
         node match {
           // any use other than a definition should be enough to export the function as well
           case _: Node.FunctionExpression =>
@@ -129,23 +131,43 @@ object InlineConstructors {
     transitiveClosure(exportedDirectly)
   }
 
-  private def detectPrivateMembers(n: Node.FunctionExpression): Seq[PrivateMember] = {
+  private def detectPrivateMembers(n: Node.Node)(implicit ctx: ScopeContext): Seq[PrivateMember] = {
     // any variable defined in the main body scope and references from any function is considered a private member
     //n.variables = Dictionary.empty[SymbolDef]
-    val functions = detectPrivateFunctions(n)
+
 
     val refs = buildReferenceStacks(n)
 
-    //println(s"n.variables ${n.variables.map(_._1)}")
-    //println(s"n.functions ${n.functions.map(_._1)}")
-    val variables = n.variables.filter(v => !n.functions.contains(v._1))
-    val privates = for {
-      (_, sym) <- variables
-      // empty 'references' means automatic symbol, like "arguments"
-      rs <- refs.refs.get(sym)
-      if (rs -- Set(n)).intersect(functions.asInstanceOf[Set[Node.Scope]]).nonEmpty
-    } yield {
-      sym
+    val functions = detectPrivateFunctions(n)
+
+    // list all variables
+    var variables = Set.empty[SymId]
+    n.walkWithScope(ctx) {(node, context) =>
+      implicit val ctx = context
+      node match {
+        case VarDecl(Id(name), _, _) =>
+          variables += name
+          false
+        case _ =>
+          false
+      }
+    }
+
+    // check if they are references from any private function
+    var privates = Set.empty[SymId]
+
+    n.walkWithScope(ctx) { (node, context) =>
+      implicit val ctx = context
+      node match {
+        case Node.Identifier(Id(name)) =>
+          context.scopes.find { scope =>
+            functions contains scope._1
+          }
+          false
+        case _ =>
+          false
+
+      }
     }
 
     privates.toSeq.map { priv =>
@@ -161,62 +183,63 @@ object InlineConstructors {
 
 
   def privateVariables(n: Node.Node): Node.Node = {
-    n.transformAfter { (node, _) =>
+    n.transformAfter { (node, transformer) =>
+      implicit val ctx = transformer.context
       node match {
         case cls: Node.ClassDeclaration =>
           for {
-            constructorProperty@Node.MethodDefinition(_, rawConstructor: Node.FunctionExpression) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, _, AnyFun(params, body), _, _) <- findConstructor(cls)
           } {
-            val allLocals = detectPrivateMembers(rawConstructor)
+            val allLocals = detectPrivateMembers(body)
             // convert private variables to members (TODO: mark them as private somehow)
 
+            val paramsId = params.map(parameterNameString).map(Id.apply).toSet
+
             // some of them may be a constructor parameters, they need a different handling
-            val constructorParameters = allLocals.filter(_.sym.orig exists rawConstructor.argnames.contains)
+            val constructorParameters = allLocals.filter(_.sym exists paramsId.contains)
 
             //println(s"Locals ${allLocals.map(l => l.sym.name -> l.isVal)}")
             //println(s"Parameters ${constructorParameters.map(l => l.sym.name -> l.isVal)}")
 
             val locals = allLocals diff constructorParameters
 
-            def newThisDotMember(member: String) = new Dot {
-              expression = Node.This()
-              property = member
-            }
+            def newThisDotMember(member: String) = Dot(Node.ThisExpression(), Node.Identifier(member))
 
-            def privateMember(v: SymbolDef): Node.Node = newThisDotMember(v.name)
+            def privateMember(v: SymId): Node.Node = newThisDotMember(v.name)
 
-            val constructor = locals.foldLeft(rawConstructor) { (constructor, privateVar) =>
+            val constructor = locals.foldLeft(body) { (constructor, privateVar) =>
               val replacedInit = replaceVariableInit(constructor, privateVar.sym) { (sym, init) =>
-                new Node.ExpressionStatement {
-                  body = new Node.Assign {
-                    left = newThisDotMember(sym.name)
-                    operator = "="
-                    right = init.clone()
-                  }
+                Node.ExpressionStatement (
+                  Assign(
+                    newThisDotMember(sym.name),
+                    "=",
+                    init.cloneNode()
+                  )
                   //println(s"Replaced init ${sym.name} $init")
-                }
+                )
               }
 
               //println(s"Replaced private var ${privateVar.sym.name}")
               replaceVariable(replacedInit, privateVar.sym, privateMember(privateVar.sym))
             }
-            constructorProperty.value = constructor
+            constructorProperty.value match {
+              case f: Node.FunctionExpression =>
+                f.body.body = Block.statements(body)
+            }
 
             // DRY: FillVarMembers
             val clsTokenDef = classTokenSource(cls)
 
             val vars = locals.map { local =>
-              val varDecl = if (local.isVal) new Node.Const else new Node.Var
-              fillTokens(varDecl, clsTokenDef)
-              varDecl.definitions = js.Array(Node.VariableDeclarator.uninitializedSym(clsTokenDef)(local.sym))
+              val varDecl = VarDecl(local.sym.name, None, if (local.isVal) "const" else "var")
               //println(s"privateVariables ${local.sym.name} $varDecl ${cls.start.get.pos}")
               varDecl
             }
 
             if (vars.nonEmpty) {
-              val accessor = classInlineBody(cls, clsTokenDef)
+              val accessor = getMethodBody(classInlineBody(cls, clsTokenDef)).get
 
-              accessor.body ++= (vars: Iterable[Node.Statement]).toJSArray
+              accessor.body ++= vars
               //println(s"privateVariables newMembers $vars")
 
               // remove overwritten members
@@ -238,24 +261,26 @@ object InlineConstructors {
       node match {
         case cls: Node.ClassDeclaration =>
           for {
-            constructorProperty@Node.MethodDefinition(_, rawConstructor: Node.FunctionExpression) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, _, AnyFun(params, body), _, _) <- findConstructor(cls)
           } {
-            val functionsToConvert = detectPrivateFunctions(rawConstructor)
-            if (log) println(s"functionsToConvert ${functionsToConvert.toSeq.map(_.name)}")
+            val functionsToConvert = detectPrivateFunctions(body)
+            if (log) println(s"functionsToConvert $functionsToConvert")
 
-            val functions = rawConstructor.body.collect {
+            val bodyStatements = Block.statements(body)
+
+            val functions = bodyStatements.collect {
               case s@DefinePrivateFunction(funName, f) if functionsToConvert contains f =>
                 (s, funName, f)
-              case s@DefFun(Defined(Node.SymbolName(funName)), _, _) if functionsToConvert contains s =>
+              case s@DefFun(Defined(Node.Identifier(funName)), _, _, _) if functionsToConvert contains s =>
                 (s, funName, s)
             }
 
-            val restRaw = rawConstructor.body diff functions.map(_._1)
+            val restRaw = bodyStatements diff functions.map(_._1)
 
             val rest = restRaw.filter {
-              case Node.ExpressionStatement(Node.Assign(Node.This() Dot tgtName, "=", Node.Identifier(funName)))
+              case Node.ExpressionStatement(Assign(Node.ThisExpression() Dot tgtName, "=", Node.Identifier(funName)))
                 // TODO: relax tgtName == funName requirement
-                if tgtName == funName && (functionsToConvert exists (_.name.exists(_.name==funName))) =>
+                if tgtName == funName /*&& (functionsToConvert exists (_.name.exists(_.name==funName)))*/ =>
                 //if (log) println(s"Drop assign $funName")
                 false
               case _ =>
@@ -263,31 +288,21 @@ object InlineConstructors {
 
             }
 
-            constructorProperty.value._body = rest
-            // add functions as methods
-            cls.properties = cls.properties ++ functions.map {
-              case (statement, funName, lambda) =>
-                new Node.MethodDefinition {
-                  fillTokens(this, node)
-                  key = new Node.SymbolMethod {
-                    /*_*/
-                    fillTokens(this, node)
-                    /*_*/
-                    name = funName
-                    // scope, thedef will be filled
+            constructorProperty.value match {
+              case f: Node.FunctionExpression =>
+                f.body.body = rest
+            }
 
-                  }
-                  value = new Node.Accessor {
-                    fillTokens(this, node)
-                    name = lambda.name
-                    argnames = lambda.argnames
-                    uses_arguments = lambda.uses_arguments
-                    this.body = lambda.body
-                  }
-                  `static` = false
-                  is_generator = false
-                  quote = "\""
-                }
+            // add functions as methods
+            cls.body.body = cls.body.body ++ functions.map {
+              case (statement, funName, AnyFun(funParams, funBody)) =>
+                Node.MethodDefinition (
+                  Node.Identifier(funName),
+                  false,
+                  Node.FunctionExpression(null, funParams, Block(funBody).withTokens(body), false).withTokens(statement),
+                  "init",
+                  false
+                )
 
             }
           }
@@ -300,24 +315,26 @@ object InlineConstructors {
 
   def apply(n: NodeExtended): NodeExtended = {
     var types = n.types
-    val r = n.top.transformAfter { (node, _) =>
+    val r = n.top.transformAfter { (node, transformer) =>
+      implicit val ctx = transformer.context
       node match {
         case cls: Node.ClassDeclaration =>
           val clsTokenDef = classTokenSource(cls)
           for {
-            constructorProperty@Node.MethodDefinition(_, constructor: Node.FunctionExpression) <- findConstructor(cls)
+            constructorProperty@AnyFun(params, b) <- findConstructor(cls)
           } {
             // anything before a first variable declaration can be inlined, variables need to stay private
-            val (inlined, rest_?) = constructor.body.span {
+            val body = Block.statements(b)
+            val (inlined, rest_?) = body.span {
               case _: Node.VariableDeclaration => false
               case _ => true
             }
 
             def isClassConstant(varName: String): Boolean = {
-              val body = findInlineBody(cls)
+              val body = findInlineBody(cls).flatMap(getMethodBody)
               body.exists {
-                _.value.body.exists {
-                  case Node.Const(Node.VariableDeclarator(Node.SymbolName(`varName`), _)) =>
+                _.body.exists {
+                  case VarDecl(`varName`, _, "const") =>
                     true
                   case _ =>
                     false
@@ -330,15 +347,16 @@ object InlineConstructors {
               def allow(c: Node.Node): Boolean = c match {
                 case IsConstant() =>
                   true
-                case Node.This() Dot varName if isClassConstant(varName) =>
+                case Node.ThisExpression() Dot varName if isClassConstant(varName) =>
                   true
                 case _ =>
                   false
               }
+              def forbid(c: Node.Node): Boolean = false
             }
 
             val (inlineVars, rest) = rest_?.partition {
-              case SingleExpression(Node.Assign((_: Node.This) Dot member, "=", IsConstantInitializerInThis(expr))) =>
+              case SingleExpression(Assign((_: Node.ThisExpression) Dot member, "=", IsConstantInitializerInThis(expr))) =>
                 //println(s"Assign const $expr")
                 true
               case _ =>
@@ -348,22 +366,23 @@ object InlineConstructors {
             //println(s"  inlined $inlined")
             //println(s"  rest $rest")
             // transform parameter names while inlining (we need to use parSuffix names)
-            val parNames = constructor.argnames.map(Transform.funArg).map(_.name)
+            val parNames = params.map(parameterNameString)
             val parNamesSet = parNames.toSet
             object IsParameter {
               def unapply(arg: String): Boolean = parNamesSet contains arg
             }
             val parNamesAdjusted = (inlined ++ inlineVars).map { s =>
               s.transformAfter { (node, transformer) =>
+                implicit val ctx = transformer.context
                 node match {
-                  case sym@Node.SymbolName(IsParameter()) =>
+                  case sym@Node.Identifier(IsParameter()) =>
                     sym.name = sym.name + parSuffix
-                    types = types addHint sym.thedef.flatMap(id).map(_.copy(name = sym.name)) -> IsConstructorParameter
+                    types = types addHint Some(Id(sym).copy(name = sym.name)) -> IsConstructorParameter
                     sym
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
-                  case (_: Node.This) Dot member if !transformer.parent().isInstanceOf[Node.CallExpression] =>
-                    Node.Identifier(clsTokenDef)(member)
+                  case (_: Node.ThisExpression) Dot member if !transformer.parent().exists(_.isInstanceOf[Node.CallExpression]) =>
+                    Node.Identifier(member)
                   case _ =>
                     node
                 }
@@ -371,40 +390,39 @@ object InlineConstructors {
             }
             // add adjusted constructor argument names so that parser correctly resolves them inside of the function
             val accessor = classInlineBody(cls, clsTokenDef)
-            accessor.argnames = constructor.argnames.map(Transform.funArg).map { p =>
-              val a = p.clone()
+            val accessorValue = accessor.value.asInstanceOf[Node.FunctionExpression]
+
+            accessorValue.params = params.map(Transform.funArg).map { p =>
+              val a = p.cloneNode()
               a.name = p.name + parSuffix
-              val classSymbolId = cls.name.flatMap(_.thedef).flatMap(id)
+              val classSymbolId = Id(cls.id)
               types = types addHint classSymbolId.map(_.copy(name = a.name)) -> IsConstructorParameter
               // marking source as cls so that they use the class scope, same as member variables
-              fillTokens(a, clsTokenDef)
               a
             }
             //println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
 
 
             // add the constructor call itself, so that type inference binds its parameters and arguments
-            val constructorCall = if (rest.nonEmpty) Some(Node.ExpressionStatement(constructorProperty) {
-              new Node.CallExpression {
-                fillTokens(this, constructorProperty)
-                expression = new Dot {
-                  fillTokens(this, constructorProperty)
-                  expression = Node.This().withTokens(constructorProperty)
-                  property = "constructor"
-                }
+            val constructorCall = if (rest.nonEmpty) Some(Node.ExpressionStatement {
+              Node.CallExpression (
+                Dot (
+                  Node.ThisExpression().withTokens(constructorProperty),
+                  Node.Identifier("constructor")
+                ),
 
-                args = constructor.argnames.map { p =>
-                  Node.Identifier(p)(p.name + parSuffix)
+                params.map { p =>
+                  Node.Identifier(parameterNameString(p) + parSuffix)
                 }
-              }
+              )
             }) else None
 
-            accessor.body = accessor.body ++ parNamesAdjusted ++ constructorCall
+            accessorValue.body.body = accessorValue.body.body ++ parNamesAdjusted ++ constructorCall
 
             if (rest.nonEmpty) {
-              constructor.body = rest
+              constructorProperty.value.asInstanceOf[Node.FunctionExpression].body.body = rest
             } else {
-              cls.properties = cls.properties -- Seq(constructorProperty)
+              cls.body.body = cls.body.body diff Seq(constructorProperty)
             }
           }
 

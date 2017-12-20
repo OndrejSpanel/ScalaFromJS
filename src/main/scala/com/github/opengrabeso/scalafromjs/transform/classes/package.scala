@@ -598,11 +598,12 @@ package object classes {
   }
 
 
-  def processAllClasses(n: NodeExtended, c: Option[Regex] = None)(p: Node.ClassDeclaration => Node.ClassDeclaration): NodeExtended = {
-    val ret = n.top.transformAfter { (node, _) =>
+  def processAllClasses(n: NodeExtended, c: Option[Regex] = None)(p: (Node.ClassDeclaration, ScopeContext) => Node.ClassDeclaration): NodeExtended = {
+    val ret = n.top.transformAfter { (node, transformer) =>
+      implicit val ctx = transformer.context
       node match {
         case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _) if c.forall(_.findFirstIn(cName).isDefined)=>
-          p(cls)
+          p(cls, ctx)
         case _ =>
           node
       }

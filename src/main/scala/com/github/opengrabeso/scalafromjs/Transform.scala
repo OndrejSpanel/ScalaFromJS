@@ -26,16 +26,18 @@ object Transform {
     symId(symbol)
   }
 
-  def funArg(p: Node.Node): Node.Identifier = (p: @unchecked) match {
-    case p: Node.Identifier =>
-      p
-    case p: Node.AssignmentPattern =>
-      p.left match {
-        case a: Node.Identifier =>
-          a
-        case _ =>
-          throw new UnsupportedOperationException(s"Unexpected argument node ${p.left} in Node.DefaultAssign")
-      }
+  def funArg(p: Node.Node): Node.Identifier = {
+    (p: @unchecked) match {
+      case p: Node.Identifier =>
+        p
+      case p: Node.AssignmentPattern =>
+        p.left match {
+          case a: Node.Identifier =>
+            a
+          case _ =>
+            throw new UnsupportedOperationException(s"Unexpected argument node ${p.left} in Node.DefaultAssign")
+        }
+    }
   }
 
   def symbolFromPar(p: Node.Node)(implicit context: ScopeContext): Option[SymId] = p match {
@@ -573,7 +575,7 @@ object Transform {
     }
   }
 
-  def isReadOnlyProperty(cls: Node.ClassDeclaration, name: String): Option[Node.Node] = {
+  def isReadOnlyProperty(cls: Node.ClassDeclaration, name: String): Option[Node.Expression] = {
     /*
     var getter = Option.empty[Node.Node]
     var setter = false

@@ -39,14 +39,17 @@ object VariableUtils {
     }
   }
 
-  def listSymbols(n: Node.Node)(implicit context: ScopeContext): Set[SymId] = {
+  def listSymbols(n: Node.Node): Set[SymId] = {
     val symbols = Set.newBuilder[SymId]
-    n walk {
-      case Node.Identifier(Id(symDef)) =>
-        symbols += symDef
-        false
-      case _ =>
-        false
+    n walkWithScope {(node, context) =>
+      implicit val ctx = context
+      node match {
+        case Node.Identifier(Id(symDef)) =>
+          symbols += symDef
+          false
+        case _ =>
+          false
+      }
     }
     symbols.result()
   }

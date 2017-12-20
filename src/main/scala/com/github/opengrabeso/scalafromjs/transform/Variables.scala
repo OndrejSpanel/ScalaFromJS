@@ -385,7 +385,7 @@ object Variables {
     }
   }
 
-  def replaceVariableInit[T <: Node.Node](n: T, oldName: SymId)(transform: (Node.Identifier, Node.Node) => Node.Node): T = {
+  def replaceVariableInit[T <: Node.Node](n: T, oldName: SymId)(transform: (Node.Identifier, Node.Expression) => Node.Node): T = {
     n.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {

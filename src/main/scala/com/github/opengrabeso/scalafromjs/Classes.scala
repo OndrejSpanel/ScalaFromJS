@@ -191,7 +191,7 @@ object Classes {
     c
   }
 
-  def deleteVarMember(c: Node.ClassDeclaration, member: Regex): Unit = {
+  def deleteVarMember(c: Node.ClassDeclaration, member: Regex): Node.ClassDeclaration = {
     val inlineBody = Classes.findInlineBody(c)
     inlineBody.fold(c) { ib =>
       // filter member variables as well
@@ -211,7 +211,7 @@ object Classes {
   }
 
 
-  def transformClassParameters(c: Node.ClassDeclaration, init: Node.Node): Node.Node = {
+  def transformClassParameters(c: Node.ClassDeclaration, init: Node.Expression): Node.Expression = {
     val transformed = for {
       cons <- findConstructor(c)
       constructorMethod <- getMethodMethod(cons)

@@ -13,10 +13,10 @@ import scala.collection.mutable
 
 object Rules {
   def deleteMembers(n: NodeExtended, member: ConvertProject.MemberDesc) = {
-    processAllClasses(n, Some(member.cls)) { c =>
+    processAllClasses(n, Some(member.cls)) { (c, ctx) =>
       val ret = c.copy()
       // filter member functions and properties
-      ret.properties = c.properties.filterNot(p => member.name.test(propertyName(p)))
+      ret.body.body = c.body.body.filterNot(p => member.name.findFirstIn(methodName(p)).isDefined)
 
       deleteVarMember(ret, member.name)
     }
@@ -24,17 +24,17 @@ object Rules {
   }
 
   def makeProperties(n: NodeExtended, member: ConvertProject.MemberDesc) = {
-    processAllClasses(n, Some(member.cls)) { c =>
+    processAllClasses(n, Some(member.cls)) { (c, ctx) =>
 
       // search constructor for a property definition
       val applied = for (constructor <- Classes.findConstructor(c)) yield {
-        val cc = c.clone()
+        val cc = c.cloneNode()
 
         deleteVarMember(cc, member.name)
 
         object CheckPropertyInit {
-          def unapply(arg: Node.Node): Option[Node.Node] = arg match {
-            case c: Node.Constant =>
+          def unapply(arg: Node.Node): Option[Node.Expression] = arg match {
+            case c: Node.Literal =>
               Some(c)
             case o: OObject =>
               // TODO: check if values are acceptable (no dependencies on anything else then parameters)
@@ -46,19 +46,18 @@ object Rules {
         }
         object MatchName {
           def unapply(arg: String): Option[String] = {
-            Some(arg).filter(member.name.test)
+            Some(arg).filter(member.name.findFirstIn(_).isDefined)
           }
         }
 
         val newC = constructor.transformAfter { (node, transformer) =>
           node match {
-            case Node.ExpressionStatement(Node.Assign(Node.This() Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
+            case Node.ExpressionStatement(Assign(Node.ThisExpression() Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
               //println(s"Found property definition ${nodeClassName(init)}")
-              val ss = Node.ExpressionStatement(init) {
-                Classes.transformClassParameters(c, init.clone())
-              }
-              cc.properties += newMethod(prop, Seq(), Seq(ss), init)
-              Node.EmptyStatement(node)
+              val ss = Classes.transformClassParameters(c, init.cloneNode())
+              val m = newMethod(prop, Seq(), Block(ss), init)
+              cc.body.body = cc.body.body :+ m
+              Node.EmptyStatement()
             case _ =>
               node
           }
@@ -79,16 +78,16 @@ object Rules {
       template.substitute("class", cls).substitute("name", name)
     }
 
-    processAllClasses(n, Some(member.cls)) { c =>
-      val cc = c.clone()
-      val clsName = cc.name.fold("")(_.name)
-      val mappedProps = cc.properties.flatMap { p =>
-        val name = propertyName(p)
-        if (member.name.test(name)) {
+    processAllClasses(n, Some(member.cls)) { (c, ctx) =>
+      val cc = c.cloneNode()
+      /*
+      val clsName = cc.id.name
+      val mappedProps = cc.body.body.flatMap { p =>
+        val name = methodName(p)
+        if (member.name.findFirstIn(name).isDefined) {
           val value = applyTemplate(clsName, name)
-          val v = new Node.Sequence {
-            fillTokens(this, p)
-            expressions = js.Array(p, Node.String(p)(value))
+          val v = Node.SequenceExpression {
+            Seq(p, Node.Literal(OrType(value), value))
           }
           // special named property which is passed to output as a string, used for insertion of Scala code
           Seq[Node.ObjectProperty](ObjectKeyVal(p)(templatePrefix + name, v))
@@ -97,6 +96,7 @@ object Rules {
         }
       }
       cc.properties = mappedProps
+      */
       cc
     }
 
@@ -132,7 +132,7 @@ object Rules {
     val r = n.top.transformAfter {(node, transformer) =>
       node match {
         case MatchingScope(name) =>
-          Node.Identifier(node)(name)
+          Node.Identifier(name)
         case _ =>
           node
       }
@@ -145,14 +145,14 @@ object Rules {
     var isClassMembers = Map.empty[String, Node.ClassDeclaration]
 
     n.top.walk {
-      case cls@Node.ClassDeclaration(Defined(Node.SymbolName(cName)), _, _) if member.cls test cName =>
-        val matching = cls.properties
+      case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _) if (member.cls findFirstIn cName).isDefined =>
+        val matching = cls.body.body
           .collect{
             // we expect getter, no parameters, containing a single true statement
-            case Node.ObjectGetter(Node.SymbolName(name), Node.Function(Seq(), Seq(Node.ExpressionStatement(_: Node.True)))) =>
+            case Node.MethodDefinition(Node.Identifier(name), _, AnyFun(Seq(), Seq(Node.ExpressionStatement(BooleanLiteral(true)))), _, _) =>
               name
           }.filter { n =>
-          val matched = member.name.exec(n)
+          val matched = member.name.findFirstIn(n).orNull
           if (matched == null || matched.length < 2) false
           else {
             // only when class name matches the first match group
@@ -174,9 +174,9 @@ object Rules {
 
     val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case callOn Dot GetClass(Node.ClassDeclaration(Defined(Node.SymbolName(prop)), _, _)) =>
+        case callOn Dot GetClass(Node.ClassDeclaration(Defined(Node.Identifier(prop)), _, _)) =>
           //println(s"Detect call $prop")
-          Binary(node) (callOn, instanceof, Node.Identifier(node)(prop))
+          Binary (callOn, instanceof, Node.Identifier(prop))
         case _ =>
           node
       }
@@ -191,10 +191,10 @@ object Rules {
 
     object DetectClassCompare {
       def unapply(arg: Node.BinaryExpression)(implicit tokensFrom: Node.Node)= arg match {
-        case Binary(callOn Dot prop, "=="|"===", expr) if member.name.test(prop) =>
+        case Binary(callOn Dot prop, "=="|"===", expr) if member.name.findFirstIn(prop).isDefined =>
           val className = expr match {
-            case s: Node.String =>
-              Some(s.value)
+            case StringLiteral(s) =>
+              Some(s)
             case _ Dot s =>
               Some(s)
             case Node.Identifier(s) =>
@@ -209,7 +209,7 @@ object Rules {
           //className.foreach(c => println(s"Found $c sym ${sym.map(_.name).getOrElse(expr)}"))
           // TODO: even when there is no class, consider passing the name if it looks reasonable
           sym.map {
-            sym => (callOn, Node.Identifier.symDef(tokensFrom)(sym))
+            sym => (callOn, Node.Identifier(sym.name))
           }
         case _ =>
           None
@@ -220,7 +220,7 @@ object Rules {
       implicit val tokensFrom = node
       node match {
         case DetectClassCompare(callOn, symRef) =>
-          Binary(node)(callOn, instanceof, symRef)
+          Binary(callOn, instanceof, symRef)
         case _ =>
           node
       }

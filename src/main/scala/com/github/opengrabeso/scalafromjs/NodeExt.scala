@@ -316,6 +316,16 @@ trait NodeExt {
     }
   }
 
+  def methodName(n: Node.ClassBodyElement): String = {
+    n match {
+      case n: Node.MethodDefinition =>
+        n.key match {
+          case Node.Identifier(name) =>
+            name
+        }
+    }
+  }
+
   def unsupported(message: String, source: Node.Node, include: Option[Node.Node] = None) = {
     Node.ExpressionStatement {
       Node.CallExpression(
