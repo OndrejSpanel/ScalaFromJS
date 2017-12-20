@@ -1087,7 +1087,9 @@ object ScalaOut {
                 p.value match {
                   case Node.FunctionExpression(id, params, body, generator) =>
                     out"def ${p.key}"
-                    outputArgNames(params, true)(p.value)
+                    if (p.kind != "get" || params.nonEmpty) {
+                      outputArgNames(params, true)(p.value)
+                    }
                     out(" = ")
                     //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
                     blockBracedToOut(body.body)

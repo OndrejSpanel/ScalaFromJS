@@ -354,7 +354,7 @@ package object classes {
             Node.Identifier(k),
             false,
             Node.FunctionExpression(null, Seq(), Node.BlockStatement(Seq(Node.ExpressionStatement(v))).withTokens(tokensFrom), false).withTokens(tokensFrom),
-            true,
+            "get",
             isStatic
 
           )
@@ -365,7 +365,7 @@ package object classes {
             Node.Identifier(k),
             false,
             Node.FunctionExpression(null, args, Node.BlockStatement(body).withTokens(tokensFrom), false).withTokens(tokensFrom),
-            true,
+            if (args.isEmpty) "get" else "set",
             isStatic
           )
         }
@@ -482,7 +482,8 @@ package object classes {
 
           // name does not contain thedef, we did not provide it
           // find a corresponding symbol
-          val baseSym = thisClass.flatMap(superClassSymbolDef)
+          val cls = thisClass
+          val baseSym = cls.flatMap(superClassSymbolDef)
           val baseId = baseSym.flatMap(SymbolTypes.id)
 
           //println(s"baseSym ${baseSym.map(_.name)} baseId $baseId")

@@ -325,12 +325,9 @@ object InferTypes {
       }
 
       def tpe(types: SymbolTypes) =  {
-        /*
         val p = findInParents(symbol.cls, symbol.name)(ctx)
         //println(s"Check $d => $p = ${n.types.getMember(dot)}")
         types.getMember(p.map(pp => symbol.copy(cls = pp)))
-        */
-        ???
       }
     }
 
@@ -371,12 +368,9 @@ object InferTypes {
       }
 
       def tpe(types: SymbolTypes) =  { // TODO: verify
-        /*
         val p = findInParents(symbol.cls, symbol.name)(ctx)
         //println(s"Check $d => $p = ${n.types.getMember(dot)}")
         types.getMember(p.map(pp => symbol.copy(cls = pp)))
-        */
-        ???
       }
     }
 
@@ -388,12 +382,9 @@ object InferTypes {
       }
 
       def tpe(types: SymbolTypes) =  { // TODO: verify
-        /*
         val p = findInParents(symbol.cls, symbol.name)(ctx)
         //println(s"Check $d => $p = ${n.types.getMember(dot)}")
         types.getMember(p.map(pp => symbol.copy(cls = pp)))
-        */
-        ???
       }
     }
 

@@ -4,6 +4,7 @@ import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import JsUtils._
 import SymbolTypes._
+import com.github.opengrabeso.scalafromjs.Transform.ExpressionTypeContext
 import com.github.opengrabeso.scalafromjs.esprima.symbols._
 
 import scala.util.matching.Regex
@@ -37,7 +38,7 @@ object Classes {
 
   def findThisClassInWalker(walker: ScopeContext): Option[Node.ClassDeclaration] = {
     //println(walker.stack.map(nodeClassName).mkString(":"))
-    walker.scopes.map(_._1).reverse.collectFirst {
+    walker.parents.reverse.collectFirst {
       case c: Node.ClassDeclaration =>
         //println(s"Found ${c.name.map(_.name)}")
         c
@@ -48,7 +49,7 @@ object Classes {
   def findThisClass(walker: ScopeContext): Option[Node.ClassDeclaration] = findThisClassInWalker(walker)
 
   def superClassSymbolDef(cls: Node.ClassDeclaration)(implicit context: ScopeContext): Option[SymId] = {
-    symId(cls.superClass)
+    Option(cls.superClass).flatMap(symId)
   }
 
   def superClass(cls: Node.ClassDeclaration)(implicit context: ScopeContext): Option[SymbolMapId] = {
@@ -94,6 +95,7 @@ object Classes {
   def getParents(tpe: SymbolMapId)(ctx: ExpressionTypeContext): Seq[SymbolMapId] = {
     ctx.classInfo.listParents(tpe)
   }
+  */
 
 
   def findInParents(tpe: SymbolMapId, member: String)(ctx: ExpressionTypeContext): Option[SymbolMapId] = {
@@ -109,7 +111,6 @@ object Classes {
     None
     */
   }
-  */
 
   val isConstructorProperty: PartialFunction[Node.ClassBodyElement, Node.MethodDefinition] = {
     case m: Node.MethodDefinition if propertyKeyName(m.key) == "constructor" =>
