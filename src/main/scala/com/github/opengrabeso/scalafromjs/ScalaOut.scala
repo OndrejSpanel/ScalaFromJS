@@ -887,7 +887,7 @@ object ScalaOut {
 
         tn.test match {
           // CASE_CAST
-          case Node.CallExpression(Node.Identifier("cast_^"),AsInstanceOfCondition(name, classes)) =>
+          case Node.CallExpression(Node.Identifier("cast_^"),Seq(AsInstanceOfCondition(name, classes))) =>
             classes match {
               case Seq(cls) =>
                 out"${identifier(name.name + castSuffix)}: $cls"
