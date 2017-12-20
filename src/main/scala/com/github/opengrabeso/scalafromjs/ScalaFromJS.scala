@@ -4,6 +4,7 @@ import java.util.concurrent.{ConcurrentLinkedQueue, Semaphore}
 import java.util.prefs.Preferences
 
 import scala.concurrent.Future
+import scala.util.Try
 import scalafx.application.Platform
 import scalafx.collections.ObservableBuffer
 import scalafx.application.JFXApp
@@ -38,8 +39,6 @@ object ScalaFromJS extends JFXApp {
 
 
     scene = new Scene {
-
-      var resultTimestamp = Option.empty[Long]
 
       val result = new TextArea {
         editable = false
@@ -87,6 +86,9 @@ object ScalaFromJS extends JFXApp {
         }
 
         def background(): Unit = {
+
+          def now() = System.currentTimeMillis()
+
           while (true) {
             waitForInput.acquire()
             var lastInput: (String, Long) = inputs.poll()
@@ -95,18 +97,19 @@ object ScalaFromJS extends JFXApp {
               lastInput = inputs.poll()
             }
             if (lastInput._1 == null) return
-            try {
-              val resultText = Convert(lastInput._1)
+            val start = now()
+            val resultText = Try (Convert(lastInput._1))
+            val duration = now() - start
 
-              // avoid overwriting newer result
-              Platform.runLater {
-                if (resultTimestamp.forall(_ < lastInput._2)) {
-                  result.text = resultText
-                  resultTimestamp = Some(lastInput._2)
-                }
+            // avoid overwriting newer result
+            Platform.runLater {
+              resultText.map { text =>
+                result.text = text
+                statusBar.text.value = s"Conversion duration $duration ms"
+              }.failed.map { ex =>
+                statusBar.text.value = s"Conversion duration $duration ms, error ${ex.getMessage}"
               }
-            } catch {
-              case ex: Exception => // debug exceptions somehow?
+
             }
           }
         }
@@ -140,7 +143,8 @@ object ScalaFromJS extends JFXApp {
       val pane = new BorderPane {
 
         top = menuBar
-        center = new HBox(input, result, statusBar)
+        center = new HBox(input, result)
+        bottom = statusBar
 
       }
 
