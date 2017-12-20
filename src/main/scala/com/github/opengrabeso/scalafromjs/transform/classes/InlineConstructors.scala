@@ -321,7 +321,8 @@ object InlineConstructors {
         case cls: Node.ClassDeclaration =>
           val clsTokenDef = classTokenSource(cls)
           for {
-            constructorProperty@AnyFun(params, b) <- findConstructor(cls)
+            md <- findConstructor(cls)
+            constructorProperty@AnyFun(params, b) <- Some(md.value)
           } {
             // anything before a first variable declaration can be inlined, variables need to stay private
             val body = Block.statements(b)
@@ -420,9 +421,9 @@ object InlineConstructors {
             accessorValue.body.body = accessorValue.body.body ++ parNamesAdjusted ++ constructorCall
 
             if (rest.nonEmpty) {
-              constructorProperty.value.asInstanceOf[Node.FunctionExpression].body.body = rest
+              constructorProperty.asInstanceOf[Node.FunctionExpression].body.body = rest
             } else {
-              cls.body.body = cls.body.body diff Seq(constructorProperty)
+              cls.body.body = cls.body.body diff Seq(md)
             }
           }
 
