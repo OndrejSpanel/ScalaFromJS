@@ -373,28 +373,31 @@ class ClassList {
   def defClass(name: ClassId): ClassDef = classes.getOrElse(name, new ClassDef)
 
   def defineSingleProperty(name: ClassId, key: String, p: Node.ObjectExpressionProperty) = {
-    /*
-    (p.value, p.key) match {
-      case (fun: Node.Function, "get") =>
-        //println(s"Add getter ${pp.key}")
-        // new lookup needed for classes(name), multiple changes can be chained
-        val c = defClass(name)
-        classes += name -> c.copy(getters = c.getters + (key -> ClassFunMember(fun.argnames, fun.body)))
-      case (fun: Node.Function, "set") =>
-        //println(s"Add setter ${pp.key}")
-        val c = defClass(name)
-        classes += name -> c.copy(setters = c.setters + (key -> ClassFunMember(fun.argnames, fun.body)))
-      //println(classes)
-      case (value, "value") =>
-        //println(s"Add value $key")
-        val c = defClass(name)
-        classes += name -> c.copy(values = c.values + (key -> ClassVarMember(value)))
+    p match {
+      case p: Node.Property =>
+        (p.value, propertyKeyName(p.key)) match {
+          case (fun: Node.FunctionExpression, "get") =>
+            //println(s"Add getter ${pp.key}")
+            // new lookup needed for classes(name), multiple changes can be chained
+            val c = defClass(name)
+            classes += name -> c.copy(getters = c.getters + (key -> ClassFunMember(fun.params, fun.body.body)))
+          case (fun: Node.FunctionExpression, "set") =>
+            //println(s"Add setter ${pp.key}")
+            val c = defClass(name)
+            classes += name -> c.copy(setters = c.setters + (key -> ClassFunMember(fun.params, fun.body.body)))
+          //println(classes)
+          case (value, "value") =>
+            //println(s"Add value $key")
+            val c = defClass(name)
+            classes += name -> c.copy(values = c.values + (key -> ClassVarMember(value)))
 
+          case _ =>
+          //println("Other property " + nodeClassName(p))
+
+        }
       case _ =>
-      //println("Other property " + nodeClassName(p))
 
     }
-    */
   }
 
   def defineStaticMember(name: ClassId, key: String, value: Node.Node) = {
