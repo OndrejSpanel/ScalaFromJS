@@ -101,25 +101,20 @@ object ClassList {
             case kv: Node.MethodDefinition =>
               //println(s"Add ObjectKeyVal $key")
               if (isStatic) {
-                addMember(ClassVarMember(kv.value))
+                kv.value match {
+                  case v: Node.Expression =>
+                    addMember(ClassVarMember(v))
+                }
               } else {
                 kv.value match {
                   case AnyFun(args, body) =>
                     //println(s"Add fun member ${kv.key}")
                     addMember(ClassFunMember(args, Block.statements(body)))
-                  case v =>
+                  case v: Node.Expression =>
                     //println(s"Add var member ${kv.key} ${nodeClassName(v)}")
                     addMember(ClassVarMember(v))
                 }
               }
-            /*
-            case p: Node.ObjectGetter =>
-              assert(!isStatic)
-              addGetter(ClassFunMember(p.value.argnames, p.value.body))
-            case p: Node.ObjectSetter =>
-              assert(!isStatic)
-              addSetter(ClassFunMember(p.value.argnames, p.value.body))
-            */
 
             case Node.Property(kind, _, _, value, method, shorthand) =>
               value match {
@@ -134,14 +129,17 @@ object ClassList {
                       addMember(funMember)
 
                   }
-                case _ =>
+                case value: Node.Expression =>
                   addMember(ClassVarMember(value))
+                case _ =>
+                  val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m, Some(m))
+                  addMember(ClassVarMember(ScalaNode.StatementExpression(member)))
               }
 
             case _ =>
               // prototype contains something other than a key: val pair - what to do with it?
               val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m, Some(m))
-              addMember(ClassVarMember(member))
+              addMember(ClassVarMember(ScalaNode.StatementExpression(member)))
           }
         }
       }
@@ -227,7 +225,7 @@ object ClassList {
                     res.clazz = res.clazz.addValue(vName, member)
                   case vd@Node.VariableDeclarator(Node.Identifier(vName), _) =>
                     //println(s"value member $vName as undefined")
-                    val member = ClassVarMember(Node.EmptyStatement())
+                    val member = ClassVarMember(ScalaNode.StatementExpression(Node.EmptyStatement()))
                     res.clazz = res.clazz.addValue(vName, member)
                 }
               case s =>
@@ -386,7 +384,7 @@ class ClassList {
             val c = defClass(name)
             classes += name -> c.copy(setters = c.setters + (key -> ClassFunMember(fun.params, fun.body.body)))
           //println(classes)
-          case (value, "value") =>
+          case (value: Node.Expression, "value") =>
             //println(s"Add value $key")
             val c = defClass(name)
             classes += name -> c.copy(values = c.values + (key -> ClassVarMember(value)))
@@ -405,12 +403,10 @@ class ClassList {
     val c = defClass(name)
     if (!(c.membersStatic contains key)) {
       val member = value match {
-          /*
-        case Node.MethodDefinition(_, _, args, body) =>
+        case AnyFun(args, body) =>
           //println(s"Define static fun $key")
-          ClassFunMember(args, body)
-        */
-        case _ =>
+          ClassFunMember(args, Block.statements(body))
+        case value: Node.Expression =>
           //println(s"Define static var $key")
           ClassVarMember(value)
       }

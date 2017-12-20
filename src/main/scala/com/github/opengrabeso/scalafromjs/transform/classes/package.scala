@@ -69,7 +69,7 @@ package object classes {
     }
   }
 
-  case class ClassVarMember(value: Node.Node) extends ClassMember {
+  case class ClassVarMember(value: Node.Expression) extends ClassMember {
     def definedFrom(init: Node.Node) = {
       //println(s"Defined value from: ${ScalaOut.outputNode(value)} ${ScalaOut.outputNode(init)}")
       value == init
@@ -334,7 +334,7 @@ package object classes {
               Some(args, body)
 
             // non-static functions should always be represented as functions if possible
-            case (ClassVarMember(Node.BlockStatement(ss :+ ReturnValue(AnyFun(args, body)))), false) /*if onlyVariables(ss)*/ =>
+            case (ClassVarMember(ScalaNode.StatementExpression(Node.BlockStatement(ss :+ ReturnValue(AnyFun(args, body))))), false) /*if onlyVariables(ss)*/ =>
               //println(nodeClassName(f))
               val newBody = ss ++ Block.statements(body)
               Some(args, newBody)
@@ -348,12 +348,12 @@ package object classes {
           }
         }
 
-        def newValue(k: String, v: Node.Node, isStatic: Boolean): Node.ClassBodyElement = {
+        def newValue(k: String, v: Node.Expression, isStatic: Boolean): Node.ClassBodyElement = {
           //println(s"newValue $k $v $isStatic")
           Node.MethodDefinition(
             Node.Identifier(k),
             false,
-            v.asInstanceOf[Node.PropertyValue],
+            Node.FunctionExpression(null, Seq(), Node.BlockStatement(Seq(Node.ExpressionStatement(v))).withTokens(tokensFrom), false).withTokens(tokensFrom),
             true,
             isStatic
 
