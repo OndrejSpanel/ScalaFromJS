@@ -36,20 +36,6 @@ object ScalaFromJS extends JFXApp {
     //private val icon = new Image("/calculator.png")
     //icons.add(icon)
 
-    def saveSession(): Unit = {
-      val oldSize = prefs.getInt("rows", 0)
-      prefs.put("version", "0")
-    }
-
-
-    def loadSession(): Unit = {
-      val version = prefs.get("version", "")
-      if (version.nonEmpty) {
-      }
-    }
-
-
-    loadSession()
 
     scene = new Scene {
 
@@ -68,6 +54,23 @@ object ScalaFromJS extends JFXApp {
         }
 
       }
+
+      def saveSession(): Unit = {
+        prefs.put("version", "0")
+        prefs.put("input", input.text.value)
+      }
+
+
+      def loadSession(): Unit = {
+        val version = prefs.get("version", "")
+        if (version.nonEmpty) {
+          val loaded = prefs.get("input", "")
+          input.text.value = loaded
+        }
+      }
+
+
+      loadSession()
 
       onCloseRequest = handle {
         BackgroundConversion.process(null)
@@ -95,7 +98,7 @@ object ScalaFromJS extends JFXApp {
             try {
               val resultText = Convert(lastInput._1)
 
-              // avoid overwritting newer result
+              // avoid overwriting newer result
               Platform.runLater {
                 if (resultTimestamp.forall(_ < lastInput._2)) {
                   result.text = resultText
