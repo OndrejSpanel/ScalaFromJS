@@ -1,7 +1,9 @@
 package com.github.opengrabeso.scalafromjs
 
+import java.util.concurrent.{ConcurrentLinkedQueue, Semaphore}
 import java.util.prefs.Preferences
 
+import scala.concurrent.Future
 import scalafx.application.Platform
 import scalafx.collections.ObservableBuffer
 import scalafx.application.JFXApp
@@ -17,6 +19,8 @@ import scalafx.scene.layout._
 
 import scalafx.scene.image.Image
 
+import scala.concurrent.ExecutionContext.Implicits.global
+
 //noinspection ForwardReference
 object ScalaFromJS extends JFXApp {
   def prefs: Preferences = Preferences.userRoot().node(getClass.getPackage.getName.toLowerCase)
@@ -26,6 +30,8 @@ object ScalaFromJS extends JFXApp {
   stage = new JFXApp.PrimaryStage {
     title.value = "ScalaFromJs - Javascript to Scala conversion tool"
 
+    width = 800
+    height = 800
 
     //private val icon = new Image("/calculator.png")
     //icons.add(icon)
@@ -42,13 +48,12 @@ object ScalaFromJS extends JFXApp {
       }
     }
 
+
     loadSession()
 
     scene = new Scene {
-      def computeResult(preview: Boolean): Unit = {
-        val resultText = Convert(input.text.value)
-        result.text = resultText
-      }
+
+      var resultTimestamp = Option.empty[Long]
 
       val result = new TextArea {
         editable = false
@@ -58,19 +63,58 @@ object ScalaFromJS extends JFXApp {
         Platform.runLater(requestFocus())
 
         text.onChange {
-          computeResult(true)
+          BackgroundConversion.process(text.value)
           saveSession()
         }
 
       }
-      val statusBar = new Label
 
-      def changeSettings(change: => Unit): Unit = {
-        change
-        showStatus()
-        computeResult(true)
-
+      onCloseRequest = handle {
+        BackgroundConversion.process(null)
       }
+
+      object BackgroundConversion {
+        // use actors instead?
+        val inputs = new ConcurrentLinkedQueue[(String, Long)]
+        val waitForInput = new Semaphore(0, true)
+
+        def process(in: String) = {
+          inputs.add(in -> System.currentTimeMillis())
+          waitForInput.release()
+        }
+
+        def background(): Unit = {
+          while (true) {
+            waitForInput.acquire()
+            var lastInput: (String, Long) = inputs.poll()
+            // empty the queue
+            while (waitForInput.tryAcquire() && lastInput._1 != null) {
+              lastInput = inputs.poll()
+            }
+            if (lastInput._1 == null) return
+            try {
+              val resultText = Convert(lastInput._1)
+
+              // avoid overwritting newer result
+              Platform.runLater {
+                if (resultTimestamp.forall(_ < lastInput._2)) {
+                  result.text = resultText
+                  resultTimestamp = Some(lastInput._2)
+                }
+              }
+            } catch {
+              case ex: Exception => // debug exceptions somehow?
+            }
+          }
+        }
+
+        val backgroundThread = new Thread(new Runnable {
+          def run() = background()
+        })
+        backgroundThread.start()
+      }
+
+      val statusBar = new Label
 
       val menuBar = new MenuBar {
         useSystemMenuBar = true
