@@ -5,6 +5,7 @@ import com.github.opengrabeso.esprima._
 import Classes._
 import Expressions._
 import ScalaOut.SymbolDef
+import com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima.symbols._
 
 import scala.collection.mutable
@@ -433,7 +434,6 @@ object Transform {
         //println(s"    Sym ${symDef.name} type $rt")
         rt
 
-      /*
       case expr Dot name =>
         val exprType = expressionType(expr, log)(ctx, context)
         if (log) println(s"type of member $expr.$name, class $exprType")
@@ -445,7 +445,6 @@ object Transform {
           if (log) println(s"type of member $c.$name as $r")
           r
         }
-      */
 
       case expr Sub name =>
         //println(s"Infer type of array item $name, et ${expressionType(expr)(ctx)}")
@@ -535,9 +534,8 @@ object Transform {
         if (log)  println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
         types.get(tid).map(callReturn)
 
-      /*
-      case Node.CallExpression(cls Dot name, _*) =>
-        val exprType = expressionType(cls, log)(ctx)
+      case Node.CallExpression(cls Dot name, _) =>
+        val exprType = expressionType(cls, log)
         if (log) println(s"Infer type of member call $cls.$name class $exprType")
         for {
           TypeDecl(ClassType(callOn)) <- exprType
@@ -547,7 +545,7 @@ object Transform {
           if (log) println(s"  Infer type of member call $c.$name as $r")
           callReturn(r)
         }
-        */
+
       case seq: Node.SequenceExpression =>
         expressionType(seq.expressions.last, log)
       case Node.ExpressionStatement(ExpressionType(t)) =>
@@ -630,47 +628,47 @@ object Transform {
     existingMembers
   }
 
-  def listDefinedClassMembers(node: NodeExtended) = {
+  def listDefinedClassMembers(ast: NodeExtended) = {
     var listMembers = ClassInfo()
-    node.top.walkWithScope { (node, context) =>
+    ast.top.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
-        case cls@Node.ClassDeclaration(Defined(Node.Identifier(Id(clsSym))), Node.Identifier(Id(parent)), _) =>
+        case cls@Node.ClassDeclaration(Node.Identifier(Id(clsSym)), MayBeNull(parentNode), _) =>
           for (clsId <- id(clsSym)) {
-            for {
-              parentId <- parent
-            } {
+            for (Node.Identifier(Id(parentId)) <- parentNode) {
               //println(s"Add parent $parent for $clsSym")
               listMembers = listMembers.copy(parents = listMembers.parents + (clsId -> parentId))
             }
             val members = listPrototypeMemberNames(cls)
 
-            /*
-          // list data members
-          //println(s"varMembers for $cls")
-          val varMembers = for {
-            inlineBody <- findInlineBody(cls).toSeq
-            VarName(member) <- inlineBody.value.body
-          } yield member
+            // list data members
+            //println(s"varMembers for $cls")
+            val varMembers = for {
+              inlineMethod <- findInlineBody(cls).toSeq
+              inlineBodyBlock <- getMethodBody(inlineMethod).toSeq
+              VarDecl(member, _, _) <- inlineBodyBlock.body
+            } yield member
 
-          // TODO: maybe parMembersInline is enough?
+            // TODO: maybe parMembersInline is enough?
+            def listParameters(method: Option[Node.MethodDefinition]): Seq[SymId] = method.toSeq.flatMap {
+              _.value match {
+                case AnyFun(params, body) =>
+                  params.flatMap(Transform.symbolFromPar(_))
+              }
+            }
 
-          def listParameters(method: Option[Node.MethodDefinition]) = method.toSeq.flatMap(_.value.argnames.flatMap(Transform.symbolFromPar))
+            val parMembers = listParameters(findConstructor(cls)).map(_.name)
+            val parMembersInline = for {
+              arg <- listParameters(findInlineBody(cls))
+              argId = clsId.copy(name = arg.name) // arg may be constructed by us - may miss symbol/token information
+              //_ = println(s"Arg $argId from cls $clsId hints ${node.types.hints.get(argId)}")
+              if !ast.types.hints.get(argId).contains(IsConstructorParameter) && !arg.name.endsWith(parSuffix)
+            } yield {
+              arg.name
+            }
 
-          val parMembers = listParameters(findConstructor(cls)).map(_.name)
-          val parMembersInline = for {
-            arg <- listParameters(findInlineBody(cls))
-            argId = clsId.copy(name = arg.name) // arg may be constructed by us - may miss symbol/token information
-            //_ = println(s"Arg $argId from cls $clsId hints ${node.types.hints.get(argId)}")
-            if !node.types.hints.get(argId).contains(IsConstructorParameter) && !arg.name.endsWith(parSuffix)
-          } yield {
-            arg.name
-          }
-
-          //println(s"${clsSym.name}: parMembers $parMembers $parMembersInline")
-          val clsMembers = clsId -> (members ++ varMembers ++ parMembers ++ parMembersInline).distinct
-          */
-            val clsMembers = clsId -> members.distinct
+            //println(s"${clsSym.name}: parMembers $parMembers $parMembersInline")
+            val clsMembers = clsId -> (members ++ varMembers ++ parMembers ++ parMembersInline).distinct
             listMembers = listMembers.copy(members = listMembers.members + clsMembers)
 
             //println(s"listMembers $listMembers (++ $clsMembers)")

@@ -264,7 +264,10 @@ object Classes {
 
     def get(name: SymbolMapId): Option[Node.ClassDeclaration] = classes.get(name)
 
-    def classPos(name: SymbolMapId): Int = name.sourcePos
+    def classPos(name: SymbolMapId): Int = {
+      val cls = classes(name)
+      cls.body.range._1
+    }
 
   }
 
