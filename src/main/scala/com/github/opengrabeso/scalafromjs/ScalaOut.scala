@@ -361,7 +361,7 @@ object ScalaOut {
         if (!input.types.getHint(symId(sym)).contains(IsConstructorParameter) && !sym.name.endsWith(parSuffix)) {
           out("var ")
         }
-        out"$n"
+        out"$sym"
         outputArgType(sym, init)(scopeNode)
       }
       out(")")
