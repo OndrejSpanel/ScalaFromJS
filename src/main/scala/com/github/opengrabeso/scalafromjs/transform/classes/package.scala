@@ -528,7 +528,7 @@ package object classes {
           call
 
 
-        // Light.prototype.call( this, source );
+        // Animal.prototype.move.call(this, 5)
         case call@Node.CallExpression(
         Node.Identifier(Id(IsSuperClass())) Dot "prototype" Dot func Dot "call",
         Seq(_: Node.ThisExpression, args@_*)
@@ -538,6 +538,15 @@ package object classes {
           call.arguments = removeHeadThis(args)
           call
 
+        // call(this, args) may be already transformed out by processCall
+        case call@Node.CallExpression(
+        Node.Identifier(Id(IsSuperClass())) Dot "prototype" Dot func,
+        args
+        ) =>
+          //println(s"Super call of $func in ${thisClass.map(_.name.get.name)}")
+          call.callee = new Dot (Node.Super(), Node.Identifier(func))
+          call.arguments = args
+          call
 
         // this.constructor, typically as new this.constructor( ... )
         case (_: Node.ThisExpression) Dot "constructor" =>
