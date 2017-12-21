@@ -23,7 +23,7 @@ class BasicConversionTests extends FunSuite with TestUtils {
   }
 
   test("String escaping") {
-    exec check ConversionCheck(""""Multiple lines\nAnd some tabs\tas well\r\n"""")
+    exec check ConversionCheck("""var string = "Multiple lines\nAnd some tabs\tas well\r\n"""")
       .required("\\n", "\\r", "\\t")
       .forbidden("\t")
   }
