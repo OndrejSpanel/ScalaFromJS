@@ -354,11 +354,14 @@ object ScalaOut {
     }
 
     def outputClassArgNames(argnames: Seq[Node.FunctionParameter])(scopeNode: Node.Node) = {
+      //noinspection ScalaUnusedSymbol
+      val ctx = null // hide implicit context scope
+      val scopeId = ScopeContext.getNodeId(scopeNode)
       out("(")
       outputNodes(argnames) { n =>
         val (sym, init) = parameterName(n)
         // parSuffix is still used for parameters which are modified
-        if (!input.types.getHint(symId(sym)).contains(IsConstructorParameter) && !sym.name.endsWith(parSuffix)) {
+        if (!input.types.getHint(Some(SymId(sym.name, scopeId))).contains(IsConstructorParameter) && !sym.name.endsWith(parSuffix)) {
           out("var ")
         }
         out"$sym"
@@ -368,6 +371,8 @@ object ScalaOut {
     }
 
     def outputArgNames(argnames: Seq[Node.FunctionParameter], types: Boolean = false)(scopeNode: Node.Node) = {
+      //noinspection ScalaUnusedSymbol
+      val ctx = null // hide implicit context scope
       out("(")
       outputNodes(argnames) { n =>
         val (sym, init) = parameterName(n)

@@ -264,8 +264,7 @@ object Parameters {
     var types = n.types
 
     def handleSimpleParameters(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
-      val InlineBodyName = Classes.inlineBodyName
-      if (context.parent().collect {case md: Node.MethodDefinition if methodName(md) == InlineBodyName => md}.isEmpty) {
+      if (context.parent().collect {case md: Node.MethodDefinition if methodName(md) == Classes.inlineBodyName => md}.isEmpty) {
         Some(f)
       } else {
         implicit val ctx = context
@@ -376,25 +375,23 @@ object Parameters {
     var types = n.types
     val logging = false
     def handleConstructorVars(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
-      val InlineBodyName = Classes.inlineBodyName
-      if (context.parent().collect {case Node.MethodDefinition(Node.Identifier(InlineBodyName), _, _, _, _) => ()}.nonEmpty) {
+      if (context.parent().collect {case md: Node.MethodDefinition if methodName(md) == Classes.inlineBodyName => md}.isEmpty) {
         Some(f)
       } else {
-        implicit val ctx = context
         // inline all parameters, or constructor only?
         // check hints: is it a variable?
         val parSym = parameterName(par)._1
 
-        val isPurePar = n.types.getHint(symbolId(parSym)).contains(IsConstructorParameter)
+        val isPurePar = n.types.getHint(symbolId(parSym)(context)).contains(IsConstructorParameter)
 
         val parName = parSym.name
         if (logging) println(s"Checking par $parName")
         if (isPurePar) {
           if (logging) println(s"  is a pure parameter")
-          val parDef = Id(parName)
+          val parDef = Id(parName)(context)
           object IsVarPar {
 
-            def unapply(arg: Node.Node) = arg match {
+            def unapply(arg: Node.Node)(implicit ctx: ScopeContext) = arg match {
               case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(Id(symDef)), Defined(Node.Identifier(Id(`parDef`))))), _) =>
                 //println(s"IsVarPar $symName ${parDef.name}")
                 Some(symDef)
@@ -416,30 +413,33 @@ object Parameters {
 
           var isVarPar = Option.empty[SymId]
           var otherUse = false
-          f.body.walk {
-            case IsVarPar(varSym) =>
-              if (logging) println(s"Detected variable par ${varSym.name} for $parName")
-              // only one var-par is allowed
-              if (!otherUse && isVarPar.isEmpty) isVarPar = Some(varSym)
-              else {
-                if (logging) println(s"  multiple variable par candidates for $parName")
+          f.body.walkWithScope(context) { (node, context) =>
+            implicit val ctx = context
+            node match {
+              case IsVarPar(varSym) =>
+                if (logging) println(s"Detected variable par ${varSym.name} for $parName")
+                // only one var-par is allowed
+                if (!otherUse && isVarPar.isEmpty) isVarPar = Some(varSym)
+                else {
+                  if (logging) println(s"  multiple variable par candidates for $parName")
+                  isVarPar = None
+                  otherUse = true
+                }
+                true // use inside of the current pattern must not set otherUse
+              case Node.CallExpression(Node.ThisExpression() Dot "constructor", args) if args.exists(isParRef) =>
+                // passed to the constructor - this is always allowed
+                // should we check what the constructor does with the value?
+                //println(s"Detected constructor call for $parName")
+                true
+              case Node.Identifier(`parName`) =>
+                if (logging) println(s"Detected other use for $parName")
                 isVarPar = None
                 otherUse = true
-              }
-              true // use inside of the current pattern must not set otherUse
-            case Node.CallExpression(Node.ThisExpression() Dot "constructor", args) if args.exists(isParRef) =>
-              // passed to the constructor - this is always allowed
-              // should we check what the constructor does with the value?
-              //println(s"Detected constructor call for $parName")
-              true
-            case Node.Identifier(`parName`) =>
-              if (logging) println(s"Detected other use for $parName")
-              isVarPar = None
-              otherUse = true
-              true
-            case _ =>
-              otherUse
+                true
+              case _ =>
+                otherUse
 
+            }
           }
 
           isVarPar.map { varSym =>
@@ -452,11 +452,12 @@ object Parameters {
             }
             // redirect also a symbol type
               //println(s"${parSym.name} -> ${varSym.name} Redirect type $tpe")
-            for (tpe <- types.get(symId(parSym))) {
+            for (tpe <- types.get(symId(parSym)(context))) {
               types += Some(varSym) -> tpe
             }
 
-            val body = f.body.transformAfter { (node, _) =>
+            val body = f.body.transformAfter(context) { (node, transformer) =>
+              implicit val ctx = transformer.context
               node match {
                 case IsVarPar(`varSym`) =>
                   Node.EmptyStatement()

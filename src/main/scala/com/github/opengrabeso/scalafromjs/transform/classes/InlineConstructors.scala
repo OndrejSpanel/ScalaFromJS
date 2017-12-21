@@ -280,7 +280,9 @@ object InlineConstructors {
             val rest = restRaw.filter {
               case Node.ExpressionStatement(Assign(Node.ThisExpression() Dot tgtName, "=", Node.Identifier(funName)))
                 // TODO: relax tgtName == funName requirement
-                if tgtName == funName /*&& (functionsToConvert exists (_.name.exists(_.name==funName)))*/ =>
+                if tgtName == funName && functionsToConvert.collectFirst {
+                  case f: Node.FunctionExpression if f.id.name == funName => f
+                }.nonEmpty =>
                 //if (log) println(s"Drop assign $funName")
                 false
               case _ =>
@@ -363,6 +365,12 @@ object InlineConstructors {
               case _ =>
                 false
             }
+
+            val accessor = classInlineBody(cls, clsTokenDef)
+            val accessorValue = accessor.value.asInstanceOf[Node.FunctionExpression]
+
+            val inlineBodyScope = ScopeContext.getNodeId(accessorValue)
+
             //println(s"inlining $cls")
             //println(s"  inlined $inlined")
             //println(s"  rest $rest")
@@ -378,7 +386,7 @@ object InlineConstructors {
                 node match {
                   case sym@Node.Identifier(IsParameter()) =>
                     sym.name = sym.name + parSuffix
-                    types = types addHint Some(Id(sym).copy(name = sym.name)) -> IsConstructorParameter
+                    types = types addHint Some(SymId(sym.name, inlineBodyScope)) -> IsConstructorParameter
                     sym
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
@@ -390,14 +398,12 @@ object InlineConstructors {
               }
             }
             // add adjusted constructor argument names so that parser correctly resolves them inside of the function
-            val accessor = classInlineBody(cls, clsTokenDef)
-            val accessorValue = accessor.value.asInstanceOf[Node.FunctionExpression]
 
             accessorValue.params = params.map(Transform.funArg).map { p =>
               val a = p.cloneNode()
               a.name = p.name + parSuffix
               val classSymbolId = Id(cls.id)
-              types = types addHint classSymbolId.map(_.copy(name = a.name)) -> IsConstructorParameter
+              types = types addHint Some(SymId(a.name, inlineBodyScope)) -> IsConstructorParameter
               // marking source as cls so that they use the class scope, same as member variables
               a
             }
