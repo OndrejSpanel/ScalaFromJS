@@ -20,11 +20,6 @@ object ScalaOut {
   import symbols.symId
   import symbols.ScopeContext
 
-  class ClassListHarmony(ast: Any)
-  object ClassListHarmony {
-    def apply(a: Any): ClassListHarmony = new ClassListHarmony(a)
-  }
-
   // @param unknowns annotate unknown constructs with a comment (source is always passed through)
 
   case class Config(unknowns: Boolean = true, parts: Seq[Int] = Seq(Int.MaxValue), root: String = "") {
@@ -1068,27 +1063,31 @@ object ScalaOut {
                   val objectMethods = Set("clone", "toString", "hashCode", "getClass")
                   getMethodMethod(p).exists(_.params.isEmpty) && objectMethods.contains(propertyKeyName(p.key))
                 }
-                /*
                 def isNormalOverride = {
                   val isOverride = for {
                     parentSym <- Classes.superClass(tn)
                     parentCls <- input.classes.get(parentSym)
-                    parentMethod <- Classes.findMethod(parentCls, p.key.name)
+                    parentMethod <- Classes.findMethod(parentCls, propertyKeyName(p.key))
                   } yield {
                     // check method signature
                     def getArgTypes(m: Node.MethodDefinition) = {
-                      m.value.argnames.flatMap(_.thedef).map(SymbolTypes.id).map(input.types.get)
+                      val paramsNames = m.value match {
+                        case AnyFun(params, _) =>
+                          params.map(parameterNameString)
+                      }
+                      val scopeId = ScopeContext.getNodeId(p)
+                      val paramIds = paramsNames.map(SymId(_, scopeId))
+                      paramIds.map(id => input.types.get(Some(id)))
                     }
 
                     val myParTypes = getArgTypes(p)
                     val parentTypes = getArgTypes(parentMethod)
-                    myParTypes.toSeq == parentTypes.toSeq
+                    myParTypes == parentTypes
                   }
                   isOverride.contains(true)
                 }
 
                 if (isObjectOverride || isNormalOverride) out("override ")
-                */
                 p.value match {
                   case Node.FunctionExpression(id, params, body, generator) =>
                     out"def ${p.key}"
