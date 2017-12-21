@@ -269,35 +269,31 @@ object Parameters {
         Some(f)
       } else {
         implicit val ctx = context
-        par match {
-          case Node.Identifier(parName@Id(parDef)) =>
+        val parName = parameterNameString(par)
 
-            if (parName endsWith parSuffix) {
-              // check for existence of variable without a suffix
-              val shortName = parName dropRight parSuffix.length
-              val conflict = f.body.body.exists {
-                case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(`shortName`), _)), _) =>
-                  true
-                case _ =>
-                  false
-              }
-              if (!conflict) {
-                // we may rename the variable now
-                //println(s"Renaming $s")
-                val renamedBody = Variables.renameVariable(f.body, parDef, shortName)
-                val params = f.replaceParam(par, Node.Identifier(shortName))
+        if (parName endsWith parSuffix) {
+          // check for existence of variable without a suffix
+          val shortName = parName dropRight parSuffix.length
+          val conflict = f.body.body.exists {
+            case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(`shortName`), _)), _) =>
+              true
+            case _ =>
+              false
+          }
+          if (!conflict) {
+            val parDef = Id(parName)
+            // we may rename the variable now
+            //println(s"Renaming $s")
+            val renamedBody = Variables.renameVariable(f.body, parDef, shortName)
+            val params = f.replaceParam(par, Node.Identifier(shortName))
 
-                // rename hints as well
-                types = types.renameHint(parDef, parDef.copy(name = shortName))
+            // rename hints as well
+            types = types.renameHint(parDef, parDef.copy(name = shortName))
 
-                Some(FunctionBodyAndParams(renamedBody, params))
-              }
-              else Some(f)
-            } else Some(f)
-          case _ =>
-            None
-
-        }
+            Some(FunctionBodyAndParams(renamedBody, params))
+          }
+          else Some(f)
+        } else Some(f)
       }
     }
 
