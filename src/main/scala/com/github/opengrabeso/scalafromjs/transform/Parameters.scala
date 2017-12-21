@@ -265,7 +265,7 @@ object Parameters {
 
     def handleSimpleParameters(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
       val InlineBodyName = Classes.inlineBodyName
-      if (context.parent().collect {case Node.MethodDefinition(Node.Identifier(InlineBodyName), _, _, _, _) => ()}.nonEmpty) {
+      if (context.parent().collect {case md: Node.MethodDefinition if methodName(md) == InlineBodyName => md}.isEmpty) {
         Some(f)
       } else {
         implicit val ctx = context
