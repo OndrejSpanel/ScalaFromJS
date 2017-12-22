@@ -164,23 +164,24 @@ package object classes {
   }
 
   object ClassParentAndPrototypeDef {
-    def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
+    def unapply(arg: Node.ExpressionStatement)(implicit context: ScopeContext) = arg match {
       // name.prototype = Object.assign( Object.create( sym.prototype ), {... prototype object ... } )
-      case Node.ExpressionStatement(
-      Assign(Node.Identifier(name) Dot "prototype", "=",
-      Node.CallExpression(
-      Node.Identifier("Object") Dot "assign",
-      Seq(Node.CallExpression(Node.Identifier("Object") Dot "create", Node.Identifier(sym) Dot "prototype"), prototypeDef: OObject))
+      case Node.ExpressionStatement(Assign(
+        Node.Identifier(name) Dot "prototype", "=",
+        Node.CallExpression(
+          Node.Identifier("Object") Dot "assign",
+          Seq(Node.CallExpression(Node.Identifier("Object") Dot "create", Seq(Node.Identifier(sym) Dot "prototype")), prototypeDef: OObject)
+        )
       )) =>
         //println(s"ClassParentAndPrototypeDef $name extends ${sym.name}")
         Some(ClassId(name), ClassId(sym), prototypeDef)
 
       // Object.assign( name.prototype, sym.prototype, {prototype object} )
       case Node.ExpressionStatement(Node.CallExpression(
-      Node.Identifier("Object") Dot "assign",
-      Seq(Node.Identifier(name) Dot "prototype",
-      Node.Identifier(sym) Dot "prototype",
-      prototypeDef: OObject
+        Node.Identifier("Object") Dot "assign",
+        Seq(Node.Identifier(name) Dot "prototype",
+          Node.Identifier(sym) Dot "prototype",
+          prototypeDef: OObject
       ))) =>
         //println(s"ClassParentAndPrototypeDef2 $name extends $sym")
         Some(ClassId(name), ClassId(sym), prototypeDef)
@@ -191,7 +192,7 @@ package object classes {
   }
 
   object ClassParentDef {
-    def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
+    def unapply(arg: Node.ExpressionStatement)(implicit context: ScopeContext) = arg match {
       // name.prototype = new sym.prototype
       case Node.ExpressionStatement(Assign(Node.Identifier(name) Dot "prototype", "=", Node.NewExpression(Node.Identifier(sym), _))) =>
         Some(ClassId(name), sym)
@@ -199,7 +200,7 @@ package object classes {
       // name.prototype = Object.create( sym.prototype );
       case Node.ExpressionStatement(Assign(
       Node.Identifier(name) Dot "prototype", "=",
-      Node.CallExpression(Node.Identifier("Object") Dot "create", Node.Identifier(sym) Dot "prototype")
+      Node.CallExpression(Node.Identifier("Object") Dot "create", Seq(Node.Identifier(sym) Dot "prototype"))
       )) =>
         Some(ClassId(name), sym)
 
