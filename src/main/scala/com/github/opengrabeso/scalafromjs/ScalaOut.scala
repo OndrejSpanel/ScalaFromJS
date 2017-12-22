@@ -184,7 +184,7 @@ object ScalaOut {
       c <- Option(n.leadingComments).toSeq.flatten ++ Option(n.innerComments).toSeq.flatten ++ Option(n.trailingComments).toSeq.flatten
     } {
       if (!(input.commentsDumped contains start)) {
-        if (c.`type` == "comment2") {
+        if (c.`type` == "Block") {
           // process line by line, fix indenting
           val content = c.value.toString
           out("/*")
