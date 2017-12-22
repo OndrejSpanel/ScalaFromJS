@@ -223,6 +223,22 @@ trait NodeExt {
     }
   }
 
+  object IsUnconditionalScope {
+    def unapply(arg: Node.Node): Boolean = arg match {
+      case _: Node.ClassBody =>
+        true
+      case _: Node.Program =>
+        true
+      case IsFunctionScope() =>
+        true
+      case IsStatementScope() =>
+        true
+      case _ =>
+        false
+
+    }
+
+  }
   object IsDeclScope {
     def unapply(arg: Node.Node)(implicit context: ScopeContext): Boolean = arg match {
       case block: Node.BlockStatement =>
@@ -236,13 +252,7 @@ trait NodeExt {
           case _ =>
             true
         }
-      case _: Node.ClassBody =>
-        true
-      case _: Node.Program =>
-        true
-      case IsFunctionScope() =>
-        true
-      case IsStatementScope() =>
+      case IsUnconditionalScope() =>
         true
       case _ =>
         false
@@ -254,11 +264,7 @@ trait NodeExt {
     def unapply(arg: Node.Node): Boolean = arg match {
       case _: Node.BlockStatement =>
         true
-      case _: Node.ClassBody =>
-        true
-      case _: Node.Program =>
-        true
-      case IsFunctionScope() =>
+      case IsUnconditionalScope() =>
         true
       case _ =>
         false

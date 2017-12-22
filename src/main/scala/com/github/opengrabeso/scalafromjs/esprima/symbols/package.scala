@@ -42,6 +42,7 @@ package object symbols {
 
   object ScopeContext {
     def getNodeId(n: Node.Node) = {
+      assert(IsScope.unapply(n))
       if (n.range != null) n.range._1
       else {
         throw new NoSuchElementException("Missing node id for $n")
@@ -64,12 +65,15 @@ package object symbols {
     }
 
     def scanSymbols(node: Node) = {
-      if (scopes.length >= 2) {
+      // check on symbol collections for easier symbol declaration debugging
+      val parentSymbols = SymbolDeclaration.declaredSymbolsExtern(node)
+      val symbols = SymbolDeclaration.declaredSymbols(node)
+      if (scopes.length >= 2 && parentSymbols.nonEmpty) {
         val parentScope = scopes(scopes.length - 2)
-        parentScope._2.symbols ++= SymbolDeclaration.declaredSymbolsExtern(node)
+        parentScope._2.symbols ++= parentSymbols
       }
-      if (scopes.nonEmpty) {
-        scopes.last._2.symbols ++= SymbolDeclaration.declaredSymbols(node)
+      if (scopes.nonEmpty && symbols.nonEmpty) {
+        scopes.last._2.symbols ++= symbols
       }
     }
 

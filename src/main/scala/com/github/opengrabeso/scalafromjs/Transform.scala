@@ -41,18 +41,18 @@ object Transform {
     }
   }
 
-  def symbolFromPar(p: Node.Node)(implicit context: ScopeContext): Option[SymId] = p match {
-    case p: Node.Identifier =>
-      symId(p)
-    case p: Node.AssignmentPattern =>
-      p.left match {
-        case a: Node.Identifier =>
-          symId(a)
-        case _ =>
-          None
-      }
+  def nameFromPar(p: Node.Node): Option[String] = p match {
+    case Node.Identifier(s) =>
+      Some(s)
+    case Node.AssignmentPattern(Node.Identifier(s), _) =>
+      Some(s)
     case _ =>
       None
+  }
+
+  def symbolFromPar(p: Node.Node)(implicit context: ScopeContext): Option[SymId] = {
+    val s = nameFromPar(p)
+    s.flatMap(symId)
   }
 
   // individual sensible transformations

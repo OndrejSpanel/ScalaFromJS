@@ -219,12 +219,11 @@ object InferTypes {
     def inferParsOrArgs(fun: Node.Node, pars: Seq[Node.FunctionParameter], args: Seq[Node.Node])(debug: String*)(implicit context: ScopeContext) = {
 
       //println(s"inferParsOrArgs $pars")
-      val s = context.enterScope(fun) // pars need to be evaluated in the scope of the function
-      val parIds = pars.map(symbolFromPar).flatMap(_.map(id))
-      context.leaveScope(s)
+      val scopeId = ScopeContext.getNodeId(fun) // pars need to be evaluated in the scope of the function
+      val parIds = pars.flatMap(nameFromPar).map(SymId(_, scopeId))
       //println(s"  parIds $parIds")
 
-      for ((Some(par), arg) <- parIds zip args) {
+      for ((par, arg) <- parIds zip args) {
         val tp = expressionType(arg)
         if (tp.exists(_.nonEmpty)) {
           //println(s"Infer par $par as $tp")
@@ -232,7 +231,7 @@ object InferTypes {
         }
       }
 
-      inferArgsFromPars(parIds.map(p => p -> allTypes.get(p)), args)(debug:_*)
+      inferArgsFromPars(parIds.map(p => Some(p) -> allTypes.get(p)), args)(debug:_*)
     }
 
     def inferArgs(funType: FunctionType, args: Seq[Node.Node])(debug: String*)(implicit context: ScopeContext) = {
