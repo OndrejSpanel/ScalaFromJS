@@ -431,8 +431,9 @@ object Transform {
       case Node.Identifier(Id(symDef)) =>
         // if the symbol is a class name, use it as a class type directly
         val rt = types.get(symDef).orElse(typeInfoFromClassSym(symDef))
-        //println(s"    Sym ${symDef.name} type $rt")
         rt
+
+        //println(s"    Sym ${symDef.name} type $rt")
 
       case expr Dot name =>
         val exprType = expressionType(expr, log)(ctx, context)

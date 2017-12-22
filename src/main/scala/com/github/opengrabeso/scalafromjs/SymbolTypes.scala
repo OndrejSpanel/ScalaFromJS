@@ -359,8 +359,8 @@ object SymbolTypes {
   }
 
   val libs = Map(
-    // 0 is a special handling for global symbols
-    SymbolMapId("Math", 0) -> Seq(
+    // -1 is a special handling for global symbols
+    SymbolMapId("Math", -1) -> Seq(
       "min", "max", "abs",
       "sin", "cos", "tan", "asin", "acos", "atan",
       "sqrt", "ceil", "floor",
@@ -386,7 +386,13 @@ object SymbolTypes {
   // unique ID for std lib classes
   // once ClassType contains offset uniquely identifying a class, this class can be deleted
   case class StdLibraries(libs: Seq[SymbolMapId] = Seq.empty) {
-    val index = libs.zipWithIndex.map {case (v, i) => v -> (-1 - i)}.toMap
+    val base = -10000
+    val index = libs.zipWithIndex.map {case (v, i) => v -> (base - i)}.toMap
+
+    def symbolFromClass(cls: SymbolMapId): SymbolMapId = {
+      val id = index.get(cls)
+      id.fold(cls)(c => cls.copy(sourcePos = c))
+    }
 
     def symbolFromMember(cls: SymbolMapId, name: String): Option[SymbolMapId] = {
       val id = index.get(cls)
