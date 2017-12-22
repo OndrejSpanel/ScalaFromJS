@@ -356,8 +356,8 @@ package object classes {
           Node.MethodDefinition(
             Node.Identifier(k),
             false,
-            Node.FunctionExpression(null, Seq(), Node.BlockStatement(Seq(Node.ExpressionStatement(v))).withTokens(tokensFrom), false).withTokens(tokensFrom),
-            "get",
+            v,
+            "value",
             isStatic
 
           )

@@ -138,6 +138,17 @@ object Classes {
     ).withTokens(tokensFrom)
   }
 
+  def newProperty(kind: String, k: String, args: Seq[Node.FunctionParameter], methodBody: Node.BlockStatement, tokensFrom: Node.Node, isStatic: Boolean = false): Node.Property = {
+    Node.Property(
+      kind = kind,
+      key = Node.Identifier(k).copyLoc(tokensFrom),
+      false,
+      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false).withTokens(tokensFrom),
+      false,
+      false
+    ).withTokens(tokensFrom)
+  }
+
   def classInlineBody(cls: Node.ClassDeclaration, tokensFrom: Node.Node): Node.MethodDefinition = {
     //println(s"Class inline body $cls")
     val present = findInlineBody(cls)

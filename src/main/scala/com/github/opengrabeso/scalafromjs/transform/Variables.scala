@@ -138,21 +138,22 @@ object Variables {
               }
               //println(s"Detected modified members $modifiedMembers")
 
-              /*
-              val newProps: Seq[Node.MethodDefinition] = props.map {
-                case kv@Node.MethodDefinition(KeyName(k), _, AnyFun(args, body), _, _) =>
+              val newProps: Seq[Node.ObjectExpressionProperty] = props.map {
+                case kv@Node.Property(kind, KeyName(k), _, AnyFun(args, body), _, _) =>
                   if (modifiedMembers contains k) {
                     //println(s"Modified member $k")
+                    kv.kind = "value"
                     kv
-                  } else newMethod(k, args, Block(body), kv)
+                  } else {
+                    newProperty("init", k, args, Block(body), kv)
+                  }
 
-                case p => p
+                case p =>
+                  p
               }
               val newObj = obj.cloneNode()
               newObj.properties = newProps
               newObj
-              */
-              obj
 
             case None =>
               node

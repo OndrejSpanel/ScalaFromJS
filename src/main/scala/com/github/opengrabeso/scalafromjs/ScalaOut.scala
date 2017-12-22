@@ -392,6 +392,46 @@ object ScalaOut {
         out(")")
       }
 
+      def outputMethod(key: Node.PropertyKey, value: Node.PropertyValue, kind: String, decl: String = "def") = {
+        if (kind == "value") {
+          val name = propertyKeyName(key)
+          val sType = input.types.get(symId(name))
+          if (sType.isDefined) {
+            val sTypeToOut = sType.get.declType.toOut
+            out"var $key: $sTypeToOut = $value\n"
+          } else {
+            out"var $key = $value\n"
+          }
+        } else value match {
+          case f@Node.FunctionExpression(id, params, body, generator) =>
+            context.withScope(f) {
+              val postfix = if (kind == "set") "_=" else ""
+              out"def $key$postfix"
+              if (kind != "get" || params.nonEmpty) {
+                outputArgNames(params, true)(value)
+              }
+              out(" = ")
+              //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
+              context.withScope(body) {
+                blockBracedToOut(body.body)
+              }
+              out.eol()
+            }
+
+          case _ =>
+            out"$decl $key = $value\n"
+        }
+      }
+
+      def outputMethodNode(pm: Node.ClassBodyElement, decl: String = "def") = {
+        pm match {
+          case p: Node.MethodDefinition =>
+            outputMethod(p.key, p.value, p.kind, decl)
+          case _ =>
+            nodeToOut(pm)
+        }
+      }
+
       def outputBinaryArgument(arg: Node.Node, outer: String, right: Boolean = false) = {
 
 
@@ -621,7 +661,7 @@ object ScalaOut {
             }
           } else {
             out.eol()
-            out"var ${identifier(key)} = ${tn.value}\n"
+            outputMethod(tn.key, value, tn.kind, "var")
           }
 
         //out"/*${nodeClassName(n)}*/"
@@ -964,12 +1004,14 @@ object ScalaOut {
           context.withScope(tn.body) {
             val (staticProperties, nonStaticProperties) = tn.body.body.partition(propertyIsStatic)
 
+
+
             if (staticProperties.nonEmpty || nonStaticProperties.isEmpty) {
               out.eol(2)
 
               out"object ${tn.id} {\n"
               out.indent()
-              staticProperties.foreach(nodeToOut)
+              staticProperties.foreach(outputMethodNode(_, "var"))
               out.unindent()
               out("}\n")
 
@@ -1059,7 +1101,7 @@ object ScalaOut {
               //out(s"/*fun: ${functionMembers.length} var: ${varMembers.length}*/")
               varMembers.foreach { n =>
                 //out"/*${nodeClassName(n)}*/"
-                nodeToOut(n)
+                outputMethodNode(n)
               }
 
               if ((varMembers.nonEmpty || tn.body.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
@@ -1067,6 +1109,7 @@ object ScalaOut {
               if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
 
               for (pm <- functionMembers if !inlineBodyOpt.contains(pm)) {
+
                 pm match {
                   case p: Node.MethodDefinition =>
                     // check overrides
@@ -1101,24 +1144,7 @@ object ScalaOut {
                     }
 
                     if (isObjectOverride || isNormalOverride) out("override ")
-                    p.value match {
-                      case f@Node.FunctionExpression(id, params, body, generator) =>
-                        context.withScope(f) {
-                          out"def ${p.key}"
-                          if (p.kind != "get" || params.nonEmpty) {
-                            outputArgNames(params, true)(p.value)
-                          }
-                          out(" = ")
-                          //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
-                          context.withScope(body) {
-                            blockBracedToOut(body.body)
-                          }
-                          out.eol()
-                        }
-
-                      case _ =>
-                        out"def ${p.key}${p.value}\n"
-                    }
+                    outputMethodNode(p)
                   case _ =>
                     nodeToOut(pm)
                 }
