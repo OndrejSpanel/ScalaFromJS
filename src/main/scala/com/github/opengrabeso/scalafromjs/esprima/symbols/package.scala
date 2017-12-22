@@ -87,8 +87,9 @@ package object symbols {
 
     def withScope[T](node: Node*)(callback: => T) = {
       val s = node.map(enterScope)
-      callback
+      val ret = callback
       s.reverse.foreach(leaveScope)
+      ret
     }
 
 

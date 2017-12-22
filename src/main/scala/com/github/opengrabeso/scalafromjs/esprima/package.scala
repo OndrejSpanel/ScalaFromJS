@@ -81,19 +81,19 @@ package object esprima extends NodeExt {
     def transform(transformer: TreeTransformer): T = {
       import walker._
       if (ast != null) {
-        val es = transformer.context.enterScope(ast)
-        val before = transformer.before(ast, { (node, transformer) =>
-          transformInto(node)(node => node.transform(transformer))
-          node
-        })
-        transformer.context.leaveScope(es)
+        val before = transformer.context.withScope(ast) {
+          transformer.before(ast, { (node, transformer) =>
+            transformInto(node)(node => node.transform(transformer))
+            node
+          })
+        }
         if (before != null) {
           before.asInstanceOf[T]
         } else {
-          val es = transformer.context.enterScope(ast)
-          transformInto(ast)(node => node.transform(transformer))
-          val after = transformer.after(ast)
-          transformer.context.leaveScope(es)
+          val after = transformer.context.withScope(ast) {
+            transformInto(ast)(node => node.transform(transformer))
+            transformer.after(ast)
+          }
           after.asInstanceOf[T]
         }
       } else {

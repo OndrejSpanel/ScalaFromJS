@@ -50,24 +50,23 @@ object Parameters {
           processed.fold(f)(processArguments(_, tail))
       }
 
-      val s = context.enterScope(f)
-      val ret = f match {
-        case f: Node.FunctionExpression =>
-          val func = processArguments(FunctionBodyAndParams(f.body, f.params), f.params.reverse)
-          f.body = func.body
-          f.params = func.params
-          f.asInstanceOf[T]
-        case f: Node.FunctionDeclaration =>
-          val func = processArguments(FunctionBodyAndParams(f.body, f.params), f.params.reverse)
-          f.body = func.body
-          f.params = func.params
-          f.asInstanceOf[T]
-        case _ =>
-          f.asInstanceOf[T]
+      context.withScope(f) {
+        f match {
+          case f: Node.FunctionExpression =>
+            val func = processArguments(FunctionBodyAndParams(f.body, f.params), f.params.reverse)
+            f.body = func.body
+            f.params = func.params
+            f.asInstanceOf[T]
+          case f: Node.FunctionDeclaration =>
+            val func = processArguments(FunctionBodyAndParams(f.body, f.params), f.params.reverse)
+            f.body = func.body
+            f.params = func.params
+            f.asInstanceOf[T]
+          case _ =>
+            f.asInstanceOf[T]
 
+        }
       }
-      context.leaveScope(s)
-      ret
     }
 
     n.transformAfter { (node, transformer) =>
