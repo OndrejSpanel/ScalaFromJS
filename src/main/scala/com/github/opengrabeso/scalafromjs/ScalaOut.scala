@@ -544,7 +544,8 @@ object ScalaOut {
         //case tn: Node.Atom => "Node.Atom"
         case tn: Node.RegexLiteral => out""""${tn.raw}".r"""
         case StringLiteral(str) =>
-          out(s""""$str"""")
+          val escaped = org.apache.commons.text.StringEscapeUtils.escapeJava(str)
+          out(s""""$escaped"""")
         case tn: Node.Literal =>
           // prefer the same representation as in the original source
           tn.value.value match {
