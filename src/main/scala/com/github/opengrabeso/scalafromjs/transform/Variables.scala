@@ -373,8 +373,8 @@ object Variables {
     }
   }
 
-  def replaceVariable[T <: Node.Node](n: T, oldName: SymId, newExpr: Node.Node): T = {
-    n.transformAfter { (node, transformer) =>
+  def replaceVariable[T <: Node.Node](n: T, oldName: SymId, newExpr: Node.Node)(implicit ctx: ScopeContext): T = {
+    n.transformAfter(ctx) { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {
         case Node.Identifier(Id(`oldName`)) =>
@@ -385,8 +385,8 @@ object Variables {
     }
   }
 
-  def replaceVariableInit[T <: Node.Node](n: T, oldName: SymId)(transform: (Node.Identifier, Node.Expression) => Node.Node): T = {
-    n.transformAfter { (node, transformer) =>
+  def replaceVariableInit[T <: Node.Node](n: T, oldName: SymId)(transform: (Node.Identifier, Node.Expression) => Node.Node)(implicit ctx: ScopeContext): T = {
+    n.transformAfter(ctx) { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {
         case VarDecl(Id(`oldName`), init, _) =>
@@ -650,8 +650,8 @@ object Variables {
         case Binary(right@Binary(callExpr@Node.Identifier(Id(callOn)), "instanceof", classExpr), "&&", expr) =>
           //println(s"Detected cast && on $callExpr")
           val instancedExpr = Binary(callExpr, asinstanceof, classExpr)
-          Variables.replaceVariable(expr, callOn, instancedExpr)
-          Binary(right, "&&", expr)
+          val exprReplaced = Variables.replaceVariable(expr, callOn, instancedExpr)(ctx)
+          Binary(right, "&&", exprReplaced)
         case _ =>
           node
       }
