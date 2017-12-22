@@ -1085,7 +1085,7 @@ object ScalaOut {
                             case AnyFun(params, _) =>
                               params.map(parameterNameString)
                           }
-                          val scopeId = ScopeContext.getNodeId(p)
+                          val scopeId = ScopeContext.getNodeId(p.value)
                           val paramIds = paramsNames.map(SymId(_, scopeId))
                           paramIds.map(id => input.types.get(Some(id)))
                         }
