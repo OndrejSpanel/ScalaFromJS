@@ -115,7 +115,7 @@ package object classes {
   object DefineProperties {
 
     object DefinePropertiesObject {
-      def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
+      def unapply(arg: Node.Node)(implicit context: ScopeContext): Option[(ClassId, Node.ArgumentListElement)] = arg match {
         case Node.ExpressionStatement(Node.CallExpression(Node.Identifier("Object") Dot "defineProperties",
           Seq(Node.Identifier(Id(symDef)) Dot "prototype", properties))) =>
           Some(ClassId(symDef), properties)
@@ -129,8 +129,10 @@ package object classes {
     }
 
     def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
-      case DefinePropertiesObject(name, Seq(OObject(properties))) => Some(name, properties)
-      case _ => None
+      case DefinePropertiesObject(name, OObject(properties)) =>
+        Some(name, properties)
+      case _ =>
+        None
 
     }
   }
@@ -361,7 +363,7 @@ package object classes {
           )
         }
 
-        def newGetterOrSetter(kind: String, k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean) = {
+        def newGetterOrSetter(kind: String, k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean) = {
           Node.MethodDefinition(
             Node.Identifier(k),
             false,
@@ -387,12 +389,12 @@ package object classes {
           }
         }
 
-        def newGetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean = false) = {
+        def newGetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean = false) = {
           newGetterOrSetter("get", k, args, body, isStatic)
         }
 
 
-        def newSetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.Statement], isStatic: Boolean = false) = {
+        def newSetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean = false) = {
           newGetterOrSetter("set", k, args, body, isStatic)
         }
 
@@ -406,8 +408,8 @@ package object classes {
         import helper._
 
         val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }.toSeq
-        val mappedGetters = Nil // clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
-        val mappedSetters = Nil // clazz.setters.map { case (k, v) => newSetter(k, v.args, v.body) }
+        val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
+        val mappedSetters = clazz.setters.map { case (k, v) => newSetter(k, v.args, v.body) }
         val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value, false) }
         val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
 
