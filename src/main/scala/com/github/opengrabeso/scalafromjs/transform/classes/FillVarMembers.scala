@@ -24,10 +24,10 @@ object FillVarMembers {
         case cls: Node.ClassDeclaration =>
           val accessor = findInlineBody(cls).flatMap(getMethodMethod)
           //println(s"Node.ClassDeclaration ${cls.name.get.name} ${cls.start.get.pos}")
-          var newMembers = collection.immutable.ListMap.empty[String, Option[Node.Expression]]
+          var newMembers = collection.immutable.ListMap.empty[String, (Node.Node, Option[Node.Expression])]
           // scan known prototype members (both function and var) first
           val existingInlineMembers = accessor.map { _.body.body.collect {
-            case VarDecl(name, _, _) =>
+            case vd@VarDecl(name, _, _) =>
               name
           }}.getOrElse(Seq())
           val existingParameters = accessor.map(_.params.map(parameterNameString)).getOrElse(Seq())
@@ -38,20 +38,20 @@ object FillVarMembers {
           //println(s"  existingParameters ${existingParameters.mkString(",")}")
 
           cls.walk {
-            case Assign(IsThis() Dot mem, _, _) =>
+            case n@Assign(IsThis() Dot mem, _, _) =>
               //println(s"Detect this.$mem = ...")
               if (!existingMembers.contains(mem)) {
-                newMembers += mem -> None
+                newMembers += mem -> (n, None)
                 existingMembers = existingMembers :+ mem
               } else for (prop <- isReadOnlyProperty(cls, mem)) {
                 //println(s"Convert property to value $mem")
-                newMembers += mem -> Some(prop)
+                newMembers += mem -> (n, Some(prop))
               }
               false
-            case IsThis() Dot mem =>
+            case n@(IsThis() Dot mem) =>
               //println(s"Detect this.$mem")
               if (!existingMembers.contains(mem)) {
-                newMembers += mem -> None
+                newMembers += mem -> (n, None)
                 existingMembers = existingMembers :+ mem
               }
               false
@@ -62,7 +62,7 @@ object FillVarMembers {
 
           val clsTokenDef = classTokenSource(cls)
           val vars = newMembers.map { case (memberName, init) =>
-            VarDecl(memberName, init, "var")
+            VarDecl(memberName, init._2, "var").withTokens(init._1)
           }
 
           if (vars.nonEmpty) {

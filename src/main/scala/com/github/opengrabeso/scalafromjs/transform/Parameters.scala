@@ -237,7 +237,7 @@ object Parameters {
 
             val params = f.replaceParam(par, Node.Identifier(parName + Symbols.parSuffix))
 
-            val decl = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(parName), Node.Identifier(parName + Symbols.parSuffix))), "let")
+            val decl = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(parName), Node.Identifier(parName + Symbols.parSuffix))), "let").withTokens(par)
 
             val body = decl +: f.body.body
 
