@@ -569,45 +569,59 @@ object InferTypes {
             addInferredType(sd, Some(TypeInfo.target(funType)))(s"Infer fun ${symDef.name}")
           }
 
-        /*
-        case Node.MethodDefinition(Node.Identifier(Id(sym)), _, fun: Node.FunctionExpression, _, _) =>
+        case Node.MethodDefinition(Node.Identifier(sym), _, fun: Node.FunctionExpression, _, _) =>
           val allReturns = scanFunctionReturns(fun.body)
           // method of which class is this?
-          val scope = findThisClass(fun.parent_scope)
+          val scope = findThisClass(scopeCtx)
           for {
             retType <- allReturns
             Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
-            clsId <- id(cls)
+            clsId = Id(cls)
           } {
             //println(s"Infer return type for method ${cls.name}.$sym as $retType")
             val classId = MemberId(clsId, sym)
             val funType = FunctionType(retType.declType, IndexedSeq())
-            addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(s"Infer return type for method ${cls.name}.$sym as $retType")
+            addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(s"Infer return type for method $cls.$sym as $retType")
           }
-        case Node.ObjectGetter(Node.SymbolName(sym), fun: Node.FunctionExpression) =>
-          val allReturns = scanFunctionReturns(fun)(ctx)
+
+        case Node.MethodDefinition(Node.Identifier(sym), _, expr: Node.Expression, _, _) =>
+          val scope = findThisClass(scopeCtx)
+          for {
+            retType <- expressionType(expr)
+            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
+            clsId = Id(cls)
+          } {
+            //println(s"Infer return type for method ${cls.name}.$sym as $retType")
+            val classId = MemberId(clsId, sym)
+            val funType = FunctionType(retType.declType, IndexedSeq())
+            addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(s"Infer return type for method $cls.$sym as $retType")
+          }
+
+
+        case Node.Property("get", Node.Identifier(sym), _, fun: Node.FunctionExpression, _, _) =>
+          val allReturns = scanFunctionReturns(fun.body)
           // method of which class is this?
-          val scope = findThisClass(fun.parent_scope)
+          val scope = findThisClass(scopeCtx)
           //println(s"Infer getter $sym as $allReturns")
           for {
             retType <- allReturns
             Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
-            clsId <- id(cls)
+            clsId = Id(cls)
           } {
             //println(s"Infer return type for getter ${cls.name}.$sym as $retType")
             val classId = MemberId(clsId, sym)
-            addInferredMemberType(Some(classId), Some(retType))(s"Infer return type for getter ${cls.name}.$sym as $retType")
+            addInferredMemberType(Some(classId), Some(retType))(s"Infer return type for getter $cls.$sym as $retType")
           }
-        case Node.ObjectSetter(Node.SymbolName(sym), fun: Node.FunctionExpression) =>
+        case Node.Property("set", Node.Identifier(sym), _, fun: Node.FunctionExpression, _, _) =>
           // method of which class is this?
-          val scope = findThisClass(fun.parent_scope)
+          val scope = findThisClass(scopeCtx)
           //println(s"Infer setter $sym")
 
           for {
-            arg <- fun.argnames.headOption
+            arg <- fun.params.headOption
             retType <- allTypes.get(symbolFromPar(arg).flatMap(id))
             Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
-            clsId <- id(cls)
+            clsId <- Id(cls)
           } {
             //println(s"Infer return type for setter $cls.$sym as $retType")
             val classId = MemberId(clsId, sym)
@@ -615,18 +629,18 @@ object InferTypes {
             addInferredMemberType(Some(classId), Some(TypeInfo.target(retType.declType)))(s"Infer return type for setter $cls.$sym as $retType")
           }
         case ObjectKeyVal(name, value) =>
-          val scope = findThisClassInWalker(context)
+          val scope = findThisClassInWalker(scopeCtx)
           for {
             Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
-            clsId <- id(cls)
+            clsId <- Id(cls)
           } {
             val classId = MemberId(clsId, name)
             // target, because setter parameter is typically used as a source for the property variable, which sets source only
-            val tpe = expressionType(value)(ctx)
+            val tpe = expressionType(value)
             //println(s"Infer type for value $cls.$name as $tpe")
             addInferredMemberType(Some(classId), tpe)(s"Infer type for value $cls.$name as $tpe")
           }
-        */
+
         case Node.NewExpression(Node.Identifier(Id(clsId)), args) =>
           val cls = classes.get(clsId)
           if (cls.isDefined) {

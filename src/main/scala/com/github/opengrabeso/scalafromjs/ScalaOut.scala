@@ -4,6 +4,7 @@ import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import JsUtils._
 import Classes._
+import com.github.opengrabeso.scalafromjs.SymbolTypes.MemberId
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, SymId}
 
 import scala.util.Try
@@ -394,13 +395,15 @@ object ScalaOut {
 
       def outputMethod(key: Node.PropertyKey, value: Node.PropertyValue, kind: String, decl: String = "def") = {
         if (kind == "value") {
+          val cls = findThisClass(context)
           val name = propertyKeyName(key)
-          val sType = input.types.get(symId(name))
-          if (sType.isDefined) {
-            val sTypeToOut = sType.get.declType.toOut
-            out"var $key: $sTypeToOut = $value\n"
-          } else {
-            out"var $key = $value\n"
+          val memberSymId = cls.map(c => ScopeContext.getNodeId(c.body)).map(SymId(name, _))
+          val sType = input.types.get(memberSymId)
+          sType.map(_.declType) match {
+            case Some(SymbolTypes.FunctionType(ret, _)) =>
+              out"var $key: $ret = $value\n"
+            case _ =>
+              out"var $key = $value\n"
           }
         } else value match {
           case f@Node.FunctionExpression(id, params, body, generator) =>
