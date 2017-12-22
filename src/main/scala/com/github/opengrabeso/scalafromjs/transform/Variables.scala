@@ -559,7 +559,6 @@ object Variables {
     }
 
     def consolidateCasts(casts: Seq[(SymId, SymId)]): Seq[(SymId, String)] = {
-      /*
       val varOrder = casts.map(_._1.name).zipWithIndex.toMap
       val castGroups = casts.groupBy(_._1)
       val castSets = castGroups.map { case (id, cg) =>
@@ -571,8 +570,6 @@ object Variables {
       castSets.map { case (id, cs) =>
         id -> cs.reduceLeft(typeUnion).toOut
       }.toSeq.sortBy(v => varOrder(v._1.name)) // sort by order in casts
-      */
-      casts.map {case (sym1, sym2) => sym1 -> sym2.name}
     }
 
     val ret = n.top.transformBefore { (node, descend, transformer) =>

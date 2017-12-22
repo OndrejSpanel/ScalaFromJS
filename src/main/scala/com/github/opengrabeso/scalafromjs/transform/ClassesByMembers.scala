@@ -1,18 +1,16 @@
 package com.github.opengrabeso.scalafromjs
 package transform
 
-import JsUtils._
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
-
 import Classes._
 import Transform._
 import SymbolTypes._
+import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, SymId}
 
 import scala.language.implicitConversions
 
 object ClassesByMembers {
-  /*
 
   case class ClassDefInfo(members: Set[String], propMembers: Set[String], funMembers: Map[String, Int], parentCount: Int) {
     def + (that: ClassDefInfo): ClassDefInfo = ClassDefInfo(
@@ -23,7 +21,7 @@ object ClassesByMembers {
     )
   }
 
-  case class MemberList(classes: Map[SymbolMapId, Node.ClassDeclaration]) {
+  case class MemberList(classes: Map[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]) {
 
     case class ClassUseInfo(members: Set[String] = Set.empty, funMembers: Map[String, Int] = Map.empty) {
       def addMember(member: String): ClassUseInfo = {
@@ -42,25 +40,32 @@ object ClassesByMembers {
 
       //println(s"classes ${classes.keys}")
       for {
-        (clsName, cls) <- classes
+        (clsName, (parentName, cls)) <- classes
       } {
-        val parentName = superClass(cls)
 
         //println(s"Class $clsName parent $parentName")
 
-        val propertiesSeq = cls.properties.toSeq
+        val propertiesSeq = cls.body.body
         val propertiesNonStatic = propertiesSeq.filterNot(propertyIsStatic)
 
-        val funMembers = propertiesSeq.collect { case c: Node.MethodDefinition => c.key.name -> c.value.argnames.length }
-        val getters = propertiesNonStatic.collect {case Node.ObjectGetter(Node.Identifier(name), _) => name}
-        val setters = propertiesNonStatic.collect {case Node.ObjectSetter(Node.Identifier(name), _) => name}
-        val values = propertiesNonStatic.collect {case c: ObjectKeyVal => c.key}
+
+        def listKind(seq: Seq[Node.ClassBodyElement], kind: String) = propertiesSeq.collect {
+          case c: Node.MethodDefinition if c.kind == kind =>
+            methodName(c) -> getMethodMethod(c).fold(0)(_.params.length)
+        }
+
+        val funMembers = listKind(propertiesSeq, "init")
+
+        val getters = listKind(propertiesNonStatic, "get").map(_._1)
+        val setters = listKind(propertiesNonStatic, "set").map(_._1)
+        val values = listKind(propertiesNonStatic, "value").map(_._1) // TODO: how is value represented in ES6?
 
         val propMembers = getters.toSet ++ setters.toSet ++ values.toSet
 
         val varMembers = for {
           body <- findInlineBody(cls).toSeq
-          Node.VariableDeclaration(Node.VariableDeclarator(Node.SymbolName(varName), _)) <- body.value.body
+          method <- getMethodBody(body).toSeq
+          VarDecl(varName, _, _) <- method.body
         } yield varName
 
         //println(s"Cls ${id(cls.name.get.thedef.get)}: Fun $funMembers mem $varMembers")
@@ -75,7 +80,7 @@ object ClassesByMembers {
       members
     }
 
-    def addMember(sym: SymbolDef, member: String) = {
+    def addMember(sym: SymId, member: String) = {
       for (sid <- id(sym)) {
         //println(s"Add mem $sid $member")
         val memUpdated = list.getOrElse(sid, ClassUseInfo()).addMember(member)
@@ -83,7 +88,7 @@ object ClassesByMembers {
       }
     }
 
-    def addFunMember(sym: SymbolDef, member: String, pars: Int) = {
+    def addFunMember(sym: SymId, member: String, pars: Int) = {
       for (sid <- id(sym)) {
         //println(s"Add fun mem $sid $member")
         val memUpdated = list.getOrElse(sid, ClassUseInfo()).addFunMember(member, pars)
@@ -201,19 +206,19 @@ object ClassesByMembers {
     val byMembers = MemberList(classes.classes)
 
     Time("byMembers.addMember") {
-      n.top.walkWithDescend { (node, descend, walker) =>
+      n.top.walkWithScopeAfter { (node, walker) =>
         //println(s"by members walk $node")
-        descend(node, walker)
+        implicit val scopeCtx = walker
 
         node match {
-          case Node.Identifier(sym) Dot member =>
+          case Node.Identifier(Id(sym)) Dot member =>
             //println(s"Symbol ${sym.name}")
             val tpe = ctx.types.get(sym)
             if (tpe.isEmpty) {
               //println(s"Symbol ${sym.name} parent ${walker.parent().map(nodeClassName)}")
               walker.parent() match {
-                case Some(c: Node.CallExpression) if c.expression == node =>
-                  byMembers.addFunMember(sym, member, c.args.length)
+                case Some(Node.CallExpression(`node`, args))  =>
+                  byMembers.addFunMember(sym, member, args.length)
                 case _ =>
                   //println(s"  ${sym.name}.$member")
                   byMembers.addMember(sym, member)
@@ -245,5 +250,4 @@ object ClassesByMembers {
     }
 
   }
-  */
 }

@@ -776,7 +776,7 @@ object InferTypes {
     def inferTypesOneStep(n: NodeExtended, depth: Int, doByMembers: Boolean, desperate: Boolean): NodeExtended = {
 
       val now = System.currentTimeMillis()
-      val r = /*if (doByMembers) ClassesByMembers(n, desperate) else*/ inferTypes(n)
+      val r = if (doByMembers) ClassesByMembers(n, desperate) else inferTypes(n)
       val again = System.currentTimeMillis()
       def condString(cond: Boolean, s: String) = if (cond) s else ""
       if (log) println(s"Infer types ${condString(doByMembers, "by members ")}${condString(desperate, "desperate ")}step $depth, metrics: ${r.types.knownItems}: ${again - now} ms")

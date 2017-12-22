@@ -11,6 +11,10 @@ package object symbols {
     var symbols = Set.empty[String] // all symbols defined in the scope
   }
 
+  object SymId {
+    implicit val ord = Ordering.by(unapply)
+  }
+
   case class SymId(name: String, sourcePos: Int) {
     override def toString = s"$name:$sourcePos"
     def compare(that: SymId) = {
@@ -21,7 +25,6 @@ package object symbols {
         sourcePos - that.sourcePos
       }
     }
-
   }
 
   // TODO: refactor: simplify - SymId is always known

@@ -221,7 +221,7 @@ object Classes {
 
 
   def classListHarmony(n: NodeExtended) = {
-    var classes = Map.empty[SymbolMapId, Node.ClassDeclaration]
+    var classes = Map.empty[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]
     n.top.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
@@ -229,7 +229,8 @@ object Classes {
           for {
             id <- symId(d.id)
           } {
-            classes += id -> d
+            val parentId = Option(d.superClass).flatMap(symId)
+            classes += id -> (parentId, d)
           }
           true
         case _: Node.Program =>
@@ -241,14 +242,15 @@ object Classes {
     classes
   }
 
-  case class ClassListHarmony(classes: Map[SymbolMapId, Node.ClassDeclaration]) {
+  case class ClassListHarmony(classes: Map[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]) {
 
     def this(n: NodeExtended) = this(classListHarmony(n))
 
-    def get(name: SymbolMapId): Option[Node.ClassDeclaration] = classes.get(name)
+    def get(name: SymbolMapId): Option[Node.ClassDeclaration] = classes.get(name).map(_._2)
+    def getParent(name: SymbolMapId): Option[SymId] = classes.get(name).flatMap(_._1)
 
     def classPos(name: SymbolMapId): Int = {
-      val cls = classes(name)
+      val cls = classes(name)._2
       cls.body.range._1 // see also classTokenSource
     }
 
