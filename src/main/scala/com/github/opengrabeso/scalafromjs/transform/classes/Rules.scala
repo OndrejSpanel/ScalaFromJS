@@ -8,6 +8,7 @@ import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import Symbols._
 import com.github.opengrabeso.scalafromjs.Expressions.SingleExpression
+import com.github.opengrabeso.scalafromjs.esprima.symbols.ScopeContext
 
 import scala.collection.mutable
 
@@ -202,7 +203,7 @@ object Rules {
 
   def replaceGetClass(n: NodeExtended, member: ConvertProject.MemberDesc): NodeExtended = {
     // first scan for all symbols matching the rule
-    val symbols = VariableUtils.listSymbols(n.top).toSeq.map(s => s.name -> s).toMap
+    val symbols = VariableUtils.listSymbols(n.top)(new ScopeContext).toSeq.map(s => s.name -> s).toMap
 
     object DetectClassCompare {
       def unapply(arg: Node.BinaryExpression)(implicit tokensFrom: Node.Node)= arg match {
