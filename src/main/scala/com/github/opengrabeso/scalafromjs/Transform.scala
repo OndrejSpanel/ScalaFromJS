@@ -700,19 +700,21 @@ object Transform {
         }
       }
 
-      def unapply(arg: Seq[Node.Node@unchecked])(implicit context: ScopeContext) = arg match {
-        case Seq(defClass@Node.ClassDeclaration(Defined(Id(c)), _, _), ReturnedExpression(Node.Identifier(Id(r)))) if c == r =>
-          Some(defClass, c)
-        case _ => None
+      def unapply(arg: Seq[Node.Node])(implicit context: ScopeContext): Option[(Node.Node, SymId)] = {
+        val compact = arg.filterNot(_.isInstanceOf[Node.EmptyStatement])
+        compact match {
+          case Seq(defClass@Node.ClassDeclaration(Defined(Id(c)), _, _), ReturnedExpression(Node.Identifier(Id(r)))) if c == r =>
+            Some(defClass, c)
+          case _ =>
+            None
+        }
       }
     }
 
     n.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {
-        case Node.VariableDeclaration(
-          Seq(Node.VariableDeclarator(Node.Identifier(sym), Defined(DefineAndReturnClass(defClass, r)))), _
-        ) if sym == r.name =>
+        case VarDecl(sym, Some(ScalaNode.StatementExpression(Node.BlockStatement(DefineAndReturnClass(defClass, r)))), _) if sym == r.name =>
           defClass
         case _ =>
           node
