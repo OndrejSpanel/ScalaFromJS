@@ -7,7 +7,7 @@ import ConvertProject.AliasPackageRule
 object CommandLine {
 
   def readFile(path: String): String = {
-    val source = scala.io.Source.fromFile("file.txt")
+    val source = scala.io.Source.fromFile(path)
     val lines = try source.mkString finally source.close()
     lines
   }

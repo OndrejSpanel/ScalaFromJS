@@ -672,16 +672,14 @@ object InferTypes {
             inferConstructorCall(args, sup)
           }
 
-          /*
-
-        case Node.CallExpression(expr Dot call, args@_*) =>
+        case Node.CallExpression(expr Dot call, args) =>
           val exprType = expressionType(expr)
 
           (exprType.map(_.declType),call,expr) match {
             case (Some(ArrayType(arrayElemType)), "push", SymbolInfo(sym)) =>
               if (args.nonEmpty) {
                 val elemType = args.map(expressionType(_)).reduce(typeUnionOption)
-                sym.addSymbolInferredType(elemType.map(_.map(ArrayType)))(s"Array.push $sym elem: $elemType array: $arrayElemType")
+                sym.addSymbolInferredType(elemType.map(_.map(ArrayType)), target)(s"Array.push $sym elem: $elemType array: $arrayElemType")
               }
             case _ =>
               //println(s"Dot call $call")
@@ -716,13 +714,14 @@ object InferTypes {
               for {
                 TypeDecl(ClassType(callOn)) <- exprType
                 clazz <- classes.get(callOn)
-                c <- includeParents(clazz, Seq(clazz))(ctx) // infer for all overrides
-                m <- findMethod(c, call)
+                c <- getParents(callOn)(ctx) // infer for all overrides
+                parentC <- classes.get(c)
+                m <- findMethod(parentC, call)
+                AnyFun(pars, _) <- Some(m.value)
               } {
-                inferParsOrArgs(m.value.argnames, args)(s"Method call $callOn: $expr.$call offset ${expr.start.map(_.pos)}")
+                inferParsOrArgs(m.value, pars, args)(s"Method call $callOn: $expr.$call offset ${expr.start}")
               }
           }
-          */
 
         case SymbolInfo(symbol) Sub property =>
           val tpe = symbol.tpe(ctx.types)

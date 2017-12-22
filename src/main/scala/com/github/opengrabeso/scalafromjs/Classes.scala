@@ -76,26 +76,9 @@ object Classes {
   }
 
 
-  /*
-  def includeParents(clazz: Node.ClassDeclaration, ret: Seq[Node.ClassDeclaration])(ctx: ExpressionTypeContext): Seq[Node.ClassDeclaration] = {
-    clazz.`extends` match {
-      case Some(cls: Node.Identifier) =>
-        val c = cls.thedef.flatMap(id).flatMap(ctx.classes.get)
-        c.fold(ret) { parent =>
-          if (ret contains parent) {
-            //println(s"includeParents: Prevented recursion for $parent in $ret")
-            ret
-          }
-          else includeParents(parent, parent +: ret)(ctx)
-        }
-      case _ => ret
-    }
-  }
-
   def getParents(tpe: SymbolMapId)(ctx: ExpressionTypeContext): Seq[SymbolMapId] = {
     ctx.classInfo.listParents(tpe)
   }
-  */
 
 
   def findInParents(tpe: SymbolMapId, member: String)(ctx: ExpressionTypeContext): Option[SymbolMapId] = {

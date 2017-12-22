@@ -49,7 +49,7 @@ class ClassTests extends FunSuite with TestUtils {
 
   }
 
-  test("Infer constructor parameter types") {
+  test("Infer constructor parameter types backward from variable usage") {
     exec check ConversionCheck(
       // language=JavaScript
       """
