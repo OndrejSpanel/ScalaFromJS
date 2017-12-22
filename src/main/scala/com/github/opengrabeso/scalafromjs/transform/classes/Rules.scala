@@ -6,8 +6,8 @@ import Transform._
 import Classes._
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
-
 import Symbols._
+import com.github.opengrabeso.scalafromjs.Expressions.SingleExpression
 
 import scala.collection.mutable
 
@@ -162,16 +162,18 @@ object Rules {
         val matching = cls.body.body
           .collect{
             // we expect getter, no parameters, containing a single true statement
-            case Node.MethodDefinition(Node.Identifier(name), _, AnyFun(Seq(), Seq(Node.ExpressionStatement(BooleanLiteral(true)))), _, _) =>
+            case Node.MethodDefinition(Node.Identifier(name), _, AnyFun(Seq(), SingleExpression(BooleanLiteral(true))), _, _) =>
+              name
+            case Node.MethodDefinition(Node.Identifier(name), _, AnyFun(Seq(), SingleExpression(ex)), _, _) =>
+              name
+            case Node.MethodDefinition(Node.Identifier(name), _, AnyFun(params, body), _, _) =>
               name
           }.filter { n =>
-          val matched = member.name.findFirstIn(n).orNull
-          if (matched == null || matched.length < 2) false
-          else {
-            // only when class name matches the first match group
-            matched.lift(1).exists(_.contains(cName))
-          }
-        }.toSet
+            val matched = member.name.findFirstMatchIn(n)
+            matched.fold(false) {matched =>
+              matched.group(1).exists(_.contains(cName))
+            }
+          }.toSet
 
         isClassMembers ++= matching.map(_ -> cls)
         true
