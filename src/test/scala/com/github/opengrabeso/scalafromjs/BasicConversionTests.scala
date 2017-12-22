@@ -29,8 +29,9 @@ class BasicConversionTests extends FunSuite with TestUtils {
   }
 
   test("Indenting") {
-    val result = Convert(rsc("control/indent.js"), header = false)
-    assert(result == normalizeEol(rsc("control/indent.scala")))
+    val result = normalizeEol(Convert(rsc("control/indent.js"), header = false))
+    val expected = normalizeEol(rsc("control/indent.scala"))
+    assert(result == expected)
   }
 
   test("Reserved words") {
