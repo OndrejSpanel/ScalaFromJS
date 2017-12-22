@@ -882,7 +882,7 @@ object ScalaOut {
         case tn: Node.SwitchCase =>
           out("case ")
 
-          def outputCaseBody(body: Seq[Node.Statement]) = {
+          def outputCaseBody(body: Seq[Node.StatementListItem]) = {
             out(" =>\n")
             out.indent()
             blockToOut(body)
@@ -906,7 +906,7 @@ object ScalaOut {
               tn.consequent match {
                 case Seq(Node.BlockStatement(Node.VariableDeclaration(Seq(Node.VariableDeclarator(sv, AsInstanceOfCondition(_, _))), _) +: body)) =>
                   // we might check sv - variable name correspondence
-                  outputCaseBody(tn.consequent)
+                  outputCaseBody(body)
                 case _ =>
                   outputCaseBody(tn.consequent)
               }
