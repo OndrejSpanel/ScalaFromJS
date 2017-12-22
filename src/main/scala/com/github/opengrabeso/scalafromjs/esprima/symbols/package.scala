@@ -127,14 +127,17 @@ package object symbols {
   /**
     * Walk while tracking a scope stack and a symbol information
     * */
-  def walk(ast: Node, context: ScopeContext = new ScopeContext)(callback: (Node, ScopeContext) => Boolean): Unit = {
+  def walk(ast: Node, context: ScopeContext = new ScopeContext)(callback: (Node, ScopeContext) => Boolean = null, after: (Node, ScopeContext) => Boolean = null): Unit = {
     val origScopes = context.scopes.length
     val origParents = context.parents.length
 
     if (ast != null) {
       val es = context.enterScope(ast)
-      if (!callback(ast, context)) {
+      if (callback == null || !callback(ast, context)) {
         walker.walkInto(ast)(node => walk(node, context)(callback))
+      }
+      if (after != null) {
+        after(ast, context)
       }
       context.leaveScope(ast, es)
     }

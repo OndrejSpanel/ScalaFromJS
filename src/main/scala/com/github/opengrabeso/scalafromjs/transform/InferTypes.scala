@@ -475,7 +475,7 @@ object InferTypes {
     }
 
     // TODO: walkWithDescend (must change return value to false)
-    n.top.walkWithScope { (node, walker) =>
+    n.top.walkWithScopeAfter { (node, walker) =>
       //println(s"${nodeClassName(node)} ${node.toLocaleString()}")
       //descend(node, walker)
       implicit val scopeCtx = walker
@@ -616,7 +616,7 @@ object InferTypes {
             addInferredMemberType(Some(classId), Some(TypeInfo.target(retType.declType)))(s"Infer return type for setter $cls.$sym as $retType")
           }
         case ObjectKeyVal(name, value) =>
-          val scope = findThisClassInWalker(walker)
+          val scope = findThisClassInWalker(context)
           for {
             Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
             clsId <- id(cls)
@@ -759,8 +759,9 @@ object InferTypes {
 
         case _ =>
       }
-      false
+      true
     }
+
     // TODO: protect JSDoc explicit types
     //println(s"inferred ${inferred.types}")
 

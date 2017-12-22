@@ -30,6 +30,16 @@ package object esprima extends NodeExt {
       symbols.walk(ast, new ScopeContext)(callback)
     }
 
+    def walkWithScopeAfter(scope: ScopeContext)(after: (Node, ScopeContext) => Boolean) = {
+      symbols.walk(ast, scope)(after = after)
+    }
+
+    def walkWithScopeAfter(after: (Node, ScopeContext) => Boolean) = {
+      symbols.walk(ast, new ScopeContext)(after = after)
+    }
+
+
+
     /*
     * Used after each transform to detect any missing scope loc information early
     * */
@@ -38,19 +48,24 @@ package object esprima extends NodeExt {
       //symbols.walk(ast, new ScopeContext)((_, _) => false)
 
       // this is a bit longer, but it makes locating issue easier
+      def needsLoc(n: Node) = {
+        if (n.range == null) {
+          println(s"Null range in $n")
+        }
+        assert(n.range != null)
+      }
+
       walk {
-        case scope@IsScope() =>
-          if (scope.range == null) {
-            println(s"Null range in $scope")
-          }
-          assert(scope.range != null)
+        case n@IsScope() =>
+          needsLoc(n)
           false
-        case f: ForStatement =>
-          if (f.range == null) {
-            println(s"Null range in $f")
-          }
-          assert(f.range != null)
+        case n: ForStatement =>
+          needsLoc(n)
           false
+        case n: VariableDeclaration =>
+          needsLoc(n)
+          false
+
         case _ =>
           false
       }
@@ -87,10 +102,9 @@ package object esprima extends NodeExt {
     }
 
     def transformBefore(ctx: ScopeContext)(_before: (Node, (Node, TreeTransformer) => Node, TreeTransformer) => Node): T = {
-      var tr: TreeTransformer = null
       val origScopes = ctx.scopes.length
       val origParents = ctx.parents.length
-      tr = new TreeTransformer {
+      object tr extends TreeTransformer {
         override val context = ctx
 
         override def before(node: Node, descend: (Node, TreeTransformer) => Node) = _before(node, descend, tr)
@@ -104,10 +118,9 @@ package object esprima extends NodeExt {
     }
 
     def transformAfter(ctx: ScopeContext)(_after: (Node, TreeTransformer) => Node): T = {
-      var tr: TreeTransformer = null
       val origScopes = ctx.scopes.length
       val origParents = ctx.parents.length
-      tr = new TreeTransformer {
+      object tr extends TreeTransformer {
         override val context = ctx
 
         override def after(node: Node) = _after(node, tr)
@@ -122,8 +135,7 @@ package object esprima extends NodeExt {
     }
 
     def transformAfterSimple(ctx: ScopeContext)(_after: Node => Node): T = {
-      var tr: TreeTransformer = null
-      tr = new TreeTransformer {
+      object tr extends TreeTransformer {
         override val context = ctx
 
         override def after(node: Node) = _after(node)
