@@ -904,9 +904,11 @@ object ScalaOut {
               }
 
               tn.consequent match {
-                case Seq(Node.BlockStatement(Node.VariableDeclaration(Seq(Node.VariableDeclarator(sv, AsInstanceOfCondition(_, _))), _) +: body)) =>
+                case Seq(block@Node.BlockStatement(Node.VariableDeclaration(Seq(Node.VariableDeclarator(sv, AsInstanceOfCondition(_, _))), _) +: body)) =>
                   // we might check sv - variable name correspondence
-                  outputCaseBody(body)
+                  context.withScope(block) {
+                    outputCaseBody(body)
+                  }
                 case _ =>
                   outputCaseBody(tn.consequent)
               }
