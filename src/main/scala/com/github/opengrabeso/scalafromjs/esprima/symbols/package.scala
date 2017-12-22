@@ -73,15 +73,20 @@ package object symbols {
       }
     }
 
-    def leaveScope(node: Node, entered: EnterScopeValue) = {
-      val ss = parents.pop()
-
-      assert(ss == node)
+    def leaveScope(entered: EnterScopeValue) = {
+      parents.pop()
 
       if (entered.isScope) {
         scopes.pop()
       }
     }
+
+    def withScope[T](node: Node*)(callback: => T) = {
+      val s = node.map(enterScope)
+      callback
+      s.reverse.foreach(leaveScope)
+    }
+
 
     val parents = ArrayBuffer.empty[Node.Node]
     val scopes =  ArrayBuffer.empty[(Node.Node, ScopeInfo)]
@@ -134,12 +139,12 @@ package object symbols {
     if (ast != null) {
       val es = context.enterScope(ast)
       if (callback == null || !callback(ast, context)) {
-        walker.walkInto(ast)(node => walk(node, context)(callback))
+        walker.walkInto(ast)(node => walk(node, context)(callback, after))
       }
       if (after != null) {
         after(ast, context)
       }
-      context.leaveScope(ast, es)
+      context.leaveScope(es)
     }
 
     assert(context.scopes.length == origScopes)

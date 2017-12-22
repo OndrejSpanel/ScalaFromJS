@@ -563,8 +563,7 @@ package object classes {
   }
 
   def classTokenSource(cls: Node.ClassDeclaration): Node.Node = {
-    // relic of Uglify implementation, no longer needed with scope offsets instead of symbol offsets
-    cls
+    cls.body
   }
 
   // convert class members represented as ObjectKeyVal into inline class body variables

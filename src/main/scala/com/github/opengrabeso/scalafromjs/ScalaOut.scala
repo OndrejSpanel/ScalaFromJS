@@ -952,166 +952,175 @@ object ScalaOut {
       //case tn: Node.Scope => outputUnknownNode(tn)
       case tn: Node.ClassDeclaration =>
 
-        val (staticProperties, nonStaticProperties) = tn.body.body.partition(propertyIsStatic)
+        context.withScope(tn.body) {
+          val (staticProperties, nonStaticProperties) = tn.body.body.partition(propertyIsStatic)
 
-        if (staticProperties.nonEmpty || nonStaticProperties.isEmpty) {
-          out.eol(2)
+          if (staticProperties.nonEmpty || nonStaticProperties.isEmpty) {
+            out.eol(2)
 
-          out"object ${tn.id} {\n"
-          out.indent()
-          staticProperties.foreach(nodeToOut)
-          out.unindent()
-          out("}\n")
+            out"object ${tn.id} {\n"
+            out.indent()
+            staticProperties.foreach(nodeToOut)
+            out.unindent()
+            out("}\n")
 
-        }
-
-        // find a constructor and output it
-
-        val isStaticOnly = tn.superClass match {
-          case Defined(Node.Identifier(`staticClassName`)) =>
-            true
-          case _ =>
-            false
-        }
-
-        if (!isStaticOnly) {
-          out.eol(2)
-
-          out"class ${tn.id}"
-          val inlineBodyOpt = Classes.findInlineBody(tn)
-
-          val constructor = Classes.findConstructor(tn).map(_.value)
-
-          for {
-            inlineBody <- inlineBodyOpt
-            method <- getMethodMethod(inlineBody)
-          } {
-            outputClassArgNames(method.params)(method)
           }
 
-          for (base <- Option(tn.superClass)) {
-            out" extends $base"
+          // find a constructor and output it
+
+          val isStaticOnly = tn.superClass match {
+            case Defined(Node.Identifier(`staticClassName`)) =>
+              true
+            case _ =>
+              false
+          }
+
+          if (!isStaticOnly) {
+            out.eol(2)
+
+            out"class ${tn.id}"
+            val inlineBodyOpt = Classes.findInlineBody(tn)
+
+            val constructor = Classes.findConstructor(tn).map(_.value)
 
             for {
               inlineBody <- inlineBodyOpt
               method <- getMethodMethod(inlineBody)
             } {
-              // find the super constructor call and use its parameters
-              method.body.body.foreach {
-                case Node.ExpressionStatement(call@Node.CallExpression(_: Node.Super, pars)) =>
-                  out("(")
-                  outputNodes(pars)(nodeToOut)
-                  out(")")
-                case _ =>
+              outputClassArgNames(method.params)(method)
+            }
+
+            for (base <- Option(tn.superClass)) {
+              out" extends $base"
+
+              for {
+                inlineBody <- inlineBodyOpt
+                method <- getMethodMethod(inlineBody)
+              } {
+                // find the super constructor call and use its parameters
+                method.body.body.foreach {
+                  case Node.ExpressionStatement(call@Node.CallExpression(_: Node.Super, pars)) =>
+                    out("(")
+                    outputNodes(pars)(nodeToOut)
+                    out(")")
+                  case _ =>
+                }
               }
             }
-          }
-          out" {\n"
-          out.indent()
+            out" {\n"
+            out.indent()
 
-          for {
-            inlineBody <- inlineBodyOpt
-            method <- getMethodMethod(inlineBody)
-          } {
-            //out"/* inlineBody count ${inlineBody.value.body.length} */\n"
-            //out"/* inlineBody ${inlineBody.value.body.mkString(",")} */\n"
-            if (false) {
-              out"/* inlineBody defs ${
-                method.body.body.collect {
-                  case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(vn), _)), _) =>
-                    vn
-                }.mkString(",")
-              } */\n"
-            }
-
-            // class body should be a list of variable declarations, constructor statements may follow
-            method.body.body.foreach {
-              case df: Node.VariableDeclaration =>
-                outputDefinitions(df.kind == "const", df, true)
-              case Node.ExpressionStatement(Node.CallExpression(_: Node.Super, _)) =>
-              case ss =>
-                //out(nodeTreeToString(ss))
-                nodeToOut(ss)
-            }
-          }
-
-          //blockToOut(tn.body)
-
-          val (functionMembers, varMembers) = nonStaticProperties.partition {
-            case md: Node.MethodDefinition if md.value.isInstanceOf[Node.FunctionExpression] => true
-            //case kv: Node.Property if keyValIsTemplate(kv) => true
-            case _ => false
-          }
-
-
-          //out(s"/*fun: ${functionMembers.length} var: ${varMembers.length}*/")
-          varMembers.foreach { n =>
-            //out"/*${nodeClassName(n)}*/"
-            nodeToOut(n)
-          }
-
-          if ((varMembers.nonEmpty || tn.body.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
-
-          if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
-
-          for (pm <- functionMembers if !inlineBodyOpt.contains(pm)) {
-            pm match {
-              case p: Node.MethodDefinition =>
-                // check overrides
-                def isObjectOverride = {
-                  // special case: override AnyRef (java.lang.Object) methods:
-                  val objectMethods = Set("clone", "toString", "hashCode", "getClass")
-                  getMethodMethod(p).exists(_.params.isEmpty) && objectMethods.contains(propertyKeyName(p.key))
+            for {
+              inlineBody <- inlineBodyOpt
+              method <- getMethodMethod(inlineBody)
+            } {
+              context.withScope(method, method.body) {
+                //out"/* inlineBody count ${inlineBody.value.body.length} */\n"
+                //out"/* inlineBody ${inlineBody.value.body.mkString(",")} */\n"
+                if (false) {
+                  out"/* inlineBody defs ${
+                    method.body.body.collect {
+                      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(vn), _)), _) =>
+                        vn
+                    }.mkString(",")
+                  } */\n"
                 }
-                def isNormalOverride = {
-                  val isOverride = for {
-                    parentSym <- Classes.superClass(tn)
-                    parentCls <- input.classes.get(parentSym)
-                    parentMethod <- Classes.findMethod(parentCls, propertyKeyName(p.key))
-                  } yield {
-                    // check method signature
-                    def getArgTypes(m: Node.MethodDefinition) = {
-                      val paramsNames = m.value match {
-                        case AnyFun(params, _) =>
-                          params.map(parameterNameString)
-                      }
-                      val scopeId = ScopeContext.getNodeId(p)
-                      val paramIds = paramsNames.map(SymId(_, scopeId))
-                      paramIds.map(id => input.types.get(Some(id)))
-                    }
 
-                    val myParTypes = getArgTypes(p)
-                    val parentTypes = getArgTypes(parentMethod)
-                    myParTypes == parentTypes
+                // class body should be a list of variable declarations, constructor statements may follow
+                method.body.body.foreach {
+                  case df: Node.VariableDeclaration =>
+                    outputDefinitions(df.kind == "const", df, true)
+                  case Node.ExpressionStatement(Node.CallExpression(_: Node.Super, _)) =>
+                  case ss =>
+                    //out(nodeTreeToString(ss))
+                    nodeToOut(ss)
+                }
+              }
+            }
+
+            //blockToOut(tn.body)
+
+            val (functionMembers, varMembers) = nonStaticProperties.partition {
+              case md: Node.MethodDefinition if md.value.isInstanceOf[Node.FunctionExpression] => true
+              //case kv: Node.Property if keyValIsTemplate(kv) => true
+              case _ => false
+            }
+
+
+            //out(s"/*fun: ${functionMembers.length} var: ${varMembers.length}*/")
+            varMembers.foreach { n =>
+              //out"/*${nodeClassName(n)}*/"
+              nodeToOut(n)
+            }
+
+            if ((varMembers.nonEmpty || tn.body.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
+
+            if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
+
+            for (pm <- functionMembers if !inlineBodyOpt.contains(pm)) {
+              pm match {
+                case p: Node.MethodDefinition =>
+                  // check overrides
+                  def isObjectOverride = {
+                    // special case: override AnyRef (java.lang.Object) methods:
+                    val objectMethods = Set("clone", "toString", "hashCode", "getClass")
+                    getMethodMethod(p).exists(_.params.isEmpty) && objectMethods.contains(propertyKeyName(p.key))
                   }
-                  isOverride.contains(true)
-                }
 
-                if (isObjectOverride || isNormalOverride) out("override ")
-                p.value match {
-                  case Node.FunctionExpression(id, params, body, generator) =>
-                    out"def ${p.key}"
-                    if (p.kind != "get" || params.nonEmpty) {
-                      outputArgNames(params, true)(p.value)
+                  def isNormalOverride = {
+                    val isOverride = for {
+                      parentSym <- Classes.superClass(tn)
+                      parentCls <- input.classes.get(parentSym)
+                      parentMethod <- Classes.findMethod(parentCls, propertyKeyName(p.key))
+                    } yield {
+                      // check method signature
+                      def getArgTypes(m: Node.MethodDefinition) = {
+                        val paramsNames = m.value match {
+                          case AnyFun(params, _) =>
+                            params.map(parameterNameString)
+                        }
+                        val scopeId = ScopeContext.getNodeId(p)
+                        val paramIds = paramsNames.map(SymId(_, scopeId))
+                        paramIds.map(id => input.types.get(Some(id)))
+                      }
+
+                      val myParTypes = getArgTypes(p)
+                      val parentTypes = getArgTypes(parentMethod)
+                      myParTypes == parentTypes
                     }
-                    out(" = ")
-                    //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
-                    blockBracedToOut(body.body)
-                    out.eol()
+                    isOverride.contains(true)
+                  }
 
-                  case _ =>
-                    out"def ${p.key}${p.value}\n"
-                }
-              case _ =>
-                nodeToOut(pm)
+                  if (isObjectOverride || isNormalOverride) out("override ")
+                  p.value match {
+                    case f@Node.FunctionExpression(id, params, body, generator) =>
+                      context.withScope(f) {
+                        out"def ${p.key}"
+                        if (p.kind != "get" || params.nonEmpty) {
+                          outputArgNames(params, true)(p.value)
+                        }
+                        out(" = ")
+                        //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
+                        context.withScope(body) {
+                          blockBracedToOut(body.body)
+                        }
+                        out.eol()
+                      }
+
+                    case _ =>
+                      out"def ${p.key}${p.value}\n"
+                  }
+                case _ =>
+                  nodeToOut(pm)
+              }
             }
-          }
 
-          out.unindent()
-          out.eol()
-          out("}\n\n")
-          // classes have no body
-          //blockBracedToOut(tn.body)
+            out.unindent()
+            out.eol()
+            out("}\n\n")
+            // classes have no body
+            //blockBracedToOut(tn.body)
+          }
         }
       case tn: Node.BlockStatement =>
         blockBracedToOut(tn.body)
@@ -1152,7 +1161,7 @@ object ScalaOut {
         out.eol()
     }
 
-    context.leaveScope(n, es)
+    context.leaveScope(es)
 
   }
 
@@ -1211,7 +1220,7 @@ object ScalaOut {
     val scopeContext = new ScopeContext
     val es = scopeContext.enterScope(ast.top)
     blockToOut(ast.top.body)(outConfig, inputContext, ret, scopeContext)
-    scopeContext.leaveScope(ast.top, es)
+    scopeContext.leaveScope(es)
     sb.map(_.result)
   }
 

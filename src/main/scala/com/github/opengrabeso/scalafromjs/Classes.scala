@@ -266,7 +266,7 @@ object Classes {
 
     def classPos(name: SymbolMapId): Int = {
       val cls = classes(name)
-      cls.body.range._1
+      cls.body.range._1 // see also classTokenSource
     }
 
   }

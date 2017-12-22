@@ -221,7 +221,7 @@ object InferTypes {
       //println(s"inferParsOrArgs $pars")
       val s = context.enterScope(fun) // pars need to be evaluated in the scope of the function
       val parIds = pars.map(symbolFromPar).flatMap(_.map(id))
-      context.leaveScope(fun, s)
+      context.leaveScope(s)
       //println(s"  parIds $parIds")
 
       for ((Some(par), arg) <- parIds zip args) {

@@ -86,14 +86,14 @@ package object esprima extends NodeExt {
           transformInto(node)(node => node.transform(transformer))
           node
         })
-        transformer.context.leaveScope(ast, es)
+        transformer.context.leaveScope(es)
         if (before != null) {
           before.asInstanceOf[T]
         } else {
           val es = transformer.context.enterScope(ast)
           transformInto(ast)(node => node.transform(transformer))
           val after = transformer.after(ast)
-          transformer.context.leaveScope(ast, es)
+          transformer.context.leaveScope(es)
           after.asInstanceOf[T]
         }
       } else {

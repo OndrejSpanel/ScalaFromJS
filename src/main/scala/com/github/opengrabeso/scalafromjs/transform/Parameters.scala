@@ -66,7 +66,7 @@ object Parameters {
           f.asInstanceOf[T]
 
       }
-      context.leaveScope(f, s)
+      context.leaveScope(s)
       ret
     }
 
