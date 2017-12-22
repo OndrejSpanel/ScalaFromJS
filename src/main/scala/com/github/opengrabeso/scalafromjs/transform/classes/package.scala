@@ -623,9 +623,9 @@ package object classes {
 
   def applyRules(n: NodeExtended): NodeExtended = {
     n.config.rules.foldLeft(n){ (n, rule) =>
-      rule(n)
+      val r = rule(n)
       //n.top.figure_out_scope()
-      n
+      r
     }
 
   }

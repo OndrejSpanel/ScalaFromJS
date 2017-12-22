@@ -18,6 +18,19 @@ object Rules {
       // filter member functions and properties
       ret.body.body = c.body.body.filterNot(p => member.name.findFirstIn(methodName(p)).isDefined)
 
+      findInlineBody(ret).foreach { inlineBody =>
+        val body = getMethodBody(inlineBody)
+        body.foreach { b =>
+          val filteredBody = b.body.filter {
+            case v@VarDecl(name, _, _)  =>
+              member.name.findFirstIn(name).isEmpty
+            case v =>
+              false
+          }
+          inlineBody.value.asInstanceOf[Node.FunctionExpression].body.body = filteredBody
+        }
+      }
+
       deleteVarMember(ret, member.name)
     }
 

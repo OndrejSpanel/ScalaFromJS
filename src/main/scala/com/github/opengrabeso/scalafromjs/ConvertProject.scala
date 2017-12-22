@@ -50,44 +50,38 @@ object ConvertProject {
 
   case class DeleteMemberRule(member: MemberDesc) extends Rule {
     override def apply(n: NodeExtended) = {
-      ???
-      //transform.classes.Rules.deleteMembers(n, member)
+      transform.classes.Rules.deleteMembers(n, member)
     }
   }
 
   case class IsClassMemberRule(member: MemberDesc) extends Rule {
     override def apply(n: NodeExtended) = {
-      ???
-      //transform.classes.Rules.replaceIsClass(n, member)
+      transform.classes.Rules.replaceIsClass(n, member)
     }
   }
 
   case class GetClassMemberRule(member: MemberDesc) extends Rule {
     override def apply(n: NodeExtended) = {
-      ???
-      //transform.classes.Rules.replaceGetClass(n, member)
+      transform.classes.Rules.replaceGetClass(n, member)
     }
   }
 
   case class MakePropertyRule(member: MemberDesc) extends Rule {
     override def apply(n: NodeExtended) = {
-      ???
-      //transform.classes.Rules.makeProperties(n, member)
+      transform.classes.Rules.makeProperties(n, member)
     }
   }
 
   case class ReplicateMemberRule(member: MemberDesc, template: String) extends Rule {
     override def apply(n: NodeExtended) = {
-      ???
-      //transform.classes.Rules.substMember(n, member, template)
+      transform.classes.Rules.substMember(n, member, template)
     }
 
   }
 
   case class RemoveScopeRule(scope: List[String]) extends Rule {
     override def apply(n: NodeExtended) = {
-      ???
-      //transform.classes.Rules.removeScope(n, scope)
+      transform.classes.Rules.removeScope(n, scope)
     }
   }
 
@@ -276,17 +270,17 @@ object ConvertProject {
 
     }
 
-    val removedConfig = ast /*readConfig.fold(ast) { rc =>
+    val removedConfig = readConfig.fold(ast) { rc =>
       ast.transformAfter { (node, _) =>
         node match {
           case GetConfig(_) =>
-            Node.EmptyStatement(node)
+            Node.EmptyStatement()
           case _ =>
             node
         }
 
       }
-    }*/
+    }
 
     readConfig.getOrElse(ConvertConfig()) -> removedConfig
   }
