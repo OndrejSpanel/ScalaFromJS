@@ -382,12 +382,15 @@ object Variables {
   }
 
   def replaceVariable[T <: Node.Node](n: T, oldName: SymId, newExpr: Node.Node)(implicit ctx: ScopeContext): T = {
-    n.transformAfter(ctx) { (node, transformer) =>
+    n.transformBefore(ctx) { (node, descend, transformer) =>
       implicit val ctx = transformer.context
       node match {
+        case VarDecl(Id(`oldName`), _, _) => // do not replace in the declaration
+          node
         case Node.Identifier(Id(`oldName`)) =>
-          newExpr.cloneNode().withTokens(node)
+          newExpr.cloneNode().copyLoc(node)
         case _ =>
+          descend(node, transformer)
           node
       }
     }

@@ -13,7 +13,7 @@ import VariableUtils._
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
 
 object InlineConstructors {
-  private case class PrivateMember(sym: SymId, isVal: Boolean)
+  private case class PrivateMember(sym: SymId, isVal: Boolean, tokens: Node.Node)
 
   private object AssignToMember {
     def unapply(arg: Node.Node): Option[(String, Node.Node)] = arg match {
@@ -141,12 +141,12 @@ object InlineConstructors {
     val functions = detectPrivateFunctions(n)
 
     // list all variables
-    var variables = Set.empty[SymId]
+    var variables = Map.empty[SymId, Node.Node]
     n.walkWithScope(ctx) {(node, context) =>
       implicit val ctx = context
       node match {
         case VarDecl(Id(name), _, _) =>
-          variables += name
+          variables += name -> node
           false
         case _ =>
           false
@@ -160,8 +160,10 @@ object InlineConstructors {
       implicit val ctx = context
       node match {
         case Node.Identifier(Id(name)) =>
-          context.scopes.find { scope =>
-            functions contains scope._1
+          if (context.scopes.find { scope =>
+            functions.exists { case AnyFun(args, body) => body == scope._1}
+          }) {
+            privates += name
           }
           false
         case _ =>
@@ -170,13 +172,15 @@ object InlineConstructors {
       }
     }
 
-    privates.toSeq.map { priv =>
+    privates.toSeq.flatMap { priv =>
 
       //println(s"  priv ${priv.name} ${refs.refs.get(priv)} ")
       // check which members are ever written to - we can convert all others to getters and methods
       val modified = refs.isModified(priv)
 
-      PrivateMember(priv, !modified)
+      variables.get(priv).map {
+        PrivateMember(priv, !modified, _)
+      }
 
     }
   }
@@ -208,7 +212,13 @@ object InlineConstructors {
             def privateMember(v: SymId): Node.Node = newThisDotMember(v.name)
 
             val constructor = locals.foldLeft(body) { (constructor, privateVar) =>
-              val replacedInit = replaceVariableInit(constructor, privateVar.sym) { (sym, init) =>
+              // first replace variable use - without init it is no longer declared
+              val replaced = ctx.withScope(cls, cls.body) {
+                //println(s"Replaced private var ${privateVar.sym.name}")
+                replaceVariable(constructor, privateVar.sym, privateMember(privateVar.sym))
+              }
+
+              val replacedInit = replaceVariableInit(replaced, privateVar.sym) { (sym, init) =>
                 Node.ExpressionStatement (
                   Assign(
                     newThisDotMember(sym.name),
@@ -219,19 +229,19 @@ object InlineConstructors {
                 )
               }
 
-              //println(s"Replaced private var ${privateVar.sym.name}")
-              replaceVariable(replacedInit, privateVar.sym, privateMember(privateVar.sym))
+              replacedInit
+
             }
             constructorProperty.value match {
               case f: Node.FunctionExpression =>
-                f.body.body = Block.statements(body)
+                f.body.body = Block.statements(constructor)
             }
 
             // DRY: FillVarMembers
             val clsTokenDef = classTokenSource(cls)
 
             val vars = locals.map { local =>
-              val varDecl = VarDecl(local.sym.name, None, if (local.isVal) "const" else "var")
+              val varDecl = VarDecl(local.sym.name, None, if (local.isVal) "const" else "var").withTokens(local.tokens)
               //println(s"privateVariables ${local.sym.name} $varDecl ${cls.start.get.pos}")
               varDecl
             }
