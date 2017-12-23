@@ -287,9 +287,9 @@ object Variables {
         case MatchInitWithAssign(vName, right) if ctx.scopeId == vName.sourcePos && (refs contains vName) =>
           //println(s"ss match assign ${nodeClassName(left)} ${ScalaOut.outputNode(left, "")}")
           // checking if inside of a block statement, to prevent replacing inside of a compound statement
-          val stackTail = ctx.parent(0)
+          val stackTail = ctx.parent()
           stackTail match {
-            case Some(_: Node.BlockStatement) =>
+            case Some(IsScope()) =>
               if (!(replaced contains vName)) {
                 replaced += vName
                 val r = if (init(vName) == 0) "const" else "let"
