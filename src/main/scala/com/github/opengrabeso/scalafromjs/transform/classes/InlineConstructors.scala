@@ -291,7 +291,7 @@ object InlineConstructors {
               case Node.ExpressionStatement(Assign(Node.ThisExpression() Dot tgtName, "=", Node.Identifier(funName)))
                 // TODO: relax tgtName == funName requirement
                 if tgtName == funName && functionsToConvert.collectFirst {
-                  case f: Node.FunctionExpression if f.id.name == funName => f
+                  case f: Node.FunctionExpression if Option(f.id).exists(_.name == funName) => f
                 }.nonEmpty =>
                 //if (log) println(s"Drop assign $funName")
                 false
