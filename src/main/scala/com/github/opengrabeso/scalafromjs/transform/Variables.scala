@@ -191,19 +191,26 @@ object Variables {
   * Split multiple definitions (comma separated definitiob lists)
   * */
   def splitMultipleDefinitions(n: Node.Node): Node.Node = {
+
+    def splitInBlock(body: Seq[Node.StatementListItem]) = body.flatMap {
+      case defs: Node.VariableDeclaration =>
+        defs.declarations.map { d =>
+          val clone = defs.cloneNode() // keeps Node.VariableDeclaration type (Node.Var or whatever it is)
+          clone.declarations = Seq(d)
+          clone
+        }
+      case other =>
+        Seq(other)
+    }
+
     n.transformAfter { (node, transformer) =>
       node match {
+        case block: Node.Program =>
+          block.body = splitInBlock(block.body)
+          block
+
         case block: Node.BlockStatement =>
-          block.body = block.body.flatMap {
-            case defs: Node.VariableDeclaration =>
-              defs.declarations.map { d =>
-                val clone = defs.cloneNode() // keeps Node.VariableDeclaration type (Node.Var or whatever it is)
-                clone.declarations = Seq(d)
-                clone
-              }
-            case other =>
-              Seq(other)
-          }
+          block.body = splitInBlock(block.body)
           block
         case _ =>
           node
