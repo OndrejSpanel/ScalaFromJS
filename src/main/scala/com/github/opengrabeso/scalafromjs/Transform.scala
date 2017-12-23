@@ -736,7 +736,7 @@ object Transform {
     // "Immediately-invoked function expression"
     object IIFE {
       def unapply(arg: Node.Node) = arg match {
-        case Node.CallExpression(Node.FunctionExpression(_, args1, funcBody, _), args2) if args1.isEmpty && args2.isEmpty =>
+        case Node.CallExpression(AnyFun(args1, funcBody), args2) if args1.isEmpty && args2.isEmpty =>
           Some(funcBody)
         case _ => None
 
@@ -748,7 +748,7 @@ object Transform {
         case IIFE(funcBody) =>
           ScalaNode.StatementExpression{
             Node.BlockStatement {
-              removeReturnFromBody(funcBody.body)
+              removeReturnFromBody(Block.statements(funcBody))
             }.withTokens(node)
           }
         case _ =>
