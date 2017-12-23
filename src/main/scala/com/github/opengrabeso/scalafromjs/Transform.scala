@@ -530,6 +530,7 @@ object Transform {
         // TODO: check if call is a known symbol and use it
         // TODO: handle package names properly
         Some(TypeInfo.both(ClassType(SymbolMapId(call, 0))))
+
       case Node.CallExpression(Node.Identifier(Id(call)), _) =>
         val tid = id(call)
         if (log)  println(s"Infer type of call ${call.name}:$tid as ${types.get(tid)}")
@@ -546,6 +547,13 @@ object Transform {
           if (log) println(s"  Infer type of member call $c.$name as $r")
           callReturn(r)
         }
+
+      case Node.CallExpression(AnyFun(_, body), _) =>
+        // evaluate IIFE
+        // note: we could also perform params - args inference
+        val allReturns = transform.InferTypes.scanFunctionReturns(Block(body).withTokens(n))
+        //expressionType(body)
+        allReturns
 
       case seq: Node.SequenceExpression =>
         expressionType(seq.expressions.last, log)
