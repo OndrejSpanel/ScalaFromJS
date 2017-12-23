@@ -548,13 +548,6 @@ object Transform {
           callReturn(r)
         }
 
-      case Node.CallExpression(AnyFun(_, body), _) =>
-        // evaluate IIFE
-        // note: we could also perform params - args inference
-        val allReturns = transform.InferTypes.scanFunctionReturns(Block(body).withTokens(n))
-        //expressionType(body)
-        allReturns
-
       case seq: Node.SequenceExpression =>
         expressionType(seq.expressions.last, log)
       case Node.ExpressionStatement(ExpressionType(t)) =>
@@ -566,16 +559,14 @@ object Transform {
         expressionType(expression)
       case Node.ExpressionStatement(expression) =>
         expressionType(expression)
-      /*
-      case fun@Node.FunctionExpression(_, args, body, _) =>
-        val returnType = transform.InferTypes.scanFunctionReturns(fun)(ctx)
+      case fun@AnyFun(args, body) =>
+        val returnType = transform.InferTypes.scanFunctionReturns(Block(body).withTokens(fun))
         // TODO: use inferred argument types as well
         val argTypes = args.map(_ => any).toIndexedSeq
         if (log) println(s"lambda returns $returnType")
         returnType.map { rt =>
           TypeInfo.target(FunctionType(rt.declType, argTypes))
         }
-      */
       case _ =>
         None
 

@@ -658,27 +658,12 @@ object InferTypes {
               val cls = classes.get(call)
               if (cls.isDefined) {
                 inferConstructorCall(args, call)
+              } else {
+                //println(s"Infer arg types for a var call ${varSym.name} as $tpe")
+                val log = watched(call.name)
+                val tpe = inferFunction(args, log)
+                addInferredType(call, Some(TypeInfo.target(tpe)))(s"Infer ${call.name} args $args")
               }
-              /*
-                case Some(defunSym: Node.SymbolDefun) => // normal function call
-                  //println(s"Infer arg types for ${defunSym.name}")
-                  functions.get(defunSym) match {
-                    case Some(DefFun(_, pars, _)) =>
-                      // now match arguments to parameters
-                      inferParsOrArgs(pars, args)(s"Call function ${defunSym.name}")
-                    case _ =>
-                  }
-                case Some(varSym: Node.SymbolVar) =>
-                  //println(s"Infer arg types for a var call ${varSym.name} as $tpe")
-                  varSym.thedef.foreach { td =>
-                    val log = watched(td.name)
-                    val tpe = inferFunction(args, log)
-                    addInferredType(td, Some(TypeInfo.target(tpe)))(s"Infer ${td.name} args $args")
-                  }
-                // TODO: reverse inference
-                case _ =>
-              }
-              */
           }
         case Node.CallExpression(s: Node.Super, args) =>
           for (sup <- findSuperClass(scopeCtx)) {
