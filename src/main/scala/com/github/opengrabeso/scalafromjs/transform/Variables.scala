@@ -251,23 +251,30 @@ object Variables {
     var defined = Set.empty[SymId] // symbol definition -> first reference
     var used = Set.empty[SymId] // any use makes assignment not first
     val init = mutable.Map.empty[SymId, Int] // one or multiple assignments?
+    val initAt = mutable.Map.empty[SymId, Node.Node] // one or multiple assignments?
     n.walkWithScope { (node, scopeContext) =>
       implicit val ctx = scopeContext
       node match {
         case VarDecl(Id(name), None, _) =>
           defined += name
           true
+        //case fn: Node.MethodDefinition if methodName(fn) == inlineBodyName =>
+        //  true
 
         case MatchInitWithAssign(name, _) if scopeContext.scopeId == name.sourcePos && !(used contains name) && (defined contains name) =>
           if (!(init contains name)) {
             init += name -> 0
+            initAt += name -> node
           } else {
             init(name) += 1 // if already used, mark as var, not const
           }
           false
 
         case Assign(Node.Identifier(Id(name)), _, _) if init contains name =>
-          init(name) += 1 // if already used, mark as var, not const
+          // ignore use inside of the init statement
+          if (!ctx.parents.contains(initAt(name))) {
+            init(name) += 1 // if already used, mark as var, not const
+          }
           false
 
         case Node.Identifier(Id(name)) if defined contains name =>

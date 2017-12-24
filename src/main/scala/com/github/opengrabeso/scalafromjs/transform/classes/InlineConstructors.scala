@@ -160,8 +160,8 @@ object InlineConstructors {
       implicit val ctx = context
       node match {
         case Node.Identifier(Id(name)) =>
-          if (context.scopes.find { scope =>
-            functions.exists { case AnyFun(args, body) => body == scope._1}
+          if (context.scopes.exists { scope =>
+            functions contains scope._1
           }) {
             privates += name
           }
