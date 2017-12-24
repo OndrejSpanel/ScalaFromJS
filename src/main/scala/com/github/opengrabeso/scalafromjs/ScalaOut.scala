@@ -1083,7 +1083,8 @@ object ScalaOut {
                   // class body should be a list of variable declarations, constructor statements may follow
                   method.body.body.foreach {
                     case df: Node.VariableDeclaration =>
-                      outputDefinitions(df.kind == "const", df, true)
+                      // member variables never output as val - we cannot rely on val detection, as they can be modified externally
+                      outputDefinitions(false, df, true)
                     case Node.ExpressionStatement(Node.CallExpression(_: Node.Super, _)) =>
                     case ss =>
                       //out(nodeTreeToString(ss))
