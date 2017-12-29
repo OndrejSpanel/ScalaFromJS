@@ -7,7 +7,7 @@ import scala.collection.mutable.ArrayBuffer
 
 package object symbols {
   // create symbol lists for all relevant scopes
-  class ScopeInfo {
+  class ScopeInfo(val scopeId: ScopeContext.ScopeId) {
     var symbols = Set.empty[String] // all symbols defined in the scope
   }
 
@@ -62,7 +62,7 @@ package object symbols {
       parents.push(node)
       val isScope = IsDeclScope.unapply(node)(this)
       if (isScope) {
-        scopes.push(node -> new ScopeInfo)
+        scopes.push(node -> new ScopeInfo(getNodeId(node)))
       }
       scanSymbols(node)
       EnterScopeValue(isScope)
@@ -114,7 +114,7 @@ package object symbols {
 
     def findScopeById(scopeId: ScopeId): Option[(Node.Node, ScopeContext)] = {
       for (i <- scopes.indices.reverse) {
-        if (getNodeId(scopes(i)._1) == scopeId) {
+        if (scopes(i)._2.scopeId == scopeId) {
           return Some(scopes(i)._1, contextUntil(scopes(i)._1))
         }
       }

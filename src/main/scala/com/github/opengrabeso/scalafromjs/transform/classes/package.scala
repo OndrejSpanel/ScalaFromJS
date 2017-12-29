@@ -398,8 +398,13 @@ package object classes {
           newGetterOrSetter("set", k, args, body, isStatic)
         }
 
-        def newClass(sym: Node.Identifier, base: Option[Node.Identifier], props: Seq[Node.ClassBodyElement]): Node.ClassDeclaration = {
-          new Node.ClassDeclaration(sym, base.orNull, Node.ClassBody(props).withTokens(sym)).withTokens(sym)
+        def newClass(sym: Node.Identifier, base: Option[Node.Identifier], props: Seq[Node.ClassBodyElement], tokensFrom: Node.Node): Node.ClassDeclaration = {
+          val cls = new Node.ClassDeclaration(sym, base.orNull, Node.ClassBody(props).withTokens(tokensFrom)).withTokens(tokensFrom)
+          cls.body.range = (
+            sym.range._1 min tokensFrom.range._1,
+            sym.range._2 max tokensFrom.range._2
+          )
+          cls
         }
       }
 
@@ -416,7 +421,7 @@ package object classes {
         mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues ++ mappedStatic
       }
 
-      def classDefine(sym: Node.Identifier) = {
+      def classDefine(sym: Node.Identifier, tokensFrom: Node.Node) = {
         val clsId = ClassId(sym)
         //println(s"  ${transformer.stack.map(nodeClassName).mkString("|")}")
         // check if there exists a type with this name
@@ -432,7 +437,7 @@ package object classes {
         val properties = classProperties(clazz)
 
         //println(s"classDefine ${sym.name} ${sym.thedef.map(SymbolTypes.id)} ${clazz.base} $base ${base.flatMap(_.thedef.map(SymbolTypes.id))}")
-        newClass(sym, base, properties)
+        newClass(sym, base, properties, tokensFrom)
       }
 
       if (false) node match {
@@ -444,10 +449,10 @@ package object classes {
       }
       node match {
         case ClassDefineValue(sym, _, _, _) if classes contains ClassId(sym) =>
-          classDefine(sym)
+          classDefine(sym, node)
 
         case ClassDefine(sym, _, _) if classes contains ClassId(sym) =>
-          classDefine(sym)
+          classDefine(sym, node)
 
         case DefineProperties(name, _) if classes.contains(name) =>
           emptyNode

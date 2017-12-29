@@ -67,7 +67,7 @@ class ValVarTests extends FunSuite with TestUtils {
       var x = ""
       """).required(
       "val x = 0",
-      """val x = """"""
+      """val x = """""
     ).forbidden(
       "val a",
       "var a = 1",
