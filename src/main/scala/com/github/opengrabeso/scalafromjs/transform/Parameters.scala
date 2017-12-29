@@ -452,10 +452,14 @@ object Parameters {
           isVarPar.map { varSym =>
             if (logging) println(s"Rename ${varSym.name}")
 
-            val params = f.params.map { f =>
-              if (f == par) Node.Identifier(varSym.name)
-              else f
-
+            val params = f.params.map {
+              case Node.Identifier(`parName`) =>
+                Node.Identifier(varSym.name)
+              case nn@Node.AssignmentPattern(Node.Identifier(`parName`), right) =>
+                nn.left = Node.Identifier(varSym.name).withTokens(nn.left)
+                nn
+              case nn =>
+                nn
             }
             // redirect also a symbol type
               //println(s"${parSym.name} -> ${varSym.name} Redirect type $tpe")
