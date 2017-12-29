@@ -70,7 +70,7 @@ object Classes {
     thisScope.flatMap(superClass)
   }
 
-  def getClassId(cls: Node.ClassDeclaration)(implicit context: ScopeContext): Option[Int] = {
+  def getClassId(cls: Node.ClassDeclaration)(implicit context: ScopeContext): Option[ScopeContext.ScopeId] = {
     val sid = symId(cls.id)
     sid.map(_.sourcePos)
   }
@@ -260,9 +260,9 @@ object Classes {
     def get(name: SymbolMapId): Option[Node.ClassDeclaration] = classes.get(name).map(_._2)
     def getParent(name: SymbolMapId): Option[SymId] = classes.get(name).flatMap(_._1)
 
-    def classPos(name: SymbolMapId): Int = {
+    def classPos(name: SymbolMapId): (Int, Int) = {
       val cls = classes(name)._2
-      cls.body.range._1 // see also classTokenSource
+      cls.body.range // see also classTokenSource
     }
 
   }

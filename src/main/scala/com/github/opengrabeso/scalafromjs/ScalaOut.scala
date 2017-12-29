@@ -127,7 +127,7 @@ object ScalaOut {
 
           if (false) { // output symbol ids and types
             val sid = symId(s.name)
-            out"/*${sid.fold(-1)(_.sourcePos)}*/"
+            out"/*${sid.fold((-1,-1))(_.sourcePos)}*/"
             out"/*${input.types.get(sid)}*/"
           }
         case n: Node.Node =>

@@ -56,6 +56,26 @@ class ValVarTests extends FunSuite with TestUtils {
 
   }
 
+  test("Var scope should be detected properly ") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      function f() {
+        var x = 0
+      }
+
+      var x = ""
+      """).required(
+      "val x = 0",
+      """val x = """"""
+    ).forbidden(
+      "val a",
+      "var a = 1",
+      "while"
+    )
+
+  }
+
   test("Detect object instead of variable") {
     exec check ConversionCheck(
       // language=JavaScript

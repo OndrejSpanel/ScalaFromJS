@@ -360,7 +360,7 @@ object SymbolTypes {
 
   val libs = Map(
     // -1 is a special handling for global symbols
-    SymbolMapId("Math", -1) -> Seq(
+    SymbolMapId("Math", (-1, -1)) -> Seq(
       "min", "max", "abs",
       "sin", "cos", "tan", "asin", "acos", "atan",
       "sqrt", "ceil", "floor",
@@ -391,12 +391,12 @@ object SymbolTypes {
 
     def symbolFromClass(cls: SymbolMapId): SymbolMapId = {
       val id = index.get(cls)
-      id.fold(cls)(c => cls.copy(sourcePos = c))
+      id.fold(cls)(c => cls.copy(sourcePos = c -> c))
     }
 
     def symbolFromMember(cls: SymbolMapId, name: String): Option[SymbolMapId] = {
       val id = index.get(cls)
-      id.map(SymbolMapId(name, _))
+      id.map(i => SymbolMapId(name, i -> i))
     }
   }
 
@@ -488,7 +488,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
   }
 
   // TODO: move stdLibs and symbolFromMember out of SymbolTypes
-  def symbolFromMember(memberId: MemberId)(implicit classPos: SymbolMapId => Int): SymbolMapId = {
+  def symbolFromMember(memberId: MemberId)(implicit classPos: SymbolMapId => (Int, Int)): SymbolMapId = {
     // first check stdLibraries, if not found, try normal lookup
     stdLibs.symbolFromMember(memberId.cls, memberId.name).getOrElse {
       val clsPos = classPos(memberId.cls)
@@ -496,7 +496,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
     }
   }
 
-  def getMember(clsId: Option[MemberId])(implicit classId: SymbolMapId => Int): Option[TypeInfo] = get(clsId.map(symbolFromMember))
+  def getMember(clsId: Option[MemberId])(implicit classId: SymbolMapId => (Int, Int)): Option[TypeInfo] = get(clsId.map(symbolFromMember))
 
   def getAsScala(id: Option[SymbolMapId]): String = {
     get(id).fold (any.toOut) (t => t.declType.toOut)
@@ -527,7 +527,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
   }
 
 
-  def addMember (kv: (Option[MemberId], TypeInfo))(implicit classId: SymbolMapId => Int): SymbolTypes = {
+  def addMember (kv: (Option[MemberId], TypeInfo))(implicit classId: SymbolMapId => (Int, Int)): SymbolTypes = {
     this + (kv._1.map(symbolFromMember) -> kv._2)
   }
 

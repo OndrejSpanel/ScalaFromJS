@@ -368,7 +368,7 @@ object Transform {
       }
     }
 
-    implicit val classPos: (SymbolMapId) => Int = classes.classPos
+    implicit val classPos: (SymbolMapId) => (Int, Int) = classes.classPos
 
   }
 
@@ -529,7 +529,7 @@ object Transform {
       case Node.NewExpression(Node.Identifier(pack) Dot call, _) =>
         // TODO: check if call is a known symbol and use it
         // TODO: handle package names properly
-        Some(TypeInfo.both(ClassType(SymbolMapId(call, 0))))
+        Some(TypeInfo.both(ClassType(SymbolMapId(call, 0 -> 0))))
 
       case Node.CallExpression(Node.Identifier(Id(call)), _) =>
         val tid = id(call)

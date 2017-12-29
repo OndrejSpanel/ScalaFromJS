@@ -15,14 +15,14 @@ package object symbols {
     implicit val ord = Ordering.by(unapply)
   }
 
-  case class SymId(name: String, sourcePos: Int) {
-    override def toString = s"$name:$sourcePos"
+  case class SymId(name: String, sourcePos: (Int, Int)) {
+    override def toString = s"$name:$sourcePos..$sourcePos"
     def compare(that: SymId) = {
       val d = name compare that.name
       if (d != 0) {
         d
       } else {
-        sourcePos - that.sourcePos
+        implicitly[Ordering[(Int, Int)]].compare(sourcePos, that.sourcePos)
       }
     }
   }
@@ -44,9 +44,10 @@ package object symbols {
   }
 
   object ScopeContext {
-    def getNodeId(n: Node.Node) = {
+    type ScopeId = (Int, Int)
+    def getNodeId(n: Node.Node): ScopeId = {
       assert(IsScope.unapply(n))
-      if (n.range != null) n.range._1
+      if (n.range != null) n.range
       else {
         throw new NoSuchElementException("Missing node id for $n")
       }
@@ -111,7 +112,7 @@ package object symbols {
       ret
     }
 
-    def findScopeById(scopeId: Int): Option[(Node.Node, ScopeContext)] = {
+    def findScopeById(scopeId: ScopeId): Option[(Node.Node, ScopeContext)] = {
       for (i <- scopes.indices.reverse) {
         if (getNodeId(scopes(i)._1) == scopeId) {
           return Some(scopes(i)._1, contextUntil(scopes(i)._1))
@@ -123,13 +124,13 @@ package object symbols {
     def findSymId(sym: String): SymId = {
       val scope = findScope(sym)
       // when symbol not found in any scope, consider it a global one
-      scope.fold(SymId(sym, -1))(info => SymId(sym, getNodeId(info._1)))
+      scope.fold(SymId(sym, -1 -> -1))(info => SymId(sym, getNodeId(info._1)))
     }
 
     def parent(level: Int = 0): Option[Node] = if (level + 1 < parents.length) Some(parents(parents.length - 2 - level)) else None
     def stack = parents
 
-    def scopeId: Int = getNodeId(scopes.last._1)
+    def scopeId: ScopeId = getNodeId(scopes.last._1)
   }
 
   /**
