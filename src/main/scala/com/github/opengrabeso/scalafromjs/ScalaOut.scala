@@ -541,15 +541,14 @@ object ScalaOut {
 
           // detect if last statement in the for body is a push
           // if it is, convert the loop to yield
-          var push = None /* Option.empty[(Node.CallExpression, Node.Node, Node.Node)]
-        Transform.walkLastNode(forIn.body) {
-          case call@Node.CallExpression(expr Dot "push", arg) =>
-            push = Some(call, expr, arg)
-            false
-          case _ =>
-            false
-        }
-        */
+          var push = Option.empty[(Node.CallExpression, Node.Node, Node.Node)]
+          Transform.walkLastNode(forIn.body) {
+            case call@Node.CallExpression(expr Dot "push", Seq(arg)) =>
+              push = Some(call, expr, arg)
+              false
+            case _ =>
+              false
+          }
 
           // verify the loop does not contain any construct which would break transformation
           if (push.isDefined) forIn.body.walk {
