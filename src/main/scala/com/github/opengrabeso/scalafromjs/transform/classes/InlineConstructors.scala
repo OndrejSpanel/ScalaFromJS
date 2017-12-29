@@ -72,15 +72,21 @@ object InlineConstructors {
     //println(s"definedFunctions $definedFunctions")
 
     var definedAndExported = Set.empty[Node.Node]
-    n.walk {
+    def scanIds(n: Node.Node): Boolean =  n match {
       case Node.CallExpression(Node.Identifier(_), _) =>
         true // a plain call, do not dive into
+      case f: Node.FunctionDeclaration =>
+        // skip function declaration node id
+        f.body.walk(scanIds)
+        true
       case Node.Identifier(funName) =>
         definedAndExported ++= localLambdaByName(funName)
         true
       case _ =>
         false
     }
+
+    n.walk(scanIds)
 
     //println(s"definedAndExported $definedAndExported")
 
@@ -99,17 +105,18 @@ object InlineConstructors {
     def transitiveClosure(functions: Set[Node.Node]): Set[Node.Node] = {
       var called = functions
       var someChange = false
-      n.walkWithScope { (node, walker) =>
+      def callback(node: Node.Node, walker: ScopeContext): Boolean = {
         implicit val ctx = walker
         node match {
           // any use other than a definition should be enough to export the function as well
-          case _: Node.FunctionExpression =>
+          case f: Node.FunctionExpression =>
+            f.body.walkWithScope(ctx)(callback)
             false
           case Node.Identifier(sym) =>
             for {
               fun <- localLambdaByName(sym)
               inFunction <- walker.stack.reverse.collectFirst {
-                case c: Node.FunctionExpression =>
+                case c@AnyFun(_, _) =>
                   //println(s"Found ${c.name.map(_.name)}")
                   c
               }
@@ -125,8 +132,12 @@ object InlineConstructors {
             false
         }
       }
+
+      n.walkWithScope(callback _)
+
       if (someChange) transitiveClosure(called) else called
     }
+
 
     transitiveClosure(exportedDirectly)
   }
