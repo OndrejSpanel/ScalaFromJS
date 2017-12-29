@@ -69,12 +69,7 @@ package object symbols {
 
     def scanSymbols(node: Node) = {
       // check on symbol collections for easier symbol declaration debugging
-      val parentSymbols = SymbolDeclaration.declaredSymbolsExtern(node)
       val symbols = SymbolDeclaration.declaredSymbols(node)
-      if (scopes.length >= 2 && parentSymbols.nonEmpty) {
-        val parentScope = scopes(scopes.length - 2)
-        parentScope._2.symbols ++= parentSymbols
-      }
       if (scopes.nonEmpty && symbols.nonEmpty) {
         scopes.last._2.symbols ++= symbols
       }

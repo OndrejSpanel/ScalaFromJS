@@ -16,14 +16,6 @@ object SymbolDeclaration {
     }
   }
 
-  def declaredSymbolsExtern(node: Node): Seq[String] = {
-    val nodes = node match {
-      case _ =>
-        Seq()
-    }
-    processNodes(nodes)
-  }
-
   def declaredSymbols(node: Node): Seq[String] = {
     // some symbols are defined in the parent, like function parameters
     def processBlock(body: Seq[StatementListItem]) = {
