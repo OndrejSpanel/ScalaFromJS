@@ -283,7 +283,15 @@ object Parameters {
             // we may rename the variable now
             //println(s"Renaming $s")
             val renamedBody = Variables.renameVariable(f.body, parDef, shortName)
-            val params = f.replaceParam(par, Node.Identifier(shortName))
+            val replacedId = Node.Identifier(shortName)
+            val replaced = par match {
+              case ap: Node.AssignmentPattern =>
+                ap.left = replacedId
+                ap
+              case _: Node.Identifier =>
+                replacedId
+            }
+            val params = f.replaceParam(par, replaced)
 
             // rename hints as well
             types = types.renameHint(parDef, parDef.copy(name = shortName))
