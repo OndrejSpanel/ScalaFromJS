@@ -31,6 +31,22 @@ object Parameters {
         else x
       }
     }
+
+    def renameParam(oldParam: Node.FunctionParameter , newName: String) = {
+      params.map { x =>
+        if (x == oldParam) {
+          val replacedId = Node.Identifier(newName)
+          x match {
+            case ap: Node.AssignmentPattern =>
+              ap.left = replacedId.withTokens(ap.left)
+              ap
+            case nn: Node.Identifier =>
+              replacedId.withTokens(nn)
+          }
+        }
+        else x
+      }
+    }
   }
 
   /**
@@ -234,7 +250,7 @@ object Parameters {
             //println(s"Detected assignment into $parName")
             // we need to replace parameter x with x_par and intruduce var x = x_par
 
-            val params = f.replaceParam(par, Node.Identifier(parName + Symbols.parSuffix))
+            val params = f.renameParam(par, parName + Symbols.parSuffix)
 
             val decl = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(parName), Node.Identifier(parName + Symbols.parSuffix))), "let").withTokens(par)
 
@@ -283,15 +299,7 @@ object Parameters {
             // we may rename the variable now
             //println(s"Renaming $s")
             val renamedBody = Variables.renameVariable(f.body, parDef, shortName)
-            val replacedId = Node.Identifier(shortName)
-            val replaced = par match {
-              case ap: Node.AssignmentPattern =>
-                ap.left = replacedId
-                ap
-              case _: Node.Identifier =>
-                replacedId
-            }
-            val params = f.replaceParam(par, replaced)
+            val params = f.renameParam(par, shortName)
 
             // rename hints as well
             types = types.renameHint(parDef, parDef.copy(name = shortName))
