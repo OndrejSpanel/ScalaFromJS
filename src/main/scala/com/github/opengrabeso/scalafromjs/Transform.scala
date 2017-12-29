@@ -553,8 +553,12 @@ object Transform {
       case Node.ExpressionStatement(ExpressionType(t)) =>
         t
 
-      case Node.BlockStatement( _ :+ ExpressionType(last)) =>
-        last
+      case Node.BlockStatement( skipped :+ last) =>
+        context.withScope(n) {
+          // TODO: handle in ScopeContext.enterScope instead
+          skipped.foreach(context.scanSymbols)
+          expressionType(last)
+        }
       case ScalaNode.StatementExpression(expression) =>
         expressionType(expression)
       case Node.ExpressionStatement(expression) =>

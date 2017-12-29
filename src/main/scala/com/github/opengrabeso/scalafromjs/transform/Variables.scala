@@ -303,7 +303,7 @@ object Variables {
           // checking if inside of a block statement, to prevent replacing inside of a compound statement
           val stackTail = ctx.parent()
           stackTail match {
-            case Some(IsScope()) =>
+            case Some(IsDeclScope()) =>
               if (!(replaced contains vName)) {
                 replaced += vName
                 val r = if (init(vName) == 0) "const" else "let"
@@ -646,7 +646,7 @@ object Variables {
               }
             ).withTokens(ifs),
             elseStatement.orNull
-          )
+          ).withTokens(ifs)
           descend(n, transformer)
           n
         case _ =>

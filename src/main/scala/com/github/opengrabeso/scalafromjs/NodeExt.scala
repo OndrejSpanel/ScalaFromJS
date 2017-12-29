@@ -207,7 +207,10 @@ trait NodeExt {
         Some(f.right, f.body)
       case f: Node.ForOfStatement =>
         Some(f.right, f.body)
-      // should we handle do / while / if the same way?
+      case f: Node.WhileStatement =>
+        Some(f.test, f.body)
+      case f: Node.DoWhileStatement =>
+        Some(f.test, f.body)
       case _ =>
         None
 
@@ -233,6 +236,12 @@ trait NodeExt {
         true
       case IsStatementScope() =>
         true
+      /*
+      case _: Node.IfStatement =>
+        // note: each branch statement could be considered a saperate scope, however cases needing this should be very rare
+        // ... and such cases should (and most likely will) use BlockStatement as a branch body anyway
+        true
+      */
       case _ =>
         false
 
