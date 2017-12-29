@@ -18,10 +18,6 @@ object SymbolDeclaration {
 
   def declaredSymbolsExtern(node: Node): Seq[String] = {
     val nodes = node match {
-      case f: FunctionDeclaration =>
-        Seq(f.id)
-      case f: AsyncFunctionDeclaration =>
-        Seq(f.id)
       case _ =>
         Seq()
     }
@@ -30,7 +26,21 @@ object SymbolDeclaration {
 
   def declaredSymbols(node: Node): Seq[String] = {
     // some symbols are defined in the parent, like function parameters
+    def processBlock(body: Seq[StatementListItem]) = {
+      body.collect {
+        case f: FunctionDeclaration =>
+          f.id
+        case f: AsyncFunctionDeclaration =>
+          f.id
+      }
+    }
+
+
     val nodes = node match {
+      case block: BlockStatement =>
+        processBlock(block.body)
+      case block: Program =>
+        processBlock(block.body)
       case cls: ClassDeclaration =>
         Seq(cls.id)
       // scan VariableDeclaration so that the declaration is already available when pattern matching against it
