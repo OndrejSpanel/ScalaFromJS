@@ -248,15 +248,15 @@ object Variables {
 
 
     // walk the tree, check for first reference of each var
-    var defined = Set.empty[SymId] // symbol definition -> first reference
+    var defined = Map.empty[SymId, String] // symbol definition -> first reference
     var used = Set.empty[SymId] // any use makes assignment not first
     val init = mutable.Map.empty[SymId, Int] // one or multiple assignments?
     val initAt = mutable.Map.empty[SymId, Node.Node] // one or multiple assignments?
     n.walkWithScope { (node, scopeContext) =>
       implicit val ctx = scopeContext
       node match {
-        case VarDecl(Id(name), None, _) =>
-          defined += name
+        case VarDecl(Id(name), None, kind) =>
+          defined += name -> kind
           true
         //case fn: Node.MethodDefinition if methodName(fn) == inlineBodyName =>
         //  true
@@ -306,10 +306,11 @@ object Variables {
             case Some(IsDeclScope()) =>
               if (!(replaced contains vName)) {
                 replaced += vName
-                val r = if (init(vName) == 0) "const" else "let"
+                //val r = if (init(vName) == 0) "const" else "let"
+                val kind = defined(vName) // val detection will be done separately, no need to do it now
                 // use td.orig if possible to keep original initialization tokens
                 //println(s"  Replaced $sr Node.Identifier with $r, init ${nodeClassName(right)}")
-                VarDecl(vName.name, Some(right), r).withTokens(node)
+                VarDecl(vName.name, Some(right), kind).withTokens(node)
               } else {
                 node
               }
