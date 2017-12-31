@@ -1,8 +1,13 @@
 package com.github.opengrabeso.scalafromjs
 
+import java.nio.file.{Files, Paths}
+import java.nio.charset.StandardCharsets
+
 import scala.util.Try
 import PathUtils._
 import ConvertProject.AliasPackageRule
+
+import scala.collection.JavaConverters._
 
 object CommandLine {
 
@@ -12,21 +17,30 @@ object CommandLine {
     lines
   }
   def writeFile(path: String, content: String): Unit = {
-    import java.nio.file.{Paths, Files}
-    import java.nio.charset.StandardCharsets
 
     Files.write(Paths.get(path), content.getBytes(StandardCharsets.UTF_8))
   }
 
   def mkAllDirs(path: String): Unit = {
     val dir = new java.io.File(path)
-    dir.mkdirs()
+    dir.getParentFile.mkdirs()
 
   }
 
-  def removeFile(path: String): Unit = ???
-
-  def withTempDir[T](path: String)(f: String => T): T = ???
+  def withTempDir[T](path: String)(f: String => T): T = {
+    val dir = Files.createTempDirectory(path)
+    val pathSlash = terminatedPath(dir.toString.replace('\\', '/'))
+    try {
+      f(pathSlash)
+    } finally {
+      try {
+        val path = Paths.get(pathSlash)
+        Files.walk(path).iterator.asScala.toSeq.reverse.foreach(f => Files.delete(f))
+      } catch {
+        case _: Exception =>
+      }
+    }
+  }
 
   // return filenames of the output files
   def convertFileToFile(in: String, out: String): Seq[String] = {

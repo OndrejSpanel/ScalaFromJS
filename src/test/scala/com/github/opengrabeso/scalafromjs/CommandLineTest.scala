@@ -7,16 +7,8 @@ class CommandLineTest extends FunSuite with TestUtils {
   import CommandLine._
 
   def forEachFileWithCleanup(files: Seq[String])(f: String => Unit): Unit = {
-    try {
-      files.foreach(f)
-    } finally {
-      try {
-        files.foreach(removeFile)
-      } catch {
-        // ignore errors while removing files, to avoid them hiding the test failure
-        case scala.util.control.NonFatal(_)  =>
-      }
-    }
+    // no need to clean up, it will be done in withTempDir
+    files.foreach(f)
   }
 
   def convertProject(controlFile: String): String = {
