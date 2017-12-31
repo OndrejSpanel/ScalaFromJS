@@ -464,7 +464,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
 
     val ext = NodeExtended(ast).loadConfig
 
-    val astOptimized = /*if (true) Transform(ext) else*/ ext
+    val astOptimized = if (true) Transform(ext) else ext
 
     val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1).withRoot(root)
     //println(s"$outConfig")
