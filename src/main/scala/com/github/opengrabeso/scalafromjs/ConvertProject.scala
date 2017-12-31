@@ -327,7 +327,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
           // use isResource so that Scala output can check it and handle it as a special case
           val wrap =
             s"""
-               |var $simpleName = {
+               |const $simpleName = {
                |  value: `$code`,
                |  isResource: true
                |}
