@@ -52,7 +52,7 @@ trait TestUtils extends Assertions {
 
   def ConversionCheck(code: String) = TestCheck(getResult = () => Convert(code))
 
-  def rscPath(path: String): String = path
+  def rscPath(path: String): String = "src/test/resources/" + path
 
   def rsc(path: String) = {
 
@@ -61,7 +61,7 @@ trait TestUtils extends Assertions {
       in.mkString
     }
 
-    readFile(rscPath(path))
+    readFile(path)
   }
 
   object exec {
