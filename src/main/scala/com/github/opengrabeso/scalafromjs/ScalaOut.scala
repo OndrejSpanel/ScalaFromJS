@@ -287,7 +287,7 @@ object ScalaOut {
           context.scanSymbols(node)
           node match {
 
-            case Node.VariableDeclarator(name, Defined(OObject(props))) if props.nonEmpty && isVal =>
+            case Node.VariableDeclarator(name, OObject(props)) if props.nonEmpty && isVal =>
               // special case handling for isResource marked object (see readFileAsJs)
               val propNames = props.map(propertyName)
               //println(s"propNames $propNames")
@@ -306,7 +306,7 @@ object ScalaOut {
                 out("}\n")
               }
             // empty object - might be a map instead
-            case v@Node.VariableDeclarator(s@Node.Identifier(name), Defined(OObject(Seq()))) =>
+            case v@Node.VariableDeclarator(s@Node.Identifier(name), OObject(Seq())) =>
               val sid = symId(s)
               val tpe = input.types.get(sid).map(_.declType)
               //println(s"Var $name ($sid) type $tpe empty object")
@@ -618,7 +618,7 @@ object ScalaOut {
         case tn: Node.TemplateLiteral =>
           // TODO: handle expression interpolation
           val value = tn.quasis.collect {
-            case s: Node.TemplateElement => s.value
+            case s: Node.TemplateElement => s.value.raw
           }.mkString
           out(tripleQuote(value))
 
