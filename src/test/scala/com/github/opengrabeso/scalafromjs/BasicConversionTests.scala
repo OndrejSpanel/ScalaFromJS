@@ -40,9 +40,9 @@ class BasicConversionTests extends FunSuite with TestUtils {
         |{
         |    var val;
         |    var match;
-        |    return yield
+        |    return object
         |}""".stripMargin
-    ).required("`def`", "`val`", "`match`", "`yield`")
+    ).required("`def`", "`val`", "`match`", "`object`")
   }
 
   test("Sequences") {

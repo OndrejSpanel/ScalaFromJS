@@ -89,10 +89,9 @@ class ExpressionTests extends FunSuite with TestUtils {
   }
 
   test("Handle delete (including property)") {
-    exec check ConversionCheck(rsc("expressions/delete.js"))
+    exec check ConversionCheck("delete a[\"x\"];")
       .required(
-        "a -= \"x\"",
-        "delete b"
+        "a -= \"x\""
       ).forbidden(
         "return"
       )
