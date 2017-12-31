@@ -94,23 +94,19 @@ object Rules {
 
     processAllClasses(n, Some(member.cls)) { (c, ctx) =>
       val cc = c.cloneNode()
-      /*
       val clsName = cc.id.name
-      val mappedProps = cc.body.body.flatMap { p =>
+      val mappedProps = cc.body.body.map { p =>
         val name = methodName(p)
         if (member.name.findFirstIn(name).isDefined) {
           val value = applyTemplate(clsName, name)
-          val v = Node.SequenceExpression {
-            Seq(p, Node.Literal(OrType(value), value))
-          }
+          val v = ScalaNode.MemberTemplate (name, p, value)
           // special named property which is passed to output as a string, used for insertion of Scala code
-          Seq[Node.ObjectProperty](ObjectKeyVal(p)(templatePrefix + name, v))
+          v
         } else {
-          Seq(p)
+          p
         }
       }
-      cc.properties = mappedProps
-      */
+      cc.body.body = mappedProps
       cc
     }
 

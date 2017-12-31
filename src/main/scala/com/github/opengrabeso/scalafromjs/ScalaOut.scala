@@ -638,33 +638,27 @@ object ScalaOut {
         case tn: Node.Identifier =>
           out"$tn"
         //identifierToOut(out, tn.name)
-        case tn@ObjectKeyVal(key, value) =>
-          if (keyValIsTemplate(tn)) {
-            tn.value match {
-              case Node.SequenceExpression(Seq(node, StringLiteral(template))) =>
+        case tn@ScalaNode.MemberTemplate(name, original, template) =>
 
-                val thisPattern = """(\$this|\${this})""".r.unanchored
-                val split = thisPattern.pattern.split(template, -1) // -1: do not discard trailing empty match
+          val thisPattern = """(\$this|\$\{this\})""".r.unanchored
+          val split = thisPattern.pattern.split(template, -1) // -1: do not discard trailing empty match
 
-                if (split.nonEmpty) {
-                  // if reference to this is present, insert it where necessary
-                  out.eol()
-                  out(split.head)
-                  for (s <- split.tail) {
-                    nodeToOut(node)
-                    out(s)
-                  }
-                  out.eol()
-                } else {
-                  // if not, just output the template
-                  out(template)
-                }
-              case x =>
-            }
-          } else {
+          if (split.nonEmpty) {
+            // if reference to this is present, insert it where necessary
             out.eol()
-            outputMethod(tn.key, value, tn.kind, "var")
+            out(split.head)
+            for (s <- split.tail) {
+              nodeToOut(original)
+              out(s)
+            }
+            out.eol()
+          } else {
+            // if not, just output the template
+            out(template)
           }
+        case tn@ObjectKeyVal(key, value) =>
+          out.eol()
+          outputMethod(tn.key, value, tn.kind, "var")
 
         //out"/*${nodeClassName(n)}*/"
         //case tn: Node.ObjectProperty =>

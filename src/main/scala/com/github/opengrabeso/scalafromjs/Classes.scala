@@ -176,6 +176,8 @@ object Classes {
 
   def propertyIsStatic(p: Node.ClassBodyElement): Boolean = {
     p match {
+      case p: ScalaNode.MemberTemplate =>
+        false
       case p: Node.MethodDefinition =>
         p.static
     }
