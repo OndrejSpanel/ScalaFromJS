@@ -164,6 +164,7 @@ package object esprima extends NodeExt {
   object ParseOptions extends Parser.Options {
     range = true
     attachComment = true
+    sourceType = "module" // to avoid "Unexpected token" with import statements - see https://github.com/jquery/esprima/issues/1273
   }
   def parse(code: String): Program = {
     Esprima.parse(code, ParseOptions)

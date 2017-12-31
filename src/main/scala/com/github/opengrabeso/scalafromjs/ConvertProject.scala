@@ -377,17 +377,12 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
     val includeBuffer = new mutable.ArrayBuffer[(String, String)]
     ast.walk {
       case i: Node.ImportDeclaration =>
-        i.start.foreach { s =>
-          val example = false
-          /*
-          val example = s.comments_before.exists {commentToken =>
-            val comment = commentToken.value.asInstanceOf[String]
-            comment contains "@example"
-          }
-          */
-          val target = if (example) exampleBuffer else includeBuffer
-          target append readJsFile(resolveSibling(pathForOffset(s), i.source.value))
+        val example = Option(i.leadingComments).toSeq.flatten.exists {commentToken =>
+          val comment = commentToken.value
+          comment contains "@example"
         }
+        val target = if (example) exampleBuffer else includeBuffer
+        target append readJsFile(resolveSibling(pathForOffset(i.range._1), i.source.value))
         false
       case e@ExportFromSource(StringLiteral(source)) =>
         // ignore exports in imported files

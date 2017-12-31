@@ -56,7 +56,9 @@ object ScalaOut {
 
         val pathToImport = pathToPackage(modulePath)
         if (pathToImport.nonEmpty) {
-          s"import ${pathToPackage(modulePath)}$members"
+          val path = pathToPackage(modulePath)
+          val withDot = if (path.endsWith(".")) path else path + "."
+          s"import $withDot$members"
         } else ""
       }
       comment + gen
@@ -1169,24 +1171,30 @@ object ScalaOut {
         case tn: Node.DebuggerStatement =>
           outputUnknownNode(tn)
           out.eol()
-        /*
-      case ex: Node.Export if ex.module_name.isEmpty && ex.exported_definition.nonEmpty =>
+      case tn: Node.ExportNamedDeclaration =>
         out("/* export */ ")
-        ex.exported_definition.foreach(nodeToOut)
-      case ex: Node.Export if ex.module_name.isEmpty && ex.exported_definition.isEmpty && ex.exported_value.nonEmpty =>
-        out("/* export default: */\n")
-        ex.exported_value.foreach(nodeToOut)
-      case tn: Node.Export =>
+        Option(tn.declaration).foreach(nodeToOut)
+      case tn: Node.ExportDefaultDeclaration =>
+        Option(tn.declaration).foreach(nodeToOut)
+        out(s"/* $source */")
+      case tn: Node.ExportAllDeclaration =>
         //out(s"/* export */ def ${tn.exported_definition} name ${tn.module_name} value ${tn.exported_value}\n")
         out(s"/* $source */")
-      case tn: Node.Import =>
+      case tn: Node.ImportDeclaration =>
         // try to create a package name from the import directive
         // start from the root
-        val imported_names = tn.imported_names.toSeq.flatMap(_.map(_.foreign_name.name))
-        val module_name = tn.module_name.value
-        val toOut = outConfig.formatImport(imported_names, module_name, source)
+        val imported_names = tn.specifiers.flatMap {
+          case i: Node.ImportNamespaceSpecifier =>
+            Some(i.local.name)
+          case i: Node.ImportDefaultSpecifier =>
+            Some(i.local.name)
+          case i: Node.ImportSpecifier =>
+            Some(i.imported.name)
+        }
+        val moduleFile: String = tn.source.value
+        val moduleName = if (moduleFile.endsWith(".js")) moduleFile.dropRight(2) else moduleFile
+        val toOut = outConfig.formatImport(imported_names, moduleName, source)
         out(toOut)
-        */
         case tn =>
           outputUnknownNode(tn)
           out.eol()
