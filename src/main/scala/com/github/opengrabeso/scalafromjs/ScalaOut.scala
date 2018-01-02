@@ -590,12 +590,15 @@ object ScalaOut {
         case StringLiteral(str) =>
           val escaped = org.apache.commons.text.StringEscapeUtils.escapeJava(str)
           out(s""""$escaped"""")
-        case tn: Node.Literal =>
+        case Node.Literal(null, _) =>
+          out("null")
+        case Node.Literal(Defined(value), raw) =>
           // prefer the same representation as in the original source
-          tn.value.value match {
+          value.value match {
             case value: Double =>
               // note: raw coming from esprima often contains trailing semicolon, trim it if needed
-              val src = if (tn.raw.lastOption.contains(';')) tn.raw.dropRight(1) else tn.raw
+              // this was probably a bug in the token handling which is already fixed
+              val src = if (raw.lastOption.contains(';')) raw.dropRight(1) else raw
 
               def decodeInt(s: String) = {
                 val prefixes = Seq("0x", "0X", "#")
