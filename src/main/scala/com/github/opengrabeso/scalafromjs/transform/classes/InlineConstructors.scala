@@ -397,12 +397,19 @@ object InlineConstructors {
             //println(s"  rest $rest")
             // transform parameter names while inlining (we need to use parSuffix names)
             val parNames = params.map(parameterNameString)
+
             val parNamesSet = parNames.toSet
+            val parIdsSet = parNamesSet.map(SymId(_, inlineBodyScope))
+
             object IsParameter {
-              def unapply(arg: String): Boolean = parNamesSet contains arg
+              def unapply(arg: String)(implicit ctx: ScopeContext): Boolean = {
+                parNames contains arg && {
+                  ctx.scopeId == inlineBodyScope
+                }
+              }
             }
             val parNamesAdjusted = (inlined ++ inlineVars).map { s =>
-              s.transformAfter { (node, transformer) =>
+              s.transformAfter(ctx) { (node, transformer) =>
                 implicit val ctx = transformer.context
                 node match {
                   case sym@Node.Identifier(IsParameter()) =>

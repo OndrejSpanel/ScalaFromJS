@@ -396,10 +396,11 @@ object Variables {
         case Node.Identifier(Id(`oldName`)) =>
           newExpr.cloneNode().copyLoc(node)
         case p: Node.Property =>
-          // do not rename the variable in a key name
+          // do not replace the variable in a key name
           descend(p.value, transformer)
           p
-        case AnyFun(param, body) =>
+        case AnyFun(_, body) =>
+          // do not replace the variable in a parameter list
           ctx.withScope(body)(descend(body, transformer))
           node
         case _ =>
