@@ -63,17 +63,20 @@ object VariableUtils {
       scopes.exists { s =>
         //println(s"Reference to ${df.name} in scope ${scopeName(s)}")
         var abort = false
-        s.walk {
-          case ss@IsScope() =>
-            //println(s"Enter scope $ss")
-            ss != s // do not descend into any other scopes, they are listed in references if needed
-          //noinspection ScalaUnusedSymbol
-          case node@isDfModified(x) =>
-            //println(s"  Detected modification of ${df.name} by $node")
-            if (onModification(x)) abort = true
-            abort
-          case _ =>
-            abort
+        s.walkWithScope { (node, context) =>
+          implicit val ctx = context
+          node match {
+            case ss@IsDeclScope() =>
+              //println(s"Enter scope $ss")
+              ss != s // do not descend into any other scopes, they are listed in references if needed
+            //noinspection ScalaUnusedSymbol
+            case node@isDfModified(x) =>
+              //println(s"  Detected modification of ${df.name} by $node")
+              if (onModification(x)) abort = true
+              abort
+            case _ =>
+              abort
+          }
         }
         abort
       }
@@ -93,11 +96,9 @@ object VariableUtils {
           case Node.Identifier(Id(symDef)) =>
             val old = refs.getOrElse(symDef, Set())
 
-            val stack = walker.stack.collect {
-              case s@IsScope() => s
-            }
+            val scope = ctx.scopes.last._1
 
-            refs += symDef -> (old ++ stack)
+            refs += symDef -> (old + scope)
           case _ =>
         }
 
