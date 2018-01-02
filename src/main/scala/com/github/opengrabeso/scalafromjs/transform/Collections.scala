@@ -170,7 +170,7 @@ object Collections {
             right = obj,
             body = forStatement.body
           ).withTokens(forStatement)
-          transformFor(newFor, varName, objName).asInstanceOf[Node.Statement]
+          transformFor(newFor, varName, objName)
         case _ =>
           node
       }
