@@ -399,6 +399,9 @@ object Variables {
           // do not rename the variable in a key name
           descend(p.value, transformer)
           p
+        case AnyFun(param, body) =>
+          ctx.withScope(body)(descend(body, transformer))
+          node
         case _ =>
           descend(node, transformer)
           node
