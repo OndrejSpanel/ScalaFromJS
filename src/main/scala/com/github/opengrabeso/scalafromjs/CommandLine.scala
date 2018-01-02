@@ -123,12 +123,11 @@ object CommandLine {
     }
   }
 
-  def apply(argv: String*) = {
-    val realArgs = argv.drop(1)
+  def main(argv: Array[String]): Unit = {
     println(s"  args ${argv.mkString(",")}")
 
-    if (realArgs.length == 2) {
-      convertFileToFile(realArgs(0), realArgs(1))
+    if (argv.length == 2) {
+      convertFileToFile(argv(0), argv(1))
     } else {
       convertFileToFile("temp/test.js", "temp/out/test.scala")
     }
