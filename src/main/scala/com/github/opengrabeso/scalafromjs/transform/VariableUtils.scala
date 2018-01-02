@@ -85,6 +85,28 @@ object VariableUtils {
     def isModified(df: SymId): Boolean = walkReferences(df, new VarIsModified(df))()
   }
 
+  object SymbolIds {
+    def apply(node: Node.Node)(implicit ctx: ScopeContext): SymbolIds = {
+
+      var refs = Map.newBuilder[Node.Identifier, SymId]
+
+      node.walkWithScope(ctx) { (node, walker) =>
+        implicit val ctx = walker
+        node match {
+          case n@Node.Identifier(Id(symDef)) =>
+            refs += n -> symDef
+          case _ =>
+        }
+        false
+      }
+
+      new SymbolIds(refs.result())
+    }
+  }
+  class SymbolIds(ids: Map[Node.Identifier, SymId]) {
+    def apply(key: Node.Identifier) = ids.apply(key)
+  }
+
   def buildReferenceStacks(n: Node.Node)(implicit ctx: ScopeContext) = {
 
     Time.disabled("buildReferenceStacks") {

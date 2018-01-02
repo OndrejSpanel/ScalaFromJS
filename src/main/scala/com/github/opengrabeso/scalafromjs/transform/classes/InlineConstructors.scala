@@ -342,6 +342,9 @@ object InlineConstructors {
       implicit val ctx = transformer.context
       node match {
         case cls: Node.ClassDeclaration =>
+
+          val classSymIds = SymbolIds(cls)(ctx)
+
           val clsTokenDef = classTokenSource(cls)
           for {
             md <- findConstructor(cls)
@@ -376,6 +379,7 @@ object InlineConstructors {
                 case _ =>
                   false
               }
+
               def forbid(c: Node.Node): Boolean = false
             }
 
@@ -402,17 +406,15 @@ object InlineConstructors {
             val parIdsSet = parNamesSet.map(SymId(_, inlineBodyScope))
 
             object IsParameter {
-              def unapply(arg: String)(implicit ctx: ScopeContext): Boolean = {
-                parNames contains arg && {
-                  ctx.scopeId == inlineBodyScope
-                }
+              def unapply(arg: Node.Identifier)(implicit ctx: ScopeContext): Boolean = {
+                val argId = classSymIds(arg)
+                parIdsSet contains argId
               }
             }
             val parNamesAdjusted = (inlined ++ inlineVars).map { s =>
-              s.transformAfter(ctx) { (node, transformer) =>
-                implicit val ctx = transformer.context
+              s.transformAfter { (node, transformer) =>
                 node match {
-                  case sym@Node.Identifier(IsParameter()) =>
+                  case sym@IsParameter() =>
                     sym.name = sym.name + parSuffix
                     types = types addHint Some(SymId(sym.name, inlineBodyScope)) -> IsConstructorParameter
                     sym
@@ -440,8 +442,8 @@ object InlineConstructors {
 
             // add the constructor call itself, so that type inference binds its parameters and arguments
             val constructorCall = if (rest.nonEmpty) Some(Node.ExpressionStatement {
-              Node.CallExpression (
-                Dot (
+              Node.CallExpression(
+                Dot(
                   Node.ThisExpression().withTokens(constructorProperty),
                   Node.Identifier("constructor")
                 ),
