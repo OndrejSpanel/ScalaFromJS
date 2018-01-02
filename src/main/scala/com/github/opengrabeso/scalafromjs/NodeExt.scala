@@ -5,6 +5,8 @@ import com.github.opengrabeso.esprima.Node.BlockStatement
 import com.github.opengrabeso.scalafromjs.esprima.symbols.ScopeContext
 import esprima._
 
+import scala.reflect.ClassTag
+
 trait NodeExt {
 
   implicit class NodeOps[T <: Node.Node](n: T) {
@@ -117,25 +119,21 @@ trait NodeExt {
     }
   }
 
-  object StringLiteral {
-    def unapply(arg: Node.Literal): Option[String] = arg.value.value match {
-      case s: String => Some(s)
-      case _ => None
+  class LiteralExtractor[T: ClassTag] {
+    def unapply(arg: Node.Literal): Option[T] = {
+      if (arg.value == null) None
+      else {
+        arg.value.value match {
+          case s: T => Some(s)
+          case _ => None
+        }
+      }
+    }
+  }
 
-    }
-  }
-  object NumberLiteral {
-    def unapply(arg: Node.Literal): Option[Double] = arg.value.value match {
-      case s: Double => Some(s)
-      case _ => None
-    }
-  }
-  object BooleanLiteral {
-    def unapply(arg: Node.Literal): Option[Boolean] = arg.value.value match {
-      case s: Boolean => Some(s)
-      case _ => None
-    }
-  }
+  object StringLiteral extends LiteralExtractor[String]
+  object NumberLiteral extends LiteralExtractor[Double]
+  object BooleanLiteral extends LiteralExtractor[Boolean]
 
   object Block {
     def apply(node: Node.BlockStatementOrExpression): Node.BlockStatement = node match {

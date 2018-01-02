@@ -29,10 +29,9 @@ object Variables {
         case cm: Node.MethodDefinition =>
           if (propertyKeyName(cm.key) != inlineBodyName) {
             // no var detection inside of inline class body (its variables are actually class members)
-            val n = cm.clone()
-            descend(n, transformer)
-            n
-          } else cm.clone()
+            descend(cm, transformer)
+            cm
+          } else cm
 
         case VarDecl(Id(varName), Some(value), kind) if kind != "const" => // var with init - search for a modification
           // check if any reference is assignment target
@@ -41,14 +40,13 @@ object Variables {
           val n = if (!assignedInto) {
             VarDecl(varName.name, Some(value), "const").withTokens(node)
           } else {
-            node.clone()
+            node
           }
           descend(n, transformer) // may contain other scopes with initializations
           n
         case _ =>
-          val n = node.clone()
-          descend(n, transformer)
-          n
+          descend(node, transformer)
+          node
       }
     }
   }
@@ -397,6 +395,10 @@ object Variables {
           node
         case Node.Identifier(Id(`oldName`)) =>
           newExpr.cloneNode().copyLoc(node)
+        case p: Node.Property =>
+          // do not rename the variable in a key name
+          descend(p.value, transformer)
+          p
         case _ =>
           descend(node, transformer)
           node

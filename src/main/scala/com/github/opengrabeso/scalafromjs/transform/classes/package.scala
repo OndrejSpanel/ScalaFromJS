@@ -698,7 +698,7 @@ package object classes {
       implicit val ctx = context.context
       node match {
         case PrototypeVariable(clsName, Id(protoFunSym)) =>
-          prototypeVariableDefs.get(protoFunSym).map(pv => Assign(clsName, "=", pv.asInstanceOf[Node.Expression])).getOrElse(node)
+          prototypeVariableDefs.get(protoFunSym).map(pv => Node.ExpressionStatement(Assign(clsName, "=", pv.asInstanceOf[Node.Expression]))).getOrElse(node)
         case PrototypeVariableDef(_, _) =>
           Node.EmptyStatement()
         case _ =>
