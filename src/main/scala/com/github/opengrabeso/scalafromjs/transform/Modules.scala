@@ -17,7 +17,7 @@ object Modules {
           case value: Node.Statement =>
             value
           case value: Node.Expression =>
-            println(s"Wrap export of $value")
+            //println(s"Wrap export of $value")
             Node.ExpressionStatement(value)
           case node =>
             node
