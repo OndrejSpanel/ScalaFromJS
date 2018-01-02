@@ -471,7 +471,7 @@ object Transform {
         Some(elType.map(_.map(ArrayType)).getOrElse(TypeInfo(ArrayType(AnyType), ArrayType(NoType))))
       case a: OObject =>
         Some(TypeInfo.target(ObjectOrMap))
-      case Node.Literal(literal, _) =>
+      case Node.Literal(Defined(literal), _) =>
         literal.value match {
           case _: Double =>
             Some(TypeInfo.target(number))
