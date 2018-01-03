@@ -354,7 +354,7 @@ package object classes {
         def newValue(k: String, v: Node.Expression, isStatic: Boolean): Node.ClassBodyElement = {
           //println(s"newValue $k $v $isStatic")
           Node.MethodDefinition(
-            Node.Identifier(k),
+            Node.Identifier(k).withTokens(tokensFrom),
             false,
             v,
             "value",
@@ -365,7 +365,7 @@ package object classes {
 
         def newGetterOrSetter(kind: String, k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean) = {
           Node.MethodDefinition(
-            Node.Identifier(k),
+            Node.Identifier(k).withTokens(tokensFrom),
             false,
             Node.FunctionExpression(null, args, Node.BlockStatement(body).withTokens(tokensFrom), false).withTokens(tokensFrom),
             if (args.isEmpty) "get" else "set",
@@ -379,7 +379,7 @@ package object classes {
               newMethod(k, args, Node.BlockStatement(body).withTokens(tokensFrom), tokensFrom, isStatic)
 
             case (m: ClassVarMember, false) =>
-              newGetter(k, Seq(), Seq(Node.ExpressionStatement(m.value.asInstanceOf[Node.Expression])), isStatic)
+              newGetter(k, Seq(), Seq(Node.ExpressionStatement(m.value)), isStatic)
             case (m: ClassVarMember, true) =>
               newValue(k, m.value, isStatic)
 
@@ -432,7 +432,7 @@ package object classes {
 
         //val baseDef = clazz.base.flatMap(classes.get)
 
-        val base = clazz.base.map(b => Node.Identifier(b.name))
+        val base = clazz.base.map(b => Node.Identifier(b.name).withTokens(tokensFrom))
 
         val properties = classProperties(clazz)
 
@@ -519,13 +519,13 @@ package object classes {
         )) =>
           //println(s"Super constructor call in ${thisClass.map(_.name.get.name)}")
           call.callee = Node.Super().withTokens(node)
-          call.arguments = getClassArguments.map(Node.Identifier.apply)
+          call.arguments = getClassArguments.map(a => Node.Identifier(a).withTokens(node))
           call
         // Super.apply(this, arguments)
         case call@Node.CallExpression(Node.Identifier(Id(IsSuperClass())) Dot "apply", Seq(_: Node.ThisExpression, Node.Identifier("arguments"))) =>
           // TODO: check class constructor arguments as pass them
           call.callee = Node.Super().withTokens(node)
-          call.arguments = getClassArguments.map(Node.Identifier.apply)
+          call.arguments = getClassArguments.map(a => Node.Identifier(a).withTokens(node))
           call
 
         // Light.call( this, skyColor, intensity )
@@ -542,7 +542,7 @@ package object classes {
         Seq(_: Node.ThisExpression, args@_*)
         ) =>
           //println(s"Super call of $func in ${thisClass.map(_.name.get.name)}")
-          call.callee = new Dot (Node.Super(), Node.Identifier(func))
+          call.callee = Dot (Node.Super(), Node.Identifier(func).withTokens(call)).withTokens(call)
           call.arguments = removeHeadThis(args)
           call
 
@@ -552,14 +552,14 @@ package object classes {
         args
         ) =>
           //println(s"Super call of $func in ${thisClass.map(_.name.get.name)}")
-          call.callee = new Dot (Node.Super(), Node.Identifier(func))
+          call.callee = Dot(Node.Super(), Node.Identifier(func).withTokens(call)).withTokens(call)
           call.arguments = args
           call
 
         // this.constructor, typically as new this.constructor( ... )
         case (_: Node.ThisExpression) Dot "constructor" =>
           //println("this.constructor")
-          thisClass.map(_.id.name).fold(node)(cls => Node.Identifier(cls))
+          thisClass.map(_.id.name).fold(node)(cls => Node.Identifier(cls).withTokens(node))
 
         case _ =>
           //println(nodeClassName(node))
@@ -586,7 +586,7 @@ package object classes {
             //case Node.MethodDefinition(Node.SymbolName(p), _) =>
             case kv@ObjectKeyVal(p, v) if !propertyIsStatic(kv) =>
               //println(s"newMembers append $cls $p $v")
-              newMembers append VarDecl(p, Option(v).map(_.asInstanceOf[Node.Expression]), "var")
+              newMembers append VarDecl(p, Option(v).map(_.asInstanceOf[Node.Expression]), "var", kv)
             //case s: Node.ObjectSetter =>
             //case s: Node.ObjectGetter =>
             case _ =>

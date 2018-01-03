@@ -6,6 +6,7 @@ import com.github.opengrabeso.esprima._
 import Expressions._
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
 
+import scala.collection.mutable
 import scala.language.implicitConversions
 
 object VariableUtils {
@@ -88,7 +89,7 @@ object VariableUtils {
   object SymbolIds {
     def apply(node: Node.Node)(implicit ctx: ScopeContext): SymbolIds = {
 
-      var refs = Map.newBuilder[Node.Identifier, SymId]
+      var refs = mutable.Map.newBuilder[Node.Identifier, SymId]
 
       node.walkWithScope(ctx) { (node, walker) =>
         implicit val ctx = walker
@@ -103,8 +104,13 @@ object VariableUtils {
       new SymbolIds(refs.result())
     }
   }
-  class SymbolIds(ids: Map[Node.Identifier, SymId]) {
+  class SymbolIds(ids: mutable.Map[Node.Identifier, SymId]) {
     def apply(key: Node.Identifier) = ids.apply(key)
+
+    def rename(sym: Node.Identifier, oldName: String, newName: String) = {
+      assert(ids(sym).name == oldName)
+      ids(sym) = ids(sym).copy(name = newName)
+    }
   }
 
   def buildReferenceStacks(n: Node.Node)(implicit ctx: ScopeContext) = {

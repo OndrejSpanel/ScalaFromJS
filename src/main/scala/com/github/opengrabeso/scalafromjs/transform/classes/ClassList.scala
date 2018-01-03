@@ -181,83 +181,95 @@ object ClassList {
           for {
             clsId <- SymbolTypes.id(symDef) if classNames contains clsId
           } {
-
             val funScope = ScopeContext.getNodeId(defun)
             //println(s"Constructor ${symDef.name} returning value, funScope $funScope")
 
-            def transformReferences[T <: Node.Node](n: T): T = {
-              n.transformAfter { (node, _) =>
-                node match {
-                  case nameExpr@Node.Identifier(Id(name)) =>
-                    //println(s"Check reference $name, ${symbolDef.scope}")
-                    if (funScope == name.sourcePos) {
-                      //println(s"Transform reference $name")
-
-                      Dot(Node.ThisExpression(), nameExpr)
-                    } else node
-                  case _ =>
-                    node
+            ctx.withScope(defun, defun.body) {
+              def transformReferences[T <: Node.Node](n: T): T = {
+                n.transformBefore(ctx) { (node, descend, transformer) =>
+                  implicit val ctx = transformer.context
+                  node match {
+                    case nameExpr@Node.Identifier(Id(name)) =>
+                      assert(AnyFun.unapply(ctx.parents.last).isEmpty)
+                      //println(s"Check reference $name, ${symbolDef.scope}")
+                      if (funScope == name.sourcePos) {
+                        //println(s"Transform reference $name")
+                        Dot(Node.ThisExpression(), nameExpr).withTokens(nameExpr)
+                      } else node
+                    case p: Node.Property =>
+                      // do not replace the variable in a key name
+                      descend(p.value, transformer)
+                      p
+                    case AnyFun(_, b) =>
+                      // do not replace the variable in a parameter list
+                      ctx.withScope(b)(descend(b, transformer))
+                      node
+                    case _ =>
+                      descend(node, transformer)
+                      node
+                  }
                 }
               }
+
+              def transformReferencesInBody(body: Seq[Node.StatementListItem]): Seq[Node.StatementListItem] = {
+                body.map(transformReferences)
+              }
+
+              // scan for value and member definitions
+
+              //val c = classes.defClass(clsId)
+              object res {
+                var clazz = new ClassDef
+                val body = ArrayBuffer.empty[Node.StatementListItem]
+              }
+
+              body.foreach {
+                case DefFun(Defined(Node.Identifier(sym)), fArgs, fBody, _) =>
+                  val member = ClassFunMember(fArgs, transformReferencesInBody(fBody.body))
+                  res.clazz = res.clazz.addMember(sym, member)
+                case Node.VariableDeclaration(vars, kind) =>
+                  //println("Vardef")
+                  vars.foreach {
+                    case Node.VariableDeclarator(Node.Identifier(vName), Defined(vValue)) =>
+                      val member = ClassVarMember(vValue)
+                      res.clazz = res.clazz.addValue(vName, member)
+                    case vd@Node.VariableDeclarator(Node.Identifier(vName), _) =>
+                      //println(s"value member $vName as undefined")
+                      val member = ClassVarMember(ScalaNode.StatementExpression(Node.EmptyStatement()))
+                      res.clazz = res.clazz.addValue(vName, member)
+                  }
+                case s =>
+                  //println(nodeClassName(s))
+                  res.body.append(s)
+              }
+
+
+              proto.foreach {
+                case ObjectKeyVal(name, value) =>
+                  //println(s"$name, $value")
+                  value match {
+                    case Node.Identifier(`name`) => // same name, no need for any action
+                    case Node.Identifier(other) =>
+                      res.clazz = res.clazz.renameMember(other, name)
+                    case AnyFun(fArgs, fBody) =>
+                      val member = ClassFunMember(fArgs, transformReferencesInBody(Block.statements(fBody)))
+                      res.clazz = res.clazz.addMember(name, member)
+                    case _ =>
+                    // TODO: we should include only the ones used by the return value - this may include some renaming
+                    // TODO: the unused ones should be marked private
+                  }
+                case _ =>
+              }
+
+
+              // transform args to be in the class namespace (constructor symbol)
+              val argsTransformed = args.map { arg =>
+                val t = arg.cloneNode()
+                t
+              }
+              val constructor = ClassFunMember(argsTransformed, res.body)
+              classes += clsId -> res.clazz.addMember(inlineBodyName, constructor)
             }
-
-            def transformReferencesInBody(body: Seq[Node.StatementListItem]): Seq[Node.StatementListItem] = {
-              body.map(transformReferences)
-            }
-
-            // scan for value and member definitions
-
-            //val c = classes.defClass(clsId)
-            object res {
-              var clazz = new ClassDef
-              val body = ArrayBuffer.empty[Node.StatementListItem]
-            }
-
-            body.foreach {
-              case DefFun(Defined(Node.Identifier(sym)), fArgs, fBody, _) =>
-                val member = ClassFunMember(fArgs, transformReferencesInBody(fBody.body))
-                res.clazz = res.clazz.addMember(sym, member)
-              case Node.VariableDeclaration(vars, kind) =>
-                //println("Vardef")
-                vars.foreach {
-                  case Node.VariableDeclarator(Node.Identifier(vName), Defined(vValue)) =>
-                    val member = ClassVarMember(vValue)
-                    res.clazz = res.clazz.addValue(vName, member)
-                  case vd@Node.VariableDeclarator(Node.Identifier(vName), _) =>
-                    //println(s"value member $vName as undefined")
-                    val member = ClassVarMember(ScalaNode.StatementExpression(Node.EmptyStatement()))
-                    res.clazz = res.clazz.addValue(vName, member)
-                }
-              case s =>
-                //println(nodeClassName(s))
-                res.body.append(s)
-            }
-
-
-            proto.foreach {
-              case ObjectKeyVal(name, value) =>
-                //println(s"$name, $value")
-                value match {
-                  case Node.Identifier(`name`) => // same name, no need for any action
-                  case Node.Identifier(other) =>
-                    res.clazz = res.clazz.renameMember(other, name)
-                  case AnyFun(fArgs, fBody) =>
-                    val member = ClassFunMember(fArgs, transformReferencesInBody(Block.statements(fBody)))
-                    res.clazz = res.clazz.addMember(name, member)
-                  case _ =>
-                  // TODO: we should include only the ones used by the return value - this may include some renaming
-                  // TODO: the unused ones should be marked private
-                }
-              case _ =>
-            }
-
-            // transform args to be in the class namespace (constructor symbol)
-            val argsTransformed = args.map { arg =>
-              val t = arg.cloneNode()
-              t
-            }
-            val constructor = ClassFunMember(argsTransformed, res.body)
-            classes += clsId -> res.clazz.addMember(inlineBodyName, constructor)
           }
           true
 

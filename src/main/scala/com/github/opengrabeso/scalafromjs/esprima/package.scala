@@ -47,6 +47,27 @@ package object esprima extends NodeExt {
       // walking through whole AST creates all scopes, this way we verify their loc is setup correctly
       //symbols.walk(ast, new ScopeContext)((_, _) => false)
 
+
+      // verify function parameters are still correct
+      walk {
+        case n@AnyFun(params, _) =>
+          params.foreach { p =>
+            if (!p.isInstanceOf[FunctionParameter]) {
+              println(s"Bad parameter node $p in $n")
+              assert(false)
+            }
+          }
+          false
+        case vd: VariableDeclarator =>
+          if (!vd.id.isInstanceOf[BindingIdentifierOrPattern]) {
+            println(s"Bad VariableDeclarator node ${vd.id} in $vd")
+            assert(false)
+          }
+          false
+        case _ =>
+          false
+      }
+
       // this is a bit longer, but it makes locating issue easier
       def needsLoc(n: Node) = {
         if (n.range == null) {
@@ -54,7 +75,6 @@ package object esprima extends NodeExt {
         }
         assert(n.range != null)
       }
-
       walk {
         case n@IsScope() =>
           needsLoc(n)
@@ -64,6 +84,9 @@ package object esprima extends NodeExt {
           false
         case n: VariableDeclaration =>
           needsLoc(n)
+          false
+        case id: Identifier =>
+          needsLoc(id)
           false
 
         case _ =>

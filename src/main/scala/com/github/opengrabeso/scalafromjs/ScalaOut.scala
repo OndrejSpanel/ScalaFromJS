@@ -330,6 +330,11 @@ object ScalaOut {
               //println(s"Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType")
               //println(getType(sym))
               outputVarDef(s, init, sType, types)
+            case _ =>
+              out"/* Unsupported var */ var ${node.id}"
+              if (node.init != null) {
+                out" = ${node.init}"
+              }
           }
         }
       }

@@ -286,8 +286,8 @@ trait NodeExt {
         None
     }
 
-    def apply(name: String, init: Option[Node.Expression], kind: String): Node.VariableDeclaration = {
-      Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), init.orNull)), kind)
+    def apply(name: String, init: Option[Node.Expression], kind: String, fromTokens: Node.Node): Node.VariableDeclaration = {
+      Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name).withTokens(fromTokens), init.orNull)), kind).withTokens(fromTokens)
     }
   }
 

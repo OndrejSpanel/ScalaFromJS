@@ -142,7 +142,7 @@ object Rules {
     val r = n.top.transformAfter {(node, transformer) =>
       node match {
         case MatchingScope(name) =>
-          Node.Identifier(name)
+          Node.Identifier(name).withTokens(node)
         case _ =>
           node
       }

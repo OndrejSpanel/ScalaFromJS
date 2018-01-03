@@ -252,7 +252,7 @@ object InlineConstructors {
             val clsTokenDef = classTokenSource(cls)
 
             val vars = locals.map { local =>
-              val varDecl = VarDecl(local.sym.name, None, if (local.isVal) "const" else "var").withTokens(local.tokens)
+              val varDecl = VarDecl(local.sym.name, None, if (local.isVal) "const" else "var", local.tokens)
               //println(s"privateVariables ${local.sym.name} $varDecl ${cls.start.get.pos}")
               varDecl
             }
@@ -320,7 +320,7 @@ object InlineConstructors {
             cls.body.body = cls.body.body ++ functions.map {
               case (statement, funName, AnyFun(funParams, funBody)) =>
                 Node.MethodDefinition (
-                  Node.Identifier(funName),
+                  Node.Identifier(funName).withTokens(statement),
                   false,
                   Node.FunctionExpression(null, funParams, Block(funBody).withTokens(body), false).withTokens(statement),
                   "init",
@@ -415,13 +415,14 @@ object InlineConstructors {
               s.transformAfter { (node, transformer) =>
                 node match {
                   case sym@IsParameter() =>
+                    classSymIds.rename(sym, sym.name, sym.name + parSuffix)
                     sym.name = sym.name + parSuffix
                     types = types addHint Some(SymId(sym.name, inlineBodyScope)) -> IsConstructorParameter
                     sym
                   // do not inline call, we need this.call form for the inference
                   // on the other hand form without this is better for variable initialization
                   case (_: Node.ThisExpression) Dot member if !transformer.parent().exists(_.isInstanceOf[Node.CallExpression]) =>
-                    Node.Identifier(member)
+                    Node.Identifier(member).withTokens(node)
                   case _ =>
                     node
                 }
@@ -445,11 +446,11 @@ object InlineConstructors {
               Node.CallExpression(
                 Dot(
                   Node.ThisExpression().withTokens(constructorProperty),
-                  Node.Identifier("constructor")
+                  Node.Identifier("constructor").withTokens(rest.head)
                 ),
 
                 params.map { p =>
-                  Node.Identifier(parameterNameString(p) + parSuffix)
+                  Node.Identifier(parameterNameString(p) + parSuffix).withTokens(rest.head)
                 }
               )
             }) else None

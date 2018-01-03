@@ -38,7 +38,7 @@ object Variables {
 
           val assignedInto = refs.isModified(varName)
           val n = if (!assignedInto) {
-            VarDecl(varName.name, Some(value), "const").withTokens(node)
+            VarDecl(varName.name, Some(value), "const", node)
           } else {
             node
           }
@@ -93,7 +93,7 @@ object Variables {
             node
           } else {
             Node.ExpressionStatement(Node.AssignmentExpression(
-              left = Node.Identifier(varName.name),
+              left = Node.Identifier(varName.name).withTokens(node),
               operator = "=",
               right = value.cloneNode()
             ))
@@ -308,7 +308,7 @@ object Variables {
                 val kind = defined(vName) // val detection will be done separately, no need to do it now
                 // use td.orig if possible to keep original initialization tokens
                 //println(s"  Replaced $sr Node.Identifier with $r, init ${nodeClassName(right)}")
-                VarDecl(vName.name, Some(right), kind).withTokens(node)
+                VarDecl(vName.name, Some(right), kind, node)
               } else {
                 node
               }
@@ -399,6 +399,9 @@ object Variables {
           // do not replace the variable in a key name
           descend(p.value, transformer)
           p
+        case vd: Node.VariableDeclarator =>
+          descend(vd.init, transformer)
+          vd
         case AnyFun(_, body) =>
           // do not replace the variable in a parameter list
           ctx.withScope(body)(descend(body, transformer))
@@ -492,7 +495,7 @@ object Variables {
             if (log) println(s"Transform for $forOK")
 
             val vars = forOK.map { case (vId, initV) =>
-              Node.VariableDeclarator(Node.Identifier(vId.name), initV).withTokens(initV)
+              Node.VariableDeclarator(Node.Identifier(vId.name).withTokens(initV), initV).withTokens(initV)
             }
 
             f.init = Node.VariableDeclaration(vars, "let").withTokens(f)
@@ -553,11 +556,11 @@ object Variables {
     def condition(sym: Node.Identifier, cs: Seq[String]): Node.BinaryExpression = {
       cs match {
         case Seq(head) =>
-          Binary (sym, asinstanceof, Node.Identifier(head))
+          Binary (sym, asinstanceof, Node.Identifier(head).withTokens(sym))
         case head +: tail =>
           Node.BinaryExpression (
             "||",
-            Binary(sym, asinstanceof, Node.Identifier(head)),
+            Binary(sym, asinstanceof, Node.Identifier(head).withTokens(sym)),
             condition(sym, tail)
           )
       }
@@ -565,8 +568,8 @@ object Variables {
 
     def createCaseVariable(from: Node.Node, name: String, castTo: Seq[String]) = {
       //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
-      val symRef = Node.Identifier(name)
-      VarDecl(name + castSuffix, Some(condition(symRef, castTo)), "let").withTokens(from)
+      val symRef = Node.Identifier(name).withTokens(from)
+      VarDecl(name + castSuffix, Some(condition(symRef, castTo)), "let", from)
     }
 
     lazy val classInfo = Transform.listClassMembers(n)
@@ -602,14 +605,14 @@ object Variables {
       node match {
         // note: handles one or multiple casts
         case s@SequenceOfCasts(symDef, casts, elseStatement) /*if casts.lengthCompare(1) > 0*/ =>
-          val castVar = Node.Identifier(symDef.name)
+          val castVar = Node.Identifier(symDef.name).withTokens(s)
           Node.SwitchStatement(
             castVar,
             casts.map { cast =>
               Node.SwitchCase (
                 // we handle this in the ScalaOut as a special case, see CASE_CAST
                 Node.CallExpression (
-                  Node.Identifier("cast_^"),
+                  Node.Identifier("cast_^").withTokens(s),
                   {
                     val castExpr = condition(castVar, cast._1.map(_.name))
                     //args = js.Array(Node.Identifier.symDef(s)(symDef), castExpr)
@@ -625,7 +628,7 @@ object Variables {
                 )
 
               ).withTokens(s)
-            } :+ new Node.SwitchCase (
+            } :+ Node.SwitchCase (
               null,
               elseStatement.map { e =>
                 Block.statements(e.transform(transformer))

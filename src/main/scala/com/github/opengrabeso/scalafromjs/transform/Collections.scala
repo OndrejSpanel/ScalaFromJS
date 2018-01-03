@@ -166,7 +166,7 @@ object Collections {
           // note: Node.ForOf would be more appropriate, however it is not present yet in the Uglify AST we use
           //println(s"Detect for ..in $forStatement")
           val newFor = Node.ForInStatement (
-            left = Node.Identifier(varName.name),
+            left = Node.Identifier(varName.name).withTokens(forStatement.init),
             right = obj,
             body = forStatement.body
           ).withTokens(forStatement)

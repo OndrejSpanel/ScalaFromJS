@@ -252,7 +252,7 @@ object Parameters {
 
             val params = f.renameParam(par, parName + Symbols.parSuffix)
 
-            val decl = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(parName), Node.Identifier(parName + Symbols.parSuffix))), "let").withTokens(par)
+            val decl = VarDecl(parName, Some(Node.Identifier(parName + Symbols.parSuffix).withTokens(par)), "let", par)
 
             val body = decl +: f.body.body
 
@@ -461,8 +461,8 @@ object Parameters {
             if (logging) println(s"Rename ${varSym.name}")
 
             val params = f.params.map {
-              case Node.Identifier(`parName`) =>
-                Node.Identifier(varSym.name)
+              case nn@Node.Identifier(`parName`) =>
+                Node.Identifier(varSym.name).withTokens(nn)
               case nn@Node.AssignmentPattern(Node.Identifier(`parName`), right) =>
                 nn.left = Node.Identifier(varSym.name).withTokens(nn.left)
                 nn
