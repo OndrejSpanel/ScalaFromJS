@@ -182,9 +182,9 @@ object Rules {
 
     val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case callOn Dot GetClass(Node.ClassDeclaration(Defined(Node.Identifier(prop)), _, _)) =>
+        case callOn Dot GetClass(Node.ClassDeclaration(Defined(propId@Node.Identifier(prop)), _, _)) =>
           //println(s"Detect call $prop")
-          Binary (callOn, instanceof, Node.Identifier(prop))
+          Binary (callOn, instanceof, propId)
         case _ =>
           node
       }
@@ -217,7 +217,7 @@ object Rules {
           //className.foreach(c => println(s"Found $c sym ${sym.map(_.name).getOrElse(expr)}"))
           // TODO: even when there is no class, consider passing the name if it looks reasonable
           sym.map {
-            sym => (callOn, Node.Identifier(sym.name))
+            sym => (callOn, Node.Identifier(sym.name).withTokens(expr))
           }
         case _ =>
           None

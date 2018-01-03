@@ -46,51 +46,55 @@ package object esprima extends NodeExt {
     def verifyScopesValid(): T = {
       // walking through whole AST creates all scopes, this way we verify their loc is setup correctly
       //symbols.walk(ast, new ScopeContext)((_, _) => false)
+      if (ast.range == null) {
+        // if root has no location data, it is parsed without them and it has no sense to require them
+      } else {
 
-
-      // verify function parameters are still correct
-      walk {
-        case n@AnyFun(params, _) =>
-          params.foreach { p =>
-            if (!p.isInstanceOf[FunctionParameter]) {
-              println(s"Bad parameter node $p in $n")
+        // verify function parameters are still correct
+        walk {
+          case n@AnyFun(params, _) =>
+            params.foreach { p =>
+              if (!p.isInstanceOf[FunctionParameter]) {
+                println(s"Bad parameter node $p in $n")
+                assert(false)
+              }
+            }
+            false
+          case vd: VariableDeclarator =>
+            if (!vd.id.isInstanceOf[BindingIdentifierOrPattern]) {
+              println(s"Bad VariableDeclarator node ${vd.id} in $vd")
               assert(false)
             }
-          }
-          false
-        case vd: VariableDeclarator =>
-          if (!vd.id.isInstanceOf[BindingIdentifierOrPattern]) {
-            println(s"Bad VariableDeclarator node ${vd.id} in $vd")
-            assert(false)
-          }
-          false
-        case _ =>
-          false
-      }
-
-      // this is a bit longer, but it makes locating issue easier
-      def needsLoc(n: Node) = {
-        if (n.range == null) {
-          println(s"Null range in $n")
+            false
+          case _ =>
+            false
         }
-        assert(n.range != null)
-      }
-      walk {
-        case n@IsScope() =>
-          needsLoc(n)
-          false
-        case n: ForStatement =>
-          needsLoc(n)
-          false
-        case n: VariableDeclaration =>
-          needsLoc(n)
-          false
-        case id: Identifier =>
-          needsLoc(id)
-          false
 
-        case _ =>
-          false
+        // this is a bit longer, but it makes locating issue easier
+        def needsLoc(n: Node) = {
+          if (n.range == null) {
+            println(s"Null range in $n")
+          }
+          assert(n.range != null)
+        }
+
+        walk {
+          case n@IsScope() =>
+            needsLoc(n)
+            false
+          case n: ForStatement =>
+            needsLoc(n)
+            false
+          case n: VariableDeclaration =>
+            needsLoc(n)
+            false
+          case id: Identifier =>
+            needsLoc(id)
+            false
+
+          case _ =>
+            false
+        }
       }
       ast
     }

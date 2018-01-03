@@ -76,7 +76,7 @@ class WalkTest extends FunSuite with TestInputs {
 
   private def transformAnswer42(node: Node): (Node, Node) = node match {
     case Identifier("answer") =>
-      Identifier("question")
+      Identifier("question").withTokens(node)
     case Literal(OrType(42), _) =>
       Literal(24, "24")
     case AssignmentExpression(op, left, right) =>
