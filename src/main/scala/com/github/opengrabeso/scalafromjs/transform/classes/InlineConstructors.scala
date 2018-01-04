@@ -208,15 +208,25 @@ object InlineConstructors {
             val allLocals = detectPrivateMembers(body)
             // convert private variables to members (TODO: mark them as private somehow)
 
+            //println(s"Locals ${allLocals.map(l => l.sym.name -> l.isVal)}")
+            /*
+            val parameterMembers = params.map { p =>
+              val name = parameterNameString(p)
+              PrivateMember(Id(name), true, p)
+
+            }
+            */
+            //println(s"Parameters ${parameterMembers.map(l => l.sym.name -> l.isVal)}")
+
+            // parameters need different processing
+
             val paramsId = params.map(parameterNameString).map(Id.apply).toSet
 
             // some of them may be a constructor parameters, they need a different handling
-            val constructorParameters = allLocals.filter(_.sym exists paramsId.contains)
+            val locals = allLocals.filterNot(l => paramsId.contains(l.sym) )
 
             //println(s"Locals ${allLocals.map(l => l.sym.name -> l.isVal)}")
             //println(s"Parameters ${constructorParameters.map(l => l.sym.name -> l.isVal)}")
-
-            val locals = allLocals diff constructorParameters
 
             def newThisDotMember(member: String) = Dot(Node.ThisExpression(), Node.Identifier(member))
 
@@ -277,7 +287,8 @@ object InlineConstructors {
   def privateFunctions(n: Node.Node): Node.Node = {
     val log = false
 
-    n.transformAfter { (node, _) =>
+    n.transformAfter { (node, t) =>
+      implicit val ctx = t.context
       node match {
         case cls: Node.ClassDeclaration =>
           for {
@@ -315,13 +326,31 @@ object InlineConstructors {
                 f.body.body = rest
             }
 
+            val parameterMembers = params.map(p => Id(parameterNameString(p))).toSet
+
+            def transformParametersInBody(node: Node.BlockStatement) = {
+              node.transformAfter(ctx) {(node, transformer) =>
+                implicit val ctx = transformer.context
+                node match {
+                  case Node.Identifier(Id(id)) =>
+                    if (parameterMembers contains id) {
+                      Dot(Node.ThisExpression(), Node.Identifier(id.name).withTokens(node)).withTokens(node)
+                    } else {
+                      node
+                    }
+                  case _ =>
+                    node
+                }
+              }
+            }
+
             // add functions as methods
             cls.body.body = cls.body.body ++ functions.map {
               case (statement, funName, AnyFun(funParams, funBody)) =>
                 Node.MethodDefinition (
                   Node.Identifier(funName).withTokens(statement),
                   false,
-                  Node.FunctionExpression(null, funParams, Block(funBody).withTokens(body), false).withTokens(statement),
+                  Node.FunctionExpression(null, funParams, transformParametersInBody(Block(funBody).withTokens(body)), false).withTokens(statement),
                   "init",
                   false
                 )
