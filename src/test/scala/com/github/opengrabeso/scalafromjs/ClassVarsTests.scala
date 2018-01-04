@@ -80,7 +80,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
       """
       class Person {
           constructor(name) {
-              this.name = name;
+              this.b = name;
               this.c = name
           }
 
@@ -88,9 +88,9 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
       let bob = new Person('Bob');
       """).required(
-        "class Person(name_par: String)",
-        "var name: String = name_par",
-        "var c: String = name_par"
+        "class Person(name: String)",
+        "var b: String = name",
+        "var c: String = name"
       ).forbidden(
         "(var name:"
       )
@@ -241,7 +241,7 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
   }
 
-  test("Private variables should not be extracted for class parameters") {
+  test("Private variables should be extracted correctly for class parameters") {
     exec check ConversionCheck(
       // language=JavaScript
       """
@@ -258,12 +258,14 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
       C.prototype.constructor = C;
       """).required(
-        "class C(x: Boolean = false)",
+        "class C(var x: Boolean = false)",
         "var a",
-        "var b"
+        "var b",
+        "this.a",
+        "this.b",
+        "this.x"
       ).forbidden(
-        "val x",
-        "var x"
+        "val x"
       )
 
   }
