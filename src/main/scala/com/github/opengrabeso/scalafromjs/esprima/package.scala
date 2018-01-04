@@ -27,7 +27,7 @@ package object esprima extends NodeExt {
     }
 
     def walkWithScope(callback: (Node, ScopeContext) => Boolean) = {
-      symbols.walk(ast, new ScopeContext)(callback)
+      symbols.walk(ast)(callback)
     }
 
     def walkWithScopeAfter(scope: ScopeContext)(after: (Node, ScopeContext) => Boolean) = {
@@ -108,19 +108,19 @@ package object esprima extends NodeExt {
     def transform(transformer: TreeTransformer): T = {
       import walker._
       if (ast != null) {
-        val before = transformer.context.withScope(ast) {
-          transformer.before(ast, { (node, transformer) =>
-            transformInto(node)(node => node.transform(transformer))
-            node
-          })
-        }
+        val before = transformer.before(ast, { (node, transformer) =>
+          transformInto(node) { node =>
+            transformer.context.withScope(node)(node.transform(transformer))
+          }
+          node
+        })
         if (before != null) {
           before.asInstanceOf[T]
         } else {
-          val after = transformer.context.withScope(ast) {
-            transformInto(ast)(node => node.transform(transformer))
-            transformer.after(ast)
+          transformInto(ast) { node =>
+            transformer.context.withScope(node)(node.transform(transformer))
           }
+          val after = transformer.after(ast)
           after.asInstanceOf[T]
         }
       } else {
@@ -171,15 +171,24 @@ package object esprima extends NodeExt {
     }
 
     def transformBefore(_before: (Node, (Node, TreeTransformer) => Node, TreeTransformer) => Node): T = {
-      transformBefore(new ScopeContext)(_before)
+      val ctx = new ScopeContext()
+      ctx.withScope(ast) {
+        transformBefore(ctx)(_before)
+      }
     }
 
     def transformAfter(_after: (Node, TreeTransformer) => Node): T = {
-      transformAfter(new ScopeContext)(_after)
+      val ctx = new ScopeContext()
+      ctx.withScope(ast) {
+        transformAfter(ctx)(_after)
+      }
     }
 
     def transformAfterSimple(_after: Node => Node): T = {
-      transformAfterSimple(new ScopeContext)(_after)
+      val ctx = new ScopeContext()
+      ctx.withScope(ast) {
+        transformAfterSimple(ctx)(_after)
+      }
     }
 
     def cloneDeep(): T = {

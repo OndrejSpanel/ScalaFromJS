@@ -204,7 +204,7 @@ object InlineConstructors {
         case cls: Node.ClassDeclaration =>
           for {
             constructorProperty@Node.MethodDefinition(_, _, AnyFun(params, body), _, _) <- findConstructor(cls)
-          } {
+          } ctx.withScope(cls.body, constructorProperty, constructorProperty.value) {
             val allLocals = detectPrivateMembers(body)
             // convert private variables to members (TODO: mark them as private somehow)
 
@@ -224,10 +224,8 @@ object InlineConstructors {
 
             val constructor = locals.foldLeft(body) { (constructor, privateVar) =>
               // first replace variable use - without init it is no longer declared
-              val replaced = ctx.withScope(cls, cls.body) {
-                //println(s"Replaced private var ${privateVar.sym.name}")
-                replaceVariable(constructor, privateVar.sym, privateMember(privateVar.sym))
-              }
+              //println(s"Replaced private var ${privateVar.sym.name}")
+              val replaced = replaceVariable(constructor, privateVar.sym, privateMember(privateVar.sym))
 
               val replacedInit = replaceVariableInit(replaced, privateVar.sym) { (sym, init) =>
                 Node.ExpressionStatement (
@@ -251,7 +249,8 @@ object InlineConstructors {
             // DRY: FillVarMembers
             val clsTokenDef = classTokenSource(cls)
 
-            val vars = locals.map { local =>
+            // do not introduce a variable for parameters, they already exist
+            val vars = allLocals.map { local =>
               val varDecl = VarDecl(local.sym.name, None, if (local.isVal) "const" else "var", local.tokens)
               //println(s"privateVariables ${local.sym.name} $varDecl ${cls.start.get.pos}")
               varDecl
@@ -342,129 +341,131 @@ object InlineConstructors {
       implicit val ctx = transformer.context
       node match {
         case cls: Node.ClassDeclaration =>
-
           val classSymIds = SymbolIds(cls)(ctx)
 
-          val clsTokenDef = classTokenSource(cls)
-          for {
-            md <- findConstructor(cls)
-            constructorProperty@AnyFun(params, b) <- Some(md.value)
-          } {
-            // anything before a first variable declaration can be inlined, variables need to stay private
-            val body = Block.statements(b)
-            val (inlined, rest_?) = body.span {
-              case _: Node.VariableDeclaration => false
-              case _ => true
-            }
+          ctx.withScope(cls.body) {
 
-            def isClassConstant(varName: String): Boolean = {
-              val body = findInlineBody(cls).flatMap(getMethodBody)
-              body.exists {
-                _.body.exists {
-                  case VarDecl(`varName`, _, "const") =>
+            val clsTokenDef = classTokenSource(cls)
+            for {
+              md <- findConstructor(cls)
+              constructorProperty@AnyFun(params, b) <- Some(md.value)
+            } {
+              // anything before a first variable declaration can be inlined, variables need to stay private
+              val body = Block.statements(b)
+              val (inlined, rest_?) = body.span {
+                case _: Node.VariableDeclaration => false
+                case _ => true
+              }
+
+              def isClassConstant(varName: String): Boolean = {
+                val body = findInlineBody(cls).flatMap(getMethodBody)
+                body.exists {
+                  _.body.exists {
+                    case VarDecl(`varName`, _, "const") =>
+                      true
+                    case _ =>
+                      false
+                  }
+                }
+              }
+
+
+              object IsConstantInitializerInThis extends RecursiveExpressionCondition {
+                def allow(c: Node.Node): Boolean = c match {
+                  case IsConstant() =>
+                    true
+                  case Node.ThisExpression() Dot varName if isClassConstant(varName) =>
                     true
                   case _ =>
                     false
                 }
+
+                def forbid(c: Node.Node): Boolean = false
               }
-            }
 
-
-            object IsConstantInitializerInThis extends RecursiveExpressionCondition {
-              def allow(c: Node.Node): Boolean = c match {
-                case IsConstant() =>
-                  true
-                case Node.ThisExpression() Dot varName if isClassConstant(varName) =>
+              val (inlineVars, rest) = rest_?.partition {
+                case SingleExpression(Assign((_: Node.ThisExpression) Dot member, "=", IsConstantInitializerInThis(expr))) =>
+                  //println(s"Assign const $expr")
                   true
                 case _ =>
                   false
               }
 
-              def forbid(c: Node.Node): Boolean = false
-            }
+              val accessor = classInlineBody(cls, clsTokenDef)
+              val accessorValue = accessor.value.asInstanceOf[Node.FunctionExpression]
 
-            val (inlineVars, rest) = rest_?.partition {
-              case SingleExpression(Assign((_: Node.ThisExpression) Dot member, "=", IsConstantInitializerInThis(expr))) =>
-                //println(s"Assign const $expr")
-                true
-              case _ =>
-                false
-            }
+              val inlineBodyScope = ScopeContext.getNodeId(accessorValue)
 
-            val accessor = classInlineBody(cls, clsTokenDef)
-            val accessorValue = accessor.value.asInstanceOf[Node.FunctionExpression]
+              //println(s"inlining $cls")
+              //println(s"  inlined $inlined")
+              //println(s"  rest $rest")
+              // transform parameter names while inlining (we need to use parSuffix names)
+              val parNames = params.map(parameterNameString)
 
-            val inlineBodyScope = ScopeContext.getNodeId(accessorValue)
+              val parNamesSet = parNames.toSet
+              val parIdsSet = parNamesSet.map(SymId(_, inlineBodyScope))
 
-            //println(s"inlining $cls")
-            //println(s"  inlined $inlined")
-            //println(s"  rest $rest")
-            // transform parameter names while inlining (we need to use parSuffix names)
-            val parNames = params.map(parameterNameString)
+              ctx.withScope(accessorValue) {
+                val parNamesAdjusted = (inlined ++ inlineVars).map { s =>
+                  s.transformAfter(ctx) { (node, transformer) =>
+                    node match {
+                      case sym: Node.Identifier =>
+                        val id = classSymIds(sym)
+                        val id2 = Id(sym)
+                        if (parIdsSet contains id) {
+                          classSymIds.rename(sym, sym.name, sym.name + parSuffix)
+                          sym.name = sym.name + parSuffix
+                          types = types addHint Some(SymId(sym.name, inlineBodyScope)) -> IsConstructorParameter
+                        }
+                        sym
+                      // do not inline call, we need this.call form for the inference
+                      // on the other hand form without this is better for variable initialization
+                      case (_: Node.ThisExpression) Dot member if !transformer.parent().exists(_.isInstanceOf[Node.CallExpression]) =>
+                        Node.Identifier(member).withTokens(node)
+                      case _ =>
+                        node
+                    }
+                  }
+                }
+                // add adjusted constructor argument names so that parser correctly resolves them inside of the function
 
-            val parNamesSet = parNames.toSet
-            val parIdsSet = parNamesSet.map(SymId(_, inlineBodyScope))
+                accessorValue.params = params.map(Transform.funArg).map { p =>
+                  val a = p.cloneNode()
+                  a.name = p.name + parSuffix
+                  val classSymbolId = Id(cls.id)
+                  types = types addHint Some(SymId(a.name, inlineBodyScope)) -> IsConstructorParameter
+                  // marking source as cls so that they use the class scope, same as member variables
+                  a
+                }
+                //println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
 
-            object IsParameter {
-              def unapply(arg: Node.Identifier)(implicit ctx: ScopeContext): Boolean = {
-                val argId = classSymIds(arg)
-                parIdsSet contains argId
+
+                // add the constructor call itself, so that type inference binds its parameters and arguments
+                val constructorCall = if (rest.nonEmpty) Some(Node.ExpressionStatement {
+                  Node.CallExpression(
+                    Dot(
+                      Node.ThisExpression().withTokens(constructorProperty),
+                      Node.Identifier("constructor").withTokens(rest.head)
+                    ),
+
+                    params.map { p =>
+                      Node.Identifier(parameterNameString(p) + parSuffix).withTokens(rest.head)
+                    }
+                  )
+                }) else None
+
+                accessorValue.body.body = accessorValue.body.body ++ parNamesAdjusted ++ constructorCall
+              }
+
+              if (rest.nonEmpty) {
+                constructorProperty.asInstanceOf[Node.FunctionExpression].body.body = rest
+              } else {
+                cls.body.body = cls.body.body diff Seq(md)
               }
             }
-            val parNamesAdjusted = (inlined ++ inlineVars).map { s =>
-              s.transformAfter { (node, transformer) =>
-                node match {
-                  case sym@IsParameter() =>
-                    classSymIds.rename(sym, sym.name, sym.name + parSuffix)
-                    sym.name = sym.name + parSuffix
-                    types = types addHint Some(SymId(sym.name, inlineBodyScope)) -> IsConstructorParameter
-                    sym
-                  // do not inline call, we need this.call form for the inference
-                  // on the other hand form without this is better for variable initialization
-                  case (_: Node.ThisExpression) Dot member if !transformer.parent().exists(_.isInstanceOf[Node.CallExpression]) =>
-                    Node.Identifier(member).withTokens(node)
-                  case _ =>
-                    node
-                }
-              }
-            }
-            // add adjusted constructor argument names so that parser correctly resolves them inside of the function
 
-            accessorValue.params = params.map(Transform.funArg).map { p =>
-              val a = p.cloneNode()
-              a.name = p.name + parSuffix
-              val classSymbolId = Id(cls.id)
-              types = types addHint Some(SymId(a.name, inlineBodyScope)) -> IsConstructorParameter
-              // marking source as cls so that they use the class scope, same as member variables
-              a
-            }
-            //println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
-
-
-            // add the constructor call itself, so that type inference binds its parameters and arguments
-            val constructorCall = if (rest.nonEmpty) Some(Node.ExpressionStatement {
-              Node.CallExpression(
-                Dot(
-                  Node.ThisExpression().withTokens(constructorProperty),
-                  Node.Identifier("constructor").withTokens(rest.head)
-                ),
-
-                params.map { p =>
-                  Node.Identifier(parameterNameString(p) + parSuffix).withTokens(rest.head)
-                }
-              )
-            }) else None
-
-            accessorValue.body.body = accessorValue.body.body ++ parNamesAdjusted ++ constructorCall
-
-            if (rest.nonEmpty) {
-              constructorProperty.asInstanceOf[Node.FunctionExpression].body.body = rest
-            } else {
-              cls.body.body = cls.body.body diff Seq(md)
-            }
+            cls
           }
-
-          cls
         case _ =>
           node
       }

@@ -59,6 +59,9 @@ package object symbols {
     import ScopeContext._
 
     def enterScope(node: Node): EnterScopeValue = {
+      // we should never enter a scope twice, this means somebody already entered it and we are confused
+      assert(!parents.contains(node))
+
       parents.push(node)
       val isScope = IsDeclScope.unapply(node)(this)
       if (isScope) {
@@ -136,24 +139,35 @@ package object symbols {
   /**
     * Walk while tracking a scope stack and a symbol information
     * */
-  def walk(ast: Node, context: ScopeContext = new ScopeContext)(callback: (Node, ScopeContext) => Boolean = null, after: (Node, ScopeContext) => Boolean = null): Unit = {
+  def doWalk(ast: Node, context: ScopeContext)(callback: (Node, ScopeContext) => Boolean, after: (Node, ScopeContext) => Boolean): Unit = {
     val origScopes = context.scopes.length
     val origParents = context.parents.length
 
     if (ast != null) {
-      val es = context.enterScope(ast)
       if (callback == null || !callback(ast, context)) {
-        walker.walkInto(ast)(node => walk(node, context)(callback, after))
+        walker.walkInto(ast) { node =>
+          context.withScope(node)(walk(node, context)(callback, after))
+        }
       }
       if (after != null) {
         after(ast, context)
       }
-      context.leaveScope(es)
     }
 
     assert(context.scopes.length == origScopes)
     assert(context.parents.length == origParents)
   }
+
+  def walk(ast: Node, context: ScopeContext = new ScopeContext)(callback: (Node, ScopeContext) => Boolean = null, after: (Node, ScopeContext) => Boolean = null): Unit = {
+    if (context.parents.isEmpty) {
+      context.withScope(ast) {
+        doWalk(ast, context)(callback, after)
+      }
+    } else {
+      doWalk(ast, context)(callback, after)
+    }
+  }
+
 
   def listAllSymbols(node: Node): Set[SymId] = {
     val builder = Set.newBuilder[SymId]

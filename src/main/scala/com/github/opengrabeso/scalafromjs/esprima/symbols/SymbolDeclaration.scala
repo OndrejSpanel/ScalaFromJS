@@ -53,6 +53,10 @@ object SymbolDeclaration {
         f.params
       case f: AsyncArrowFunctionExpression =>
         f.params
+      case f: MethodDefinition =>
+        Seq(f.key).collect {
+          case id: Identifier => id
+        }
       case _ =>
         Seq()
     }

@@ -66,22 +66,20 @@ object Parameters {
           processed.fold(f)(processArguments(_, tail))
       }
 
-      context.withScope(f) {
-        f match {
-          case f: Node.FunctionExpression =>
-            val func = processArguments(FunctionBodyAndParams(f.body, f.params), f.params.reverse)
-            f.body = func.body
-            f.params = func.params
-            f.asInstanceOf[T]
-          case f: Node.FunctionDeclaration =>
-            val func = processArguments(FunctionBodyAndParams(f.body, f.params), f.params.reverse)
-            f.body = func.body
-            f.params = func.params
-            f.asInstanceOf[T]
-          case _ =>
-            f.asInstanceOf[T]
+      f match {
+        case f: Node.FunctionExpression =>
+          val func = processArguments(FunctionBodyAndParams(f.body, f.params), f.params.reverse)
+          f.body = func.body
+          f.params = func.params
+          f.asInstanceOf[T]
+        case f: Node.FunctionDeclaration =>
+          val func = processArguments(FunctionBodyAndParams(f.body, f.params), f.params.reverse)
+          f.body = func.body
+          f.params = func.params
+          f.asInstanceOf[T]
+        case _ =>
+          f.asInstanceOf[T]
 
-        }
       }
     }
 
@@ -388,7 +386,7 @@ object Parameters {
   * */
   def inlineConstructorVars(n: NodeExtended): NodeExtended = {
     var types = n.types
-    val logging = false
+    val logging = true
     def handleConstructorVars(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
       if (context.parent().collect {case md: Node.MethodDefinition if methodName(md) == Classes.inlineBodyName => md}.isEmpty) {
         Some(f)
