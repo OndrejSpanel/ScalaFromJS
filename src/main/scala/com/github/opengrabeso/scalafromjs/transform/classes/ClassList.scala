@@ -184,7 +184,7 @@ object ClassList {
             val funScope = ScopeContext.getNodeId(defun)
             //println(s"Constructor ${symDef.name} returning value, funScope $funScope")
 
-            ctx.withScope(defun, defun.body) {
+            ctx.withScope(defun.body) {
               def transformReferences[T <: Node.Node](n: T): T = {
                 n.transformBefore(ctx) { (node, descend, transformer) =>
                   implicit val ctx = transformer.context
