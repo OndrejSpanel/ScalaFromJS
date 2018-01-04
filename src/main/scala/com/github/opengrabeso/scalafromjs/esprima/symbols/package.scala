@@ -106,8 +106,8 @@ package object symbols {
     }
 
     def contextUntil(node: Node.Node): ScopeContext = {
-      val parentsUntil = parents.takeWhile(_ != node)
-      val scopesUntil = scopes.takeWhile(_._1 != node)
+      val parentsUntil = parents.take(parents.prefixLength(_ != node) + 1)
+      val scopesUntil = scopes.take(scopes.prefixLength(_._1 != node) + 1)
 
       val ret = new ScopeContext
       ret.parents ++= parentsUntil
