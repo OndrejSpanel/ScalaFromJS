@@ -49,6 +49,10 @@ object Parameters {
     }
   }
 
+  private def notInlineBody(context: ScopeContext) = {
+    context.parent().collect { case md: Node.MethodDefinition if methodName(md) == Classes.inlineBodyName => md }.isEmpty
+  }
+
   /**
     * Scan all parameters in all functions, parameters are scaned from last to first (right to left)
     * @param process process the function - once this returns None, scan is aborted
@@ -84,12 +88,15 @@ object Parameters {
     }
 
     n.transformAfter { (node, transformer) =>
+      implicit val ctx = transformer.context
       node match {
         case f: DefFun =>
-          processOneFunction(f, transformer.context)
+          processOneFunction(f, ctx)
         case m: Node.MethodDefinition =>
           //println(s"introduceDefaultValues ${m.key.name}")
-          m.value = processOneFunction(m.value, transformer.context)
+          ctx.withScope(m.value) {
+            m.value = processOneFunction(m.value, ctx)
+          }
           m
         case _ =>
           node
@@ -277,7 +284,7 @@ object Parameters {
     var types = n.types
 
     def handleSimpleParameters(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
-      if (context.parent().collect {case md: Node.MethodDefinition if methodName(md) == Classes.inlineBodyName => md}.isEmpty) {
+      if (notInlineBody(context)) {
         Some(f)
       } else {
         implicit val ctx = context
@@ -386,9 +393,9 @@ object Parameters {
   * */
   def inlineConstructorVars(n: NodeExtended): NodeExtended = {
     var types = n.types
-    val logging = true
+    val logging = false
     def handleConstructorVars(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
-      if (context.parent().collect {case md: Node.MethodDefinition if methodName(md) == Classes.inlineBodyName => md}.isEmpty) {
+      if (notInlineBody(context)) {
         Some(f)
       } else {
         // inline all parameters, or constructor only?

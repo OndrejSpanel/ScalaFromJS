@@ -131,6 +131,7 @@ package object symbols {
     }
 
     def parent(level: Int = 0): Option[Node] = if (level + 1 < parents.length) Some(parents(parents.length - 2 - level)) else None
+    def top: Option[Node] = parents.lastOption
     def stack = parents
 
     def scopeId: ScopeId = getNodeId(scopes.last._1)
