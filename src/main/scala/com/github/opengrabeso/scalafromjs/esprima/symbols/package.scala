@@ -60,7 +60,7 @@ package object symbols {
 
     def enterScope(node: Node): EnterScopeValue = {
       // we should never enter a scope twice, this means somebody already entered it and we are confused
-      assert(!parents.contains(node))
+      assert(!parents.exists(node eq _))
 
       parents.push(node)
       val isScope = IsDeclScope.unapply(node)(this)
