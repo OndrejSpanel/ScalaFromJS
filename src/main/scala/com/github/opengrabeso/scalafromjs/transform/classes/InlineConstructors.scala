@@ -159,6 +159,9 @@ object InlineConstructors {
         case VarDecl(Id(name), _, _) =>
           variables += name -> node
           false
+        // do not enter any functions, we extract only variables directly in the constructor
+        case AnyFun(_, _) =>
+          true
         case _ =>
           false
       }

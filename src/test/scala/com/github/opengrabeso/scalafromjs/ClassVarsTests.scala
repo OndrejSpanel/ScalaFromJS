@@ -156,6 +156,37 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
   }
 
+  test("Local variables from private functions should be left intact") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      function WebGLRenderer() {
+        var _gl = {};
+        var x = 0;
+        this.getContext = function () {
+          var va;
+          var vb = 0;
+          var vc;
+          vc = 0;
+          return _gl;
+        };
+      }
+      var w = new WebGLRenderer()
+      """).required(
+      "val x =",
+      "var va =",
+      "val vb =",
+      "val vc =",
+      "this._gl"
+    ).forbidden(
+      "this.x",
+      "this.va",
+      "this.vb",
+      "this.vc"
+    )
+
+  }
+
   test("Private variables should not be created for known functions") {
     exec check ConversionCheck(
       // language=JavaScript
