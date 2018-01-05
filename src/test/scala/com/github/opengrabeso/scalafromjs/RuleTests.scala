@@ -89,11 +89,24 @@ class RuleTests extends FunSuite with TestUtils {
       C.prototype.isC = true;
       C.prototype.isD = true;
 
+      class X {
+        isX(){return true}
+      }
+
+      function Y() {}
+
+      Y.prototype = Object.assign( Object.create( X.prototype ), {
+          constructor: Y,
+          isY: true,
+      } );
+
+
       function f() {
           var c = new C();
           var a;
           if (c.isC && !a.isC) {}
           if (c.isA || c.isD) {}
+          if (c.isX && a.isY) {}
       }
 
       var ScalaFromJS_settings = {
@@ -106,10 +119,14 @@ class RuleTests extends FunSuite with TestUtils {
       };
       """).required(
         "c.isInstanceOf[C]",
-        "c.isInstanceOf[C]",
+        "c.isInstanceOf[X]",
+        "a.isInstanceOf[Y]",
         "c.isA",
         "c.isD"
       ).forbidden(
+        "c.isC",
+        "c.isX",
+        "a.isY",
         "isInstanceOf[A]",
         "isInstanceOf[D]"
       )

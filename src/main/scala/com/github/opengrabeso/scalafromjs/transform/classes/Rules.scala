@@ -154,12 +154,24 @@ object Rules {
     // first scan for all symbols matching the rule
     var isClassMembers = Map.empty[String, Node.ClassDeclaration]
 
+    object ReturnTrue {
+      def unapply(arg: Node.Node) = arg match {
+        case SingleExpression(BooleanLiteral(true)) =>
+          true
+        case Node.BlockStatement(Seq(Node.ReturnStatement(BooleanLiteral(true)))) =>
+          true
+        case Node.ReturnStatement(BooleanLiteral(true)) =>
+          true
+        case _ =>
+          false
+      }
+    }
     n.top.walk {
       case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _) if (member.cls findFirstIn cName).isDefined =>
         val matching = cls.body.body
           .collect{
             // we expect getter, no parameters, containing a single true statement
-            case Node.MethodDefinition(Node.Identifier(name), _, AnyFun(Seq(), Defined(SingleExpression(BooleanLiteral(true)))), _, _) =>
+            case Node.MethodDefinition(Node.Identifier(name), _, AnyFun(Seq(), Defined(ReturnTrue())), _, _) =>
               name
           }.filter { n =>
             val matched = member.name.findFirstMatchIn(n)
