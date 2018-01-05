@@ -113,7 +113,7 @@ object ScalaOut {
   }
 
   case class InputContext(input: String, types: SymbolTypes, classes: ClassListHarmony) {
-    var commentsDumped = Set.empty[Int]
+    var commentsDumped = Set.empty[IdentityBox[CommentHandler.Comment]]
   }
 
   implicit class OutStringContext(val sc: StringContext)(implicit outConfig: Config, input: InputContext, output: Output, context: ScopeContext) {
@@ -179,14 +179,14 @@ object ScalaOut {
     b.result
   }
 
-  def dumpComments(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext) = {
-    // start is mostly defined, but not for accessor
+
+
+  def dumpComments(comments: Seq[CommentHandler.Comment])(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext) = {
     for {
-      start <- n.start
-      // TODO: handle inner / trailing comments better
-      c <- Option(n.leadingComments).toSeq.flatten ++ Option(n.innerComments).toSeq.flatten ++ Option(n.trailingComments).toSeq.flatten
+      nonNull <- Option(comments)
+      c <- nonNull
     } {
-      if (!(input.commentsDumped contains start)) {
+      if (!(input.commentsDumped contains new IdentityBox(c))) {
         if (c.`type` == "Block") {
           // process line by line, fix indenting
           val content = c.value.toString
@@ -198,13 +198,27 @@ object ScalaOut {
           }
           out("*/\n")
         } else {
-          out"//${c.value}\n"
+          out(s"//${c.value}".trim)
+          out.eol()
         }
-        input.commentsDumped += start
+        input.commentsDumped += new IdentityBox(c)
       }
     }
+
   }
 
+  def dumpLeadingComments(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext) = {
+    dumpComments(n.leadingComments)
+  }
+
+  def dumpInnerComments(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext) = {
+    dumpComments(n.innerComments)
+  }
+
+  def dumpTrailingComments(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext) = {
+    dumpComments(n.innerComments) // if somebody did not call innerComments, do it now - calling twice will ignore the second call
+    dumpComments(n.trailingComments)
+  }
 
   def termToOut(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
 
@@ -434,6 +448,7 @@ object ScalaOut {
       }
 
       def outputMethodNode(pm: Node.ClassBodyElement, decl: String = "def") = {
+        out.eol()
         pm match {
           case p: Node.MethodDefinition =>
             outputMethod(p.key, p.value, p.kind, decl)
@@ -497,7 +512,7 @@ object ScalaOut {
         }
       }
 
-      dumpComments(n)
+      dumpLeadingComments(n)
 
       //noinspection ScalaUnusedSymbol
       /*
@@ -1168,6 +1183,7 @@ object ScalaOut {
         //case tn: Node.BlockStatement =>
         case tn: Node.ExpressionStatement =>
           nodeToOut(tn.expression)
+          dumpInnerComments(n)
           out.eol()
         case tn: ScalaNode.StatementExpression =>
           nodeToOut(tn.statement)
@@ -1207,6 +1223,8 @@ object ScalaOut {
           outputUnknownNode(tn)
           out.eol()
       }
+
+      dumpTrailingComments(n)
 
     }
 
