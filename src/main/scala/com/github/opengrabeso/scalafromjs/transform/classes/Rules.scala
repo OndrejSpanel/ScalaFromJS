@@ -176,7 +176,7 @@ object Rules {
           }.filter { n =>
             val matched = member.name.findFirstMatchIn(n)
             matched.fold(false) {matched =>
-              matched.group(1).exists(_.contains(cName))
+              Option(matched.group(1)).contains(cName)
             }
           }.toSet
 

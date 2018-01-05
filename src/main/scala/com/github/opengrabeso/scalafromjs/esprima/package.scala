@@ -136,7 +136,7 @@ package object esprima extends NodeExt {
 
         override def before(node: Node, descend: (Node, TreeTransformer) => Node) = _before(node, descend, tr)
       }
-      val ret = ast.transform(tr).verifyScopesValid()
+      val ret = ast.transform(tr) //.verifyScopesValid()
 
       assert(ctx.scopes.length == origScopes)
       assert(ctx.parents.length == origParents)
@@ -152,8 +152,8 @@ package object esprima extends NodeExt {
 
         override def after(node: Node) = _after(node, tr)
       }
-      ast.verifyScopesValid()
-      val ret = ast.transform(tr).verifyScopesValid()
+      //ast.verifyScopesValid()
+      val ret = ast.transform(tr) // .verifyScopesValid()
 
       assert(ctx.scopes.length == origScopes)
       assert(ctx.parents.length == origParents)
@@ -167,7 +167,7 @@ package object esprima extends NodeExt {
 
         override def after(node: Node) = _after(node)
       }
-      ast.transform(tr).verifyScopesValid()
+      ast.transform(tr) //.verifyScopesValid()
     }
 
     def transformBefore(_before: (Node, (Node, TreeTransformer) => Node, TreeTransformer) => Node): T = {
