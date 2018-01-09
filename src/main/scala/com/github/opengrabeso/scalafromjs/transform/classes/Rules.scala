@@ -10,12 +10,11 @@ import Symbols._
 import com.github.opengrabeso.scalafromjs.Expressions.SingleExpression
 import com.github.opengrabeso.scalafromjs.esprima.symbols.ScopeContext
 
-import scala.collection.mutable
 
 object Rules {
   def deleteMembers(n: NodeExtended, member: ConvertProject.MemberDesc) = {
     processAllClasses(n, Some(member.cls)) { (c, ctx) =>
-      val ret = c.copy()
+      val ret = c.cloneNode()
       // filter member functions and properties
       ret.body.body = c.body.body.filterNot(p => member.name.findFirstIn(methodName(p)).isDefined)
 
