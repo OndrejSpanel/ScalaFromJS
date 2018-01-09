@@ -443,7 +443,15 @@ object ScalaOut {
             }
 
           case _ =>
-            out"$decl $key = $value\n"
+            key match {
+              case Node.Literal(v, _) =>
+                val keyName = identifier(v.toString)
+                // avoid literals used as object keys to be quoted
+                out"$decl $keyName = $value\n"
+              case _ =>
+                out"$decl $key = $value\n"
+
+            }
         }
       }
 
