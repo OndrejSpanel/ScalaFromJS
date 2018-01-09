@@ -103,23 +103,23 @@ object ClassList {
               if (isStatic) {
                 kv.value match {
                   case v: Node.Expression =>
-                    addMember(ClassVarMember(v))
+                    addMember(ClassVarMember(v, m))
                 }
               } else {
                 kv.value match {
                   case AnyFun(args, body) =>
                     //println(s"Add fun member ${kv.key}")
-                    addMember(ClassFunMember(args, Block.statements(body)))
+                    addMember(ClassFunMember(args, Block.statements(body), m))
                   case v: Node.Expression =>
                     //println(s"Add var member ${kv.key} ${nodeClassName(v)}")
-                    addMember(ClassVarMember(v))
+                    addMember(ClassVarMember(v, m))
                 }
               }
 
             case Node.Property(kind, _, _, value, method, shorthand) =>
               value match {
                 case AnyFun(args, body) =>
-                  val funMember = ClassFunMember(args, Block.statements(body))
+                  val funMember = ClassFunMember(args, Block.statements(body), m)
                   kind match {
                     case "get" =>
                       addGetter(funMember)
@@ -130,16 +130,16 @@ object ClassList {
 
                   }
                 case value: Node.Expression =>
-                  addMember(ClassVarMember(value))
+                  addMember(ClassVarMember(value, m))
                 case _ =>
                   val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m, Some(m))
-                  addMember(ClassVarMember(ScalaNode.StatementExpression(member)))
+                  addMember(ClassVarMember(ScalaNode.StatementExpression(member), m))
               }
 
             case _ =>
               // prototype contains something other than a key: val pair - what to do with it?
               val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m, Some(m))
-              addMember(ClassVarMember(ScalaNode.StatementExpression(member)))
+              addMember(ClassVarMember(ScalaNode.StatementExpression(member), m))
           }
         }
       }
@@ -224,20 +224,20 @@ object ClassList {
               }
 
               body.foreach {
-                case DefFun(Defined(Node.Identifier(sym)), fArgs, fBody, _) =>
+                case f@DefFun(Defined(Node.Identifier(sym)), fArgs, fBody, _) =>
                   ctx.withScope(fBody) {
-                    val member = ClassFunMember(fArgs, transformReferencesInBody(fBody.body))
+                    val member = ClassFunMember(fArgs, transformReferencesInBody(fBody.body), f)
                     res.clazz = res.clazz.addMember(sym, member)
                   }
                 case Node.VariableDeclaration(vars, kind) =>
                   //println("Vardef")
                   vars.foreach {
-                    case Node.VariableDeclarator(Node.Identifier(vName), Defined(vValue)) =>
-                      val member = ClassVarMember(vValue)
+                    case v@Node.VariableDeclarator(Node.Identifier(vName), Defined(vValue)) =>
+                      val member = ClassVarMember(vValue, v)
                       res.clazz = res.clazz.addValue(vName, member)
                     case vd@Node.VariableDeclarator(Node.Identifier(vName), _) =>
                       //println(s"value member $vName as undefined")
-                      val member = ClassVarMember(ScalaNode.StatementExpression(Node.EmptyStatement()))
+                      val member = ClassVarMember(ScalaNode.StatementExpression(Node.EmptyStatement()), vd)
                       res.clazz = res.clazz.addValue(vName, member)
                   }
                 case s =>
@@ -255,7 +255,7 @@ object ClassList {
                       res.clazz = res.clazz.renameMember(other, name)
                     case AnyFun(fArgs, fBody) =>
                       ctx.withScope(fBody) {
-                        val member = ClassFunMember(fArgs, transformReferencesInBody(Block.statements(fBody)))
+                        val member = ClassFunMember(fArgs, transformReferencesInBody(Block.statements(fBody)), value)
                         res.clazz = res.clazz.addMember(name, member)
                       }
                     case _ =>
@@ -271,7 +271,7 @@ object ClassList {
                 val t = arg.cloneNode()
                 t
               }
-              val constructor = ClassFunMember(argsTransformed, res.body)
+              val constructor = ClassFunMember(argsTransformed, res.body, node)
               classes += clsId -> res.clazz.addMember(inlineBodyName, constructor)
             }
           }
@@ -284,7 +284,7 @@ object ClassList {
 
             val bodyFiltered = processBody(clsId, body)
 
-            val constructor = ClassFunMember(args, bodyFiltered)
+            val constructor = ClassFunMember(args, bodyFiltered, node)
 
             val c = classes.defClass(clsId)
             classes += clsId -> c.copy(members = c.members + ("constructor" -> constructor))
@@ -294,7 +294,7 @@ object ClassList {
         case ClassMemberDef(name, funName, args, body) =>
           //println(s"Assign member $name.$funName")
           for (clazz <- createClassAsNeeded(name)) {
-            val member = ClassFunMember(args, Block.statements(body))
+            val member = ClassFunMember(args, Block.statements(body), node)
             classes += name -> clazz.copy(members = clazz.members + (funName -> member))
           }
           true
@@ -324,7 +324,7 @@ object ClassList {
           //println(s"Assign property $name.$propName")
           if (propName != "constructor") { // constructor is most often assigned a constructor function
             for (clazz <- createClassAsNeeded(name)) {
-              val member = ClassVarMember(value)
+              val member = ClassVarMember(value, node)
               classes += name -> clazz.copy(members = clazz.members + (propName -> member))
             }
           }
@@ -394,16 +394,16 @@ class ClassList {
             //println(s"Add getter ${pp.key}")
             // new lookup needed for classes(name), multiple changes can be chained
             val c = defClass(name)
-            classes += name -> c.copy(getters = c.getters + (key -> ClassFunMember(fun.params, fun.body.body)))
+            classes += name -> c.copy(getters = c.getters + (key -> ClassFunMember(fun.params, fun.body.body, p)))
           case (fun: Node.FunctionExpression, "set") =>
             //println(s"Add setter ${pp.key}")
             val c = defClass(name)
-            classes += name -> c.copy(setters = c.setters + (key -> ClassFunMember(fun.params, fun.body.body)))
+            classes += name -> c.copy(setters = c.setters + (key -> ClassFunMember(fun.params, fun.body.body, p)))
           //println(classes)
           case (value: Node.Expression, "value") =>
             //println(s"Add value $key")
             val c = defClass(name)
-            classes += name -> c.copy(values = c.values + (key -> ClassVarMember(value)))
+            classes += name -> c.copy(values = c.values + (key -> ClassVarMember(value, p)))
 
           case _ =>
           //println("Other property " + nodeClassName(p))
@@ -421,10 +421,10 @@ class ClassList {
       val member = value match {
         case AnyFun(args, body) =>
           //println(s"Define static fun $key")
-          ClassFunMember(args, Block.statements(body))
-        case value: Node.Expression =>
+          ClassFunMember(args, Block.statements(body), value)
+        case v: Node.Expression =>
           //println(s"Define static var $key")
-          ClassVarMember(value)
+          ClassVarMember(v, value)
       }
       classes += name -> c.copy(membersStatic = c.membersStatic + (key -> member))
     }

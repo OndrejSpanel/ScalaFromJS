@@ -57,9 +57,10 @@ package object classes {
 
   sealed trait ClassMember {
     def definedFrom(init: Node.Node): Boolean
+    def tokensFrom: Node.Node
   }
 
-  case class ClassFunMember(args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem]) extends ClassMember {
+  case class ClassFunMember(args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], tokensFrom: Node.Node) extends ClassMember {
     def definedFrom(init: Node.Node) = init match {
       case func: Node.FunctionExpression =>
         // reference equality of the first member is enough, nodes are unique
@@ -69,7 +70,7 @@ package object classes {
     }
   }
 
-  case class ClassVarMember(value: Node.Expression) extends ClassMember {
+  case class ClassVarMember(value: Node.Expression, tokensFrom: Node.Node) extends ClassMember {
     def definedFrom(init: Node.Node) = {
       //println(s"Defined value from: ${ScalaOut.outputNode(value)} ${ScalaOut.outputNode(init)}")
       value == init
@@ -333,11 +334,11 @@ package object classes {
           }
 
           def unapply(arg: (ClassMember, Boolean)) = arg match {
-            case (ClassFunMember(args, body), _) =>
+            case (ClassFunMember(args, body, _), _) =>
               Some(args, body)
 
             // non-static functions should always be represented as functions if possible
-            case (ClassVarMember(ScalaNode.StatementExpression(Node.BlockStatement(ss :+ ReturnValue(AnyFun(args, body))))), false) /*if onlyVariables(ss)*/ =>
+            case (ClassVarMember(ScalaNode.StatementExpression(Node.BlockStatement(ss :+ ReturnValue(AnyFun(args, body)))), _), false) /*if onlyVariables(ss)*/ =>
               //println(nodeClassName(f))
               val newBody = ss ++ Block.statements(body)
               Some(args, newBody)
@@ -363,23 +364,23 @@ package object classes {
           )
         }
 
-        def newGetterOrSetter(kind: String, k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean) = {
+        def newGetterOrSetter(kind: String, k: String, tokensFrom: Node.Node, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean) = {
           Node.MethodDefinition(
             Node.Identifier(k).withTokens(tokensFrom),
             false,
             Node.FunctionExpression(null, args, Node.BlockStatement(body).withTokens(tokensFrom), false).withTokens(tokensFrom),
             if (args.isEmpty) "get" else "set",
             isStatic
-          )
+          ).withTokens(tokensFrom)
         }
 
         def newMember(k: String, v: ClassMember, isStatic: Boolean = false) = {
           (v, isStatic) match {
             case AsFunction(args, body) =>
-              newMethod(k, args, Node.BlockStatement(body).withTokens(tokensFrom), tokensFrom, isStatic)
+              newMethod(k, args, Node.BlockStatement(body).withTokens(v.tokensFrom), v.tokensFrom, isStatic)
 
             case (m: ClassVarMember, false) =>
-              newGetter(k, Seq(), Seq(Node.ExpressionStatement(m.value)), isStatic)
+              newGetter(k, m.tokensFrom, Seq(), Seq(Node.ExpressionStatement(m.value)), isStatic)
             case (m: ClassVarMember, true) =>
               newValue(k, m.value, isStatic)
 
@@ -389,13 +390,12 @@ package object classes {
           }
         }
 
-        def newGetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean = false) = {
-          newGetterOrSetter("get", k, args, body, isStatic)
+        def newGetter(k: String,  tokensFrom: Node.Node, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean = false) = {
+          newGetterOrSetter("get", k, tokensFrom, args, body, isStatic)
         }
 
-
-        def newSetter(k: String, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean = false) = {
-          newGetterOrSetter("set", k, args, body, isStatic)
+        def newSetter(k: String,  tokensFrom: Node.Node, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean = false) = {
+          newGetterOrSetter("set", k, tokensFrom, args, body, isStatic)
         }
 
         def newClass(sym: Node.Identifier, base: Option[Node.Identifier], props: Seq[Node.ClassBodyElement], tokensFrom: Node.Node): Node.ClassDeclaration = {
@@ -413,8 +413,8 @@ package object classes {
         import helper._
 
         val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }.toSeq
-        val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.args, v.body) }
-        val mappedSetters = clazz.setters.map { case (k, v) => newSetter(k, v.args, v.body) }
+        val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.tokensFrom, v.args, v.body) }
+        val mappedSetters = clazz.setters.map { case (k, v) => newSetter(k, v.tokensFrom, v.args, v.body) }
         val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value, false) }
         val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
 
