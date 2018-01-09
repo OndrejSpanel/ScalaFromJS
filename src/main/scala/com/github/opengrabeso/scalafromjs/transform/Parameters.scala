@@ -108,6 +108,13 @@ object Parameters {
     def unapply(arg: Node.Node) = arg match {
       case Binary(Node.Identifier(Id(`parName`)), op, Node.Identifier("undefined")) =>
         Some(op)
+      case Binary(Node.Identifier(left), op, right) =>
+        val sid = Id(left)
+        if (sid == parName && right == Node.Identifier("undefined")) {
+          Some(op)
+        } else {
+          None
+        }
       case _ =>
         None
     }

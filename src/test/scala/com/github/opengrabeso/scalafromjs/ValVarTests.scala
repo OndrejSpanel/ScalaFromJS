@@ -181,5 +181,46 @@ class ValVarTests extends FunSuite with TestUtils {
 
   }
 
+  test("Handle default values for function parameters") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      function f( x, y, z, w ) {
+        this.x = x || 0;
+        this.y = y || 0;
+        this.z = ( z === undefined) ?  0 : z;
+        this.w = ( w !== undefined ) ? w : 1;
+      }
+      """).required(
+        "def f(x: Double = 0, y: Double = 0, z: Double = 0, w: Double = 1)",
+        "this.x = x",
+        "this.y = y",
+        "this.z = z",
+        "this.w = w"
+      ).forbidden(
+        "val gl"
+      )
 
+  }
+
+  test("Handle default values for class constructor parameters") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      function V4( x, y, z, w ) {
+
+       this.x = x || 0;
+       this.y = y || 0;
+       this.z = z || 0;
+       this.w = ( w !== undefined ) ? w : 1;
+
+      }
+
+      new V4
+      """).required(
+        "class V4(x: Double = 0, y: Double = 0, z: Double = 0, w: Double = 1)"
+      ).forbidden(
+        "_par"
+      )
+  }
 }

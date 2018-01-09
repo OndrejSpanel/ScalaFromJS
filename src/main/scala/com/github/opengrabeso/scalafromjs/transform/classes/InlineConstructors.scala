@@ -443,13 +443,12 @@ object InlineConstructors {
                     node match {
                       case sym: Node.Identifier =>
                         val id = classSymIds(sym)
-                        val id2 = Id(sym)
+                        assert(id.name == sym.name)
                         if (parIdsSet contains id) {
                           classSymIds.rename(sym, sym.name, sym.name + parSuffix)
-                          sym.name = sym.name + parSuffix
                           types = types addHint Some(SymId(sym.name, inlineBodyScope)) -> IsConstructorParameter
-                        }
-                        sym
+                          Node.Identifier(sym.name + parSuffix).withTokens(sym) // prevent modifying original node
+                        } else sym
                       // do not inline call, we need this.call form for the inference
                       // on the other hand form without this is better for variable initialization
                       case (_: Node.ThisExpression) Dot member if !transformer.parent().exists(_.isInstanceOf[Node.CallExpression]) =>
@@ -464,8 +463,8 @@ object InlineConstructors {
                 accessorValue.params = params.map(Transform.funArg).map { p =>
                   val a = p.cloneNode()
                   a.name = p.name + parSuffix
-                  val classSymbolId = Id(cls.id)
-                  types = types addHint Some(SymId(a.name, inlineBodyScope)) -> IsConstructorParameter
+                  val aId = SymId(a.name, inlineBodyScope)
+                  types = types addHint Some(aId) -> IsConstructorParameter
                   // marking source as cls so that they use the class scope, same as member variables
                   a
                 }

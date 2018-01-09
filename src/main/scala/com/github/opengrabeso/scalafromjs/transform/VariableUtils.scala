@@ -89,13 +89,13 @@ object VariableUtils {
   object SymbolIds {
     def apply(node: Node.Node)(implicit ctx: ScopeContext): SymbolIds = {
 
-      var refs = mutable.Map.newBuilder[Node.Identifier, SymId]
+      var refs = mutable.Map.newBuilder[IdentityBox[Node.Identifier], SymId]
 
       node.walkWithScope(ctx) { (node, walker) =>
         implicit val ctx = walker
         node match {
           case n@Node.Identifier(Id(symDef)) =>
-            refs += n -> symDef
+            refs += new IdentityBox(n) -> symDef
           case _ =>
         }
         false
@@ -104,12 +104,13 @@ object VariableUtils {
       new SymbolIds(refs.result())
     }
   }
-  class SymbolIds(ids: mutable.Map[Node.Identifier, SymId]) {
-    def apply(key: Node.Identifier) = ids.apply(key)
+  class SymbolIds(ids: mutable.Map[IdentityBox[Node.Identifier], SymId]) {
+    def apply(key: Node.Identifier) = ids.apply(new IdentityBox(key))
 
     def rename(sym: Node.Identifier, oldName: String, newName: String) = {
-      assert(ids(sym).name == oldName)
-      ids(sym) = ids(sym).copy(name = newName)
+      val key = new IdentityBox(sym)
+      assert(ids(key).name == oldName)
+      ids(key) = ids(key).copy(name = newName)
     }
   }
 
