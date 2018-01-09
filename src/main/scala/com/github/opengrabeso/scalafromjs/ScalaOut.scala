@@ -1196,8 +1196,12 @@ object ScalaOut {
           outputUnknownNode(tn)
           out.eol()
       case tn: Node.ExportNamedDeclaration =>
-        out("/* export */ ")
-        Option(tn.declaration).foreach(nodeToOut)
+        if (tn.declaration != null) {
+          out("/* export */ ")
+          nodeToOut(tn.declaration)
+        } else {
+          out(s"/* $source */")
+        }
       case tn: Node.ExportDefaultDeclaration =>
         Option(tn.declaration).foreach(nodeToOut)
         out(s"/* $source */")
