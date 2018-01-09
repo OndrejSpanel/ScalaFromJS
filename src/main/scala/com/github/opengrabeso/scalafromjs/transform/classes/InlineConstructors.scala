@@ -427,6 +427,7 @@ object InlineConstructors {
               val accessorValue = accessor.value.asInstanceOf[Node.FunctionExpression]
 
               val inlineBodyScope = ScopeContext.getNodeId(accessorValue)
+              val constructorScope = ScopeContext.getNodeId(md.value)
 
               //println(s"inlining $cls")
               //println(s"  inlined $inlined")
@@ -435,7 +436,6 @@ object InlineConstructors {
               val parNames = params.map(parameterNameString)
 
               val parNamesSet = parNames.toSet
-              val parIdsSet = parNamesSet.map(SymId(_, inlineBodyScope))
 
               ctx.withScope(accessorValue) {
                 val parNamesAdjusted = (inlined ++ inlineVars).map { s =>
@@ -444,7 +444,7 @@ object InlineConstructors {
                       case sym: Node.Identifier =>
                         val id = classSymIds(sym)
                         assert(id.name == sym.name)
-                        if (parIdsSet contains id) {
+                        if ((parNamesSet contains sym.name) && (id.sourcePos == inlineBodyScope || id.sourcePos == constructorScope)) {
                           classSymIds.rename(sym, sym.name, sym.name + parSuffix)
                           types = types addHint Some(SymId(sym.name, inlineBodyScope)) -> IsConstructorParameter
                           Node.Identifier(sym.name + parSuffix).withTokens(sym) // prevent modifying original node

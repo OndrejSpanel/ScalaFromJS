@@ -21,7 +21,9 @@ package object classes {
   object ClassId {
     // TODO: avoid get, use something safe instead
     def apply(sym: SymId): ClassId = sym
+
     def apply(name: String)(implicit context: ScopeContext): ClassId = Id(name)
+
     def apply(sym: Node.Identifier)(implicit context: ScopeContext): ClassId = ClassId(Id(sym))
   }
 
@@ -35,6 +37,7 @@ package object classes {
     }
 
   }
+
   object ClassDefine {
     def unapply(arg: Node.Node)(implicit context: ScopeContext): Option[(Node.Identifier, Seq[Node.FunctionParameter], Seq[Node.Statement])] = arg match {
       // function ClassName() {}
@@ -57,6 +60,7 @@ package object classes {
 
   sealed trait ClassMember {
     def definedFrom(init: Node.Node): Boolean
+
     def tokensFrom: Node.Node
   }
 
@@ -91,7 +95,9 @@ package object classes {
     staticOnly: Boolean = false
   ) {
     def addMember(name: String, m: ClassMember) = copy(members = members + (name -> m))
+
     def addValue(name: String, m: ClassVarMember) = copy(values = values + (name -> m))
+
     def renameMember(name: String, newName: String) = copy(members = members.map { case (k, v) =>
       if (k == name) newName -> v else k -> v
     })
@@ -118,11 +124,11 @@ package object classes {
     object DefinePropertiesObject {
       def unapply(arg: Node.Node)(implicit context: ScopeContext): Option[(ClassId, Node.ArgumentListElement)] = arg match {
         case Node.ExpressionStatement(Node.CallExpression(Node.Identifier("Object") Dot "defineProperties",
-          Seq(Node.Identifier(Id(symDef)) Dot "prototype", properties))) =>
+        Seq(Node.Identifier(Id(symDef)) Dot "prototype", properties))) =>
           Some(ClassId(symDef), properties)
 
         case Node.ExpressionStatement(Node.CallExpression(Node.Identifier("Object") Dot "defineProperties",
-          Seq(Node.Identifier(Id(symDef)), properties))) =>
+        Seq(Node.Identifier(Id(symDef)), properties))) =>
           Some(ClassId(symDef), properties)
 
         case _ => None
@@ -170,21 +176,21 @@ package object classes {
     def unapply(arg: Node.ExpressionStatement)(implicit context: ScopeContext) = arg match {
       // name.prototype = Object.assign( Object.create( sym.prototype ), {... prototype object ... } )
       case Node.ExpressionStatement(Assign(
-        Node.Identifier(name) Dot "prototype", "=",
-        Node.CallExpression(
-          Node.Identifier("Object") Dot "assign",
-          Seq(Node.CallExpression(Node.Identifier("Object") Dot "create", Seq(Node.Identifier(sym) Dot "prototype")), prototypeDef: OObject)
-        )
+      Node.Identifier(name) Dot "prototype", "=",
+      Node.CallExpression(
+      Node.Identifier("Object") Dot "assign",
+      Seq(Node.CallExpression(Node.Identifier("Object") Dot "create", Seq(Node.Identifier(sym) Dot "prototype")), prototypeDef: OObject)
+      )
       )) =>
         //println(s"ClassParentAndPrototypeDef $name extends ${sym.name}")
         Some(ClassId(name), ClassId(sym), prototypeDef)
 
       // Object.assign( name.prototype, sym.prototype, {prototype object} )
       case Node.ExpressionStatement(Node.CallExpression(
-        Node.Identifier("Object") Dot "assign",
-        Seq(Node.Identifier(name) Dot "prototype",
-          Node.Identifier(sym) Dot "prototype",
-          prototypeDef: OObject
+      Node.Identifier("Object") Dot "assign",
+      Seq(Node.Identifier(name) Dot "prototype",
+      Node.Identifier(sym) Dot "prototype",
+      prototypeDef: OObject
       ))) =>
         //println(s"ClassParentAndPrototypeDef2 $name extends $sym")
         Some(ClassId(name), ClassId(sym), prototypeDef)
@@ -228,12 +234,12 @@ package object classes {
       Seq(Node.Identifier(name) Dot "prototype", prototypeDef: OObject)
       )) =>
         //println(s"Match prototype def $name")
-        Some(ClassId(name),prototypeDef)
+        Some(ClassId(name), prototypeDef)
 
       /// XXX.prototype = new { ... }
       case Node.ExpressionStatement(Assign(Node.Identifier(name) Dot "prototype", "=", prototypeDef: OObject)) =>
         //println(s"Match prototype def $name")
-        Some(ClassId(name),prototypeDef)
+        Some(ClassId(name), prototypeDef)
 
       case _ => None
     }
@@ -306,7 +312,7 @@ package object classes {
           val isInit = clsMember.exists(_.definedFrom(statement))
           //println(s"Static member $name.$member - init $isInit")
           if (isInit) Node.EmptyStatement() else node
-        case _  =>
+        case _ =>
           node
       }
 
@@ -390,11 +396,11 @@ package object classes {
           }
         }
 
-        def newGetter(k: String,  tokensFrom: Node.Node, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean = false) = {
+        def newGetter(k: String, tokensFrom: Node.Node, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean = false) = {
           newGetterOrSetter("get", k, tokensFrom, args, body, isStatic)
         }
 
-        def newSetter(k: String,  tokensFrom: Node.Node, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean = false) = {
+        def newSetter(k: String, tokensFrom: Node.Node, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean = false) = {
           newGetterOrSetter("set", k, tokensFrom, args, body, isStatic)
         }
 
@@ -469,7 +475,7 @@ package object classes {
           classNode
         //case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
         //  emptyNode
-        case classNode@Node.ClassDeclaration(_, _, _)  =>
+        case classNode@Node.ClassDeclaration(_, _, _) =>
           //println(s"Node.ClassDeclaration $classNode - not in ${classes.keys}")
 
           node
@@ -480,6 +486,7 @@ package object classes {
 
     val cleanupClasses = createClasses.transformAfter { (node, walker) =>
       implicit val ctx = walker.context
+
       // find enclosing class (if any)
       def thisClass = findThisClassInWalker(walker.context)
 
@@ -505,7 +512,7 @@ package object classes {
 
       def getClassArguments: Seq[String] = {
         val args = findThisClassInWalker(ctx).toSeq.flatMap { defClass =>
-          findInlineBody(defClass).orElse(findConstructor(defClass)).toSeq.map(_.value).collect{case AnyFun(a, _) => a.map(parameterNameString)}.flatten
+          findInlineBody(defClass).orElse(findConstructor(defClass)).toSeq.map(_.value).collect { case AnyFun(a, _) => a.map(parameterNameString) }.flatten
         }
         args
       }
@@ -542,7 +549,7 @@ package object classes {
         Seq(_: Node.ThisExpression, args@_*)
         ) =>
           //println(s"Super call of $func in ${thisClass.map(_.name.get.name)}")
-          call.callee = Dot (Node.Super(), Node.Identifier(func).withTokens(call)).withTokens(call)
+          call.callee = Dot(Node.Super(), Node.Identifier(func).withTokens(call)).withTokens(call)
           call.arguments = removeHeadThis(args)
           call
 
@@ -578,7 +585,7 @@ package object classes {
   def convertClassMembers(n: Node.Node): Node.Node = {
     val ret = n.transformAfter { (node, _) =>
       node match {
-        case cls: Node.ClassDeclaration  =>
+        case cls: Node.ClassDeclaration =>
           //println(s"convertClassMembers Node.ClassDeclaration ${ClassId(cls.name.get)}")
 
           val newMembers = mutable.ArrayBuffer.empty[Node.VariableDeclaration]
@@ -619,18 +626,18 @@ package object classes {
     val ret = n.top.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {
-        case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _) if c.forall(_.findFirstIn(cName).isDefined)=>
+        case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _) if c.forall(_.findFirstIn(cName).isDefined) =>
           p(cls, ctx)
         case _ =>
           node
       }
     }
-    n.copy (top = ret)
+    n.copy(top = ret)
   }
 
 
   def applyRules(n: NodeExtended): NodeExtended = {
-    n.config.rules.foldLeft(n){ (n, rule) =>
+    n.config.rules.foldLeft(n) { (n, rule) =>
       val r = rule(n)
       //n.top.figure_out_scope()
       r
@@ -641,7 +648,7 @@ package object classes {
 
   /**
     * motivation: handle KeyframeTrack.prototype = KeyframeTrackPrototype in Three.js
-    * */
+    **/
   def inlinePrototypeVariables(n: Node.Node): Node.Node = {
     // convert:
     // XXX.prototype = YYYY
@@ -654,7 +661,7 @@ package object classes {
     var prototypeVariableSymbols = Map.empty[SymId, Node.Identifier]
 
     object PrototypeVariable {
-      def unapply(arg: Node.Node) = arg match  {
+      def unapply(arg: Node.Node) = arg match {
         case Node.ExpressionStatement(Assign((clsSym: Node.Identifier) Dot "prototype", "=", Node.Identifier(protoFunSym))) =>
           Some(clsSym, protoFunSym)
         case _ => None
@@ -720,7 +727,7 @@ package object classes {
 
   /**
     * motivation: handle const pp = Parser.prototype in Acorn
-    * */
+    **/
 
   def inlinePrototypeConstants(n: Node.Node): Node.Node = {
     // convert:
@@ -732,7 +739,7 @@ package object classes {
     var prototypeSymbols = Map.empty[SymId, SymId]
 
     object PrototypeConstant {
-      def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match  {
+      def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
         case VarDecl(Id(protoSym), Some(Node.Identifier(clsSym) Dot "prototype"), _) =>
           Some(clsSym, protoSym)
         case _ => None
@@ -755,7 +762,7 @@ package object classes {
       node match {
         case symRef@Node.Identifier(Id(symDef)) =>
           prototypeSymbols.get(symDef).fold[Node.Node](symRef) { clsSymDef =>
-            Dot (
+            Dot(
               Node.Identifier(clsSymDef.name),
               Node.Identifier("prototype")
             )
@@ -770,7 +777,7 @@ package object classes {
 
   /**
     * motivation: handle KeyframeTrack constructor implemented using KeyframeTrackConstructor.apply call
-    * */
+    **/
   def inlineConstructorFunction(n: Node.Node): Node.Node = {
     // list constructor functions
     // XXXXX.prototype.constructor = XXXXX
@@ -860,21 +867,21 @@ package object classes {
   }
 
 
-  val transforms = Seq[NodeExtended => NodeExtended](
-    onTopNode(inlinePrototypeVariables),
-    onTopNode(inlinePrototypeConstants),
-    onTopNode(inlineConstructorFunction),
-    onTopNode(convertProtoClassesRecursive),
-    onTopNode(convertClassMembers),
+  val transforms = Seq[(Symbol, NodeExtended => NodeExtended)](
+    'inlinePrototypeVariables -> onTopNode(inlinePrototypeVariables),
+    'inlinePrototypeConstants -> onTopNode(inlinePrototypeConstants),
+    'inlineConstructorFunction -> onTopNode(inlineConstructorFunction),
+    'convertProtoClassesRecursive -> onTopNode(convertProtoClassesRecursive),
+    'convertClassMembers -> onTopNode(convertClassMembers),
     // privateVariables before FillVarMembers, so that variables are introduced correctly
-    onTopNode(transform.classes.InlineConstructors.privateVariables),
+    'privateVariables -> onTopNode(transform.classes.InlineConstructors.privateVariables),
     // privateFunctions after privateVariables, are already converted to this.member references
     // privateFunctions before FillVarMembers, so that variables for the functions are not created yet
-    onTopNode(transform.classes.InlineConstructors.privateFunctions),
-    transform.classes.FillVarMembers.apply,
+    'privateFunctions -> onTopNode(transform.classes.InlineConstructors.privateFunctions),
+    'FillVarMembers -> transform.classes.FillVarMembers.apply,
     // applyRules after fillVarMembers - we cannot delete members before they are created
     // applyRules before inlineConstructors, so that constructor is a single function
-    applyRules,
-    transform.classes.InlineConstructors.apply
+    'applyRules -> applyRules,
+    'InlineConstructors -> transform.classes.InlineConstructors.apply
   )
 }

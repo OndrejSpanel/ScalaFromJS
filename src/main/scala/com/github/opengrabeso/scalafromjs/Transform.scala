@@ -832,46 +832,54 @@ object Transform {
 
     import transform._
 
-    val transforms = Seq[NodeExtended => NodeExtended](
-      onTopNode(Modules.cleanupExports),
-      onTopNode(Modules.inlineImports),
-      onTopNode(handleIncrement),
-      onTopNode(Variables.splitMultipleDefinitions),
-      onTopNode(Variables.varInitialization),
-      readJSDoc,
-      onTopNode(iife), // removes also trailing return within the IIFE construct
-      onTopNode(removeDoubleScope), // after iife (often introduced by it)
-      onTopNode(processCall),
-      onTopNode(Variables.detectForVars),
-      onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
-      onTopNode(Variables.detectVals), // before convertConstToFunction
-      onTopNode(Variables.detectMethods),
-      onTopNode(Variables.convertConstToFunction)
+    val transforms = Seq[(Symbol, NodeExtended => NodeExtended)](
+      'cleanupExports -> onTopNode(Modules.cleanupExports),
+      'inlineImports -> onTopNode(Modules.inlineImports),
+      'handleIncrement -> onTopNode(handleIncrement),
+      'splitMultipleDefinitions -> onTopNode(Variables.splitMultipleDefinitions),
+      'varInitialization -> onTopNode(Variables.varInitialization),
+      'readJSDoc -> readJSDoc,
+      'iife ->onTopNode(iife), // removes also trailing return within the IIFE construct
+      'removeDoubleScope ->onTopNode(removeDoubleScope), // after iife (often introduced by it)
+      'processCall ->onTopNode(processCall),
+      'detectForVars ->onTopNode(Variables.detectForVars),
+      'detectDoubleVars ->onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
+      'detectVals ->onTopNode(Variables.detectVals), // before convertConstToFunction
+      'detectMethods ->onTopNode(Variables.detectMethods),
+      'convertConstToFunction ->onTopNode(Variables.convertConstToFunction)
     ) ++ transform.classes.transforms ++ Seq(
-      onTopNode(Parameters.removeDeprecated),
-      onTopNode(Parameters.defaultValues),
-      onTopNode(Parameters.modifications),
-      Parameters.simpleParameters _,
-      onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
-      Variables.instanceofImpliedCast _,
-      objectAssign _,
-      onTopNode(removeVarClassScope),
-      InferTypes.multipass _,
-      onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
-      onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
-      Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
-      onTopNode(Variables.detectVals),
-      onTopNode(BoolComparison.apply), // after inferTypes (boolean comparisons may help to infer type as bool)
-      onTopNode(Collections.apply),
-      onTopNode(relations)
+      'removeDeprecated -> onTopNode(Parameters.removeDeprecated),
+      'defaultValues -> onTopNode(Parameters.defaultValues),
+      'modifications -> onTopNode(Parameters.modifications),
+      'simpleParameters -> Parameters.simpleParameters _,
+      'varInitialization -> onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
+      'instanceofImpliedCast -> Variables.instanceofImpliedCast _,
+      'objectAssign -> objectAssign _,
+      'removeVarClassScope -> onTopNode(removeVarClassScope),
+      'multipass -> InferTypes.multipass _,
+      'removeTrailingBreak -> onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
+      'removeTrailingReturn -> onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
+      'inlineConstructorVars -> Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
+      'detectVals -> onTopNode(Variables.detectVals),
+      'BoolComparison -> onTopNode(BoolComparison.apply), // after inferTypes (boolean comparisons may help to infer type as bool)
+      'Collections -> onTopNode(Collections.apply),
+      'relations -> onTopNode(relations)
     )
 
-    transforms.zipWithIndex.foldLeft(n) { (t,op) =>
-      Time(s"step ${op._2}") {
+    transforms.foldLeft(n) { case (t, (opName, op)) =>
+      Time(s"step ${opName.name}") {
         // TODO: check: is this ever needed? We do not need to keep the old AST around
         val tClone = t.copy(top = t.top.cloneDeep())
         //t.top.figure_out_scope()
-        op._1(tClone)
+        val ret = op(tClone)
+        val debug = true
+        if (debug) {
+          val retString = ScalaOut.output(ret, "").mkString
+          println(s"step ${opName.name}")
+          println(retString)
+          println()
+        }
+        ret
       }
     }
   }
