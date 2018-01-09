@@ -455,8 +455,8 @@ object ScalaOut {
         }
       }
 
-      def outputMethodNode(pm: Node.ClassBodyElement, decl: String = "def") = {
-        out.eol()
+      def outputMethodNode(pm: Node.ClassBodyElement, decl: String = "def", eol: Boolean = true) = {
+        if (eol) out.eol()
         pm match {
           case p: Node.MethodDefinition =>
             outputMethod(p.key, p.value, p.kind, decl)
@@ -1172,8 +1172,9 @@ object ScalaOut {
                       isOverride.contains(true)
                     }
 
+                    out.eol()
                     if (isObjectOverride || isNormalOverride) out("override ")
-                    outputMethodNode(p)
+                    outputMethodNode(p, eol = false)
                   case _ =>
                     nodeToOut(pm)
                 }
