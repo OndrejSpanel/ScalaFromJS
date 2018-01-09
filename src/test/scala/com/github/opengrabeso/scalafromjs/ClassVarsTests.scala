@@ -187,6 +187,30 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
   }
 
+  test("Local variables should be left intact when constructor is returning a prototype") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      function F() {
+        return {
+          get: function () {
+            var xx;
+            return xx;
+          }
+        };
+      }
+
+      var f = new F();
+      """).required(
+        "var xx"
+      ).forbidden(
+        "this.xx"
+      )
+
+  }
+
+
+
   test("Private variables should not be created for known functions") {
     exec check ConversionCheck(
       // language=JavaScript

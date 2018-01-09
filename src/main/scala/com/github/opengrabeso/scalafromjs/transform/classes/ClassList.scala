@@ -225,8 +225,10 @@ object ClassList {
 
               body.foreach {
                 case DefFun(Defined(Node.Identifier(sym)), fArgs, fBody, _) =>
-                  val member = ClassFunMember(fArgs, transformReferencesInBody(fBody.body))
-                  res.clazz = res.clazz.addMember(sym, member)
+                  ctx.withScope(fBody) {
+                    val member = ClassFunMember(fArgs, transformReferencesInBody(fBody.body))
+                    res.clazz = res.clazz.addMember(sym, member)
+                  }
                 case Node.VariableDeclaration(vars, kind) =>
                   //println("Vardef")
                   vars.foreach {
@@ -252,8 +254,10 @@ object ClassList {
                     case Node.Identifier(other) =>
                       res.clazz = res.clazz.renameMember(other, name)
                     case AnyFun(fArgs, fBody) =>
-                      val member = ClassFunMember(fArgs, transformReferencesInBody(Block.statements(fBody)))
-                      res.clazz = res.clazz.addMember(name, member)
+                      ctx.withScope(fBody) {
+                        val member = ClassFunMember(fArgs, transformReferencesInBody(Block.statements(fBody)))
+                        res.clazz = res.clazz.addMember(name, member)
+                      }
                     case _ =>
                     // TODO: we should include only the ones used by the return value - this may include some renaming
                     // TODO: the unused ones should be marked private
