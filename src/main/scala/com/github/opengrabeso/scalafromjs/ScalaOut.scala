@@ -187,6 +187,7 @@ object ScalaOut {
       c <- nonNull
     } {
       if (!(input.commentsDumped contains new IdentityBox(c))) {
+        out.submitLocation(c.range._1, "comment")
         if (c.`type` == "Block") {
           // process line by line, fix indenting
           val content = c.value.toString
