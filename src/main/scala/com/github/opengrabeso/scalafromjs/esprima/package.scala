@@ -104,6 +104,18 @@ package object esprima extends NodeExt {
       symbols.walk(ast)(callback)
     }
     */
+    def cloneDeep(): T = {
+      import walker._
+      if (ast != null) {
+        val cloned = ast.cloneNode()
+        transformInto(cloned)(_.cloneDeep())
+        cloned.asInstanceOf[T]
+      } else {
+        ast
+      }
+    }
+
+
 
     def transform(transformer: TreeTransformer): T = {
       import walker._
@@ -189,10 +201,6 @@ package object esprima extends NodeExt {
       ctx.withScope(ast) {
         transformAfterSimple(ctx)(_after)
       }
-    }
-
-    def cloneDeep(): T = {
-      transformAfterSimple(_.cloneNode())
     }
 
   }
