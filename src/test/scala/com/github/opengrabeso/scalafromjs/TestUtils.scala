@@ -16,7 +16,7 @@ trait TestUtils extends Assertions {
     val standardForbidden = Seq(";", "/* Unsupported:")
   }
 
-  case class TestSetup(mustHave: Seq[String] = Seq.empty[String], mustNotHave: Seq[String] = ConversionCheck.standardForbidden)
+  case class TestSetup(mustHave: Seq[String] = Seq.empty[String], mustNotHave: Seq[String] = ConversionCheck.standardForbidden, custom: String => Seq[String] = _ => Seq.empty)
 
   case class TestCheck(setup: TestSetup = TestSetup(), getResult: () => String) {
 
@@ -25,19 +25,22 @@ trait TestUtils extends Assertions {
 
     def required(add: String*) = copy(setup = setup.copy(mustHave = setup.mustHave ++ add))
     def forbidden(add: String*) = copy(setup = setup.copy(mustNotHave = setup.mustNotHave ++ add))
+    def custom(fun: String => Seq[String]) = copy(setup = setup.copy(custom = fun))
 
     def checkResult(result: String): Try[Unit] = {
+      val customResult = setup.custom(result)
       val missing = setup.mustHave.filter(s => !result.contains(normalizeEol(s)))
       val forbidden = setup.mustNotHave.filter(s => result.contains(normalizeEol(s)))
-      if (missing.isEmpty & forbidden.isEmpty) {
+      if (missing.isEmpty && forbidden.isEmpty && customResult.isEmpty) {
         Success(())
       } else Failure {
         def stringList(ss: Seq[String]) = ss.map("  " + _ + "\n").mkString
 
         val missingStr = if (missing.nonEmpty) "Missing: \n" + stringList(missing) else ""
         val forbiddenStr = if (forbidden.nonEmpty) "Forbidden: \n" + stringList(forbidden) else ""
+        val customStr = if (customResult.nonEmpty) "Failed: \n" + stringList(customResult.toSeq) else ""
 
-        new UnsupportedOperationException(missingStr + forbiddenStr + "in \n" + result)
+        new UnsupportedOperationException(missingStr + forbiddenStr + customStr + "in \n" + result)
       }
     }
 
