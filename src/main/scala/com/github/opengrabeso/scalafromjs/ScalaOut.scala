@@ -218,6 +218,9 @@ object ScalaOut {
 
   def dumpTrailingComments(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext) = {
     dumpComments(n.innerComments) // if somebody did not call innerComments, do it now - calling twice will ignore the second call
+    if (Option(n.trailingComments).exists(_.nonEmpty)) {
+      out.eol()
+    }
     dumpComments(n.trailingComments)
   }
 
