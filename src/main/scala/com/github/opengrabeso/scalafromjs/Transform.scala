@@ -515,12 +515,21 @@ object Transform {
             if (typeLeft == typeRight) typeLeft
             else if (typeLeft.exists(_.target == string) || typeRight.exists(_.target == string)) Some(TypeInfo.target(string))
             else None
-          case IsBoolean() =>
+          case "||" =>
             // boolean with the same type is the same type
             val typeLeft = expressionType(left, log)
             val typeRight = expressionType(right, log)
-            if (typeLeft == typeRight) typeLeft
-            else None
+            // prefer left type, like in true || xxx
+            typeLeft.orElse(typeRight)
+
+          case "&&" =>
+            // boolean with the same type is the same type
+            val typeLeft = expressionType(left, log)
+            val typeRight = expressionType(right, log)
+            // prefer right type, like in true && xxx
+            typeRight.orElse(typeLeft)
+
+
           case _ =>
             None
         }
@@ -849,7 +858,7 @@ object Transform {
       'convertConstToFunction ->onTopNode(Variables.convertConstToFunction)
     ) ++ transform.classes.transforms ++ Seq(
       'removeDeprecated -> onTopNode(Parameters.removeDeprecated),
-      'defaultValues -> onTopNode(Parameters.defaultValues),
+      'defaultValues -> onTopNode(Parameters.defaultValues), // if possible, do before type inference, as it is much simpler after it
       'modifications -> onTopNode(Parameters.modifications),
       'simpleParameters -> Parameters.simpleParameters _,
       'varInitialization -> onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
@@ -860,6 +869,7 @@ object Transform {
       'removeTrailingBreak -> onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       'removeTrailingReturn -> onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
       'inlineConstructorVars -> Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
+      'defaultValues -> onTopNode(Parameters.defaultValues), // do again after inlineConstructorVars, might handle private variables
       'detectVals -> onTopNode(Variables.detectVals),
       'BoolComparison -> onTopNode(BoolComparison.apply), // after inferTypes (boolean comparisons may help to infer type as bool)
       'Collections -> onTopNode(Collections.apply),
@@ -872,7 +882,7 @@ object Transform {
         val tClone = t.copy(top = t.top.cloneDeep())
         //t.top.figure_out_scope()
         val ret = op(tClone)
-        val debug = true
+        val debug = false
         if (debug) {
           val retString = ScalaOut.output(ret, "").mkString
           println(s"step ${opName.name}")

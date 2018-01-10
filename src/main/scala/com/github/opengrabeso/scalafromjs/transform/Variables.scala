@@ -308,7 +308,7 @@ object Variables {
                 val kind = defined(vName) // val detection will be done separately, no need to do it now
                 // use td.orig if possible to keep original initialization tokens
                 //println(s"  Replaced $sr Node.Identifier with $r, init ${nodeClassName(right)}")
-                VarDecl(vName.name, Some(right), kind, node)
+                VarDecl(vName.name, Some(right), kind, right)
               } else {
                 node
               }
@@ -387,7 +387,7 @@ object Variables {
     }
   }
 
-  def replaceVariable[T <: Node.Node](n: T, oldName: SymId, newExpr: Node.Node)(implicit ctx: ScopeContext): T = {
+  def replaceVariable[T <: Node.Node](n: T, oldName: SymId, newExpr: => Node.Node)(implicit ctx: ScopeContext): T = {
     n.transformBefore(ctx) { (node, descend, transformer) =>
       implicit val ctx = transformer.context
       node match {

@@ -91,6 +91,9 @@ package object esprima extends NodeExt {
           case id: Identifier =>
             needsLoc(id)
             false
+          case dot: StaticMemberExpression =>
+            needsLoc(dot)
+            false
 
           case _ =>
             false
@@ -164,8 +167,15 @@ package object esprima extends NodeExt {
 
         override def after(node: Node) = _after(node, tr)
       }
-      //ast.verifyScopesValid()
-      val ret = ast.transform(tr) // .verifyScopesValid()
+      val validation = false
+      implicit class DoValidation(ast: T) {
+        def validate: T = if (validation) ast.verifyScopesValid() else ast
+      }
+      ast.validate
+
+      val ret = ast.transform(tr)
+
+      ret.validate
 
       assert(ctx.scopes.length == origScopes)
       assert(ctx.parents.length == origParents)

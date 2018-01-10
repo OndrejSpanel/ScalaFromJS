@@ -10,6 +10,7 @@ import Variables._
 import Symbols._
 import SymbolTypes._
 import VariableUtils._
+import com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
 
 object InlineConstructors {
@@ -142,15 +143,7 @@ object InlineConstructors {
     transitiveClosure(exportedDirectly)
   }
 
-  private def detectPrivateMembers(n: Node.Node)(implicit ctx: ScopeContext): Seq[PrivateMember] = {
-    // any variable defined in the main body scope and references from any function is considered a private member
-    //n.variables = Dictionary.empty[SymbolDef]
-
-
-    val refs = buildReferenceStacks(n)
-
-    val functions = detectPrivateFunctions(n)
-
+  private def listLocalVariables(n: Node.Node)(implicit ctx: ScopeContext): Map[SymId, Node.Node] = {
     // list all variables
     var variables = Map.empty[SymId, Node.Node]
     n.walkWithScope(ctx) {(node, context) =>
@@ -166,6 +159,16 @@ object InlineConstructors {
           false
       }
     }
+    variables
+  }
+
+  private def detectPrivateMembers(n: Node.Node, variables: Map[SymId, Node.Node])(implicit ctx: ScopeContext): Seq[PrivateMember] = {
+    // any variable defined in the main body scope and references from any function is considered a private member
+    //n.variables = Dictionary.empty[SymbolDef]
+
+    val refs = buildReferenceStacks(n)
+
+    val functions = detectPrivateFunctions(n)
 
     // check if they are references from any private function
     var privates = Set.empty[SymId]
@@ -208,62 +211,58 @@ object InlineConstructors {
           for {
             constructorProperty@Node.MethodDefinition(_, _, AnyFun(params, body), _, _) <- findConstructor(cls)
           } ctx.withScope(cls.body, constructorProperty, constructorProperty.value) {
-            val allLocals = detectPrivateMembers(body)
+
+            // constructor parameters need a different handling
+            val parameterLocals = params.map(p => Id(parameterNameString(p)) -> p).toMap
+
+            val constructorLocals = listLocalVariables(body)
+
+            val allPrivates = detectPrivateMembers(body, constructorLocals ++ parameterLocals)
+
             // convert private variables to members (TODO: mark them as private somehow)
 
-            //println(s"Locals ${allLocals.map(l => l.sym.name -> l.isVal)}")
-            /*
-            val parameterMembers = params.map { p =>
-              val name = parameterNameString(p)
-              PrivateMember(Id(name), true, p)
+            //println(s"Locals ${allPrivates.map(l => l.sym.name -> l.isVal)}")
 
-            }
-            */
-            //println(s"Parameters ${parameterMembers.map(l => l.sym.name -> l.isVal)}")
 
-            // parameters need different processing
+            //val (privateParameters, privateLocals) = allPrivates.partition(l => parameterLocals.contains(l.sym))
 
-            val paramsId = params.map(parameterNameString).map(Id.apply).toSet
-
-            // some of them may be a constructor parameters, they need a different handling
-            val locals = allLocals.filterNot(l => paramsId.contains(l.sym) )
-
-            //println(s"Locals ${allLocals.map(l => l.sym.name -> l.isVal)}")
-            //println(s"Parameters ${constructorParameters.map(l => l.sym.name -> l.isVal)}")
+            //println(s"Locals ${allPrivates.map(l => l.sym.name -> l.isVal)}")
+            //println(s"Parameters ${localsForParameters.map(l => l.sym.name -> l.isVal)}")
 
             def newThisDotMember(member: String) = Dot(Node.ThisExpression(), Node.Identifier(member))
 
-            def privateMember(v: SymId): Node.Node = newThisDotMember(v.name)
-
-            val constructor = locals.foldLeft(body) { (constructor, privateVar) =>
+            val bodyWithRenamedPrivates = allPrivates.foldLeft(body) { (constructor, privateVar) =>
               // first replace variable use - without init it is no longer declared
+              val replaced = replaceVariable(constructor, privateVar.sym, newThisDotMember(privateVar.sym.name).withTokens(privateVar.tokens))
               //println(s"Replaced private var ${privateVar.sym.name}")
-              val replaced = replaceVariable(constructor, privateVar.sym, privateMember(privateVar.sym))
-
-              val replacedInit = replaceVariableInit(replaced, privateVar.sym) { (sym, init) =>
-                Node.ExpressionStatement (
-                  Assign(
-                    newThisDotMember(sym.name),
-                    "=",
-                    init.cloneNode()
-                  )
-                  //println(s"Replaced init ${sym.name} $init")
+             if (parameterLocals.contains(privateVar.sym)) {
+                // rename constructor parameter, assign it into a this.xxx
+                // transform constructor(x) {} into constructor(x){this.x = x}
+                val block = Block(constructor).withTokens(constructor)
+                def newPrivateVarIdentifier = Node.Identifier(privateVar.sym.name).withTokens(privateVar.tokens)
+                val addPrefix: Node.StatementListItem = Node.ExpressionStatement(
+                  Assign(Dot(Node.ThisExpression(), newPrivateVarIdentifier).withTokens(privateVar.tokens), "=", newPrivateVarIdentifier)
                 )
+                block.body = addPrefix +: block.body
+                block
+              } else {
+                replaceVariableInit(replaced, privateVar.sym) { (sym, init) =>
+                  Node.ExpressionStatement (
+                    Assign(newThisDotMember(sym.name), "=", init.cloneNode())
+                  )
+                }
               }
-
-              replacedInit
-
             }
+
             constructorProperty.value match {
               case f: Node.FunctionExpression =>
-                f.body.body = Block.statements(constructor)
+                f.body.body = Block.statements(bodyWithRenamedPrivates)
             }
 
             // DRY: FillVarMembers
             val clsTokenDef = classTokenSource(cls)
 
-            // do not introduce a variable for parameters, they already exist
-            val vars = allLocals.map { local =>
+            val vars = allPrivates.map { local =>
               val varDecl = VarDecl(local.sym.name, None, if (local.isVal) "const" else "var", local.tokens)
               //println(s"privateVariables ${local.sym.name} $varDecl ${cls.start.get.pos}")
               varDecl
@@ -446,7 +445,8 @@ object InlineConstructors {
                         assert(id.name == sym.name)
                         if ((parNamesSet contains sym.name) && (id.sourcePos == inlineBodyScope || id.sourcePos == constructorScope)) {
                           classSymIds.rename(sym, sym.name, sym.name + parSuffix)
-                          types = types addHint Some(SymId(sym.name, inlineBodyScope)) -> IsConstructorParameter
+                          // remove the old hint if needed?
+                          types = types addHint Some(SymId(sym.name  + parSuffix, inlineBodyScope)) -> IsConstructorParameter
                           Node.Identifier(sym.name + parSuffix).withTokens(sym) // prevent modifying original node
                         } else sym
                       // do not inline call, we need this.call form for the inference
@@ -477,7 +477,7 @@ object InlineConstructors {
                     Dot(
                       Node.ThisExpression().withTokens(constructorProperty),
                       Node.Identifier("constructor").withTokens(rest.head)
-                    ),
+                    ).withTokens(constructorProperty),
 
                     params.map { p =>
                       Node.Identifier(parameterNameString(p) + parSuffix).withTokens(rest.head)

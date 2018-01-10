@@ -186,17 +186,17 @@ class ValVarTests extends FunSuite with TestUtils {
       // language=JavaScript
       """
       function f( x, y, z, w ) {
-        this.x = x || 0;
-        this.y = y || 0;
-        this.z = ( z === undefined) ?  0 : z;
-        this.w = ( w !== undefined ) ? w : 1;
+        var fx = x || 0;
+        var fy = y || 0;
+        var fz = ( z === undefined) ?  0 : z;
+        var fw = ( w !== undefined ) ? w : 1;
       }
       """).required(
         "def f(x: Double = 0, y: Double = 0, z: Double = 0, w: Double = 1)",
-        "this.x = x",
-        "this.y = y",
-        "this.z = z",
-        "this.w = w"
+        "val fx = x",
+        "val fy = y",
+        "val fz = z",
+        "val fw = w"
       ).forbidden(
         "val gl"
       )
@@ -218,7 +218,7 @@ class ValVarTests extends FunSuite with TestUtils {
 
       new V4
       """).required(
-        "class V4(x: Double = 0, y: Double = 0, z: Double = 0, w: Double = 1)"
+        "class V4(var x: Double = 0, var y: Double = 0, var z: Double = 0, var w: Double = 1)"
       ).forbidden(
         "_par"
       )
