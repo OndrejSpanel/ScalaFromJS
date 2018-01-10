@@ -297,6 +297,8 @@ trait NodeExt {
         left -> Some(right)
       case id: Node.Identifier =>
         id -> None
+      case Node.RestElement(arg: Node.Identifier) =>
+        arg -> None
       //case _: Node.ArrowParameterPlaceHolder =>
       //case _: Node.BindingPattern =>
     }
