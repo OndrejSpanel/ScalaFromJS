@@ -21,6 +21,8 @@ object ScalaOut {
   import symbols.symId
   import symbols.ScopeContext
 
+  def trimSource(s: String): String = s.replaceAll(";+$", "")
+
   // @param unknowns annotate unknown constructs with a comment (source is always passed through)
 
   case class Config(unknowns: Boolean = true, parts: Seq[Int] = Seq(Int.MaxValue), root: String = "") {
@@ -41,7 +43,7 @@ object ScalaOut {
 
     def formatImport(imported_names: Seq[String], module_name: String, source: String) = {
       // Trim leading or trailing characters from a string? - https://stackoverflow.com/a/25691614/16673
-      val trimmedSource = source.replaceAll(";+$", "")
+      val trimmedSource = trimSource(source)
       val comment = s"/* $trimmedSource */\n" // we cannot use //, some imports are multiline in the JS source
       // TODO: when importing many members, use wildcard instead
       val gen = if (imported_names.isEmpty) ""
@@ -1213,14 +1215,14 @@ object ScalaOut {
           out("/* export */ ")
           nodeToOut(tn.declaration)
         } else {
-          out(s"/* $source */")
+          out(s"/* ${trimSource(source)} */")
         }
       case tn: Node.ExportDefaultDeclaration =>
         Option(tn.declaration).foreach(nodeToOut)
-        out(s"/* $source */")
+        out(s"/* ${trimSource(source)} */")
       case tn: Node.ExportAllDeclaration =>
         //out(s"/* export */ def ${tn.exported_definition} name ${tn.module_name} value ${tn.exported_value}\n")
-        out(s"/* $source */")
+        out(s"/* ${trimSource(source)} */")
       case tn: Node.ImportDeclaration =>
         // try to create a package name from the import directive
         // start from the root
