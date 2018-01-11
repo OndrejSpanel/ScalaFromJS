@@ -473,7 +473,7 @@ object ScalaOut {
           val sType = input.types.get(memberSymId)
           sType.map(_.declType) match {
             case Some(SymbolTypes.FunctionType(ret, _)) =>
-              out"var $key: $ret = $value\n"
+              out"var $key: ${ret.toOut} = $value\n"
             case _ =>
               out"var $key = $value\n"
           }

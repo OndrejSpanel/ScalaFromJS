@@ -245,7 +245,7 @@ object Classes {
             val parentId = Option(d.superClass).flatMap(symId)
             classes += id -> (parentId, d)
           }
-          true
+          false // classes may contain inner classes
         case _: Node.Program =>
           false
         case _ =>
@@ -263,8 +263,7 @@ object Classes {
     def getParent(name: SymbolMapId): Option[SymId] = classes.get(name).flatMap(_._1)
 
     def classPos(name: SymbolMapId): (Int, Int) = {
-      val cls = classes(name)._2
-      cls.body.range // see also classTokenSource
+      classes.get(name).map(_._2.body.range).getOrElse((-1, -1))
     }
 
   }
