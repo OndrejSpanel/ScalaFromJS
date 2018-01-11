@@ -445,7 +445,8 @@ object ScalaOut {
               context.withScope(body) {
                 blockBracedToOut(body.body)
               }
-              out.eol()
+              out("\n") // use this to better match Uglify.js based version output - this is not counted in NiceOutput.eolDone
+              //out.eol()
             }
 
           case _ =>
@@ -605,7 +606,13 @@ object ScalaOut {
 
       def outForHeader(forIn: Node.ForInStatement) = {
         out("for (")
-        nodeToOut(forIn.left)
+        val variable = forIn.left match {
+          case Node.Identifier(name) =>
+            name
+          case VarDecl(name, _, _) =>
+            name
+        }
+        out(identifier(variable))
         out(" <- ")
         nodeToOut(forIn.right)
         out(") ")
@@ -1181,6 +1188,7 @@ object ScalaOut {
                     out.eol()
                     if (isObjectOverride || isNormalOverride) out("override ")
                     outputMethodNode(p, eol = false)
+                    out.eol(2)
                   case _ =>
                     nodeToOut(pm)
                 }
