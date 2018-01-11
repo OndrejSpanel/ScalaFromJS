@@ -22,10 +22,10 @@ object Rules {
         val body = getMethodBody(inlineBody)
         body.foreach { b =>
           val filteredBody = b.body.filter {
-            case v@VarDecl(name, _, _)  =>
+            case VarDecl(name, _, _)  =>
               member.name.findFirstIn(name).isEmpty
-            case v =>
-              false
+            case _ =>
+              true
           }
           inlineBody.value.asInstanceOf[Node.FunctionExpression].body.body = filteredBody
         }

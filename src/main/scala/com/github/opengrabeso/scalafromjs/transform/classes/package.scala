@@ -318,6 +318,8 @@ package object classes {
 
     }
 
+    val logging = false
+
     val createClasses = deleteProtos.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
 
@@ -442,7 +444,7 @@ package object classes {
 
         val properties = classProperties(clazz)
 
-        //println(s"classDefine ${sym.name} ${sym.thedef.map(SymbolTypes.id)} ${clazz.base} $base ${base.flatMap(_.thedef.map(SymbolTypes.id))}")
+        if (logging) println(s"classDefine ${sym.name} ${Id(sym)} ${clazz.base} $base")
         newClass(sym, base, properties, tokensFrom)
       }
 
