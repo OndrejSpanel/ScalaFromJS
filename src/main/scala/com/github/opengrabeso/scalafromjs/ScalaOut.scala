@@ -2,9 +2,7 @@ package com.github.opengrabeso.scalafromjs
 
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
-import JsUtils._
 import Classes._
-import com.github.opengrabeso.scalafromjs.SymbolTypes.MemberId
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, SymId}
 
 import scala.util.Try
@@ -70,6 +68,8 @@ object ScalaOut {
   abstract class Output extends ((String) => Unit) {
     def out(x: String): Unit
 
+    def appendLine(x: String): Unit = apply(x)
+
     def eol(num: Int = 1): Unit = out("\n")
 
     def changeIndent(ch: Int): Unit = ()
@@ -83,7 +83,9 @@ object ScalaOut {
   abstract class NiceOutput extends Output {
     def out(x: String): Unit
 
+
     private var eolDone = Int.MaxValue
+    private var eolPending = 0
     private var indentLevel = 0
 
     protected def currentIndentLevel = indentLevel
@@ -91,17 +93,41 @@ object ScalaOut {
     override def changeIndent(ch: Int): Unit = indentLevel += ch
 
     private def singleLine(line: String) = {
+      doEol()
       if (eolDone > 0) out(" " * (indentLevel * 2))
       out(line)
       if (line == "\n") eolDone += 1
       else eolDone = if (line.lastOption.contains('\n')) 1 else 0
     }
 
-    override def eol(num: Int) = {
-      while (eolDone < num) {
+    override def appendLine(v: String): Unit = {
+      val lines = v.linesWithSeparators.toSeq
+      for (line <- lines.headOption) {
+        out(" ") // separate whet we are appending (a comment) with a space
+        out(line)
+      }
+      for (line <- lines.drop(1)) {
+        singleLine(line)
+      }
+
+    }
+
+
+
+    private def doEol(): Unit = {
+      while (eolDone < eolPending) {
         out("\n")
         eolDone += 1
       }
+      eolPending = 0
+
+    }
+
+    override def eol(num: Int) = {
+      // num is number of total eols wanted
+      // eolDone was already done, eolPending is how many will we need
+      val toEol = num - eolDone
+      if (toEol > eolPending) eolPending = toEol
     }
 
     def apply(v: String) = {
@@ -189,6 +215,7 @@ object ScalaOut {
       c <- nonNull
     } {
       if (!(input.commentsDumped contains new IdentityBox(c))) {
+
         out.submitLocation(c.range._1, "comment")
         if (c.`type` == "Block") {
           // process line by line, fix indenting
@@ -201,7 +228,23 @@ object ScalaOut {
           }
           out("*/\n")
         } else {
-          out(s"//${c.value}".trim)
+          // check if comment was started on a new line
+          // parser does not tell us this, we need to check input
+
+          // check if there are any characters between line start and this comment prefix
+          // comment range starts on the comment prefix // (the value does not include it)
+          val begLine = input.input.lastIndexOf('\n', c.range._1 - 1) + 1 max 0
+          val linePrefix = input.input.substring(begLine, c.range._1)
+
+          val wholeLine = linePrefix.forall(_.isWhitespace)
+
+          val str = s"//${c.value}".trim
+          if (!wholeLine) {
+            out.appendLine(str)
+          } else {
+            out.eol()
+            out(str)
+          }
           out.eol()
         }
         input.commentsDumped += new IdentityBox(c)
@@ -220,9 +263,11 @@ object ScalaOut {
 
   def dumpTrailingComments(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext) = {
     dumpComments(n.innerComments) // if somebody did not call innerComments, do it now - calling twice will ignore the second call
+    /*
     if (Option(n.trailingComments).exists(_.nonEmpty)) {
       out.eol()
     }
+    */
     dumpComments(n.trailingComments)
   }
 
@@ -443,7 +488,7 @@ object ScalaOut {
               out(" = ")
               //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
               context.withScope(body) {
-                blockBracedToOut(body.body)
+                blockBracedToOut(body)
               }
               out("\n") // use this to better match Uglify.js based version output - this is not counted in NiceOutput.eolDone
               //out.eol()
@@ -816,6 +861,7 @@ object ScalaOut {
           argument.foreach { v =>
             out(" ")
             nodeToOut(v)
+            dumpTrailingComments(n)
             out.eol()
           }
         //case tn: Node.Exit => outputUnknownNode(tn)
@@ -827,6 +873,7 @@ object ScalaOut {
             out(" else ")
             nodeToOut(a)
           }
+          dumpTrailingComments(n)
           out.eol()
         case tn: Node.WithStatement => outputUnknownNode(tn, true)
         case tn: Node.ForInStatement =>
@@ -865,6 +912,7 @@ object ScalaOut {
             }
 
             blockToOut(bodyFromStatement(yieldBody))
+            dumpTrailingComments(n)
             out.unindent()
             out("}")
           }
@@ -952,12 +1000,13 @@ object ScalaOut {
           Option(tn.handler).foreach(nodeToOut)
           Option(tn.finalizer).foreach { fin =>
             out(" finally ")
-            blockBracedToOut(fin.body)
+            blockBracedToOut(fin)
           }
         case Node.SwitchCase(IsNull(), body) =>
           out("case _ =>\n")
           out.indent()
           blockToOut(body)
+          dumpTrailingComments(n)
           out.eol()
           out.unindent()
 
@@ -968,6 +1017,7 @@ object ScalaOut {
             out(" =>\n")
             out.indent()
             blockToOut(body)
+            dumpTrailingComments(n)
             out.eol()
             out.unindent()
           }
@@ -1013,7 +1063,7 @@ object ScalaOut {
           out"def ${tn.id}"
           outputArgNames(tn.params, true)(tn)
           out(" = ")
-          blockBracedToOut(tn.body.body)
+          blockBracedToOut(tn.body)
           out.eol()
 
         /*
@@ -1028,15 +1078,15 @@ object ScalaOut {
           outputArgNames(tn.params)(tn)
           out(" => ")
           //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
-          blockBracedToOut(tn.body.body)
+          blockBracedToOut(tn.body)
         case tn: Node.ArrowFunctionExpression =>
           outputArgNames(tn.params)(tn)
           out(" => ")
           tn.body match {
             case body: Node.Expression =>
               nodeToOut(body)
-            case Node.BlockStatement(body) =>
-              blockBracedToOut(body)
+            case block: Node.BlockStatement =>
+              blockBracedToOut(block)
           }
           out.eol()
         //case tn: Node.Program => outputUnknownNode(tn)
@@ -1188,7 +1238,7 @@ object ScalaOut {
                     out.eol()
                     if (isObjectOverride || isNormalOverride) out("override ")
                     outputMethodNode(p, eol = false)
-                    out.eol(2)
+                    out("\n")
                   case _ =>
                     nodeToOut(pm)
                 }
@@ -1202,7 +1252,7 @@ object ScalaOut {
             }
           }
         case tn: Node.BlockStatement =>
-          blockBracedToOut(tn.body)
+          blockBracedToOut(tn)
         //case tn: Node.BlockStatement =>
         case tn: Node.ExpressionStatement =>
           nodeToOut(tn.expression)
@@ -1251,7 +1301,6 @@ object ScalaOut {
           out.eol()
       }
 
-      dumpTrailingComments(n)
 
     }
 
@@ -1267,11 +1316,13 @@ object ScalaOut {
     out(identifier(name))
   }
 
-  private def blockBracedToOut(body: Seq[Node.StatementListItem], force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext) = {
+  private def blockBracedToOut(block: Node.BlockStatement, force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext) = {
+    val body = block.body
     // TODO: single statement without braces
     out("{\n")
     out.indent()
     blockToOut(body)
+    dumpInnerComments(block)
     out.unindent()
     out.eol()
     out("}")
@@ -1279,8 +1330,10 @@ object ScalaOut {
 
   private def blockToOut(body: Seq[Node.StatementListItem])(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
     for ((s, notLast) <- markEnd(body)) {
+      dumpLeadingComments(s)
       nodeToOut(s)
       if (notLast) out.eol()
+      else dumpTrailingComments(s)
     }
   }
 
