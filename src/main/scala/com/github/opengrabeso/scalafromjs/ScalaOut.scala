@@ -72,6 +72,9 @@ object ScalaOut {
 
     def eol(num: Int = 1): Unit = out("\n")
 
+
+    def flush() = {}
+
     def changeIndent(ch: Int): Unit = ()
 
     def indent(): Unit = changeIndent(+1)
@@ -136,6 +139,10 @@ object ScalaOut {
         singleLine(line)
       }
 
+    }
+
+    override def flush() = {
+      doEol()
     }
 
   }
@@ -1365,6 +1372,7 @@ object ScalaOut {
     val scopeContext = new ScopeContext
     scopeContext.withScope(ast.top) {
       blockToOut(ast.top.body)(outConfig, inputContext, ret, scopeContext)
+      ret.flush()
     }
     sb.map(_.result)
   }
@@ -1387,6 +1395,7 @@ object ScalaOut {
     scopeContext.withScope(ast) {
       nodeToOut(ast)(outConfig, inputContext, ret, scopeContext)
     }
+    ret.flush()
     sb.result
   }
 }
