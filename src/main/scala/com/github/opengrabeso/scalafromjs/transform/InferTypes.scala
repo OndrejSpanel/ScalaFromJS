@@ -584,17 +584,21 @@ object InferTypes {
             addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(s"Infer return type for method $cls.$sym as $retType")
           }
 
-        case Node.MethodDefinition(Node.Identifier(sym), _, expr: Node.Expression, _, _) =>
+        case Node.MethodDefinition(Node.Identifier(sym), _, expr: Node.Expression, kind, _) =>
           val scope = findThisClass(scopeCtx)
           for {
             retType <- expressionType(expr)
             Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
             clsId = Id(cls)
           } {
-            //println(s"Infer return type for method ${cls.name}.$sym as $retType")
             val classId = MemberId(clsId, sym)
-            val funType = FunctionType(retType.declType, IndexedSeq())
-            addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(s"Infer return type for method $cls.$sym as $retType")
+            if (kind == "value") { // not a real function, on a value member
+              //println(s"Infer return type for method ${cls.name}.$sym as $retType")
+              addInferredMemberType(Some(classId), Some(retType))(s"Infer return type for member value $cls.$sym as $retType")
+            } else {
+              val funType = FunctionType(retType.declType, IndexedSeq())
+              addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(s"Infer return type for method $cls.$sym as $retType")
+            }
           }
 
 
