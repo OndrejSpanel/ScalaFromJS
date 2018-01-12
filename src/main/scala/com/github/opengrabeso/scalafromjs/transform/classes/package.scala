@@ -667,28 +667,28 @@ package object classes {
     // and replace YYYY with XXX.prototype
     // is order a problem?
 
-    var prototypeVariableSymbols = Map.empty[SymId, Node.Identifier]
+    var prototypeVariableSymbols = Map.empty[SymId, Node.Expression]
 
     object PrototypeVariable {
       def unapply(arg: Node.Node) = arg match {
-        case Node.ExpressionStatement(Assign((clsSym: Node.Identifier) Dot "prototype", "=", Node.Identifier(protoFunSym))) =>
-          Some(clsSym, protoFunSym)
+        case Node.ExpressionStatement(Assign(left@((clsSym: Node.Identifier) Dot "prototype"), "=", Node.Identifier(protoFunSym))) =>
+          Some(left, protoFunSym)
         case _ => None
       }
     }
     n.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
-        case PrototypeVariable(clsSym, Id(protoFunSym)) =>
+        case PrototypeVariable(left, Id(protoFunSym)) =>
           //println(s"Detected prototype variable ${protoFunSym.name} for ${clsSym.name}")
-          prototypeVariableSymbols += protoFunSym -> clsSym
+          prototypeVariableSymbols += protoFunSym -> left
           false
         case _ =>
           false
       }
     }
 
-    var prototypeVariableDefs = Map.empty[SymId, Node.Node]
+    var prototypeVariableDefs = Map.empty[SymId, Node.Expression]
 
     object PrototypeVariableDef {
       def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
@@ -713,8 +713,10 @@ package object classes {
     n.transformAfter { (node, context) =>
       implicit val ctx = context.context
       node match {
-        case PrototypeVariable(clsName, Id(protoFunSym)) =>
-          prototypeVariableDefs.get(protoFunSym).map(pv => Node.ExpressionStatement(Assign(clsName, "=", pv.asInstanceOf[Node.Expression]))).getOrElse(node)
+        case PrototypeVariable(left, Id(protoFunSym)) =>
+          prototypeVariableDefs.get(protoFunSym).map {
+            pv => Node.ExpressionStatement(Assign(left, "=", pv))
+          }.getOrElse(node)
         case PrototypeVariableDef(_, _) =>
           Node.EmptyStatement()
         case _ =>
@@ -724,9 +726,7 @@ package object classes {
       implicit val ctx = context.context
       node match {
         case symRef@Node.Identifier(Id(symDef)) =>
-          prototypeVariableSymbols.get(symDef).fold[Node.Node](symRef) { clsSymRef =>
-            Dot(clsSymRef.cloneNode(), Node.Identifier("prototype"))
-          }
+          prototypeVariableSymbols.get(symDef).fold[Node.Node](symRef)(_.cloneNode())
         case _ =>
           node
       }
