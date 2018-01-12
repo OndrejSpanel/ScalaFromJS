@@ -1190,22 +1190,11 @@ object ScalaOut {
 
               //blockToOut(tn.body)
 
-              val (functionMembers, varMembers) = nonStaticProperties.partition {
-                case md: Node.MethodDefinition if md.value.isInstanceOf[Node.FunctionExpression] => true
-                //case kv: Node.Property if keyValIsTemplate(kv) => true
-                case _ => false
-              }
+              val functionMembers = nonStaticProperties
 
+              if (tn.body.body.nonEmpty && constructor.nonEmpty) out.eol(2)
 
-              //out(s"/*fun: ${functionMembers.length} var: ${varMembers.length}*/")
-              varMembers.foreach { n =>
-                //out"/*${nodeClassName(n)}*/"
-                outputMethodNode(n)
-              }
-
-              if ((varMembers.nonEmpty || tn.body.body.nonEmpty) && constructor.nonEmpty) out.eol(2)
-
-              if ((constructor.nonEmpty || varMembers.nonEmpty) && functionMembers.nonEmpty) out.eol(2)
+              if (constructor.nonEmpty && functionMembers.nonEmpty) out.eol(2)
 
               for (pm <- functionMembers if !inlineBodyOpt.contains(pm)) {
 
@@ -1246,8 +1235,11 @@ object ScalaOut {
                     if (isObjectOverride || isNormalOverride) out("override ")
                     outputMethodNode(p, eol = false)
                     out("\n")
+
+
                   case _ =>
                     nodeToOut(pm)
+                    out("\n")
                 }
               }
 
