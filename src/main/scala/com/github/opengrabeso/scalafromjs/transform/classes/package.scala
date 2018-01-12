@@ -530,6 +530,14 @@ package object classes {
           call.callee = Node.Super().withTokens(node)
           call.arguments = getClassArguments.map(a => Node.Identifier(a).withTokens(node))
           call
+
+        // Super(arguments)
+        case call@Node.CallExpression(Node.Identifier(Id(IsSuperClass())), _) =>
+          // TODO: check class constructor arguments as pass them
+          call.callee = Node.Super().withTokens(node)
+          //call.arguments = args
+          call
+
         // Super.apply(this, arguments)
         case call@Node.CallExpression(Node.Identifier(Id(IsSuperClass())) Dot "apply", Seq(_: Node.ThisExpression, Node.Identifier("arguments"))) =>
           // TODO: check class constructor arguments as pass them
