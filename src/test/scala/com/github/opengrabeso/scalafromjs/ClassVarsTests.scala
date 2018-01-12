@@ -357,6 +357,37 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
   }
 
+  test("Private functions in constructors returning prototypes should be extracted as members") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      function C() {
+        var x = false;
+
+        return {
+          setX: function ( xx ) {
+            x = xx;
+          },
+          value: function () {
+            var x = "";
+            var a = x;
+            return a;
+          },
+        };
+      }
+
+      new C
+      """).required(
+        "var x",
+        "this.x = xx",
+        "val x",
+        "val a = x"
+      ).forbidden(
+        "this.a",
+        "this.xx"
+      )
+
+  }
 
 
 

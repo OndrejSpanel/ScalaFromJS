@@ -185,6 +185,7 @@ object ClassList {
             //println(s"Constructor ${symDef.name} returning value, funScope $funScope")
 
             ctx.withScope(defun.body) {
+              // transform references to local variables to this.xxx references
               def transformReferences[T <: Node.Node](n: T): T = {
                 n.transformBefore(ctx) { (node, descend, transformer) =>
                   implicit val ctx = transformer.context
@@ -225,7 +226,7 @@ object ClassList {
 
               body.foreach {
                 case f@DefFun(Defined(Node.Identifier(sym)), fArgs, fBody, _) =>
-                  ctx.withScope(fBody) {
+                  ctx.withScope(f, fBody) {
                     val member = ClassFunMember(fArgs, transformReferencesInBody(fBody.body), f)
                     res.clazz = res.clazz.addMember(sym, member)
                   }
@@ -254,7 +255,7 @@ object ClassList {
                     case Node.Identifier(other) =>
                       res.clazz = res.clazz.renameMember(other, name)
                     case AnyFun(fArgs, fBody) =>
-                      ctx.withScope(fBody) {
+                      ctx.withScope(value, fBody) {
                         val member = ClassFunMember(fArgs, transformReferencesInBody(Block.statements(fBody)), value)
                         res.clazz = res.clazz.addMember(name, member)
                       }

@@ -18,14 +18,18 @@ object SymbolDeclaration {
 
   def declaredSymbols(node: Node): Seq[String] = {
     // some symbols are defined in the parent, like function parameters
-    def processBlock(body: Seq[Node]): Seq[Identifier] = {
-      body.collect {
+    def processBlock(body: Seq[Node]): Seq[BindingIdentifierOrPattern] = {
+      body.flatMap {
         case f: FunctionDeclaration =>
-          f.id
+          Seq(f.id)
         case f: AsyncFunctionDeclaration =>
-          f.id
+          Seq(f.id)
         case MethodDefinition(id: Identifier, _, _, _, _) =>
-          id
+          Seq(id)
+        case v: VariableDeclaration =>
+          v.declarations.map(_.id)
+        case _ =>
+          Seq.empty
       }
     }
 
