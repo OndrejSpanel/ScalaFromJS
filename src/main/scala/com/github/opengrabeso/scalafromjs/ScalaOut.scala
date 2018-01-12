@@ -479,7 +479,7 @@ object ScalaOut {
           val memberSymId = cls.map(c => ScopeContext.getNodeId(c.body)).map(SymId(name, _))
           val sType = input.types.get(memberSymId)
           sType.map(_.declType) match {
-            case Some(SymbolTypes.FunctionType(ret, _)) =>
+            case Some(ret) =>
               out"var $key: ${ret.toOut} = $value\n"
             case _ =>
               out"var $key = $value\n"
