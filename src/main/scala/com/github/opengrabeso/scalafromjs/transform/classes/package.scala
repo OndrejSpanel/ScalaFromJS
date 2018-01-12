@@ -318,7 +318,7 @@ package object classes {
 
     }
 
-    val logging = false
+    val logging = true
 
     val createClasses = deleteProtos.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
