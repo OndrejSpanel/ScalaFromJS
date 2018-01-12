@@ -63,7 +63,8 @@ object Rules {
           }
         }
 
-        val newC = constructor.transformAfter { (node, transformer) =>
+        val newC = constructor.transformAfter(ctx) { (node, transformer) =>
+          implicit val ctx = transformer.context
           node match {
             case Node.ExpressionStatement(Assign(Node.ThisExpression() Dot MatchName(prop), "=", CheckPropertyInit(init))) =>
               //println(s"Found property definition ${nodeClassName(init)}")

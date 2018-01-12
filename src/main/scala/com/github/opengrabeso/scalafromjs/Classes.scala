@@ -195,7 +195,7 @@ object Classes {
       val retIB = ib.cloneNode()
       val body = getMethodBody(retIB)
       for (b <- body) {
-        b.body.filterNot {
+        b.body = b.body.filterNot {
           case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(v), _)), _) if member.findFirstIn(v).isDefined =>
             true
           case _ =>
@@ -203,30 +203,53 @@ object Classes {
         }
         Classes.replaceProperty(c, ib, retIB)
       }
+      c.body.body = c.body.body.filterNot {
+        case Node.MethodDefinition(Node.Identifier(v), _, _, _, _) if member.findFirstIn(v).isDefined =>
+          true
+        case _ =>
+          false
+      }
+
       c
     }
   }
 
 
-  def transformClassParameters(c: Node.ClassDeclaration, init: Node.Expression): Node.Expression = {
+  def transformClassParameters(c: Node.ClassDeclaration, init: Node.Expression)(implicit ctx: ScopeContext): Node.Expression = {
     val transformed = for {
       cons <- findConstructor(c)
       constructorMethod <- getMethodMethod(cons)
     } yield {
-      init.transformAfter { (node, transformer) =>
+      //val parMap = (constructorMethod.params.map(parameterNameString) zip inlineBodyMethod.params.map(parameterNameString)).toMap
+      val params = constructorMethod.params.map(parameterNameString)
+
+      val matchIdentifier: PartialFunction[Node.Node, Node.Node] = {
+        case sym@Node.Identifier(name) if params contains name =>
+          // TODO: verify parameter is not hidden by another variable
+          // use corresponding parameter name from the class constructor (inline body)
+          //val pn = parMap.getOrElse(name, name)
+          //println(s"transformClassParameters ${c.name}")
+          Dot(Node.ThisExpression(), sym).withTokens(sym)
+      }
+
+
+      init.transformBefore(ctx) { (node, descend, transformer) =>
         implicit val ctx = transformer
-        node match {
-          case sym@Node.Identifier(name) =>
-            val pn = constructorMethod.params.find(parameterName(_)._1.name == name)
-            pn.fold(sym) { p =>
-              val c = sym.copy().copyLoc(sym)
-              c.name = c.name + Symbols.parSuffix
-              //println(s"transformClassParameters ${c.name}")
-              c
-            }
+        val composed = matchIdentifier orElse[Node.Node, Node.Node] {
+          case p: Node.Property =>
+            // do not transform property names
+            p.value = (matchIdentifier orElse[Node.Node, Node.Node] {
+              case n =>
+                descend(n, transformer)
+                n
+            })(p.value).asInstanceOf[Node.PropertyValue]
+            p
+
           case _ =>
+            descend(node, transformer)
             node
         }
+        composed(node)
       }
     }
     transformed.getOrElse(init)
