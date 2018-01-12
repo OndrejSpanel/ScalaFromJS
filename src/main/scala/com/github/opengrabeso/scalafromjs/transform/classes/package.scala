@@ -503,8 +503,7 @@ package object classes {
           val baseSym = cls.flatMap(superClassSymbolDef)
           val baseId = baseSym.flatMap(SymbolTypes.id)
 
-          //println(s"baseSym ${baseSym.map(_.name)} baseId $baseId")
-          baseId.exists(thisClass.flatMap(superClass).contains)
+          baseId.contains(name)
         }
       }
 
