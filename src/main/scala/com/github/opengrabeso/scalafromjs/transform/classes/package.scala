@@ -426,7 +426,7 @@ package object classes {
         val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value, false) }
         val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
 
-        mappedMembers ++ mappedGetters ++ mappedSetters ++ mappedValues ++ mappedStatic
+        (mappedGetters ++ mappedSetters ++ mappedValues ++ mappedMembers ++ mappedStatic).toSeq
       }
 
       def classDefine(sym: Node.Identifier, tokensFrom: Node.Node) = {
