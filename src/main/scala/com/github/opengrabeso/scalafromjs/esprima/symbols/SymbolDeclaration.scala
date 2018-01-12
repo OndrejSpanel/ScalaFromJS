@@ -28,6 +28,8 @@ object SymbolDeclaration {
           Seq(id)
         case v: VariableDeclaration =>
           v.declarations.map(_.id)
+        case c: ClassDeclaration =>
+          Seq(c.id)
         case _ =>
           Seq.empty
       }
