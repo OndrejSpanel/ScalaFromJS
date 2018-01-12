@@ -11,14 +11,14 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("planes")
-    name.startsWith("watchJS_") || watched.contains(name)
+    val watched = Set[String]("")
+    name.startsWith("watch_") || watched.contains(name)
   }
 
   def watchedMember(cls: String, name: String): Boolean = watchCondition {
-    val watched = Set[(String, String)](("Frustum", "set"), ("Frustum", "planes"))
-    val watchedAllClasses = Set[String]("planes")
-    name.startsWith("watchJS_") || watched.contains(cls, name) || watchedAllClasses.contains(name)
+    val watched = Set[(String, String)](("Box3", "set"))
+    val watchedAllClasses = Set[String]("")
+    name.startsWith("watch_") || watched.contains(cls, name) || watchedAllClasses.contains(name)
   }
 
   def watchedSym(sym: SymbolMapId): Boolean = {
