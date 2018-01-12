@@ -754,6 +754,8 @@ object ScalaOut {
             // if not, just output the template
             out(template)
           }
+          out("\n")
+
         case tn@ObjectKeyVal(key, value) =>
           out.eol()
           outputMethod(tn.key, value, tn.kind, "var")
@@ -1196,6 +1198,8 @@ object ScalaOut {
 
               if (constructor.nonEmpty && functionMembers.nonEmpty) out.eol(2)
 
+              var separateVarAndFunction = false
+
               for (pm <- functionMembers if !inlineBodyOpt.contains(pm)) {
 
                 pm match {
@@ -1231,15 +1235,18 @@ object ScalaOut {
                       isOverride.contains(true)
                     }
 
-                    out.eol()
+                    val isFunction = AnyFun.unapply(p.value).isDefined
+
+                    out.eol(if (separateVarAndFunction && isFunction) 2 else 1)
+                    separateVarAndFunction = false
+
                     if (isObjectOverride || isNormalOverride) out("override ")
                     outputMethodNode(p, eol = false)
-                    out("\n")
-
+                    if (isFunction) out("\n")
+                    separateVarAndFunction = !isFunction
 
                   case _ =>
                     nodeToOut(pm)
-                    out("\n")
                 }
               }
 
