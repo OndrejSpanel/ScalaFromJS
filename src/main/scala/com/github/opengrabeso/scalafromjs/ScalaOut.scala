@@ -241,7 +241,7 @@ object ScalaOut {
           // check if there are any characters between line start and this comment prefix
           // comment range starts on the comment prefix // (the value does not include it)
           val begLine = input.input.lastIndexOf('\n', c.range._1 - 1) + 1 max 0
-          val linePrefix = input.input.substring(begLine, c.range._1)
+          val linePrefix = input.input.slice(begLine, c.range._1)
 
           val wholeLine = linePrefix.forall(_.isWhitespace)
 
