@@ -125,11 +125,12 @@ object CommandLine {
 
   def main(argv: Array[String]): Unit = {
     println(s"  args ${argv.mkString(",")}")
-
-    if (argv.length == 2) {
-      convertFileToFile(argv(0), argv(1))
-    } else {
-      convertFileToFile("temp/test.js", "temp/out/test.scala")
+    Time("  conversion", true) {
+      if (argv.length == 2) {
+        convertFileToFile(argv(0), argv(1))
+      } else {
+        convertFileToFile("temp/test.js", "temp/out/test.scala")
+      }
     }
 
   }
