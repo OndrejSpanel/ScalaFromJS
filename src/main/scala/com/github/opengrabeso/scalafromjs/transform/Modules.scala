@@ -10,18 +10,24 @@ object Modules {
   * Exports with no filename serve no purpose, and they can confuse walkers
   * We remove them */
   def cleanupExports(n: Node.Node): Node.Node = {
+    def exportNode(value: Node.Node) = {
+      // sometimes we might need to wrap in a statement?
+      value match {
+        case value: Node.Statement =>
+          value
+        case value: Node.Expression =>
+          //println(s"Wrap export of $value")
+          Node.ExpressionStatement(value)
+        case node =>
+          node
+      }
+    }
+
     n.transformAfterSimple {
       case Node.ExportDefaultDeclaration(Defined(value)) =>
-        // sometimes we might need to wrap in a statement?
-        value match {
-          case value: Node.Statement =>
-            value
-          case value: Node.Expression =>
-            //println(s"Wrap export of $value")
-            Node.ExpressionStatement(value)
-          case node =>
-            node
-        }
+        exportNode(value)
+      case Node.ExportNamedDeclaration(Defined(value), _, _) =>
+        exportNode(value)
       case node =>
         node
 
