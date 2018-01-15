@@ -389,6 +389,40 @@ class ClassVarsTests extends FunSuite with TestUtils {
 
   }
 
+  test("Member with initial value defined as a property should be extracted as variables") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      function Color( r, g, b ) {
+        return this.setRGB( r, g, b );
+      }
+
+      Object.assign( Color.prototype, {
+        isColor: true,
+        r: 1, g: 1, b: 1,
+        setR: function (r){
+          this.r = r;
+        },
+        setRGB: function ( r, g, b ) {
+          this.r = r;
+          this.g = g;
+          this.b = b;
+          return this;
+        },
+      } );
+      """).required(
+        "var r: Double = 1",
+        "var g: Double = 1",
+        "var b: Double = 1",
+        "def setR(r: Double)"
+      ).forbidden(
+        "def r =",
+        "def g =",
+        "def b =",
+        "() => Double"
+      )
+
+  }
 
 
 

@@ -587,29 +587,36 @@ object Transform {
   }
 
   def isReadOnlyProperty(cls: Node.ClassDeclaration, name: String): Option[Node.Expression] = {
-    /*
-    var getter = Option.empty[Node.Node]
+    var getter = Option.empty[Node.Expression]
     var setter = false
-    cls.body.body.filter(p => propertyName(p) == name).foreach {
-      case Node.MethodDefinition(Node.Identifier(p), _) =>
+    cls.body.body.filter(p => methodName(p) == name).foreach {
+      case Node.MethodDefinition(Node.Identifier(p), _, AnyFun(Seq(), value), "get", _) =>
+        value match {
+          case ex: Node.Expression =>
+            getter = Some(ex)
+          case Node.BlockStatement(Seq(Node.ExpressionStatement(ex))) =>
+            getter = Some(ex)
+          case bs: Node.BlockStatement =>
+            val wrapped = ScalaNode.StatementExpression(bs).withTokens(bs)
+            getter = Some(wrapped)
+        }
+      case Node.MethodDefinition(Node.Identifier(p), _, _, "set", _) =>
+        setter = true
+      case Node.MethodDefinition(Node.Identifier(p), _, _, _, _) =>
         //println(s"  function $p")
         //getter = true
       case ObjectKeyVal(p, value) =>
         //println(s"  keyval $p")
-        getter = Some(value)
-      case s: Node.ObjectSetter =>
-        //println(s"  setter ${s.key.name}")
-        setter = true
-      case Node.ObjectGetter(p, Node.Function(Seq(), Seq(Node.ExpressionStatement(init)))) =>
-        // check
-        //println(s"  getter init $p}")
-        getter = Some(init)
+        value match {
+          case ex: Node.Expression =>
+            getter = Some(ex)
+          case _ =>
+            ???
+        }
       case _ =>
     }
     if (!setter) getter
     else None
-    */
-    None
   }
 
   def listPrototypeMemberNames(cls: Node.ClassDeclaration): Seq[String] = {
