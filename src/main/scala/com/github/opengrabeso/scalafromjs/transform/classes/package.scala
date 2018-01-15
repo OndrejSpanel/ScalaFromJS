@@ -672,6 +672,8 @@ package object classes {
     // and replace YYYY with XXX.prototype
     // is order a problem?
 
+    val logging = false
+
     var prototypeVariableSymbols = Map.empty[SymId, Node.Expression]
 
     object PrototypeVariable {
@@ -685,7 +687,7 @@ package object classes {
       implicit val ctx = context
       node match {
         case PrototypeVariable(left, Id(protoFunSym)) =>
-          //println(s"Detected prototype variable ${protoFunSym.name} for ${clsSym.name}")
+          if (logging) println(s"Detected prototype variable $protoFunSym for $left")
           prototypeVariableSymbols += protoFunSym -> left
           false
         case _ =>
@@ -699,16 +701,17 @@ package object classes {
       def unapply(arg: Node.Node)(implicit context: ScopeContext) = arg match {
         case VarDecl(Id(symDef), Some(init), _) if prototypeVariableSymbols contains symDef =>
           Some(symDef, init)
+        case Node.ExpressionStatement(Assign(Node.Identifier(Id(symDef)), "=", init)) if prototypeVariableSymbols contains symDef =>
+          Some(symDef, init)
         case _ => None
 
       }
     }
-
     n.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
         case PrototypeVariableDef(symDef, init) =>
-          //println(s"Detected prototype variable init ${symDef.name}")
+          if (logging) println(s"Detected prototype variable init $symDef $init")
           prototypeVariableDefs += symDef -> init
           false
         case _ =>
@@ -719,32 +722,56 @@ package object classes {
       implicit val ctx = context.context
       node match {
         case PrototypeVariable(left, Id(protoFunSym)) =>
-          prototypeVariableDefs.get(protoFunSym).map {
-            pv => Node.ExpressionStatement(Assign(left, "=", pv))
+          prototypeVariableDefs.get(protoFunSym).map { pv =>
+            if (logging) println(s"replace PrototypeVariable '$left' = '$protoFunSym':'$pv'" )
+            Node.ExpressionStatement(Assign(left, "=", pv))
           }.getOrElse(node)
-        case PrototypeVariableDef(_, _) =>
-          Node.EmptyStatement()
         case _ =>
+          //if (logging) println(s"copy '$node'" )
           node
       }
-    }.transformBefore { (node, descend, transformer) =>
+    }
+
+    n.transformBefore { (node, descend, transformer) =>
       implicit val ctx = transformer.context
       node match {
         case VarDecl(name, init, _) =>
+          if (logging) println(s"Descend into VarDecl of $name = $init")
           init.foreach { i =>
             descend(transformer.before(i, descend), transformer)
           }
           node
 
+        // do not rename inside of imports / exports
+        case _: Node.ImportSpecifier =>
+          node
+
+        case _: Node.ExportSpecifier =>
+          node
+
         case Node.Identifier(Id(symDef)) =>
-          prototypeVariableSymbols.get(symDef).fold[Node.Node](node) {
-            _.cloneNode()
+          prototypeVariableSymbols.get(symDef).fold[Node.Node](node) { s =>
+            if (logging) println(s"Replace Identifier $symDef with $s")
+            s.cloneNode()
           }
+
         case _ =>
           descend(node, transformer)
           node
       }
     }
+
+    n.transformAfter { (node, context) =>
+      implicit val ctx = context.context
+      node match {
+        case PrototypeVariableDef(_, _) =>
+          if (logging) println(s"remove PrototypeVariable '$node'")
+          Node.EmptyStatement()
+        case _ =>
+          node
+      }
+    }
+
 
   }
 
