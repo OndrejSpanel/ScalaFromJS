@@ -105,4 +105,48 @@ class ClassVariantsTests extends FunSuite with TestUtils {
         "prototype"
       )
   }
+
+  test("Class with prototype variable aliases") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+      function BoolC( name, times, values ) {
+        CConstructor.call( this, name, times, values );
+      }
+
+      BoolC.prototype = Object.assign( Object.create( CPrototype ), {
+        constructor: BoolC,
+      } );
+
+
+      function CConstructor( name ) {
+        this.name = name;
+      }
+
+      function C( name ) {
+        CConstructor.apply( this, name );
+      }
+
+      var CPrototype;
+
+      C.prototype = CPrototype;
+      CPrototype.constructor = C;
+
+      CPrototype = {
+        T: Float32Array,
+        f: function () {
+          return "";
+        }
+      };
+      """).required(
+        "class BoolC",
+        "extends C("
+      ).forbidden(
+        ".apply",
+        ".call",
+        "CConstructor",
+        "CPrototype = {"
+      )
+
+  }
 }

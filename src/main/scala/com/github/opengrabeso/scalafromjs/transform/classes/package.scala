@@ -532,16 +532,21 @@ package object classes {
 
         // Super(arguments)
         case call@Node.CallExpression(Node.Identifier(Id(IsSuperClass())), _) =>
-          // TODO: check class constructor arguments as pass them
+          // TODO: check class constructor arguments as we pass them
           call.callee = Node.Super().withTokens(node)
           //call.arguments = args
           call
 
         // Super.apply(this, arguments)
         case call@Node.CallExpression(Node.Identifier(Id(IsSuperClass())) Dot "apply", Seq(_: Node.ThisExpression, Node.Identifier("arguments"))) =>
-          // TODO: check class constructor arguments as pass them
           call.callee = Node.Super().withTokens(node)
           call.arguments = getClassArguments.map(a => Node.Identifier(a).withTokens(node))
+          call
+
+        // Super.apply(this, arg1 ... argN)
+        case call@Node.CallExpression(Node.Identifier(Id(IsSuperClass())) Dot "apply", (_: Node.ThisExpression) +: args) =>
+          call.callee = Node.Super().withTokens(node)
+          call.arguments = args
           call
 
         // Light.call( this, skyColor, intensity )
@@ -722,12 +727,21 @@ package object classes {
         case _ =>
           node
       }
-    }.transformAfter { (node, context) =>
-      implicit val ctx = context.context
+    }.transformBefore { (node, descend, transformer) =>
+      implicit val ctx = transformer.context
       node match {
-        case symRef@Node.Identifier(Id(symDef)) =>
-          prototypeVariableSymbols.get(symDef).fold[Node.Node](symRef)(_.cloneNode())
+        case VarDecl(name, init, _) =>
+          init.foreach { i =>
+            descend(transformer.before(i, descend), transformer)
+          }
+          node
+
+        case Node.Identifier(Id(symDef)) =>
+          prototypeVariableSymbols.get(symDef).fold[Node.Node](node) {
+            _.cloneNode()
+          }
         case _ =>
+          descend(node, transformer)
           node
       }
     }
@@ -821,10 +835,19 @@ package object classes {
       implicit val ctx = context
       node match {
         case DefFun(
-        Node.Identifier(Id(fun)), args, Seq(Node.ExpressionStatement(Node.CallExpression(
+        Node.Identifier(Id(fun)), args, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier(Id(implementFun)) Dot "apply", Seq(_: Node.ThisExpression, Node.Identifier("arguments"))
-        ))), _
+        )))), _
         ) if constructorSymbols contains fun =>
+          //println(s"Defined function ${fun.name} using ${implementFun.name}")
+          implToConstructor += implementFun -> fun
+          false
+        case DefFun(
+        Node.Identifier(Id(fun)), pars, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
+        Node.Identifier(Id(implementFun)) Dot "apply", (_: Node.ThisExpression) +: args)
+        ))), _
+        ) if (constructorSymbols contains fun) && (args == pars) =>
+          // TODO: match args with pars
           //println(s"Defined function ${fun.name} using ${implementFun.name}")
           implToConstructor += implementFun -> fun
           false
@@ -848,19 +871,28 @@ package object classes {
 
     val constructorToImpl = implToConstructor.map(_.swap)
 
-    n.transformAfter { (node, transformer) =>
+    val ret = n.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {
         // rewrite the symbol YYYYY use to  XXXXX
-        case n@Node.Identifier(Id(symDef)) =>
+        case n@Node.Identifier(Id(symDef)) if !ctx.parent().exists(_.isInstanceOf[DefFun]) =>
           implToConstructor.get(symDef).fold(node) { impl =>
             n.name = impl.name
             n
           }
         // inline XXXXX.apply(this, arguments) - was already rewritten from YYYYY (transformAfter transforms children first)
-        case defun@DefFun(_, _, Seq(Node.ExpressionStatement(Node.CallExpression(
+        case defun@DefFun(_, _, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier(Id(symDef)) Dot "apply", Seq(_: Node.ThisExpression, Node.Identifier("arguments"))
-        ))), _) =>
+        )))), _) =>
+          //println(s"Detect ${symDef.name}.apply")
+          constructorToImpl.get(symDef).flatMap(constructorFunctionDefs.get).fold(node) { funDef =>
+            //println(s"Found body of ${funDef.name.map(_.name)} in ${defun.name.map(_.name)}")
+            defun.body = funDef.body
+            defun
+          }
+        case defun@DefFun(_, pars, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
+        Node.Identifier(Id(symDef)) Dot "apply", (_: Node.ThisExpression) +: args
+        )))), _) if pars == args =>
           //println(s"Detect ${symDef.name}.apply")
           constructorToImpl.get(symDef).flatMap(constructorFunctionDefs.get).fold(node) { funDef =>
             //println(s"Found body of ${funDef.name.map(_.name)} in ${defun.name.map(_.name)}")
@@ -873,6 +905,8 @@ package object classes {
         case _ => node
       }
     }
+
+    ret
   }
 
 
