@@ -83,13 +83,18 @@ object Expressions {
   }
 
   object SingleExpression {
-    def unapply(arg: Node.Statement): Option[Node.Node] = arg match {
+    def unapply(arg: Node.Statement): Option[Node.Expression] = arg match {
       case Node.BlockStatement(Seq(Node.ExpressionStatement(body))) => Some(body)
       case Node.ExpressionStatement(body) => Some(body)
       case _ => None
     }
   }
 
-
-
+  object FunctionValue {
+    def unapply(arg: Node.BlockStatementOrExpression): Option[Node.Expression] = arg match {
+      case Node.BlockStatement(Seq(Node.ReturnStatement(body))) => Some(body)
+      case body: Node.Expression => Some(body)
+      case _ => None
+    }
+  }
 }

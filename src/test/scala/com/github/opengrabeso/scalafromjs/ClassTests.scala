@@ -70,6 +70,36 @@ class ClassTests extends FunSuite with TestUtils {
   }
 
 
+  test("Handle getters / setters") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      function C() {
+      }
+
+      C.prototype = {
+        get v() {
+          return this._v
+      },
+      set v(vv) {
+        this._v= vv
+       }
+      };
+
+      var c = new C();
+      var cv;
+
+      c.v = "Value";
+      if (true) {
+        cv = c.v
+      }
+      """).required(
+      "def v = ",
+      "def v_=(",
+      "var cv: String"
+    )
+
+  }
 
   test("Support local classes") {
     exec check ConversionCheck(

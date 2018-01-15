@@ -146,6 +146,7 @@ object Transform {
     }
   }
 
+  // TODO: handle scope context while walking
   def walkLastNode(n: Node.Node)(callback: Node.Node => Boolean): Boolean = {
     n match {
       case s: Node.BlockStatement =>

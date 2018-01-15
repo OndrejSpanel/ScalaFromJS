@@ -1,7 +1,6 @@
 package com.github.opengrabeso.scalafromjs
 package transform
 
-import JsUtils._
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import Classes._
@@ -473,11 +472,31 @@ object InferTypes {
       }
     }
 
-    // TODO: walkWithDescend (must change return value to false)
+
     n.top.walkWithScopeAfter { (node, walker) =>
       //println(s"${nodeClassName(node)} ${node.toLocaleString()}")
       //descend(node, walker)
       implicit val scopeCtx = walker
+
+      def handleAssignment(left: Node.Expression, right: Node.Expression) = {
+        val log = left match {
+          case Node.Identifier(Id(symDef)) if watched(symDef.name) => true
+          case _ => false
+        }
+        val leftT = expressionType(left, log)
+        val rightT = expressionType(right, log)
+        //if (log) println(s"Infer assign $leftT - $rightT ${ScalaOut.outputNode(node)}")
+        if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
+          for (SymbolInfo(symInfo) <- Some(left)) {
+            if (log) println(s"Infer assign: $symInfo = $rightT")
+            symInfo.addSymbolInferredType(rightT, target)(s"  Infer assign: $symInfo = $rightT right $right")
+          }
+          for (SymbolInfo(symInfo) <- Some(right)) {
+            if (log) println(s"Infer reverse assign: $leftT = $symInfo")
+            symInfo.addSymbolInferredType(leftT, source)(s"  Infer reverse assign: $leftT = $symInfo left $left")
+          }
+        }
+      }
 
       node match {
         case Node.VariableDeclarator(Node.Identifier(Id(symDef)), Defined(right)) =>
@@ -512,23 +531,7 @@ object InferTypes {
         case Assign(SymbolInfo(symLeft), _, SymbolInfo(symRight)) if symLeft == symRight =>
 
         case Assign(left, _, right) =>
-          val log = left match {
-            case Node.Identifier(Id(symDef)) if watched(symDef.name) => true
-            case _ => false
-          }
-          val leftT = expressionType(left, log)
-          val rightT = expressionType(right, log)
-          //if (log) println(s"Infer assign $leftT - $rightT ${ScalaOut.outputNode(node)}")
-          if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
-            for (SymbolInfo(symInfo) <- Some(left)) {
-              if (log) println(s"Infer assign: $symInfo = $rightT")
-              symInfo.addSymbolInferredType(rightT, target)(s"  Infer assign: $symInfo = $rightT right $right")
-            }
-            for (SymbolInfo(symInfo) <- Some(right)) {
-              if (log) println(s"Infer reverse assign: $leftT = $symInfo")
-              symInfo.addSymbolInferredType(leftT, source)(s"  Infer reverse assign: $leftT = $symInfo left $left")
-            }
-          }
+          handleAssignment(left, right)
 
         case Binary(SymbolInfo(symLeft), IsArithmetic(), SymbolInfo(symRight))
           if symLeft.unknownType(n.types) && symRight.unknownType(n.types) =>
@@ -569,7 +572,45 @@ object InferTypes {
             addInferredType(sd, Some(TypeInfo.target(funType)))(s"Infer fun ${symDef.name}")
           }
 
-        case Node.MethodDefinition(Node.Identifier(sym), _, fun: Node.FunctionExpression, _, _) =>
+        case Node.MethodDefinition(Node.Identifier(sym), _, fun@AnyFun(Seq(), body), "get", _) =>
+          scopeCtx.withScope(fun, body) {
+            // check body final value
+            //noinspection MatchToPartialFunction
+            walkLastNode(body) { last =>
+              last match {
+                case Node.ReturnStatement(right@(Node.ThisExpression() Dot member)) =>
+                  //println(s"Getter $sym from $member")
+                  val left = Dot(Node.ThisExpression(), Node.Identifier(sym))
+                  handleAssignment(left, right)
+
+                case _ =>
+
+              }
+              false
+            }
+          }
+
+        case Node.MethodDefinition(Node.Identifier(sym), _, fun@AnyFun(Seq(Node.Identifier(param)), body), "set", _) =>
+          // search for any member in form this.xx = param
+          scopeCtx.withScope(fun, body) {
+            val paramId = Id(param)
+            body.walkWithScope(scopeCtx) { (node, context) =>
+              implicit val scopeCtx = context
+              node match {
+                case Assign(left@(Node.ThisExpression() Dot member), "=", Node.Identifier(Id(`paramId`))) =>
+                  //println(s"Setter detected: $member = $param")
+                  val right = Dot(Node.ThisExpression(), Node.Identifier(sym))
+                  handleAssignment(left, right)
+                  true
+                case _ =>
+                  false
+
+              }
+
+            }
+          }
+
+        case Node.MethodDefinition(Node.Identifier(sym), _, fun: Node.FunctionExpression, kind, _) =>
           val allReturns = scanFunctionReturns(fun.body)
           // method of which class is this?
           val scope = findThisClass(scopeCtx)
