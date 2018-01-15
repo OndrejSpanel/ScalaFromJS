@@ -151,7 +151,7 @@ class TypeTests extends FunSuite with TestUtils {
         "object Cls",
         "var defX",
         "def defY() = ",
-        "var z = ",
+        "var z: Double = ",
         "object Utils",
         "var pi =",
         "def funA(",
