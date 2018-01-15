@@ -765,7 +765,7 @@ object ScalaOut {
         case tn: Node.MethodDefinition =>
           //out"/*${nodeClassName(n)}*/"
           out.eol()
-          out"def ${tn.key}${tn.value}\n"
+          outputMethod(tn.key, tn.value, tn.kind)
         case tn: OObject =>
           if (tn.properties.isEmpty) {
             out("new {}")
