@@ -95,19 +95,22 @@ object ScalaOut {
 
     override def changeIndent(ch: Int): Unit = indentLevel += ch
 
-    private def singleLine(line: String) = {
-      doEol()
-      if (eolDone > 0) out(" " * (indentLevel * 2))
+    private def dumpLine(line: String) = {
       out(line)
       if (line == "\n") eolDone += 1
       else eolDone = if (line.lastOption.contains('\n')) 1 else 0
+    }
+    private def singleLine(line: String) = {
+      doEol()
+      if (eolDone > 0) out(" " * (indentLevel * 2))
+      dumpLine(line)
     }
 
     override def appendLine(v: String): Unit = {
       val lines = v.linesWithSeparators.toSeq
       for (line <- lines.headOption) {
-        out(" ") // separate whet we are appending (a comment) with a space
-        out(line)
+        // separate what we are appending (a comment) with a space
+        dumpLine(" " + line)
       }
       for (line <- lines.drop(1)) {
         singleLine(line)
@@ -1325,7 +1328,9 @@ object ScalaOut {
   private def blockBracedToOut(block: Node.BlockStatement, force: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext) = {
     val body = block.body
     // TODO: single statement without braces
-    out("{\n")
+    out("{")
+    dumpLeadingComments(block)
+    out.eol()
     out.indent()
     blockToOut(body)
     dumpInnerComments(block)

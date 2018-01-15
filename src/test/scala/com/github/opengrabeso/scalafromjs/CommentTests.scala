@@ -5,7 +5,7 @@ import org.scalatest.FunSuite
 import scala.util.{Failure, Success}
 
 class CommentTests extends FunSuite with TestUtils {
-  test("Complex single line comments should be process correctly") {
+  test("Complex single line comments should be processed correctly") {
     exec check ConversionCheck(
       //language=JavaScript
       """
@@ -40,5 +40,29 @@ class CommentTests extends FunSuite with TestUtils {
 
       }
   }
+
+  test("Trailing single line comments in a block should be formatted correctly") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+      // start file
+      var a = "";
+
+      if ( a != "x" ) { // start block
+        a = "y"; // middle of the block
+        a = a + a; // end block
+      } // after block
+      // another line after
+      """)
+      .required(
+        "// start file",
+        "{ // start block",
+        "a = \"y\" // middle of the block",
+        "a = a + a // end block",
+        "} // after block",
+        "// another line after"
+      )
+  }
+
 }
 
