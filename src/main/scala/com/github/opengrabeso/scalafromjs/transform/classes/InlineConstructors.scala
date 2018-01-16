@@ -330,7 +330,7 @@ object InlineConstructors {
 
             val parameterMembers = params.map(p => Id(parameterNameString(p))).toSet
 
-            def transformParametersInBody(node: Node.BlockStatement) = {
+            def transformParametersInBody(node: Node.BlockStatement)(ctx: ScopeContext) = {
               node.transformAfter(ctx) {(node, transformer) =>
                 implicit val ctx = transformer.context
                 node match {
@@ -348,14 +348,16 @@ object InlineConstructors {
 
             // add functions as methods
             cls.body.body = cls.body.body ++ functions.map {
-              case (statement, funName, AnyFun(funParams, funBody)) =>
-                Node.MethodDefinition (
-                  Node.Identifier(funName).withTokens(statement),
-                  false,
-                  Node.FunctionExpression(null, funParams, transformParametersInBody(Block(funBody).withTokens(body)), false).withTokens(statement),
-                  "init",
-                  false
-                )
+              case (statement, funName, fun@AnyFun(funParams, funBody)) =>
+                ctx.withScope(cls.body, fun, funBody) {
+                  Node.MethodDefinition(
+                    Node.Identifier(funName).withTokens(statement),
+                    false,
+                    Node.FunctionExpression(null, funParams, transformParametersInBody(Block(funBody).withTokens(body))(ctx), false).withTokens(statement),
+                    "init",
+                    false
+                  )
+                }
 
             }
           }
