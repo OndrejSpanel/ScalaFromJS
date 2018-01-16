@@ -1181,6 +1181,8 @@ object ScalaOut {
               out" {\n"
               out.indent()
 
+              dumpInnerComments(tn.body)
+
               for {
                 inlineBody <- inlineBodyOpt
                 method <- getMethodMethod(inlineBody)
@@ -1219,8 +1221,10 @@ object ScalaOut {
 
               var separateVarAndFunction = false
 
+              var lastPM = Option.empty[Node.ClassBodyElement]
               for (pm <- functionMembers if !inlineBodyOpt.contains(pm)) {
-
+                lastPM = Some(pm)
+                dumpLeadingComments(pm)
                 pm match {
                   case p: Node.MethodDefinition =>
                     // check overrides
@@ -1268,6 +1272,9 @@ object ScalaOut {
                     nodeToOut(pm)
                 }
               }
+
+              for (pm <- lastPM) dumpTrailingComments(pm)
+
 
               out.unindent()
               out.eol()
