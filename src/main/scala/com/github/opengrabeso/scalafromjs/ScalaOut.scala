@@ -1224,9 +1224,7 @@ object ScalaOut {
 
               var separateVarAndFunction = false
 
-              var lastPM = Option.empty[Node.ClassBodyElement]
               for (pm <- functionMembers if !inlineBodyOpt.contains(pm)) {
-                lastPM = Some(pm)
                 dumpLeadingComments(pm)
                 pm match {
                   case p: Node.MethodDefinition =>
@@ -1276,8 +1274,8 @@ object ScalaOut {
                 }
               }
 
-              for (pm <- lastPM) dumpTrailingComments(pm)
-
+              // ignore trailing comments, they are unlikely to belong to class
+              // class scope is introduces by us, traling comment is most likely a leading comment of the following item
 
               out.unindent()
               out.eol()
