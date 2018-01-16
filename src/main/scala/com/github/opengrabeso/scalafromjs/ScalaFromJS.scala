@@ -107,7 +107,7 @@ object ScalaFromJS extends JFXApp {
                 result.text = text
                 statusBar.text.value = s"Conversion duration $duration ms"
               }.failed.map { ex =>
-                statusBar.text.value = s"Conversion duration $duration ms, error ${ex.getMessage}"
+                statusBar.text.value = s"Conversion duration $duration ms, error ${ex.toString}"
               }
 
             }
