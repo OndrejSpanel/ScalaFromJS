@@ -876,9 +876,13 @@ object ScalaOut {
         case tn@Node.VariableDeclaration(decl, kind) =>
           outputDefinitions(kind == "const", tn)
         //case tn: Node.VariableDeclaration => outputUnknownNode(tn)
-        case tn: Node.ContinueStatement => out("/* Unsupported: Continue */ continue;\n")
-        case tn: Node.BreakStatement => out("/* Unsupported: Break */ break;\n")
-        //case tn: Node.LoopControl => outputUnknownNode(tn)
+        case tn: Node.ContinueStatement =>
+          val label = Option(tn.label).getOrElse("")
+          out(s"/* Unsupported: Continue */ $source")
+          out.eol()
+        case tn: Node.BreakStatement =>
+          out(s"/* Unsupported: Break */ $source")
+          out.eol()
         case tn: Node.ThrowStatement =>
           out("throw")
           out(" ")
@@ -889,7 +893,6 @@ object ScalaOut {
           argument.foreach { v =>
             out(" ")
             nodeToOut(v)
-            dumpTrailingComments(n)
             out.eol()
           }
         //case tn: Node.Exit => outputUnknownNode(tn)
