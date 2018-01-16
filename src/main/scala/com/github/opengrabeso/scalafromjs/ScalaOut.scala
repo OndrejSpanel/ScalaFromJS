@@ -226,30 +226,42 @@ object ScalaOut {
     } {
       if (!(input.commentsDumped contains new IdentityBox(c))) {
 
+        def checkBegLine(range: (Int, Int)) = {
+          val begLine = input.input.lastIndexOf('\n', c.range._1 - 1) + 1 max 0
+          val linePrefix = input.input.slice(begLine, c.range._1)
+          linePrefix.forall(_.isWhitespace)
+        }
+
+        def checkEndLine(range: (Int, Int)) = {
+          val endLine = input.input.indexOf('\n', c.range._2)
+          val lineRest = input.input.slice(c.range._2, endLine)
+          lineRest.forall(_.isWhitespace)
+        }
+
         out.submitLocation(c.range._1, "comment")
         if (c.`type` == "Block") {
           // process line by line, fix indenting
           val content = c.value.toString
+          if (!checkBegLine(c.range)) out(" ")
           out("/*")
           for (l <- content.linesWithSeparators) {
             // note: it might be smarter to check previous indenting level by scanning all lines rather than trimming all whitespaces
             // this is better for ASCI art or tables, where leading white space are used to position the text
             out(l.dropWhile(" \t" contains _))
           }
-          out("*/\n")
+          out("*/")
+          if (checkEndLine(c.range)) {
+            out.eol()
+          }
         } else {
           // check if comment was started on a new line
           // parser does not tell us this, we need to check input
 
           // check if there are any characters between line start and this comment prefix
           // comment range starts on the comment prefix // (the value does not include it)
-          val begLine = input.input.lastIndexOf('\n', c.range._1 - 1) + 1 max 0
-          val linePrefix = input.input.slice(begLine, c.range._1)
-
-          val wholeLine = linePrefix.forall(_.isWhitespace)
 
           val str = s"//${c.value}".trim
-          if (!wholeLine) {
+          if (!checkBegLine(c.range)) {
             out.appendLine(str)
           } else {
             out.eol()
@@ -437,6 +449,7 @@ object ScalaOut {
         val scopeId = ScopeContext.getNodeId(scopeNode)
         out("(")
         outputNodes(argnames) { n =>
+          dumpLeadingComments(n)
           val (sym, init) = parameterName(n)
           // parSuffix is still used for parameters which are modified
           if (!input.types.getHint(Some(SymId(sym.name, scopeId))).contains(IsConstructorParameter) && !sym.name.endsWith(parSuffix)) {
@@ -444,6 +457,7 @@ object ScalaOut {
           }
           out"$sym"
           outputArgType(sym, init)(scopeNode)
+          dumpTrailingComments(n)
         }
         out(")")
       }
@@ -453,6 +467,7 @@ object ScalaOut {
         val ctx = null // hide implicit context scope
         out("(")
         outputNodes(argnames) { n =>
+          dumpLeadingComments(n)
           val (sym, init) = parameterName(n)
           out"$sym"
           if (types) {
@@ -464,6 +479,7 @@ object ScalaOut {
               out": ${t.declType.toOut}"
             }
           }
+          dumpTrailingComments(n)
         }
         out(")")
       }
