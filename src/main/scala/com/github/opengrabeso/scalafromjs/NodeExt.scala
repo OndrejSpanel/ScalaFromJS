@@ -23,11 +23,20 @@ trait NodeExt {
       copyLoc(from)
     }
 
+    def copyLocIfNeeded(that: Node.Node): T = {
+      if (n.range == null) n.range = that.range
+      if (n.loc == null) n.loc = that.loc
+      n
+    }
+
     def cloneNode(): T = n.clone().asInstanceOf[T]
 
     def withTokensDeep(from: Node.Node): T = {
+      assert(from.range != null)
+      // top-level node inherits comments as well
+      n.copyLoc(from)
       n.walk { node =>
-        node.copyNode(from)
+        node.copyLocIfNeeded(from)
         false
       }
       n
