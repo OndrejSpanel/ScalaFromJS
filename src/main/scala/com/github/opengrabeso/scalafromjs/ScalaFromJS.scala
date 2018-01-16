@@ -26,8 +26,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 object ScalaFromJS extends JFXApp {
   def prefs: Preferences = Preferences.userRoot().node(getClass.getPackage.getName.toLowerCase)
 
-  def fingerprint = ""
-
   stage = new JFXApp.PrimaryStage {
     title.value = "ScalaFromJs - Javascript to Scala conversion tool"
 

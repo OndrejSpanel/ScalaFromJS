@@ -91,7 +91,7 @@ object CommandLine {
 
       //println(s"shortName $shortFileName inRelative $inRelative inRelativePath $inRelativePath aliasedName $aliasedName packageDirectives $packageDirectives")
 
-      val extendedPrefix = s"/*\n${ScalaFromJS.fingerprint}\n$shortFileName\n*/\n\n"
+      val extendedPrefix = s"/*\n${Convert.fingerprint}\n$shortFileName\n*/\n\n"
       val outCodeWithPackage = packagePrefix + wrappedOutCode
 
       val skip = Try {
@@ -125,6 +125,7 @@ object CommandLine {
 
   def main(argv: Array[String]): Unit = {
     println(s"  args ${argv.mkString(",")}")
+    println(s"  fingerprint ${Convert.fingerprint}")
     Time("  conversion", true) {
       if (argv.length == 2) {
         convertFileToFile(argv(0), argv(1))

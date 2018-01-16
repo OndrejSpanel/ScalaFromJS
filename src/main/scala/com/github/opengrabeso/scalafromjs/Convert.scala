@@ -4,7 +4,31 @@ import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 
 object Convert {
-  def prefix(header: Boolean) = if (header) s"/* ${ScalaFromJS.fingerprint}*/\n\n" else ""
+  lazy val fingerprint = {
+    // https://stackoverflow.com/a/13546822/16673
+    val p = getClass.getPackage
+    val name = Option(p.getImplementationTitle).getOrElse("ScalaFromJS")
+    val version = Option(p.getImplementationVersion).getOrElse("Dev")
+    val timestamp = {
+
+      import java.text.SimpleDateFormat
+      import java.util.TimeZone
+      val date = new java.util.Date()
+      val df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+
+      // Use Madrid's time zone to format the date in
+      df.setTimeZone(TimeZone.getDefault)
+
+      df.format(date)
+    }
+
+    // Uglify Scala.js version was named like this: ScalaFromJS: 2017-11-22 17:48:10.567
+    name + ": " + version + " " + timestamp
+  }
+
+
+
+  def prefix(header: Boolean) = if (header) s"/* $fingerprint*/\n\n" else ""
 
   def apply(code: String, header: Boolean = true): String = {
     // split input file based on //file: comments
