@@ -4,6 +4,10 @@ version := "0.3.0"
 
 scalaVersion := "2.11.11"
 
+assemblyJarName in assembly := name.value + ".jar"
+
+mainClass in Compile := Some("com.github.opengrabeso.scalafromjs.CommandLine")
+
 scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation")
 
 resolvers += Resolver.sonatypeRepo("releases")

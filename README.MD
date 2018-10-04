@@ -98,3 +98,9 @@ interested in that version, see tag `uglify-scala.js`.
  [4]: https://en.wikipedia.org/wiki/Immediately-invoked_function_expression
  [5]: https://github.com/OpenGrabeso/esprima-scala
  
+ 
+ Command line usage
+ ==================
+ 
+ `java -jar ScalaFromJS.jar temp/esprima/esprima-convert.js temp/esprima/scala/esprima-convert.scala`
+ 
