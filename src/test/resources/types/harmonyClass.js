@@ -34,4 +34,4 @@ bob.printEmployeeDetails();
 var x, y;
 
 if (true) x = bob.nameFunc();
-if (true) y = bob.nameGetter();
+if (true) y = bob.nameGetter;
