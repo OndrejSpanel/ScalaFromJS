@@ -3,13 +3,12 @@ Scala from JavaScript
 
 Javascript to Scala.js converter.
 
-This tools makes using JS examples from Web in Scala.js easier, but perhaps it might eventually be able to convert
-even larger JS files.
+This tools makes using JS examples from Web in Scala.js easier, with some effort it can assist in porting complete JS projects.
 
 [Live version][3] - currently in alpha, use at your own risk.
 
 Current version understands almost all common Javascript code and emits corresponding Scala counterparts.
-Some Harmony (ES 2015) features are already supported:
+Many Harmony (ES 2015) features are already supported:
 - `let` scoped variables
 - arrow functions
 - classes
@@ -38,7 +37,7 @@ Scala classes. When not known otherwise, class types are derived from members us
 Type inference
 --------------
 
-Currently number, string and boolean types are detected and class types as well. 
+Number, string and boolean types are detected, class types are inferred and guessed. 
 
 Exports / imports
 -----------------
@@ -92,18 +91,10 @@ is evaluated when the property is accessed. If expression defining the property 
 Developer notes
 ===============
 
-I have struggled a lot with including Uglify-js as a npm depencency in a way it can be used both from tests and from the browser page.
+[Scala port of Esprima][5] is used as a JS parser . The port was assisted by this tool. UglifyJS was used previously, running on Node.js. If you are
+interested in that version, see tag `uglify-scala.js`. 
 
-For the tests it was possible to use NPM (via [sbt-scalajs-bundler][1] plugin). I was however unable to make it
-work this way in the browser. I gave up eventually and included the Uglify script obtained by using:
-
-`uglifyjs --self -o ./tmp/uglifyjs.js`, see [UglifyJS 2 browser build download Stack Overflow question][2]
- 
-Note: you need to use Harmony branch of uglifyjs.js, I have produced
-the .js file from git version, it might be also possible to use `npm install uglify-js-harmony`. 
-
-
- [1]: https://github.com/scalacenter/scalajs-bundler
- [2]: http://stackoverflow.com/questions/20027492/uglifyjs-2-browser-build-download
  [3]: https://ondrejspanel.github.io/ScalaFromJS/live/
  [4]: https://en.wikipedia.org/wiki/Immediately-invoked_function_expression
+ [5]: https://github.com/OpenGrabeso/esprima-scala
+ 
