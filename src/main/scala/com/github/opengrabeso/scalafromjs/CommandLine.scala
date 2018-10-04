@@ -12,7 +12,7 @@ import scala.collection.JavaConverters._
 object CommandLine {
 
   def readFile(path: String): String = {
-    val source = scala.io.Source.fromFile(path)
+    val source = scala.io.Source.fromFile(path)(scala.io.Codec.UTF8)
     val lines = try source.mkString finally source.close()
     lines
   }
