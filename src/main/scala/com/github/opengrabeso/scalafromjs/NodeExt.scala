@@ -1,7 +1,7 @@
 package com.github.opengrabeso.scalafromjs
 
 import com.github.opengrabeso.esprima.Node
-import com.github.opengrabeso.esprima.Node.BlockStatement
+import com.github.opengrabeso.esprima._
 import com.github.opengrabeso.scalafromjs.esprima.symbols.ScopeContext
 import esprima._
 
@@ -100,7 +100,7 @@ trait NodeExt {
       val key: String = arg.key match {
         case Node.Identifier(name) =>
           name
-        case Node.Literal(value, raw) =>
+        case LiteralAsName(value) =>
           value
       }
       Some(key, arg.value)
@@ -143,6 +143,25 @@ trait NodeExt {
   object StringLiteral extends LiteralExtractor[String]
   object NumberLiteral extends LiteralExtractor[Double]
   object BooleanLiteral extends LiteralExtractor[Boolean]
+  object LiteralAsName {
+    def unapply(arg: Node.Literal): Option[String] = {
+      // key may be a numeric literal (0 or 0.0)
+        arg.value.value match {
+          case x: String =>
+            Some(x)
+          case x: Number =>
+            //noinspection ComparingUnrelatedTypes
+            if (x.longValue() == x) {
+              Some(x.longValue.toString)
+            } else {
+              Some(x.toString)
+            }
+          case _ =>
+            Some(arg.raw)
+        }
+
+    }
+  }
 
   object Block {
     def apply(node: Node.BlockStatementOrExpression): Node.BlockStatement = node match {
@@ -327,7 +346,7 @@ trait NodeExt {
     pk match {
       case Node.Identifier(name) =>
         name
-      case Node.Literal(value, raw) =>
+      case LiteralAsName(value) =>
         value
     }
   }
@@ -337,7 +356,7 @@ trait NodeExt {
         p.key match {
           case Node.Identifier(name) =>
             name
-          case Node.Literal(value, raw) =>
+          case LiteralAsName(value) =>
             value
         }
     }

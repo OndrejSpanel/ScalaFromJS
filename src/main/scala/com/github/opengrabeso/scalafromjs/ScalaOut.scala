@@ -522,8 +522,8 @@ object ScalaOut {
 
           case _ =>
             key match {
-              case Node.Literal(v, _) =>
-                val keyName = identifier(v.toString)
+              case LiteralAsName(v) =>
+                val keyName = identifier(v)
                 // avoid literals used as object keys to be quoted
                 out"$decl $keyName = $value\n"
               case _ =>
@@ -1339,10 +1339,23 @@ object ScalaOut {
 
   }
 
+  private val scalaFirst = "?".toSet
+
   private def identifier(name: String) = {
-    if (Keywords(name)) {
-      "`" + name + "`"
-    } else name
+    def wrapped = "`" + name + "`"
+    def acceptableFirstChar(c: Char) = {
+      java.lang.Character.isJavaIdentifierStart(c) || scalaFirst.contains(c)
+    }
+    def acceptableNextChar(c: Char) = {
+      java.lang.Character.isJavaIdentifierPart(c) || scalaFirst.contains(c)
+    }
+    if (Keywords(name) || name.isEmpty) {
+      wrapped
+    } else if (!acceptableFirstChar(name(0)) || !name.tail.forall(acceptableNextChar)) {
+      wrapped
+    } else {
+      name
+    }
   }
 
   private def identifierToOut(out: Output, name: String) = {

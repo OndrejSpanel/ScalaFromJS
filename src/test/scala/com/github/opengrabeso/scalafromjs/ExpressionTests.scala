@@ -51,6 +51,22 @@ class ExpressionTests extends FunSuite with TestUtils {
 
   }
 
+  test("Handle various unusual identifiers") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+        var _a = "A";
+        var _0 = "0";
+        var a_0 = "A0";
+        """).required(
+        "_a",
+        "_0",
+        "a_0"
+      ).forbidden(
+        "`"
+      )
+  }
+
   test("Handle Immediately-invoked function expression (IIFE)") {
     exec check ConversionCheck(rsc("expressions/iife.js"))
       .required(
