@@ -3,6 +3,7 @@ import {C} from "src/c.js"
 export {A} from "src/a.js"
 export * from "src/b.js"
 export * from "test/Some.tests"
+import dd from "src/data/dd.data.js";
 
 var ScalaFromJS_settings = {
     packages: [
@@ -16,7 +17,19 @@ var ScalaFromJS_settings = {
                 "",
                 "$this",
                 "// end",
-                "}"
+                "}",
+                ""
+            ]
+        },
+        {
+            folder: "src/data",
+            operation: "name",
+            name: "my.base.data" ,
+            template: [
+                "object ${class} extends Data {",
+                "val value = $this",
+                "}",
+                ""
             ]
         },
         {

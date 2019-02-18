@@ -80,6 +80,8 @@ class CommandLineTest extends FunSuite with TestUtils {
       .required(
         "package my.name",
         "class SomeTest extends Tests",
+        "object dd extends Data",
+        "val value =",
         "import something."
       ).forbidden(
         "package a.js",
