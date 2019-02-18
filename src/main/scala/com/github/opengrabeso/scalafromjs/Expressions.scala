@@ -1,5 +1,6 @@
 package com.github.opengrabeso.scalafromjs
 
+import com.github.opengrabeso.esprima.Node.EmptyStatement
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 
@@ -82,9 +83,14 @@ object Expressions {
     }
   }
 
+  object ReduceSeq {
+    def unapply(arg: Seq[Node.StatementListItem]): Option[Seq[Node.StatementListItem]] = {
+      Some(arg.filterNot(_.isInstanceOf[EmptyStatement]))
+    }
+  }
   object SingleExpression {
     def unapply(arg: Node.Statement): Option[Node.Expression] = arg match {
-      case Node.BlockStatement(Seq(Node.ExpressionStatement(body))) => Some(body)
+      case Node.BlockStatement(ReduceSeq(Seq(Node.ExpressionStatement(body)))) => Some(body)
       case Node.ExpressionStatement(body) => Some(body)
       case _ => None
     }

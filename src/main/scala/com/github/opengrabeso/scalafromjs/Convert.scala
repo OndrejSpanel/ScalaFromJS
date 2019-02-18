@@ -36,7 +36,13 @@ object Convert {
     val files = code.split("\\/\\/file\\:")
     if (files.lengthCompare(1) <= 0) {
 
-      val ast = parse(code)
+      // note: here we parse only to load the preprocess config
+      val preparse = parse(code)
+      val cfg = NodeExtended(preparse).loadConfig.config
+
+      val preprocessed = cfg.preprocess(code)
+
+      val ast = parse(preprocessed)
 
       val ext = NodeExtended(ast).loadConfig
 
@@ -45,7 +51,10 @@ object Convert {
 
       ext.config.postprocess(ret)
     } else {
-      val fileParts = files.toSeq.filterNot(_.isEmpty).map { file =>
+      def isEmptyFile(s: String) = {
+        s.count(_.isWhitespace) == s.length
+      }
+      val fileParts = files.toSeq.filterNot(isEmptyFile).map { file =>
         val (fileName, fileContent) = file.span(!_.isWhitespace)
 
         val terminatedCode = if (fileContent.lastOption.contains('\n')) fileContent else fileContent + "\n"
@@ -54,7 +63,7 @@ object Convert {
         fileName -> ConvertProject.Item(terminatedCode, true, fileName)
 
       }
-      val convertResult = ConvertProject("", fileParts.toMap).convert
+      val convertResult = ConvertProject("", identity, fileParts.toMap).convert
 
       val converted = convertResult.files.map { case (name, content) =>
         s"\n//file:$name\n\n" + convertResult.config.postprocess(content)

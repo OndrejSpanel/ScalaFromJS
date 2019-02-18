@@ -125,14 +125,29 @@ object ConvertProject {
     }
   }
 
+  /**
+    * The real functionality of the regex rule is outside of AST processing, as a text only postprocess
+    * */
+  case class RegexPreprocessRule(find: String, replace: String) extends Rule {
+    def apply(c: NodeExtended): NodeExtended = c
+
+    def transformText(src: String): String = {
+      src.replaceAll(find, replace)
+    }
+  }
+
   val configName = "ScalaFromJS_settings"
 
   case class ConvertConfig(rules: Seq[Rule] = Seq.empty) {
     def collectRules[T: ClassTag]: Seq[T] = rules.collect {case x: T => x}
 
     def postprocess(src: String): String = {
-      val postRules = collectRules[RegexPostprocessRule]
-      postRules.foldLeft(src)((processed, rule) => rule.transformText(processed))
+      val processRules = collectRules[RegexPostprocessRule]
+      processRules.foldLeft(src)((processed, rule) => rule.transformText(processed))
+    }
+    def preprocess(src: String): String = {
+      val processRules = collectRules[RegexPreprocessRule]
+      processRules.foldLeft(src)((processed, rule) => rule.transformText(processed))
     }
   }
 
@@ -217,6 +232,21 @@ object ConvertProject {
             case _ =>
               None
           }
+        case ObjectKeyVal("preprocess", a: AArray) =>
+          a.elements.flatMap {
+            case o: OObject =>
+              val op = loadStringValue(o, "operation")
+              op match {
+                case Some("replace") =>
+                  val find = loadRequiredStringValue(o, "pattern")
+                  val replace = loadRequiredStringValue(o, "replace")
+                  Some(RegexPreprocessRule(find, replace))
+                case _ =>
+                  None
+              }
+            case _ =>
+              None
+          }
         case ObjectKeyVal(name, _) =>
           throw new UnsupportedOperationException(s"Unexpected config entry $name")
         case n =>
@@ -237,9 +267,14 @@ object ConvertProject {
   }
 
   def loadControlFile(in: String): ConvertProject = {
+
+    // parse only the control file to read the preprocess rules
+    val inSource = readSourceFile(in)
+    val ext = NodeExtended(parse(inSource)).loadConfig.config
+
     Time("loadControlFile") {
-      val code = readSourceFile(in)
-      val project = ConvertProject(in, ListMap(in -> Item(code, true, in)))
+      val code = ext.preprocess(inSource)
+      val project = ConvertProject(in, ext.preprocess, ListMap(in -> Item(code, true, in)))
 
       project.resolveImportsExports
     }
@@ -289,7 +324,7 @@ object ConvertProject {
 }
 
 
-case class ConvertProject(root: String, items: Map[String, Item]) {
+case class ConvertProject(root: String, preprocess: String => String, items: Map[String, Item]) {
   lazy val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
   lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
@@ -312,7 +347,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
 
   final def resolveImportsExports: ConvertProject = {
     def readFileAsJs(path: String): (String, String) = {
-      val code = readSourceFile(path)
+      val code = preprocess(readSourceFile(path))
       // try parsing, if unable, return a comment file instead
       try {
         parse(code)
@@ -429,7 +464,7 @@ case class ConvertProject(root: String, items: Map[String, Item]) {
       assert((old.keySet intersect includes.map(_._1).toSet).isEmpty)
       //println(s"  old ${old.map(_.name).mkString(",")}")
 
-      ConvertProject(root, old ++ examples ++ includes).resolveImportsExports
+      ConvertProject(root, preprocess, old ++ examples ++ includes).resolveImportsExports
     }
   }
 
