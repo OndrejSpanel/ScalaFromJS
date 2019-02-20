@@ -53,8 +53,12 @@ object ScalaFromJS extends JFXApp {
       }
 
       def saveSession(): Unit = {
-        prefs.put("version", "0")
-        prefs.put("input", input.text.value)
+        try {
+          prefs.put("version", "0")
+          prefs.put("input", input.text.value)
+        } finally {
+          // prefs have limited size - can throw exception
+        }
       }
 
 
