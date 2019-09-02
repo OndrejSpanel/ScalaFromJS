@@ -124,15 +124,14 @@ object CommandLine {
   }
 
   def main(argv: Array[String]): Unit = {
-    println(s"  args ${argv.mkString(",")}")
-    println(s"  fingerprint ${Convert.fingerprint}")
-    Time("  conversion", true) {
-      if (argv.length == 2) {
+    if (argv.isEmpty) {
+      ScalaFromJS.main(argv)
+    } else {
+      println(s"  args ${argv.mkString(",")}")
+      println(s"  fingerprint ${Convert.fingerprint}")
+      Time("  conversion", true) {
         convertFileToFile(argv(0), argv(1))
-      } else {
-        convertFileToFile("temp/test.js", "temp/out/test.scala")
       }
     }
-
   }
 }
