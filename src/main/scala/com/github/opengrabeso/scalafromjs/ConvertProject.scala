@@ -493,7 +493,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
 
     val compositeFile = exportsImports.map(_.code).mkString
 
-    val ast = Time(s"Parse ${compositeFile.lines.length} lines") {
+    val ast = Time(s"Parse ${compositeFile.linesIterator.length} lines") {
       parse(compositeFile)
     }
 

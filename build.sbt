@@ -2,7 +2,7 @@ name := "ScalaFromJS"
 
 version := "0.3.0"
 
-scalaVersion := "2.11.11"
+scalaVersion := "2.12.9"
 
 assemblyJarName in assembly := name.value + ".jar"
 

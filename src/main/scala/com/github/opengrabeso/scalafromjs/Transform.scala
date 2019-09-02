@@ -314,7 +314,7 @@ object Transform {
             val comment = commentToken.value
             if (!(commentsParsed contains pos)) {
               commentsParsed += pos
-              for (commentLine <- comment.lines) {
+              for (commentLine <- comment.linesIterator) {
                 // match anything in form:
 
                 val JSDocParam = """@param +([^ ]+) +\{([^ ]+)\}""".r.unanchored // @param name {type}

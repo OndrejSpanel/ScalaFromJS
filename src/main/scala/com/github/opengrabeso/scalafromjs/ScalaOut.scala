@@ -326,7 +326,7 @@ object ScalaOut {
       def source = nodeSource(n, input.input)
       // http://lisperator.net/uglifyjs/ast
       for (s <- n.start) {
-        out.submitLocation(s, source.lines.next)
+        out.submitLocation(s, source.linesIterator.next)
       }
 
       def outputVarDef(name: Node.Identifier, initInput: Option[Node.Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {

@@ -4,13 +4,10 @@ import java.awt.event.{InputEvent, KeyEvent}
 import java.util.concurrent.{ConcurrentLinkedQueue, Semaphore}
 import java.util.prefs.Preferences
 
-import javafx.scene.layout.BorderPane
 import javax.swing.{SwingUtilities, UIManager}
 
-import scala.concurrent.Future
 import scala.util.Try
 import scala.swing.{Action, BorderPanel, Component, Dimension, Label, MainFrame, Menu, MenuBar, MenuItem, Orientation, ScrollPane, SimpleSwingApplication, SplitPane, TextPane}
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.swing.BorderPanel.Position._
 import scala.swing.event.ValueChanged
 
