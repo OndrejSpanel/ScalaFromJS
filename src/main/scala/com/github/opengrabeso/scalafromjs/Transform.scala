@@ -324,11 +324,11 @@ object Transform {
                     // verify the parameter exists
                     if (f.params.exists(parameterNameString(_) == name)) {
                       val td = Id(name)
-                      declBuffer append td -> parseType(tpe)
+                      parseType(tpe).foreach(t => declBuffer append td -> t)
                     }
                   case JSDocReturn(tpe) =>
                     val td = Id(f.id)
-                    declBuffer append td -> parseType(tpe)
+                    parseType(tpe).foreach(t => declBuffer append td -> t)
                   case _ =>
                 }
               }

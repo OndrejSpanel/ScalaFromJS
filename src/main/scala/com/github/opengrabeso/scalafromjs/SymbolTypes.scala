@@ -161,15 +161,13 @@ object SymbolTypes {
   val boolean = SimpleType("Boolean")
   val string = SimpleType("String")
 
-  def parseType(str: String): TypeDesc = {
+  def parseType(str: String): Option[TypeDesc] = {
     str match {
-      case "number" => number
-      case "boolean" => boolean
-      case "string" => string
-      case "any" => any
-      case _ =>
-        ClassType(???) // find corresponding class
-
+      case "number" => Some(number)
+      case "boolean" => Some(boolean)
+      case "string" => Some(string)
+      case "any" => Some(any)
+      case _ => None
     }
   }
 
