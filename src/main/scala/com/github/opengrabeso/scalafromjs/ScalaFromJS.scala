@@ -1,158 +1,159 @@
 package com.github.opengrabeso.scalafromjs
 
+import java.awt.event.{InputEvent, KeyEvent}
 import java.util.concurrent.{ConcurrentLinkedQueue, Semaphore}
 import java.util.prefs.Preferences
 
+import javafx.scene.layout.BorderPane
+import javax.swing.{SwingUtilities, UIManager}
+
 import scala.concurrent.Future
 import scala.util.Try
-import scalafx.application.Platform
-import scalafx.collections.ObservableBuffer
-import scalafx.application.JFXApp
-import scalafx.beans.property.StringProperty
-import scalafx.scene.Scene
-import scalafx.scene.control._
-import scalafx.scene.control.TableColumn._
-import scalafx.scene.control.MenuItem._
-import scalafx.Includes._
-import scalafx.scene.input._
-import scalafx.scene.layout._
-//import com.github.opengrabeso.scalafx.TextFieldAcceleratorFix
-
-import scalafx.scene.image.Image
-
+import scala.swing.{Action, BorderPanel, Component, Dimension, Label, MainFrame, Menu, MenuBar, MenuItem, Orientation, ScrollPane, SimpleSwingApplication, SplitPane, TextPane}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.swing.BorderPanel.Position._
+import scala.swing.event.ValueChanged
 
 //noinspection ForwardReference
-object ScalaFromJS extends JFXApp {
+object ScalaFromJS extends SimpleSwingApplication {
   def prefs: Preferences = Preferences.userRoot().node(getClass.getPackage.getName.toLowerCase)
 
-  stage = new JFXApp.PrimaryStage {
-    title.value = "ScalaFromJs - Javascript to Scala conversion tool"
+  override def startup(args: scala.Array[scala.Predef.String]): Unit = {
 
-    width = 800
-    height = 800
+    assert(SwingUtilities.isEventDispatchThread)
 
-    //private val icon = new Image("/calculator.png")
-    //icons.add(icon)
+    UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName)
 
+    super.startup(args)
+  }
 
-    scene = new Scene {
+  def top: MainFrame = new MainFrame {
 
-      val result = new TextArea {
-        editable = false
-      }
-      val input = new TextArea {
-        editable = true
-        Platform.runLater(requestFocus())
+    title = "ScalaFromJs - Javascript to Scala conversion tool"
 
-        text.onChange {
-          BackgroundConversion.process(text.value)
-          saveSession()
-        }
+    minimumSize = new Dimension(800, 600)
 
-      }
-
-      def saveSession(): Unit = {
-        try {
-          prefs.put("version", "0")
-          prefs.put("input", input.text.value)
-        } finally {
-          // prefs have limited size - can throw exception
-        }
-      }
-
-
-      def loadSession(): Unit = {
-        val version = prefs.get("version", "")
-        if (version.nonEmpty) {
-          val loaded = prefs.get("input", "")
-          input.text.value = loaded
-        }
-      }
-
-
-      loadSession()
-
-      onCloseRequest = handle {
-        BackgroundConversion.process(null)
-      }
-
-      object BackgroundConversion {
-        // use actors instead?
-        val inputs = new ConcurrentLinkedQueue[(String, Long)]
-        val waitForInput = new Semaphore(0, true)
-
-        def process(in: String) = {
-          inputs.add(in -> System.currentTimeMillis())
-          waitForInput.release()
-        }
-
-        def background(): Unit = {
-
-          def now() = System.currentTimeMillis()
-
-          while (true) {
-            waitForInput.acquire()
-            var lastInput: (String, Long) = inputs.poll()
-            // empty the queue
-            while (waitForInput.tryAcquire() && lastInput._1 != null) {
-              lastInput = inputs.poll()
-            }
-            if (lastInput._1 == null) return
-            val start = now()
-            val resultText = Try (Convert(lastInput._1))
-            val duration = now() - start
-
-            // avoid overwriting newer result
-            Platform.runLater {
-              resultText.map { text =>
-                result.text = text
-                statusBar.text.value = s"Conversion duration $duration ms"
-              }.failed.map { ex =>
-                statusBar.text.value = s"Conversion duration $duration ms, error ${ex.toString}"
-              }
-
-            }
-          }
-        }
-
-        val backgroundThread = new Thread(new Runnable {
-          def run() = background()
-        })
-        backgroundThread.start()
-      }
-
-      val statusBar = new Label
-
-      val menuBar = new MenuBar {
-        useSystemMenuBar = true
-        menus = Seq(
-          new Menu("File") {
-            items = Seq(
-              new MenuItem("Clear history") {
-                accelerator = new KeyCharacterCombination("N", KeyCombination.ControlDown)
-                onAction = handle {}
-              }
-            )
-          }
-        )
-      }
-
-      def showStatus(): Unit = {
-        statusBar.text.value = ""
-      }
-
-      val pane = new BorderPane {
-
-        top = menuBar
-        center = new HBox(input, result)
-        bottom = statusBar
-
-      }
-
-      root = pane
-      showStatus()
-
+    private def myTextPane(edit: Boolean): TextPane = new TextPane {
+      minimumSize = new Dimension(300, 100)
+      editable = edit
     }
+    private def mySplit(o: Orientation.Value, w: Double)(l: Component, r: Component): SplitPane = new SplitPane(o, l, r) {
+      resizeWeight = w
+    }
+    val result = myTextPane(false)
+    val input = myTextPane(true)
+    val statusBar = new Label
+
+    contents = new BorderPanel {
+      layout += mySplit(Orientation.Vertical, 0.5)(new ScrollPane(input), new ScrollPane(result)) -> Center
+      layout += statusBar -> South
+    }
+
+    loadSession()
+
+    listenTo(input)
+
+    reactions += {
+      case ValueChanged(`input`) =>
+        val text = input.text
+        println("Input changed")
+        BackgroundConversion.process(text)
+        saveSession()
+    }
+
+    BackgroundConversion.process(input.text)
+
+    def saveSession(): Unit = {
+      try {
+        prefs.put("version", "0")
+        prefs.put("input", input.text)
+      } finally {
+        // prefs have limited size - can throw exception
+      }
+    }
+
+
+    def loadSession(): Unit = {
+      val version = prefs.get("version", "")
+      if (version.nonEmpty) {
+        val loaded = prefs.get("input", "")
+        input.text = loaded
+      }
+    }
+
+
+
+    /*
+    onCloseRequest = handle {
+      BackgroundConversion.process(null)
+    }
+     */
+
+    object BackgroundConversion {
+      // use actors instead?
+      val inputs = new ConcurrentLinkedQueue[(String, Long)]
+      val waitForInput = new Semaphore(0, true)
+
+      def process(in: String) = {
+        inputs.add(in -> System.currentTimeMillis())
+        waitForInput.release()
+      }
+
+      def background(): Unit = {
+
+        def now() = System.currentTimeMillis()
+
+        while (true) {
+          waitForInput.acquire()
+          var lastInput: (String, Long) = inputs.poll()
+          // empty the queue
+          while (waitForInput.tryAcquire() && lastInput._1 != null) {
+            lastInput = inputs.poll()
+          }
+          if (lastInput._1 == null) return
+          val start = now()
+          val resultText = Try(Convert(lastInput._1))
+          val duration = now() - start
+
+          // avoid overwriting newer result
+          SwingUtilities.invokeLater {
+            new Runnable {
+              override def run() =
+                println(s"Duration $duration")
+                resultText.map { text =>
+                  result.text = text
+                  statusBar.text = s"Conversion duration $duration ms"
+                }.failed.map { ex =>
+                  statusBar.text = s"Conversion duration $duration ms, error ${ex.toString}"
+                }
+
+            }
+          }
+        }
+      }
+
+      val backgroundThread = new Thread(new Runnable {
+        def run() = background()
+      })
+      backgroundThread.start()
+    }
+
+
+    menuBar = new MenuBar {
+      contents ++= Seq(
+        new Menu("File") {
+          contents ++= Seq(
+            new MenuItem(new ActionWithCode("Clear history", {}, KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK))
+          )
+        }
+      )
+    }
+
+    def showStatus(): Unit = {
+      statusBar.text = ""
+    }
+
+    showStatus()
+
   }
 }
