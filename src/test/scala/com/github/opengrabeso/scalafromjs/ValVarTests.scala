@@ -101,6 +101,26 @@ class ValVarTests extends FunSuite with TestUtils {
 
   }
 
+  ignore("Detect nested object") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      var g = {
+          hi: "Hi",
+          prop: {
+              there: 0
+          },
+      };
+      """).required(
+      "object g",
+      "object prop"
+    ).forbidden(
+      "val g","var g",
+      "val prop","var prop"
+    )
+
+  }
+
   test("Do not detect object when var is reassigned") {
     exec check ConversionCheck(
       // language=JavaScript
