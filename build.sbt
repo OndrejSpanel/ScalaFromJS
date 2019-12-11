@@ -1,8 +1,8 @@
 name := "ScalaFromJS"
 
-version := "0.3.0"
+version := "0.3.1"
 
-scalaVersion := "2.12.9"
+scalaVersion := "2.12.10"
 
 assemblyJarName in assembly := name.value + ".jar"
 
@@ -14,7 +14,7 @@ resolvers += Resolver.sonatypeRepo("releases")
 
 resolvers += Resolver.sonatypeRepo("snapshots")
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % "test"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
 
 libraryDependencies += "com.github.opengrabeso" %% "esprimascala" % "0.1.2-SNAPSHOT"
 
