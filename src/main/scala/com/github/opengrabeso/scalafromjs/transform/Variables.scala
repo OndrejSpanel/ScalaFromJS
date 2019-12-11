@@ -718,7 +718,7 @@ object Variables {
       }
     }
 
-    val scopes = mutable.Map.empty[SymId, Node.Node] // caution: transform will invalidate Node references
+    val scopes = mutable.Set.empty[(SymId, Node.Node)] // caution: transform will invalidate Node references
     // identify scopes where the variables should be introduced
     n.walkWithScope { (node, context) =>
       implicit val ctx = context
@@ -733,8 +733,10 @@ object Variables {
       }
     }
 
+    val globalUsedInSomeScope = scopes.map(_._1)
+
     // transfrom only variables which are use from some scope
-    globals = globals.filter(g => scopes.contains(g._1))
+    globals = globals.filter(g => globalUsedInSomeScope.contains(g._1))
 
     // TODO: check if each access is done from within the scope
 
