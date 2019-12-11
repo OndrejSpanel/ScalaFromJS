@@ -687,7 +687,7 @@ object Variables {
 
   def detectGlobalTemporaries(n: Node.Node): Node.Node = Time("detectDoubleVars") {
     // scan the global scope for temporary variables to remove
-    val globals = mutable.Map.empty[SymId, (Option[Node.Expression], String)]
+    var globals = mutable.Map.empty[SymId, (Option[Node.Expression], String)]
 
     object TempName {
       def unapply(s: String): Option[(String, String)] = {
@@ -697,14 +697,16 @@ object Variables {
         else None
       }
     }
-    n.transformAfter {(node, transformer) =>
-      implicit val ctx = transformer.context
+    n.walkWithScope {(node, context) =>
+      implicit val ctx = context
       node match {
+        case `n` => // enter into the top node ("module")
+          false
         case VarDecl(TempName(name, newName), init, kind) => // global variable with or without initialization
           globals += Id(name) -> (init, newName)
-          node
-        case x =>
-          x
+          true
+        case _ =>
+          true
       }
     }
 
@@ -730,6 +732,9 @@ object Variables {
           false
       }
     }
+
+    // transfrom only variables which are use from some scope
+    globals = globals.filter(g => scopes.contains(g._1))
 
     // TODO: check if each access is done from within the scope
 
