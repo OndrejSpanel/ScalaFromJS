@@ -861,7 +861,7 @@ object Transform {
       'processCall -> onTopNode(processCall),
       'detectForVars -> onTopNode(Variables.detectForVars),
       'detectDoubleVars -> onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
-      'detectGlobalTemporaries -> onTopNode(Variables.detectGlobalTemporaries), // before detectVals, so that first access is not turned into val
+      'detectGlobalTemporaries -> onTopNode(Variables.detectGlobalTemporaries),
       'detectVals -> onTopNode(Variables.detectVals), // before convertConstToFunction
       'detectMethods -> onTopNode(Variables.detectMethods),
       'convertConstToFunction -> onTopNode(Variables.convertConstToFunction)

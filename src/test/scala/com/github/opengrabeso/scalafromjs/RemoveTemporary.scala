@@ -38,8 +38,7 @@ class RemoveTemporary extends FunSuite with TestUtils {
     ).forbidden("(minVal, maxVal) =>")
   }
 
-  test("Temporary variable (global) removal from Three.js Box3 clampScalar") {
-    // see c69128cb670b144f09df9b7697bfbecfc5ef66f7 - Helper.AsFunction / onlyVariables
+  test("Temporary variable (global) removal from Three.js Box3 clampScalar") { // detectGlobalTemporaries
     exec check ConversionCheck(
       // language=JavaScript
       """
@@ -68,4 +67,64 @@ class RemoveTemporary extends FunSuite with TestUtils {
      "val vector = new Vector3()",
     ).forbidden("_vector")
   }
+
+  test("Temporary variable (global) removal from multiple scopes") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      var _vector = new Vector3();
+      function a( size ) {
+
+        _vector.copy( size ).multiplyScalar( 0.5 );
+      }
+      function b( center, size ) {
+
+        _vector.set( 0, 1, 2);
+
+      }
+      """).required(
+      "val vector = new Vector3()",
+      "vector.copy(",
+      "vector.set(",
+    ).forbidden("_vector")
+  }
+
+  test("Do not remove variable used from its own declaration") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      var _Math = {
+        DEG2RAD: Math.PI / 180,
+        degToRad: function ( degrees ) {
+          return degrees * _Math.DEG2RAD;
+        },
+      }""").required("object _Math", "_Math.DEG2RAD").forbidden("object Math")
+  }
+
+  test("Make multiple global variables unique") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      var _vector = new Vector3();
+      function a( size ) {
+        _vector.copy( size ).multiplyScalar( 0.5 );
+      }
+      var _vector = new Vector2();
+      function b( center, size ) {
+        _vector.set( 0, 1);
+      }
+      var _vector = 0;
+      function c() {
+        _vector = _vector + 1;
+      }
+      """).required(
+      "val vector = new Vector3()",
+      "vector.copy(",
+      "val vector$1 = new Vector2()",
+      "vector$1.set(",
+      "var vector$2 = 0",
+      "vector$2 = vector$2 + 1",
+    ).forbidden("_vector", "vector.set(")
+  }
+
 }

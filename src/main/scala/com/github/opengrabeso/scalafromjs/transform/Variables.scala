@@ -78,28 +78,40 @@ object Variables {
       }
     }
 
-    var declared = Set.empty[SymId]
+    val declaredGlobal = mutable.Map.empty[SymId, Int] // add unique postfix
+    val declaredLocal = mutable.Set.empty[SymId]
 
-    n.transformAfter {(node, transformer) =>
+    def addIndex(s: String, i: Int) = if (i > 0) s + "$" + i.toString else s
+
+    n.transformBefore {(node, descend, transformer) =>
       implicit val ctx = transformer.context
       node match {
-        // match only Node.Var, assume Node.Let and Node.Const are already well scoped
+        case VarDecl(Id(varName), init, kind) if ctx.scopes.last._1 == n && !usedAsForVar(varName.name, transformer) =>
+          // declared in the top-level scope - special handling - if already exists, create a new variable
+          assert(ctx.scopes.size == 1)
+          val count = declaredGlobal.getOrElse(varName, -1)
+          declaredGlobal += varName -> (count + 1)
+          VarDecl(addIndex(varName.name, count + 1), init, kind, node).withTokens(node)
+
+        // we could assume Node.Let and Node.Const are already well scoped
         case VarDecl(Id(varName), Some(value), _) if !usedAsForVar(varName.name, transformer) => // var with init - search for a modification
           //println(s"Node.VariableDeclarator ${varName.name}")
           //println(s"${varName.thedef.get.name} $varDef ${varName.thedef.get.orig} ${varName == varName.thedef.get.orig.head}")
-
-          if (!(declared contains varName)) {
-            declared += varName
-            node
+          if (!(declaredLocal contains varName)) {
+            declaredLocal += varName
+            descend(node, transformer)
           } else {
-            Node.ExpressionStatement(Node.AssignmentExpression(
+            descend(Node.ExpressionStatement(Node.AssignmentExpression(
               left = Node.Identifier(varName.name).withTokens(node),
               operator = "=",
               right = value.cloneNode()
-            ))
+            )).withTokens(node), transformer)
           }
+        case Node.Identifier(Id(id)) if declaredGlobal contains id =>
+          // $1, $2 ... used in three.js build as well
+          Node.Identifier(addIndex(id.name, declaredGlobal(id))).withTokens(node)
         case _ =>
-          node
+          descend(node, transformer)
       }
     }
   }
@@ -186,7 +198,7 @@ object Variables {
 
   /*
   * many transformations assume each Node.VariableDeclaration contains at most one Node.VariableDeclarator
-  * Split multiple definitions (comma separated definitiob lists)
+  * Split multiple definitions (comma separated definition lists)
   * */
   def splitMultipleDefinitions(n: Node.Node): Node.Node = {
 
@@ -685,7 +697,7 @@ object Variables {
     n.copy(top = inConditionCast)
   }
 
-  def detectGlobalTemporaries(n: Node.Node): Node.Node = Time("detectDoubleVars") {
+  def detectGlobalTemporaries(n: Node.Node): Node.Node = Time("detectGlobalTemporaries") {
     // scan the global scope for temporary variables to remove
     var globals = mutable.Map.empty[SymId, (Option[Node.Expression], String)]
 
@@ -702,8 +714,26 @@ object Variables {
       node match {
         case `n` => // enter into the top node ("module")
           false
-        case VarDecl(TempName(name, newName), init, kind) => // global variable with or without initialization
-          globals += Id(name) -> (init, newName)
+        case VarDecl(TempName(name, newName), init, _) => // global variable with or without initialization
+          val sym = Id(name)
+          var recursive = false // when a variable is used in its own initialization, we cannot insert the declaration here
+          init.foreach { i =>
+            context.withScope(i) {
+              i.walkWithScope(context) ({ (node, context) =>
+                implicit val ctx = context
+                node match {
+                  case Node.Identifier(Id(`sym`)) =>
+                    recursive = true
+                    true
+                  case _ =>
+                    false
+                }
+              })
+            }
+          }
+          if (!recursive) {
+            globals += Id(name) -> (init, newName)
+          }
           true
         case _ =>
           true
@@ -719,10 +749,13 @@ object Variables {
     }
 
     val scopes = mutable.Set.empty[(SymId, Node.Node)] // caution: transform will invalidate Node references
+
     // identify scopes where the variables should be introduced
     n.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
+        case VarDecl(GlobalVar(_), _, _) =>
+          true
         case Node.Identifier(GlobalVar(sym)) =>
           for (scope <- context.findFuncScope) {
             scopes += sym -> scope._1
@@ -735,7 +768,7 @@ object Variables {
 
     val globalUsedInSomeScope = scopes.map(_._1)
 
-    // transfrom only variables which are use from some scope
+    // transform only variables which are used from some scope
     globals = globals.filter(g => globalUsedInSomeScope.contains(g._1))
 
     // TODO: check if each access is done from within the scope
@@ -770,8 +803,7 @@ object Variables {
             case _ => // ArrowFunctionExpression, Async
               node // we do not know how to introduce variables here
           }
-        case Node.Identifier(name) =>
-          val id = Id(name)
+        case Node.Identifier(Id(id)) =>
           globals.get(id).map(g => Node.Identifier(g._2)).getOrElse(node)
         case _ =>
           descend(node, transformer)

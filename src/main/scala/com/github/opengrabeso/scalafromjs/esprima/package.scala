@@ -143,6 +143,7 @@ package object esprima extends NodeExt {
       }
     }
 
+    // transform parent before its children - parent is responsible for descend, already in a context
     def transformBefore(ctx: ScopeContext)(_before: (Node, (Node, TreeTransformer) => Node, TreeTransformer) => Node): T = {
       val origScopes = ctx.scopes.length
       val origParents = ctx.parents.length
@@ -159,6 +160,7 @@ package object esprima extends NodeExt {
       ret
     }
 
+    // transform parent after its children, already in a context
     def transformAfter(ctx: ScopeContext)(_after: (Node, TreeTransformer) => Node): T = {
       val origScopes = ctx.scopes.length
       val origParents = ctx.parents.length
@@ -192,6 +194,7 @@ package object esprima extends NodeExt {
       ast.transform(tr) //.verifyScopesValid()
     }
 
+    // transform parent before its children - parent is responsible for descend - top-level context
     def transformBefore(_before: (Node, (Node, TreeTransformer) => Node, TreeTransformer) => Node): T = {
       val ctx = new ScopeContext()
       ctx.withScope(ast) {
@@ -199,6 +202,7 @@ package object esprima extends NodeExt {
       }
     }
 
+    // transform parent after its children - top-level context
     def transformAfter(_after: (Node, TreeTransformer) => Node): T = {
       val ctx = new ScopeContext()
       ctx.withScope(ast) {
