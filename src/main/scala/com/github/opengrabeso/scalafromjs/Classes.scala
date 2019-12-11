@@ -11,31 +11,6 @@ import scala.util.matching.Regex
 
 object Classes {
 
-
-  def findDefScope(scope: Option[Node.Node])(implicit context: ScopeContext): Option[Node.Node] = {
-    //println(s"  ${scope.map(nodeClassName)} ${scope.map(_.nesting)}")
-    scope match {
-      case Some(s@IsDeclScope()) => Some(s)
-      case Some(x) =>
-        val s = ???
-        findDefScope(s)
-      case _ => None
-    }
-  }
-
-  // TODO: rename to findClassScope
-  def findThisScope(scope: Option[Node.Node])(implicit context: ScopeContext): Option[Node.ClassDeclaration] = {
-    findDefScope(scope).collect {
-      case c: Node.ClassDeclaration => c
-    }
-  }
-
-  def findThisFunction(scope: Option[Node.Node])(implicit context: ScopeContext): Option[Node.Node] = {
-    findDefScope(scope).collect {
-      case c@IsFunctionScope() => c
-    }
-  }
-
   def findThisClassInWalker(walker: ScopeContext): Option[Node.ClassDeclaration] = {
     //println(walker.stack.map(nodeClassName).mkString(":"))
     walker.parents.reverse.collectFirst {

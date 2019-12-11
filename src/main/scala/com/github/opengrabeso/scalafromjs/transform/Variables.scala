@@ -685,4 +685,92 @@ object Variables {
     n.copy(top = inConditionCast)
   }
 
+  def detectGlobalTemporaries(n: Node.Node): Node.Node = Time("detectDoubleVars") {
+    // scan the global scope for temporary variables to remove
+    val globals = mutable.Map.empty[SymId, (Option[Node.Expression], String)]
+
+    object TempName {
+      def unapply(s: String): Option[(String, String)] = {
+        // TODO: user provided regex
+        // if ("_.*".r.findFirstIn(s).isDefined) s.drop(1)
+        if (s(0) == '_' && s.length > 1) Some(s, s.drop(1))
+        else None
+      }
+    }
+    n.transformAfter {(node, transformer) =>
+      implicit val ctx = transformer.context
+      node match {
+        case VarDecl(TempName(name, newName), init, kind) => // global variable with or without initialization
+          globals += Id(name) -> (init, newName)
+          node
+        case x =>
+          x
+      }
+    }
+
+    object GlobalVar {
+      def unapply(name: String)(implicit context: ScopeContext): Option[SymId] = {
+        val sym = Id(name)
+        if (globals contains sym) Some(sym)
+        else None
+      }
+    }
+
+    val scopes = mutable.Map.empty[SymId, Node.Node] // caution: transform will invalidate Node references
+    // identify scopes where the variables should be introduced
+    n.walkWithScope { (node, context) =>
+      implicit val ctx = context
+      node match {
+        case Node.Identifier(GlobalVar(sym)) =>
+          for (scope <- context.findFuncScope) {
+            scopes += sym -> scope._1
+          }
+          true
+        case _ =>
+          false
+      }
+    }
+
+    // TODO: check if each access is done from within the scope
+
+    val scopeNodes = scopes.toSeq.groupBy(_._2).map {case (g, seq) =>
+      g -> seq.map(_._1)
+    }
+
+    // find and handle all uses of the global variable
+    val handle = n.transformBefore {(node, descend, transformer) =>
+      implicit val ctx = transformer.context
+      node match {
+        case VarDecl(GlobalVar(_), _, _) => // remove the original declaration
+          Node.EmptyStatement()
+        case _ if scopeNodes contains node  =>
+          // TODO: introduce the declaration into the scope
+          val syms = scopeNodes(node)
+          // scope is some function
+          def addDeclarations(block: Node.BlockStatement): Node.BlockStatement = {
+            Node.BlockStatement(
+              syms.map { id =>
+                val globSym = globals(id)
+                Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(globSym._2), globSym._1.orNull)), "var").withTokens(block)
+              } ++ block.body
+            ).withTokens(block)
+          }
+          node match {
+            case Node.FunctionExpression(id, params, body, generator) =>
+              descend(Node.FunctionExpression(id, params, addDeclarations(body), generator).withTokens(node), transformer)
+            case Node.FunctionDeclaration(id, params, body, generator) =>
+              descend(Node.FunctionDeclaration(id, params, addDeclarations(body), generator).withTokens(node), transformer)
+            case _ => // ArrowFunctionExpression, Async
+              node // we do not know how to introduce variables here
+          }
+        case Node.Identifier(name) =>
+          val id = Id(name)
+          globals.get(id).map(g => Node.Identifier(g._2)).getOrElse(node)
+        case _ =>
+          descend(node, transformer)
+      }
+    }
+
+    handle
+  }
 }

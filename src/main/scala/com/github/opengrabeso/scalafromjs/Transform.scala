@@ -856,14 +856,15 @@ object Transform {
       'splitMultipleDefinitions -> onTopNode(Variables.splitMultipleDefinitions),
       'varInitialization -> onTopNode(Variables.varInitialization),
       'readJSDoc -> readJSDoc,
-      'iife ->onTopNode(iife), // removes also trailing return within the IIFE construct
-      'removeDoubleScope ->onTopNode(removeDoubleScope), // after iife (often introduced by it)
-      'processCall ->onTopNode(processCall),
-      'detectForVars ->onTopNode(Variables.detectForVars),
-      'detectDoubleVars ->onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
-      'detectVals ->onTopNode(Variables.detectVals), // before convertConstToFunction
-      'detectMethods ->onTopNode(Variables.detectMethods),
-      'convertConstToFunction ->onTopNode(Variables.convertConstToFunction)
+      'iife -> onTopNode(iife), // removes also trailing return within the IIFE construct
+      'removeDoubleScope -> onTopNode(removeDoubleScope), // after iife (often introduced by it)
+      'processCall -> onTopNode(processCall),
+      'detectForVars -> onTopNode(Variables.detectForVars),
+      'detectDoubleVars -> onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
+      'detectGlobalTemporaries -> onTopNode(Variables.detectGlobalTemporaries), // before detectVals, so that first access is not turned into val
+      'detectVals -> onTopNode(Variables.detectVals), // before convertConstToFunction
+      'detectMethods -> onTopNode(Variables.detectMethods),
+      'convertConstToFunction -> onTopNode(Variables.convertConstToFunction)
     ) ++ transform.classes.transforms ++ Seq(
       'removeDeprecated -> onTopNode(Parameters.removeDeprecated),
       'defaultValues -> onTopNode(Parameters.defaultValues), // if possible, do before type inference, as it is much simpler after it

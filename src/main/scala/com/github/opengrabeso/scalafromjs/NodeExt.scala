@@ -115,7 +115,7 @@ trait NodeExt {
   }
 
   object IsNull {
-    // extract value from a potential null only if non-null
+    // check if a potential null is a null
     def unapply[T](some: T): Boolean = {
       some == null
     }

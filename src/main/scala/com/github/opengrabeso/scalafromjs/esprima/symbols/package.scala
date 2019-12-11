@@ -49,7 +49,7 @@ package object symbols {
       assert(IsScope.unapply(n))
       if (n.range != null) n.range
       else {
-        throw new NoSuchElementException("Missing node id for $n")
+        throw new NoSuchElementException(s"Missing node id for $n")
       }
     }
     case class EnterScopeValue(isScope: Boolean)
@@ -104,6 +104,12 @@ package object symbols {
       }
       None
     }
+
+    // find the first parent scope which is a function (member, explicit, implicit, arrow ..._)
+    def findFuncScope: Option[(Node.Node, ScopeInfo)] = {
+      scopes.reverse.find(s => IsFunctionScope.unapply(s._1))
+    }
+
 
     def contextUntil(node: Node.Node): ScopeContext = {
       val parentsUntil = parents.take(parents.prefixLength(_ != node) + 1)
