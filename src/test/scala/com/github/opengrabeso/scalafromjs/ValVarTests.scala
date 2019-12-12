@@ -56,6 +56,40 @@ class ValVarTests extends FunSuite with TestUtils {
 
   }
 
+  test("Global double var resolution") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      var a = 0;
+      function f() {
+        return a;
+      }
+      var a = "";
+      function g() {
+        return a;
+      }
+      var a = null;
+      function h() {
+        a = new Object();
+        return a;
+      }
+      var r1, r2, r3;
+      if (true) {
+        r1 = f();
+        r2 = g();
+        r3 = h();
+      }
+      """).required(
+      "val a = 0",
+      "val a$1 = \"\"",
+      "var a$2 = null",
+      "var r1: Double",
+      "var r2: String",
+      "var r3: Object"
+    ).forbidden()
+
+  }
+
   test("Var scope should be detected properly ") {
     exec check ConversionCheck(
       // language=JavaScript

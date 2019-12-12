@@ -1,14 +1,13 @@
 package com.github.opengrabeso.scalafromjs
 package transform
 
-import JsUtils._
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import Classes._
 import SymbolTypes._
 import Expressions._
-import Transform._
-import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
+import com.github.opengrabeso.scalafromjs
+import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId, SymbolDeclaration}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -36,6 +35,7 @@ object Variables {
         case VarDecl(Id(varName), Some(value), kind) if kind != "const" => // var with init - search for a modification
           // check if any reference is assignment target
 
+          // isModified call is quite slow this is quite slow (15 sec. of 18 in detectVals for three.js - total time 160 s)
           val assignedInto = refs.isModified(varName)
           val n = if (!assignedInto) {
             VarDecl(varName.name, Some(value), "const", node)
@@ -78,28 +78,40 @@ object Variables {
       }
     }
 
-    var declared = Set.empty[SymId]
+    val declaredGlobal = mutable.Map.empty[SymId, Int] // add unique postfix
+    val declaredLocal = mutable.Set.empty[SymId]
 
-    n.transformAfter {(node, transformer) =>
+    def addIndex(s: String, i: Int) = if (i > 0) s + "$" + i.toString else s
+
+    n.transformBefore {(node, descend, transformer) =>
       implicit val ctx = transformer.context
       node match {
-        // match only Node.Var, assume Node.Let and Node.Const are already well scoped
+        case VarDecl(Id(varName), init, kind) if ctx.scopes.last._1 == n && !usedAsForVar(varName.name, transformer) =>
+          // declared in the top-level scope - special handling - if already exists, create a new variable
+          assert(ctx.scopes.size == 1)
+          val count = declaredGlobal.getOrElse(varName, -1)
+          declaredGlobal += varName -> (count + 1)
+          VarDecl(addIndex(varName.name, count + 1), init, kind, node).withTokens(node)
+
+        // we could assume Node.Let and Node.Const are already well scoped
         case VarDecl(Id(varName), Some(value), _) if !usedAsForVar(varName.name, transformer) => // var with init - search for a modification
           //println(s"Node.VariableDeclarator ${varName.name}")
           //println(s"${varName.thedef.get.name} $varDef ${varName.thedef.get.orig} ${varName == varName.thedef.get.orig.head}")
-
-          if (!(declared contains varName)) {
-            declared += varName
-            node
+          if (!(declaredLocal contains varName)) {
+            declaredLocal += varName
+            descend(node, transformer)
           } else {
-            Node.ExpressionStatement(Node.AssignmentExpression(
+            descend(Node.ExpressionStatement(Node.AssignmentExpression(
               left = Node.Identifier(varName.name).withTokens(node),
               operator = "=",
               right = value.cloneNode()
-            ))
+            )).withTokens(node), transformer)
           }
+        case Node.Identifier(Id(id)) if declaredGlobal contains id =>
+          // $1, $2 ... used in three.js build as well
+          Node.Identifier(addIndex(id.name, declaredGlobal(id))).withTokens(node)
         case _ =>
-          node
+          descend(node, transformer)
       }
     }
   }
@@ -186,7 +198,7 @@ object Variables {
 
   /*
   * many transformations assume each Node.VariableDeclaration contains at most one Node.VariableDeclarator
-  * Split multiple definitions (comma separated definitiob lists)
+  * Split multiple definitions (comma separated definition lists)
   * */
   def splitMultipleDefinitions(n: Node.Node): Node.Node = {
 
@@ -329,7 +341,7 @@ object Variables {
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
         case VarDecl(Id(name), None, _) if replaced contains name =>
-          Node.EmptyStatement()
+          Node.EmptyStatement().withTokens(node)
         case c =>
           c
       }
@@ -421,7 +433,7 @@ object Variables {
           init.map { init =>
             transform(Node.Identifier(oldName.name), init).withTokensDeep(node)
           }.getOrElse {
-            Node.EmptyStatement()
+            Node.EmptyStatement().withTokens(node)
           }
         case _ =>
           node
@@ -685,4 +697,157 @@ object Variables {
     n.copy(top = inConditionCast)
   }
 
+  def detectGlobalTemporaries(n: Node.Node): Node.Node = Time("detectGlobalTemporaries") {
+    // scan the global scope for temporary variables to remove
+    // for each variable: first option is erase state (last initialization), second is optional initialization
+    var globals = mutable.Map.empty[SymId, Option[Option[Node.Expression]]]
+
+    def matchName(s: String) = s.length > 1 && s(0) == '_'
+    def nameToUse(s: String, localSymbols: Set[String]) = {
+      val wanted = s.drop(1)
+      // in case of a name clash use the original name - that can never clash, as the variable could not be accessed otherwise
+      if (!localSymbols.contains(wanted)) wanted
+      else s
+    }
+
+    // the purpose of the construct it optimization. If the value is scalar, it makes no sense. Therefore if we see
+    // a scalar (number or string) global, it is most likely a proper global
+    def nonScalarInitializer(init: Node.Node): Boolean = init match {
+      case _: Node.TemplateLiteral =>
+        false
+      case Node.Literal(literal, _) =>
+        !literal.is[Double] && !literal.is[String]
+      case _: Node.ObjectExpression =>
+        false
+      case _ =>
+        true
+    }
+
+    def recursiveInitializer(sym: SymId, init: Node.Node)(implicit context: ScopeContext): Boolean = {
+      var recursive = false // when a variable is used in its own initialization, we cannot insert the declaration here
+      context.withScope(init) {
+        init.walkWithScope(context) ({ (node, context) =>
+          implicit val ctx = context
+          node match {
+            case Node.Identifier(Id(`sym`)) =>
+              recursive = true
+              true // abort (note: we cannot return immediately, withScope needs to clean up)
+            case _ =>
+              false
+          }
+        })
+      }
+      recursive
+
+    }
+
+    def isGlobalTemporary(sym: SymId, init: Node.Node)(implicit context: ScopeContext) = nonScalarInitializer(init) && !recursiveInitializer(sym, init)
+
+    object GlobalTemporary {
+      def unapply(node: Node.Node)(implicit context: ScopeContext): Option[(SymId, Option[Node.Expression])] = node match {
+        case VarDecl(Id(sym), init, _) if matchName(sym.name) && init.forall(isGlobalTemporary(sym, _)) =>
+          Some(sym, init)
+        case _ =>
+          None
+      }
+    }
+    n.walkWithScope {(node, context) =>
+      implicit val ctx = context
+      node match {
+        case `n` => // enter into the top node ("module")
+          false
+        case GlobalTemporary(sym, init) => // global variable with or without (non-scalar) initialization
+          globals += sym -> Some(init)
+          true
+        case _ =>
+          true
+      }
+    }
+
+    object GlobalVar {
+      def unapply(name: String)(implicit context: ScopeContext): Option[SymId] = {
+        val sym = Id(name)
+        if (globals contains sym) Some(sym)
+        else None
+      }
+    }
+
+    val scopes = mutable.Set.empty[(SymId, Node.Node)] // caution: transform will invalidate Node references
+
+    // identify scopes where the variables should be introduced
+    n.walkWithScope { (node, context) =>
+      implicit val ctx = context
+      node match {
+        case VarDecl(GlobalVar(_), _, _) =>
+          true
+        case Node.Identifier(GlobalVar(sym)) =>
+          for (scope <- context.findFuncScope) {
+            scopes += sym -> scope._1
+          }
+          true
+        case _ =>
+          false
+      }
+    }
+
+    val globalUsedInSomeScope = scopes.map(_._1)
+
+    // transform only variables which are used from some scope
+    globals = globals.filter(g => globalUsedInSomeScope.contains(g._1))
+
+    // TODO: check if each access is done from within the scope
+
+    val scopeNodes = scopes.toSeq.groupBy(_._2).map {case (g, seq) =>
+      g -> seq.map(_._1)
+    }
+
+    // find and handle all uses of the global variable
+    val handle = n.transformBefore {(node, descend, transformer) =>
+      implicit val ctx = transformer.context
+      node match {
+        case VarDecl(GlobalVar(sym), init, _) => // remove the original declaration
+          init match {
+            case Some(i) if isGlobalTemporary(sym, i) =>
+              // track the last initialization so that replacement uses it, keep the short name
+              globals += sym -> Some(init)
+              Node.EmptyStatement().withTokens(node) // erase the declaration
+            case None =>
+              globals += sym -> Some(None)
+              Node.EmptyStatement().withTokens(node) // erase the declaration
+            case Some(i) => // non-temporary (scalar or object) initialization
+              globals += sym -> None
+              node // keep the declaration intact
+          }
+        case _ if scopeNodes contains node  =>
+          // transform the node before we add the variables, so that the names are not present as the local symbols yet
+          val syms = scopeNodes(node)
+          val renamed = descend(node, transformer)
+          // scope is some function
+          def addDeclarations(block: Node.BlockStatement): Node.BlockStatement = {
+            // check if the desired name is free in the block
+            val symbols = SymbolDeclaration.declaredSymbols(block).toSet
+            Node.BlockStatement(
+              syms.flatMap { id =>
+                // first level of the globals is whether the variable is erased now (last initialization may be scalar)
+                globals(id).map(init => VarDecl(nameToUse(id.name, symbols), init, "var", block))
+              } ++ block.body
+            ).withTokens(block)
+          }
+          renamed match {
+            case Node.FunctionExpression(id, params, body, generator) =>
+              Node.FunctionExpression(id, params, addDeclarations(body), generator).withTokens(node)
+            case Node.FunctionDeclaration(id, params, body, generator) =>
+              Node.FunctionDeclaration(id, params, addDeclarations(body), generator).withTokens(node)
+            case _ => // ArrowFunctionExpression, Async
+              renamed // we do not know how to introduce variables here
+          }
+        case Node.Identifier(Id(id)) =>
+          globals.get(id).flatMap(_.map(_ /*init*/ => Node.Identifier(nameToUse(id.name, ctx.localSymbols)))).getOrElse(node)
+        case _ =>
+          descend(node, transformer)
+      }
+    }
+
+    handle
+  }
 }

@@ -64,8 +64,9 @@ object ScalaFromJS extends SimpleSwingApplication {
       try {
         prefs.put("version", "0")
         prefs.put("input", input.text)
-      } finally {
-        // prefs have limited size - can throw exception
+      } catch {
+        case ex: Exception =>
+          // prefs have limited size - can throw exception
       }
     }
 
