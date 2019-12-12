@@ -341,7 +341,7 @@ object Variables {
       // descend informs us how to descend into our children - cannot be used to descend into anything else
       node match {
         case VarDecl(Id(name), None, _) if replaced contains name =>
-          Node.EmptyStatement()
+          Node.EmptyStatement().withTokens(node)
         case c =>
           c
       }
@@ -433,7 +433,7 @@ object Variables {
           init.map { init =>
             transform(Node.Identifier(oldName.name), init).withTokensDeep(node)
           }.getOrElse {
-            Node.EmptyStatement()
+            Node.EmptyStatement().withTokens(node)
           }
         case _ =>
           node
@@ -810,10 +810,10 @@ object Variables {
             case Some(i) if isGlobalTemporary(sym, i) =>
               // track the last initialization so that replacement uses it, keep the short name
               globals += sym -> Some(init)
-              Node.EmptyStatement() // erase the declaration
+              Node.EmptyStatement().withTokens(node) // erase the declaration
             case None =>
               globals += sym -> Some(None)
-              Node.EmptyStatement() // erase the declaration
+              Node.EmptyStatement().withTokens(node) // erase the declaration
             case Some(i) => // non-temporary (scalar or object) initialization
               globals += sym -> None
               node // keep the declaration intact
