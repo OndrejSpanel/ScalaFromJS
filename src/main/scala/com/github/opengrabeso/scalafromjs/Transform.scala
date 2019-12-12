@@ -860,8 +860,8 @@ object Transform {
       'removeDoubleScope -> onTopNode(removeDoubleScope), // after iife (often introduced by it)
       'processCall -> onTopNode(processCall),
       'detectForVars -> onTopNode(Variables.detectForVars),
-      'detectDoubleVars -> onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
       'detectGlobalTemporaries -> onTopNode(Variables.detectGlobalTemporaries),
+      'detectDoubleVars -> onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
       'detectVals -> onTopNode(Variables.detectVals), // before convertConstToFunction
       'detectMethods -> onTopNode(Variables.detectMethods),
       'convertConstToFunction -> onTopNode(Variables.convertConstToFunction)

@@ -89,16 +89,37 @@ class RemoveTemporary extends FunSuite with TestUtils {
     ).forbidden("_vector")
   }
 
-  test("Do not remove variable used from its own declaration") {
+  test("Do not remove a global variable used from its own declaration") {
     exec check ConversionCheck(
       // language=JavaScript
       """
-      var _Math = {
-        DEG2RAD: Math.PI / 180,
-        degToRad: function ( degrees ) {
-          return degrees * _Math.DEG2RAD;
+      var _recursive = (_recursive);
+
+      function use() {_recursive();}
+      """).required("val _recursive").forbidden(" recursive")
+  }
+  test("Do not remove a global variable initialized with an object expression") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      var _Obj = {
+        VALUE: 100,
+        multiply: function ( x ) {
+          return x * 10;
         },
-      }""").required("object _Math", "_Math.DEG2RAD").forbidden("object Math")
+      }
+      """).required("object _Obj").forbidden(" Obj")
+  }
+  test("Do not remove a global variable initialized with scalar") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      var _id = 0;
+      function newId() {
+        return _id ++;
+      }
+      """).required("var _id = 0").forbidden(" id")
+
   }
 
   test("Make multiple global variables unique") {
@@ -111,20 +132,26 @@ class RemoveTemporary extends FunSuite with TestUtils {
       }
       var _vector = new Vector2();
       function b( center, size ) {
-        _vector.set( 0, 1);
+        _vector.set(0, 1);
       }
       var _vector = 0;
       function c() {
         _vector = _vector + 1;
       }
+      var _vector = new Vector4();
+      function d( center, size ) {
+        _vector.set(4, 3, 2, 1);
+      }
       """).required(
       "val vector = new Vector3()",
-      "vector.copy(",
-      "val vector$1 = new Vector2()",
-      "vector$1.set(",
-      "var vector$2 = 0",
-      "vector$2 = vector$2 + 1",
-    ).forbidden("_vector", "vector.set(")
+      " vector.copy(",
+      "val vector = new Vector2()",
+      " vector.set(0",
+      "var _vector = 0",
+      "_vector = _vector + 1",
+      "val vector = new Vector4()",
+      " vector.set(4",
+    ).forbidden("_vector.")
   }
 
 }

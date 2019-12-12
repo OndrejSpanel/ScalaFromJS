@@ -1,13 +1,12 @@
 package com.github.opengrabeso.scalafromjs
 package transform
 
-import JsUtils._
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import Classes._
 import SymbolTypes._
 import Expressions._
-import Transform._
+import com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
 
 import scala.collection.mutable
@@ -36,6 +35,7 @@ object Variables {
         case VarDecl(Id(varName), Some(value), kind) if kind != "const" => // var with init - search for a modification
           // check if any reference is assignment target
 
+          // isModified call is quite slow this is quite slow (15 sec. of 18 in detectVals for three.js - total time 160 s)
           val assignedInto = refs.isModified(varName)
           val n = if (!assignedInto) {
             VarDecl(varName.name, Some(value), "const", node)
@@ -699,14 +699,51 @@ object Variables {
 
   def detectGlobalTemporaries(n: Node.Node): Node.Node = Time("detectGlobalTemporaries") {
     // scan the global scope for temporary variables to remove
-    var globals = mutable.Map.empty[SymId, (Option[Node.Expression], String)]
+    // for each variable: first option is erase state (last initialization), second is optional initialization
+    var globals = mutable.Map.empty[SymId, Option[Option[Node.Expression]]]
 
-    object TempName {
-      def unapply(s: String): Option[(String, String)] = {
-        // TODO: user provided regex
-        // if ("_.*".r.findFirstIn(s).isDefined) s.drop(1)
-        if (s(0) == '_' && s.length > 1) Some(s, s.drop(1))
-        else None
+    def matchName(s: String) = s.length > 1 && s(0) == '_'
+    def nameToUse(s: String) = s.drop(1)
+
+    // the purpose of the construct it optimization. If the value is scalar, it makes no sense. Therefore if we see
+    // a scalar (number or string) global, it is most likely a proper global
+    def nonScalarInitializer(init: Node.Node): Boolean = init match {
+      case _: Node.TemplateLiteral =>
+        false
+      case Node.Literal(literal, _) =>
+        !literal.is[Double] && !literal.is[String]
+      case _: Node.ObjectExpression =>
+        false
+      case _ =>
+        true
+    }
+
+    def recursiveInitializer(sym: SymId, init: Node.Node)(implicit context: ScopeContext): Boolean = {
+      var recursive = false // when a variable is used in its own initialization, we cannot insert the declaration here
+      context.withScope(init) {
+        init.walkWithScope(context) ({ (node, context) =>
+          implicit val ctx = context
+          node match {
+            case Node.Identifier(Id(`sym`)) =>
+              recursive = true
+              true // abort (note: we cannot return immediately, withScope needs to clean up)
+            case _ =>
+              false
+          }
+        })
+      }
+      recursive
+
+    }
+
+    def isGlobalTemporary(sym: SymId, init: Node.Node)(implicit context: ScopeContext) = nonScalarInitializer(init) && !recursiveInitializer(sym, init)
+
+    object GlobalTemporary {
+      def unapply(node: Node.Node)(implicit context: ScopeContext): Option[(SymId, Option[Node.Expression])] = node match {
+        case VarDecl(Id(sym), init, _) if matchName(sym.name) && init.forall(isGlobalTemporary(sym, _)) =>
+          Some(sym, init)
+        case _ =>
+          None
       }
     }
     n.walkWithScope {(node, context) =>
@@ -714,26 +751,8 @@ object Variables {
       node match {
         case `n` => // enter into the top node ("module")
           false
-        case VarDecl(TempName(name, newName), init, _) => // global variable with or without initialization
-          val sym = Id(name)
-          var recursive = false // when a variable is used in its own initialization, we cannot insert the declaration here
-          init.foreach { i =>
-            context.withScope(i) {
-              i.walkWithScope(context) ({ (node, context) =>
-                implicit val ctx = context
-                node match {
-                  case Node.Identifier(Id(`sym`)) =>
-                    recursive = true
-                    true
-                  case _ =>
-                    false
-                }
-              })
-            }
-          }
-          if (!recursive) {
-            globals += Id(name) -> (init, newName)
-          }
+        case GlobalTemporary(sym, init) => // global variable with or without (non-scalar) initialization
+          globals += sym -> Some(init)
           true
         case _ =>
           true
@@ -781,17 +800,27 @@ object Variables {
     val handle = n.transformBefore {(node, descend, transformer) =>
       implicit val ctx = transformer.context
       node match {
-        case VarDecl(GlobalVar(_), _, _) => // remove the original declaration
-          Node.EmptyStatement()
+        case VarDecl(GlobalVar(sym), init, _) => // remove the original declaration
+          init match {
+            case Some(i) if isGlobalTemporary(sym, i) =>
+              // track the last initialization so that replacement uses it, keep the short name
+              globals += sym -> Some(init)
+              Node.EmptyStatement() // erase the declaration
+            case None =>
+              globals += sym -> Some(None)
+              Node.EmptyStatement() // erase the declaration
+            case Some(i) => // non-temporary (scalar or object) initialization
+              globals += sym -> None
+              node // keep the declaration intact
+          }
         case _ if scopeNodes contains node  =>
-          // TODO: introduce the declaration into the scope
           val syms = scopeNodes(node)
           // scope is some function
           def addDeclarations(block: Node.BlockStatement): Node.BlockStatement = {
             Node.BlockStatement(
-              syms.map { id =>
-                val globSym = globals(id)
-                Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(globSym._2), globSym._1.orNull)), "var").withTokens(block)
+              syms.flatMap { id =>
+                // first level of the globals is whether the variables is erased now (last initialization may be scalar)
+                globals(id).map(init => VarDecl(nameToUse(id.name), init, "var", block))
               } ++ block.body
             ).withTokens(block)
           }
@@ -804,7 +833,7 @@ object Variables {
               node // we do not know how to introduce variables here
           }
         case Node.Identifier(Id(id)) =>
-          globals.get(id).map(g => Node.Identifier(g._2)).getOrElse(node)
+          globals.get(id).flatMap(_.map(_ /*init*/ => Node.Identifier(nameToUse(id.name)))).getOrElse(node)
         case _ =>
           descend(node, transformer)
       }
