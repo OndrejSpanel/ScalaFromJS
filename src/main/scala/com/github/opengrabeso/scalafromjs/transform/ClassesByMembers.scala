@@ -12,6 +12,11 @@ import scala.language.implicitConversions
 
 object ClassesByMembers {
 
+  /**
+    * Match what members are used by a symbol against a list of all classes
+    * defList is a list of all known classes
+    * byMembers is a list of member usages for symbols
+    * */
   case class ClassDefInfo(members: Set[String], propMembers: Set[String], funMembers: Map[String, Int], parentCount: Int) {
     def + (that: ClassDefInfo): ClassDefInfo = ClassDefInfo(
       members ++ that.members,
@@ -39,9 +44,7 @@ object ClassesByMembers {
       var members = Map.empty[SymbolMapId, ClassDefInfo]
 
       //println(s"classes ${classes.keys}")
-      for {
-        (clsName, (parentName, cls)) <- classes
-      } {
+      for ((clsName, (parentName, cls)) <- classes) {
 
         //println(s"Class $clsName parent $parentName")
 
@@ -54,7 +57,7 @@ object ClassesByMembers {
             methodName(c) -> getMethodMethod(c).fold(0)(_.params.length)
         }
 
-        val funMembers = listKind(propertiesSeq, "init")
+        val funMembers = listKind(propertiesSeq, "init") ++ listKind(propertiesSeq, "method")
 
         val getters = listKind(propertiesNonStatic, "get").map(_._1)
         val setters = listKind(propertiesNonStatic, "set").map(_._1)
@@ -102,10 +105,11 @@ object ClassesByMembers {
     }
 
     def bestMatch(useName: String, useInfo: ClassUseInfo, desperate: Boolean)(classInfo: ClassInfo): Option[SymbolMapId] = {
-      defList.headOption.flatMap { _ =>
+      defList.headOption.flatMap { _ => // avoid processing when there are no definitions (would crash)
 
         val interesting = watched(useName)
 
+        // compute score for each candidate
         val candidates = defList.map { case (cls, ms) =>
           val msVars = ms.members ++ ms.propMembers
           val msFuns = ms.funMembers
@@ -119,7 +123,8 @@ object ClassesByMembers {
 
         val bestScore = candidates.maxBy(_._2._2)._2._2
 
-        if (bestScore <= 0) return None
+        // ignore match in one member unless desperate
+        if (bestScore <= 0 || !desperate && bestScore <=1 ) return None
 
         if (interesting) {
           println(s"  By members $useName: bestScore $bestScore")

@@ -135,6 +135,27 @@ class TypeTests extends FunSuite with TestUtils {
       )
   }
 
+  test("Classes should be inferred based on used member functions") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+      function Foo() {}
+
+      Object.assign( Foo.prototype, {
+        isEmpty: function () {},
+        getCenter: function ( target ) {},
+        getSize: function ( target ) {},
+      } );
+
+      function x( p ) {
+        if ( p.isEmpty() ) return;
+        p.getCenter( this.position );
+        p.getSize( this.scale );
+      }
+      """
+    ).required("p: Foo").forbidden("p: Any")
+  }
+
   test("Class properties should be defined") {
     exec check ConversionCheck(rsc("types/classSuper.js"))
       .required(

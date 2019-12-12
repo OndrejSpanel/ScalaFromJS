@@ -16,7 +16,7 @@ object SymbolTypes {
   }
 
   def watchedMember(cls: String, name: String): Boolean = watchCondition {
-    val watched = Set[(String, String)](("Box3", "set"))
+    val watched = Set[(String, String)](("ClassToWatch", "memberToWatch"))
     val watchedAllClasses = Set[String]("")
     name.startsWith("watch_") || watched.contains(cls, name) || watchedAllClasses.contains(name)
   }
