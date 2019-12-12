@@ -7,7 +7,7 @@ import Classes._
 import SymbolTypes._
 import Expressions._
 import com.github.opengrabeso.scalafromjs
-import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
+import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId, SymbolDeclaration}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -703,7 +703,12 @@ object Variables {
     var globals = mutable.Map.empty[SymId, Option[Option[Node.Expression]]]
 
     def matchName(s: String) = s.length > 1 && s(0) == '_'
-    def nameToUse(s: String) = s.drop(1)
+    def nameToUse(s: String, localSymbols: Set[String]) = {
+      val wanted = s.drop(1)
+      // in case of a name clash use the original name - that can never clash, as the variable could not be accessed otherwise
+      if (!localSymbols.contains(wanted)) wanted
+      else s
+    }
 
     // the purpose of the construct it optimization. If the value is scalar, it makes no sense. Therefore if we see
     // a scalar (number or string) global, it is most likely a proper global
@@ -814,26 +819,30 @@ object Variables {
               node // keep the declaration intact
           }
         case _ if scopeNodes contains node  =>
+          // transform the node before we add the variables, so that the names are not present as the local symbols yet
           val syms = scopeNodes(node)
+          val renamed = descend(node, transformer)
           // scope is some function
           def addDeclarations(block: Node.BlockStatement): Node.BlockStatement = {
+            // check if the desired name is free in the block
+            val symbols = SymbolDeclaration.declaredSymbols(block).toSet
             Node.BlockStatement(
               syms.flatMap { id =>
-                // first level of the globals is whether the variables is erased now (last initialization may be scalar)
-                globals(id).map(init => VarDecl(nameToUse(id.name), init, "var", block))
+                // first level of the globals is whether the variable is erased now (last initialization may be scalar)
+                globals(id).map(init => VarDecl(nameToUse(id.name, symbols), init, "var", block))
               } ++ block.body
             ).withTokens(block)
           }
-          node match {
+          renamed match {
             case Node.FunctionExpression(id, params, body, generator) =>
-              descend(Node.FunctionExpression(id, params, addDeclarations(body), generator).withTokens(node), transformer)
+              Node.FunctionExpression(id, params, addDeclarations(body), generator).withTokens(node)
             case Node.FunctionDeclaration(id, params, body, generator) =>
-              descend(Node.FunctionDeclaration(id, params, addDeclarations(body), generator).withTokens(node), transformer)
+              Node.FunctionDeclaration(id, params, addDeclarations(body), generator).withTokens(node)
             case _ => // ArrowFunctionExpression, Async
-              node // we do not know how to introduce variables here
+              renamed // we do not know how to introduce variables here
           }
         case Node.Identifier(Id(id)) =>
-          globals.get(id).flatMap(_.map(_ /*init*/ => Node.Identifier(nameToUse(id.name)))).getOrElse(node)
+          globals.get(id).flatMap(_.map(_ /*init*/ => Node.Identifier(nameToUse(id.name, ctx.localSymbols)))).getOrElse(node)
         case _ =>
           descend(node, transformer)
       }

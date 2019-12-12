@@ -74,13 +74,10 @@ class RemoveTemporary extends FunSuite with TestUtils {
       """
       var _vector = new Vector3();
       function a( size ) {
-
         _vector.copy( size ).multiplyScalar( 0.5 );
       }
       function b( center, size ) {
-
         _vector.set( 0, 1, 2);
-
       }
       """).required(
       "val vector = new Vector3()",
@@ -152,6 +149,22 @@ class RemoveTemporary extends FunSuite with TestUtils {
       "val vector = new Vector4()",
       " vector.set(4",
     ).forbidden("_vector.")
+  }
+
+  test("Avoid name clash when introducing a temporary") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      var _vector = new Vector3();
+      function create() {
+        var vector = new Vector3();
+        _vector.copy(vector);
+      }
+      """).required(
+      "val vector = new Vector3",
+      "val _vector = new Vector3",
+      " _vector.copy(vector)"
+    )
   }
 
 }

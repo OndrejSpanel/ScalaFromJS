@@ -104,6 +104,7 @@ package object symbols {
       }
       None
     }
+    def localSymbols: Set[String] = scopes.last._2.symbols
 
     // find the first parent scope which is a function (member, explicit, implicit, arrow ..._)
     def findFuncScope: Option[(Node.Node, ScopeInfo)] = {
