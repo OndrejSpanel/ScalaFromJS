@@ -7,8 +7,6 @@ import scala.util.Try
 import PathUtils._
 import ConvertProject.AliasPackageRule
 
-import scala.collection.JavaConverters._
-
 object CommandLine {
 
   def readFile(path: String): String = {
@@ -25,21 +23,6 @@ object CommandLine {
     val dir = new java.io.File(path)
     dir.getParentFile.mkdirs()
 
-  }
-
-  def withTempDir[T](path: String)(f: String => T): T = {
-    val dir = Files.createTempDirectory(path)
-    val pathSlash = terminatedPath(dir.toString.replace('\\', '/'))
-    try {
-      f(pathSlash)
-    } finally {
-      try {
-        val path = Paths.get(pathSlash)
-        Files.walk(path).iterator.asScala.toSeq.reverse.foreach(f => Files.delete(f))
-      } catch {
-        case _: Exception =>
-      }
-    }
   }
 
   // return filenames of the output files

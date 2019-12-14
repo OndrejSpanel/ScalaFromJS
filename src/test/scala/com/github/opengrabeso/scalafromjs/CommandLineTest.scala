@@ -2,29 +2,8 @@ package com.github.opengrabeso.scalafromjs
 
 import org.scalatest.FunSuite
 
-class CommandLineTest extends FunSuite with TestUtils {
-
+class CommandLineTest extends FunSuite with TestUtils with ProjectUtils {
   import CommandLine._
-
-  def forEachFileWithCleanup(files: Seq[String])(f: String => Unit): Unit = {
-    // no need to clean up, it will be done in withTempDir
-    files.foreach(f)
-  }
-
-  def convertProject(controlFile: String): String = {
-    withTempDir("ScalaFromJS-test-") { temp =>
-      val out = convertFileToFile("src/test/resources/" + controlFile, temp + "xxx.scala")
-      val sb = new StringBuilder
-      forEachFileWithCleanup(out) { f =>
-        // for each file verify the resulting file is a Scala file with a comment
-        assert(f.endsWith(".scala"))
-        val outCode = readFile(f)
-        sb append outCode
-        exec check ResultCheck(outCode).required("/*", "*/")
-      }
-      sb.result
-    }
-  }
 
   test("Single file conversion") {
     withTempDir("ScalaFromJS-test-") { temp =>
