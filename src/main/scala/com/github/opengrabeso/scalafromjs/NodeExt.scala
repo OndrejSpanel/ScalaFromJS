@@ -308,14 +308,14 @@ trait NodeExt {
 
   object VarDecl {
     def unapply(arg: Node.VariableDeclaration): Option[(String, Option[Node.Expression], String)] = arg match {
-      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), MayBeNull(init))), kind) =>
+      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), MayBeNull(init), _)), kind) =>
         Some(name, init, kind)
       case _ =>
         None
     }
 
     def apply(name: String, init: Option[Node.Expression], kind: String, fromTokens: Node.Node): Node.VariableDeclaration = {
-      Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name).withTokens(fromTokens), init.orNull)), kind).withTokens(fromTokens)
+      Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name).withTokens(fromTokens), init.orNull, null)), kind).withTokens(fromTokens)
     }
   }
 
@@ -325,7 +325,7 @@ trait NodeExt {
         left -> Some(right)
       case id: Node.Identifier =>
         id -> None
-      case Node.RestElement(arg: Node.Identifier) =>
+      case Node.RestElement(arg: Node.Identifier, _) =>
         arg -> None
       //case _: Node.ArrowParameterPlaceHolder =>
       //case _: Node.BindingPattern =>

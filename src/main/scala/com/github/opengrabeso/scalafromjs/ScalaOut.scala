@@ -374,7 +374,7 @@ object ScalaOut {
           context.scanSymbols(node)
           node match {
 
-            case Node.VariableDeclarator(name: Node.Identifier, OObject(props)) if props.nonEmpty && isVal =>
+            case Node.VariableDeclarator(name: Node.Identifier, OObject(props), _) if props.nonEmpty && isVal =>
               // special case handling for isResource marked object (see readFileAsJs)
               val propNames = props.map(propertyName)
               //println(s"propNames $propNames")
@@ -393,7 +393,7 @@ object ScalaOut {
                 out("}\n")
               }
             // empty object - might be a map instead
-            case v@Node.VariableDeclarator(s: Node.Identifier, OObject(Seq())) =>
+            case v@Node.VariableDeclarator(s: Node.Identifier, OObject(Seq()), _) =>
               val sid = symId(s)
               val tpe = input.types.get(sid).map(_.declType)
               //println(s"Var $name ($sid) type $tpe empty object")
@@ -409,7 +409,7 @@ object ScalaOut {
                   outputVarDef(s, None, tpe, false)
               }
 
-            case v@VarDef(s@Node.Identifier(Id(name)), MayBeNull(init)) =>
+            case v@VarDef(s@Node.Identifier(Id(name)), MayBeNull(init), _) =>
               outValVar(init.isDefined)
               //out("/*outputDefinitions 1*/")
               val sType = getSymbolType(name)
@@ -504,7 +504,7 @@ object ScalaOut {
               out"var $key = $value\n"
           }
         } else value match {
-          case f@Node.FunctionExpression(id, params, body, generator) =>
+          case f@Node.FunctionExpression(id, params, body, generator, _) =>
             context.withScope(f) {
               val postfix = if (kind == "set") "_=" else ""
               out"def $key$postfix"
@@ -869,7 +869,7 @@ object ScalaOut {
         case tn: Node.CallExpression =>
           outputCall(tn.callee, tn.arguments)
 
-        case Node.VariableDeclarator(s@Node.Identifier(Id(name)), MayBeNull(init)) =>
+        case Node.VariableDeclarator(s@Node.Identifier(Id(name)), MayBeNull(init), _) =>
           val sType = getSymbolType(name)
           outputVarDef(s, init, sType, false)
 
@@ -1067,7 +1067,7 @@ object ScalaOut {
               }
 
               tn.consequent match {
-                case Seq(block@Node.BlockStatement(Node.VariableDeclaration(Seq(Node.VariableDeclarator(sv, AsInstanceOfCondition(_, _))), _) +: body)) =>
+                case Seq(block@Node.BlockStatement(Node.VariableDeclaration(Seq(Node.VariableDeclarator(sv, AsInstanceOfCondition(_, _), _)), _) +: body)) =>
                   // we might check sv - variable name correspondence
                   context.withScope(block) {
                     outputCaseBody(body)
@@ -1196,7 +1196,7 @@ object ScalaOut {
                   if (false) {
                     out"/* inlineBody defs ${
                       method.body.body.collect {
-                        case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(vn), _)), _) =>
+                        case VarDecl(vn, _, _) =>
                           vn
                       }.mkString(",")
                     } */\n"

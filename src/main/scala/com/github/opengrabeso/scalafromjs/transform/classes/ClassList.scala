@@ -233,10 +233,10 @@ object ClassList {
                 case Node.VariableDeclaration(vars, kind) =>
                   //println("Vardef")
                   vars.foreach {
-                    case v@Node.VariableDeclarator(Node.Identifier(vName), Defined(vValue)) =>
+                    case v@Node.VariableDeclarator(Node.Identifier(vName), Defined(vValue), _) =>
                       val member = ClassVarMember(vValue, v)
                       res.clazz = res.clazz.addValue(vName, member)
-                    case vd@Node.VariableDeclarator(Node.Identifier(vName), _) =>
+                    case vd@Node.VariableDeclarator(Node.Identifier(vName), _, _) =>
                       //println(s"value member $vName as undefined")
                       val member = ClassVarMember(ScalaNode.StatementExpression(Node.EmptyStatement()), vd)
                       res.clazz = res.clazz.addValue(vName, member)

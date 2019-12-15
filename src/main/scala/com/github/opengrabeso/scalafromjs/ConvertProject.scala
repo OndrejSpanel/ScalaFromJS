@@ -285,7 +285,7 @@ object ConvertProject {
 
     object GetConfig {
       def unapply(arg: Node.Node) = arg match {
-        case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(`configName`), OObject(props)) ), _) =>
+        case VarDecl(`configName`, Some(OObject(props)), _) =>
           Some(props)
         case _ =>
           None

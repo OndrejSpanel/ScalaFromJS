@@ -24,7 +24,7 @@ object SymbolDeclaration {
           Seq(f.id)
         case f: AsyncFunctionDeclaration =>
           Seq(f.id)
-        case MethodDefinition(id: Identifier, _, _, _, _) =>
+        case MethodDefinition(id: Identifier, _, _, _, _, _) =>
           Seq(id)
         case v: VariableDeclaration =>
           v.declarations.map(_.id)

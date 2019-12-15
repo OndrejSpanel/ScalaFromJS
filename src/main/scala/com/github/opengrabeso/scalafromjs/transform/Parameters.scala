@@ -301,7 +301,7 @@ object Parameters {
           // check for existence of variable without a suffix
           val shortName = parName dropRight parSuffix.length
           val conflict = f.body.body.exists {
-            case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(`shortName`), _)), _) =>
+            case VarDecl(`shortName`, _, _) =>
               true
             case _ =>
               false
@@ -419,7 +419,7 @@ object Parameters {
           object IsVarPar {
 
             def unapply(arg: Node.Node)(implicit ctx: ScopeContext) = arg match {
-              case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(Id(symDef)), Defined(Node.Identifier(Id(`parDef`))))), _) =>
+              case VarDecl(Id(symDef), Some(Node.Identifier(Id(`parDef`))), _) =>
                 if (logging) println(s"IsVarPar $symDef ${parDef.name}")
                 Some(symDef)
               case _ =>

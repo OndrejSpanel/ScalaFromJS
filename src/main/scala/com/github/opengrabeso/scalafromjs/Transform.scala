@@ -125,7 +125,7 @@ object Transform {
                   Seq(operation, value)
                 } else {
                   val tempName = "temp"
-                  val storeValue = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(tempName), expr.cloneNode())), "const")
+                  val storeValue = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(tempName), expr.cloneNode(), null)), "const")
                   val loadValue = Node.ExpressionStatement(Node.Identifier(tempName)).copyLoc(expr)
                   Seq(storeValue, operation, loadValue)
                 }
@@ -591,7 +591,7 @@ object Transform {
     var getter = Option.empty[Node.Expression]
     var setter = false
     cls.body.body.filter(p => methodName(p) == name).foreach {
-      case Node.MethodDefinition(Node.Identifier(p), _, AnyFun(Seq(), value), "get", _) =>
+      case Node.MethodDefinition(Node.Identifier(p), null, _, AnyFun(Seq(), value), "get", _) =>
         value match {
           case ex: Node.Expression =>
             getter = Some(ex)
@@ -601,9 +601,9 @@ object Transform {
             val wrapped = ScalaNode.StatementExpression(bs).withTokens(bs)
             getter = Some(wrapped)
         }
-      case Node.MethodDefinition(Node.Identifier(p), _, _, "set", _) =>
+      case Node.MethodDefinition(Node.Identifier(p),  _, _, _, "set", _) =>
         setter = true
-      case Node.MethodDefinition(Node.Identifier(p), _, _, _, _) =>
+      case Node.MethodDefinition(Node.Identifier(p), _, _, _, _, _) =>
         //println(s"  function $p")
         //getter = true
       case ObjectKeyVal(p, value) =>
@@ -793,7 +793,7 @@ object Transform {
         case Node.BlockStatement(Seq(inner: Node.BlockStatement)) =>
           //println("Remove Node.BlockStatement <- Node.BlockStatement")
           inner
-        case func@Node.FunctionExpression(_, _, body, _) =>
+        case func@Node.FunctionExpression(_, _, body, _, _) =>
           //println(s"${nodeClassName(func)} in: ${transformer.parent().map(nodeClassName)}")
           func
         case Node.BlockStatement(seq) =>

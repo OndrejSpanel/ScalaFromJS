@@ -96,7 +96,7 @@ object Classes {
 
   def getMethodBody(m: Node.MethodDefinition): Option[Node.BlockStatement] = {
     m.value match {
-      case Node.FunctionExpression(id, params, body, generator) =>
+      case Node.FunctionExpression(id, params, body, generator, _) =>
         Some(body)
       case _ =>
         None
@@ -106,8 +106,9 @@ object Classes {
   def newMethod(k: String, args: Seq[Node.FunctionParameter], methodBody: Node.BlockStatement, tokensFrom: Node.Node, isStatic: Boolean = false): Node.MethodDefinition = {
     Node.MethodDefinition(
       key = Node.Identifier(k).copyLoc(tokensFrom),
+      null,
       false,
-      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false).withTokens(tokensFrom),
+      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false, null).withTokens(tokensFrom),
       if (k == "constructor") "constructor" else "method",
       isStatic
     ).withTokens(tokensFrom)
@@ -118,7 +119,7 @@ object Classes {
       kind = kind,
       key = Node.Identifier(k).copyLoc(tokensFrom),
       false,
-      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false).withTokens(tokensFrom),
+      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false, null).withTokens(tokensFrom),
       false,
       false
     ).withTokens(tokensFrom)
@@ -171,7 +172,7 @@ object Classes {
       val body = getMethodBody(retIB)
       for (b <- body) {
         b.body = b.body.filterNot {
-          case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(v), _)), _) if member.findFirstIn(v).isDefined =>
+          case VarDecl(v, _, _) if member.findFirstIn(v).isDefined =>
             true
           case _ =>
             false
@@ -179,7 +180,7 @@ object Classes {
         Classes.replaceProperty(c, ib, retIB)
       }
       c.body.body = c.body.body.filterNot {
-        case Node.MethodDefinition(Node.Identifier(v), _, _, _, _) if member.findFirstIn(v).isDefined =>
+        case Node.MethodDefinition(Node.Identifier(v), _, _, _, _, _) if member.findFirstIn(v).isDefined =>
           true
         case _ =>
           false

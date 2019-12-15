@@ -364,6 +364,7 @@ package object classes {
           //println(s"newValue $k $v $isStatic")
           Node.MethodDefinition(
             Node.Identifier(k).withTokens(tokensFrom),
+            null,
             false,
             v,
             "value",
@@ -375,8 +376,9 @@ package object classes {
         def newGetterOrSetter(kind: String, k: String, tokensFrom: Node.Node, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean) = {
           Node.MethodDefinition(
             Node.Identifier(k).withTokens(tokensFrom),
+            null,
             false,
-            Node.FunctionExpression(null, args, Node.BlockStatement(body).withTokens(tokensFrom), false).withTokens(tokensFrom),
+            Node.FunctionExpression(null, args, Node.BlockStatement(body).withTokens(tokensFrom), false, null).withTokens(tokensFrom),
             if (args.isEmpty) "get" else "set",
             isStatic
           ).withTokens(tokensFrom)

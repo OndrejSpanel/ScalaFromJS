@@ -507,7 +507,7 @@ object Variables {
             if (log) println(s"Transform for $forOK")
 
             val vars = forOK.map { case (vId, initV) =>
-              Node.VariableDeclarator(Node.Identifier(vId.name).withTokens(initV), initV).withTokens(initV)
+              Node.VariableDeclarator(Node.Identifier(vId.name).withTokens(initV), initV, null).withTokens(initV)
             }
 
             f.init = Node.VariableDeclaration(vars, "let").withTokens(f)
@@ -834,8 +834,8 @@ object Variables {
             ).withTokens(block)
           }
           renamed match {
-            case Node.FunctionExpression(id, params, body, generator) =>
-              Node.FunctionExpression(id, params, addDeclarations(body), generator).withTokens(node)
+            case Node.FunctionExpression(id, params, body, generator, tpe) =>
+              Node.FunctionExpression(id, params, addDeclarations(body), generator, tpe).withTokens(node)
             case Node.FunctionDeclaration(id, params, body, generator) =>
               Node.FunctionDeclaration(id, params, addDeclarations(body), generator).withTokens(node)
             case _ => // ArrowFunctionExpression, Async

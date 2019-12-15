@@ -209,7 +209,7 @@ object InlineConstructors {
       node match {
         case cls: Node.ClassDeclaration =>
           for {
-            constructorProperty@Node.MethodDefinition(_, _, AnyFun(params, body), _, _) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, _, _, AnyFun(params, body), _, _) <- findConstructor(cls)
           } ctx.withScope(cls.body, constructorProperty, constructorProperty.value) {
 
             // constructor parameters need a different handling
@@ -294,7 +294,7 @@ object InlineConstructors {
       node match {
         case cls: Node.ClassDeclaration =>
           for {
-            constructorProperty@Node.MethodDefinition(_, _, AnyFun(params, body), _, _) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, _, _, AnyFun(params, body), _, _) <- findConstructor(cls)
           } {
             val functionsToConvert = detectPrivateFunctions(body)
             if (log) println(s"functionsToConvert $functionsToConvert")
@@ -352,8 +352,9 @@ object InlineConstructors {
                 ctx.withScope(cls.body, fun, funBody) {
                   Node.MethodDefinition(
                     Node.Identifier(funName).withTokens(statement),
+                    null,
                     false,
-                    Node.FunctionExpression(null, funParams, transformParametersInBody(Block(funBody).withTokens(body))(ctx), false).withTokens(statement),
+                    Node.FunctionExpression(null, funParams, transformParametersInBody(Block(funBody).withTokens(body))(ctx), false, null).withTokens(statement),
                     "init",
                     false
                   )

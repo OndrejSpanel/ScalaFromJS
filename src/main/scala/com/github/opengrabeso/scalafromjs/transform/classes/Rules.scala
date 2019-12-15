@@ -171,7 +171,7 @@ object Rules {
         val matching = cls.body.body
           .collect{
             // we expect getter, no parameters, containing a single true statement
-            case Node.MethodDefinition(Node.Identifier(name), _, AnyFun(Seq(), Defined(ReturnTrue())), _, _) =>
+            case Node.MethodDefinition(Node.Identifier(name), _, _, AnyFun(Seq(), Defined(ReturnTrue())), _, _) =>
               name
           }.filter { n =>
             val matched = member.name.findFirstMatchIn(n)

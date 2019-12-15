@@ -251,7 +251,7 @@ object InferTypes {
         case fType: FunctionType =>
           walkLastNode(value) {
             // find any direct returns, when returning a function, infer argument symbol types
-            case Node.FunctionExpression(_, args, body, _) =>
+            case Node.FunctionExpression(_, args, body, _, _) =>
               //println(s"fun ${args.map(_.name).mkString(",")} -- ${fType.args}")
               //println(s"  $allTypes")
 
@@ -499,7 +499,7 @@ object InferTypes {
       }
 
       node match {
-        case Node.VariableDeclarator(Node.Identifier(Id(symDef)), Defined(right)) =>
+        case Node.VariableDeclarator(Node.Identifier(Id(symDef)), Defined(right), _) =>
           val log = watched(symDef.name)
           val symId = id(symDef)
           val leftT = n.types.get(symId)
@@ -572,7 +572,7 @@ object InferTypes {
             addInferredType(sd, Some(TypeInfo.target(funType)))(s"Infer fun ${symDef.name}")
           }
 
-        case Node.MethodDefinition(Node.Identifier(sym), _, fun@AnyFun(Seq(), body), "get", _) =>
+        case Node.MethodDefinition(Node.Identifier(sym), _, _, fun@AnyFun(Seq(), body), "get", _) =>
           scopeCtx.withScope(fun, body) {
             // check body final value
             //noinspection MatchToPartialFunction
@@ -590,7 +590,7 @@ object InferTypes {
             }
           }
 
-        case Node.MethodDefinition(Node.Identifier(sym), _, fun@AnyFun(Seq(Node.Identifier(param)), body), "set", _) =>
+        case Node.MethodDefinition(Node.Identifier(sym), _, _, fun@AnyFun(Seq(Node.Identifier(param)), body), "set", _) =>
           // search for any member in form this.xx = param
           scopeCtx.withScope(fun, body) {
             val paramId = Id(param)
@@ -610,7 +610,7 @@ object InferTypes {
             }
           }
 
-        case Node.MethodDefinition(Node.Identifier(sym), _, fun: Node.FunctionExpression, kind, _) =>
+        case Node.MethodDefinition(Node.Identifier(sym), _, _, fun: Node.FunctionExpression, kind, _) =>
           val allReturns = scanFunctionReturns(fun.body)
           // method of which class is this?
           val scope = findThisClass(scopeCtx)
@@ -625,7 +625,7 @@ object InferTypes {
             addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(s"Infer return type for method $cls.$sym as $retType")
           }
 
-        case Node.MethodDefinition(Node.Identifier(sym), _, expr: Node.Expression, kind, _) =>
+        case Node.MethodDefinition(Node.Identifier(sym), _, _, expr: Node.Expression, kind, _) =>
           val scope = findThisClass(scopeCtx)
           for {
             retType <- expressionType(expr)
