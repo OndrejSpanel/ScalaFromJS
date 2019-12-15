@@ -7,8 +7,8 @@ class DTSTest extends FunSuite with TestUtils with ProjectUtils {
     pendingUntilFixed {
       val outCode = convertProject("d.ts/input.js")
       exec check ResultCheck(outCode)
-        .required()
-        .forbidden()
+        .required("x: String")
+        .forbidden("x: Double", "x: Any", "x: Unit")
     }
   }
 }

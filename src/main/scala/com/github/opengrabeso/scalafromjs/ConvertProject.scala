@@ -38,6 +38,15 @@ object ConvertProject {
     def apply(c: NodeExtended): NodeExtended
   }
 
+  /**
+    * Use for rules which perform no AST processsing
+    * Such rules carry the information alongside with the AST
+    * they are called separately by using collectRules and calling their specific methods
+    * */
+  trait ExternalRule extends Rule {
+    override def apply(c: NodeExtended) = c
+  }
+
   case class MemberDesc(cls: Regex, name: Regex)
 
   object MemberDesc {
@@ -85,8 +94,7 @@ object ConvertProject {
     }
   }
 
-  case class AliasPackageRule(folder: String, name: String, template: Option[String]) extends Rule {
-    override def apply(n: NodeExtended) = n
+  case class AliasPackageRule(folder: String, name: String, template: Option[String]) extends ExternalRule {
     def namePackage(path: String): Option[String] = {
       if (path startsWith folder) {
         val aliased = name ++ path.drop(folder.length)
@@ -114,26 +122,12 @@ object ConvertProject {
     }
   }
 
-  /**
-    * The real functionality of the regex rule is outside of AST processing, as a text only postprocess
-    * */
-  case class RegexPostprocessRule(find: String, replace: String) extends Rule {
-    def apply(c: NodeExtended): NodeExtended = c
-
-    def transformText(src: String): String = {
-      src.replaceAll(find, replace)
-    }
+  case class RegexPostprocessRule(find: String, replace: String) extends ExternalRule {
+    def transformText(src: String): String = src.replaceAll(find, replace)
   }
 
-  /**
-    * The real functionality of the regex rule is outside of AST processing, as a text only postprocess
-    * */
-  case class RegexPreprocessRule(find: String, replace: String) extends Rule {
-    def apply(c: NodeExtended): NodeExtended = c
-
-    def transformText(src: String): String = {
-      src.replaceAll(find, replace)
-    }
+  case class RegexPreprocessRule(find: String, replace: String) extends ExternalRule {
+    def transformText(src: String): String = src.replaceAll(find, replace)
   }
 
   val configName = "ScalaFromJS_settings"
@@ -247,6 +241,8 @@ object ConvertProject {
             case _ =>
               None
           }
+        case ObjectKeyVal("types", StringLiteral(types)) =>
+          Some(transform.TypesRule(types))
         case ObjectKeyVal(name, _) =>
           throw new UnsupportedOperationException(s"Unexpected config entry $name")
         case n =>
@@ -259,7 +255,7 @@ object ConvertProject {
 
   def readSourceFile(in: String): String = {
     val code = readFile(in)
-    val terminatedCode = if (code.last == '\n') code else code + "\n"
+    val terminatedCode = if (code.lastOption.contains('\n')) code else code + "\n"
     terminatedCode
   }
   case class Item(code: String, included: Boolean, fullName: String) {
