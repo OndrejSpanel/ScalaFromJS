@@ -38,13 +38,13 @@ object Convert {
 
       // note: here we parse only to load the preprocess config
       val preparse = parse(code)
-      val cfg = NodeExtended(preparse).loadConfig.config
+      val cfg = NodeExtended(preparse).loadConfig().config
 
       val preprocessed = cfg.preprocess(code)
 
       val ast = parse(preprocessed)
 
-      val ext = NodeExtended(ast).loadConfig
+      val ext = NodeExtended(ast).loadConfig()
 
       val astOptimized = Transform(ext)
       val ret = prefix(header) + ScalaOut.output(astOptimized, code).mkString

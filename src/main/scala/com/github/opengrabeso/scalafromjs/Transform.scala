@@ -874,6 +874,7 @@ object Transform {
       'instanceofImpliedCast -> Variables.instanceofImpliedCast _,
       'objectAssign -> objectAssign _,
       'removeVarClassScope -> onTopNode(removeVarClassScope),
+      'types -> TypesRule.transform _,
       'multipass -> InferTypes.multipass _,
       'removeTrailingBreak -> onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       'removeTrailingReturn -> onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)

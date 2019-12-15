@@ -147,7 +147,7 @@ object ConvertProject {
 
   object ConvertConfig {
 
-    def load(props: Seq[Node.ObjectExpressionProperty]) = {
+    def load(props: Seq[Node.ObjectExpressionProperty], root: Option[String]) = {
       val rules: Seq[Rule] = props.flatMap {
         case ObjectKeyVal("members", a: AArray) =>
           a.elements.flatMap {
@@ -242,7 +242,7 @@ object ConvertProject {
               None
           }
         case ObjectKeyVal("types", StringLiteral(types)) =>
-          Some(transform.TypesRule(types))
+          root.map(r => transform.TypesRule(types, r))
         case ObjectKeyVal(name, _) =>
           throw new UnsupportedOperationException(s"Unexpected config entry $name")
         case n =>
@@ -266,7 +266,7 @@ object ConvertProject {
 
     // parse only the control file to read the preprocess rules
     val inSource = readSourceFile(in)
-    val ext = NodeExtended(parse(inSource)).loadConfig.config
+    val ext = NodeExtended(parse(inSource)).loadConfig(Some(in)).config
 
     Time("loadControlFile") {
       val code = ext.preprocess(inSource)
@@ -276,7 +276,7 @@ object ConvertProject {
     }
   }
 
-  def loadConfig(ast: Node.Program): (ConvertConfig, Node.Program) = {
+  def loadConfig(ast: Node.Program, root: Option[String]): (ConvertConfig, Node.Program) = {
     var readConfig = Option.empty[ConvertConfig]
 
     object GetConfig {
@@ -290,7 +290,7 @@ object ConvertProject {
 
     ast.walk {
       case GetConfig(props) =>
-        readConfig = Some(ConvertConfig.load(props))
+        readConfig = Some(ConvertConfig.load(props, root))
         false
       case _: Node.Program =>
         false
@@ -349,21 +349,29 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
         parse(code)
         code -> path
       } catch {
-        case _: Exception =>
+        case ex: Exception =>
           //println(s"Parse ex: ${ex.toString} in $path")
           val short = shortName(path)
           val dot = short.indexOf('.')
-          val simpleName = if (dot <0) short else short.take(dot)
-          // embed wrapped code as a variable using ES6 template string
-          // use isResource so that Scala output can check it and handle it as a special case
-          val wrap =
+          val simpleName = if (dot < 0) short else short.take(dot)
+          // never attempt to wrap source files as resources
+          // note: this is no longer necessary for Three.js, as they have already wrapped the sources as glsl.js files
+          // it may be handy for other projects, though
+          val neverWrap = Seq(".js", ".ts", ".d.ts")
+          if (dot >= 0 && neverWrap.contains(short.drop(dot))) {
+            throw ex
+          } else {
+            // embed wrapped code as a variable using ES6 template string
+            // use isResource so that Scala output can check it and handle it as a special case
+            val wrap =
             s"""
                |const $simpleName = {
                |  value: `$code`,
                |  isResource: true
                |}
                |""".stripMargin
-          wrap -> path
+            wrap -> path
+          }
       }
 
     }
@@ -493,7 +501,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       parse(compositeFile)
     }
 
-    val ext = NodeExtended(ast).loadConfig
+    val ext = NodeExtended(ast).loadConfig(Some(root))
 
     val astOptimized = if (true) Transform(ext) else ext
 

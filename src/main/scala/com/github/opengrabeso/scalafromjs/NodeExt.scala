@@ -410,8 +410,11 @@ trait NodeExt {
     def noTypes = SymbolTypes()
   }
   case class NodeExtended(top: Node.Program, types: SymbolTypes = SymbolTypes(), config: ConvertProject.ConvertConfig = ConvertProject.ConvertConfig()) {
-    def loadConfig: NodeExtended = {
-      val (config,ast) = ConvertProject.loadConfig(top)
+    /**
+      * @param root filename of the file the config is being loaded from
+    */
+    def loadConfig(root: Option[String] = None): NodeExtended = {
+      val (config,ast) = ConvertProject.loadConfig(top, root)
 
       copy(top = ast, config = config)
     }
