@@ -30,7 +30,7 @@ package object classes {
   object ClassDefineValue {
     // function C() {return {a: x, b:y}
     def unapply(arg: DefFun) = arg match {
-      case DefFun(sym, args, Node.BlockStatement(body :+ Node.ReturnStatement(OObject(proto))), _) =>
+      case DefFun(sym, args, Node.BlockStatement(body :+ Node.ReturnStatement(OObject(proto))), _, _) =>
         Some(sym, args, body, proto)
       case _ =>
         None
@@ -41,7 +41,7 @@ package object classes {
   object ClassDefine {
     def unapply(arg: Node.Node)(implicit context: ScopeContext): Option[(Node.Identifier, Seq[Node.FunctionParameter], Seq[Node.Statement])] = arg match {
       // function ClassName() {}
-      case DefFun(sym, args, body, _) =>
+      case DefFun(sym, args, body, _, _) =>
         Some(sym, args, Block.statements(body))
 
       // ClassName = function() {}
@@ -866,7 +866,7 @@ package object classes {
         case DefFun(
         Node.Identifier(Id(fun)), args, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier(Id(implementFun)) Dot "apply", Seq(_: Node.ThisExpression, Node.Identifier("arguments"))
-        )))), _
+        )))), _, _
         ) if constructorSymbols contains fun =>
           //println(s"Defined function ${fun.name} using ${implementFun.name}")
           implToConstructor += implementFun -> fun
@@ -874,7 +874,7 @@ package object classes {
         case DefFun(
         Node.Identifier(Id(fun)), pars, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier(Id(implementFun)) Dot "apply", (_: Node.ThisExpression) +: args)
-        ))), _
+        ))), _, _
         ) if (constructorSymbols contains fun) && (args == pars) =>
           // TODO: match args with pars
           //println(s"Defined function ${fun.name} using ${implementFun.name}")
@@ -889,7 +889,7 @@ package object classes {
     n.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
-        case defun@DefFun(Defined(Node.Identifier(Id(fun))), _, _, _) if implToConstructor contains fun =>
+        case defun@DefFun(Defined(Node.Identifier(Id(fun))), _, _, _, _) if implToConstructor contains fun =>
           //println(s"Stored function def ${fun.name}")
           constructorFunctionDefs += fun -> defun
           true
@@ -912,7 +912,7 @@ package object classes {
         // inline XXXXX.apply(this, arguments) - was already rewritten from YYYYY (transformAfter transforms children first)
         case defun@DefFun(_, _, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier(Id(symDef)) Dot "apply", Seq(_: Node.ThisExpression, Node.Identifier("arguments"))
-        )))), _) =>
+        )))), _, _) =>
           //println(s"Detect ${symDef.name}.apply")
           constructorToImpl.get(symDef).flatMap(constructorFunctionDefs.get).fold(node) { funDef =>
             //println(s"Found body of ${funDef.name.map(_.name)} in ${defun.name.map(_.name)}")
@@ -921,7 +921,7 @@ package object classes {
           }
         case defun@DefFun(_, pars, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier(Id(symDef)) Dot "apply", (_: Node.ThisExpression) +: args
-        )))), _) if pars == args =>
+        )))), _, _) if pars == args =>
           //println(s"Detect ${symDef.name}.apply")
           constructorToImpl.get(symDef).flatMap(constructorFunctionDefs.get).fold(node) { funDef =>
             //println(s"Found body of ${funDef.name.map(_.name)} in ${defun.name.map(_.name)}")
@@ -929,7 +929,7 @@ package object classes {
             defun
           }
         // remove the original implementation
-        case defun@DefFun(Defined(Node.Identifier(Id(sym))), _, _, _) if implToConstructor contains sym =>
+        case defun@DefFun(Defined(Node.Identifier(Id(sym))), _, _, _, _) if implToConstructor contains sym =>
           Node.EmptyStatement()
         case _ => node
       }

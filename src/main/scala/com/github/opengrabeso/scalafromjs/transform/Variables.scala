@@ -188,7 +188,8 @@ object Variables {
             id = Node.Identifier(sym),
             params = args,
             body = Block(body),
-            generator = false
+            generator = false,
+            null
           ).withTokensDeep(node)
         case _ =>
           node
@@ -836,8 +837,8 @@ object Variables {
           renamed match {
             case Node.FunctionExpression(id, params, body, generator, tpe) =>
               Node.FunctionExpression(id, params, addDeclarations(body), generator, tpe).withTokens(node)
-            case Node.FunctionDeclaration(id, params, body, generator) =>
-              Node.FunctionDeclaration(id, params, addDeclarations(body), generator).withTokens(node)
+            case Node.FunctionDeclaration(id, params, body, generator, tpe) =>
+              Node.FunctionDeclaration(id, params, addDeclarations(body), generator, tpe).withTokens(node)
             case _ => // ArrowFunctionExpression, Async
               renamed // we do not know how to introduce variables here
           }

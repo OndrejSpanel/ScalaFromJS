@@ -194,7 +194,7 @@ object InferTypes {
     n.top.walkWithScope {(node, scope) =>
       implicit val scopeCtx = scope
       node match {
-        case defun@DefFun(Defined(Id(name)), _, _, _) =>
+        case defun@DefFun(Defined(Id(name)), _, _, _, _) =>
           functions += name -> defun
           false
         case _ =>
@@ -560,7 +560,7 @@ object InferTypes {
           }
           symInfo.addSymbolInferredType(allCases, target)(s"Infer switch")
 
-        case fun@DefFun(Defined(Id(symDef)), _, _, _) =>
+        case fun@DefFun(Defined(Id(symDef)), _, _, _, _) =>
           val allReturns = scanFunctionReturns(fun.body)
           //println(s"${symDef.name} returns $allReturns")
           for {
@@ -696,7 +696,7 @@ object InferTypes {
         case Node.CallExpression(Node.Identifier(Id(call)), args) =>
           //println(s"Call ${call.name}")
           functions.get(call) match {
-            case Some(fun@DefFun(_, pars, _, _)) =>
+            case Some(fun@DefFun(_, pars, _, _, _)) =>
               // now match arguments to parameters
               inferParsOrArgs(fun, pars, args)(s"Call function $call")
             case _ =>

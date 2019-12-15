@@ -225,7 +225,7 @@ object ClassList {
               }
 
               body.foreach {
-                case f@DefFun(Defined(Node.Identifier(sym)), fArgs, fBody, _) =>
+                case f@DefFun(Defined(Node.Identifier(sym)), fArgs, fBody, _, _) =>
                   ctx.withScope(f, fBody) {
                     val member = ClassFunMember(fArgs, transformReferencesInBody(fBody.body), f)
                     res.clazz = res.clazz.addMember(sym, member)

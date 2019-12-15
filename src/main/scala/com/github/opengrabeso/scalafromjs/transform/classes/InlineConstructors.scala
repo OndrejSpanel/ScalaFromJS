@@ -304,7 +304,7 @@ object InlineConstructors {
             val functions = bodyStatements.collect {
               case s@DefinePrivateFunction(funName, f) if functionsToConvert contains f =>
                 (s, funName, f)
-              case s@DefFun(Defined(Node.Identifier(funName)), _, _, _) if functionsToConvert contains s =>
+              case s@DefFun(Defined(Node.Identifier(funName)), _, _, _, _) if functionsToConvert contains s =>
                 (s, funName, s)
             }
 
