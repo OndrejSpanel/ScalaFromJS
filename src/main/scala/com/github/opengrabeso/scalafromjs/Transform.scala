@@ -27,27 +27,22 @@ object Transform {
     symId(symbol)
   }
 
-  def funArg(p: Node.Node): Node.Identifier = {
-    (p: @unchecked) match {
-      case p: Node.Identifier =>
-        p
-      case p: Node.AssignmentPattern =>
-        p.left match {
-          case a: Node.Identifier =>
-            a
-          case _ =>
-            throw new UnsupportedOperationException(s"Unexpected argument node ${p.left} in Node.DefaultAssign")
-        }
-    }
-  }
-
-  def nameFromPar(p: Node.Node): Option[String] = p match {
-    case Node.Identifier(s) =>
-      Some(s)
-    case Node.AssignmentPattern(Node.Identifier(s), _) =>
-      Some(s)
+  def identifierFromPar(p: Node.Node): Option[Node.Identifier] = p match {
+    case x: Node.Identifier =>
+      Some(x)
+    case Node.FunctionParameterWithType(x: Node.Identifier, _, __, _) =>
+      Some(x)
+    case Node.AssignmentPattern(x: Node.Identifier, _) =>
+      Some(x)
     case _ =>
       None
+  }
+
+  def funArg(p: Node.Node): Node.Identifier = identifierFromPar(p).get
+  def nameFromPar(p: Node.Node): Option[String] = identifierFromPar(p).map(_.name)
+
+  object ParName {
+    def unapply(p: Node.Node) = nameFromPar(p)
   }
 
   def symbolFromPar(p: Node.Node)(implicit context: ScopeContext): Option[SymId] = {

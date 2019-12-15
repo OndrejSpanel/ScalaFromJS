@@ -1,4 +1,4 @@
-export function a(x: string);
+export function a(x: string): string;
 
 export class A {
     member: number;

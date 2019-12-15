@@ -196,20 +196,29 @@ trait NodeExt {
     }
   }
 
+  object AnyFunEx {
+    def unapply(arg: Node.Node): Option[(Seq[Node.FunctionParameter], Option[Node.TypeAnnotation], Node.BlockStatementOrExpression)] = arg match {
+      case f: Node.FunctionExpression =>
+        Some((f.params, Option(f.ret), f.body))
+      case f: Node.ArrowFunctionExpression =>
+        Some((f.params, None, f.body))
+      case f: Node.FunctionDeclaration =>
+        Some((f.params, Option(f.ret), f.body))
+      case f: Node.AsyncFunctionExpression =>
+        Some((f.params, None, f.body))
+      case f: Node.AsyncFunctionDeclaration =>
+        Some((f.params, None, f.body))
+      case f: Node.AsyncArrowFunctionExpression =>
+        Some((f.params, None, f.body))
+      case _ =>
+        None
+    }
+  }
+
   object AnyFun {
     def unapply(arg: Node.Node): Option[(Seq[Node.FunctionParameter], Node.BlockStatementOrExpression)] = arg match {
-      case f: Node.FunctionExpression =>
-        Some(f.params, f.body)
-      case f: Node.ArrowFunctionExpression =>
-        Some(f.params, f.body)
-      case f: Node.FunctionDeclaration =>
-        Some(f.params, f.body)
-      case f: Node.AsyncFunctionExpression =>
-        Some(f.params, f.body)
-      case f: Node.AsyncFunctionDeclaration =>
-        Some(f.params, f.body)
-      case f: Node.AsyncArrowFunctionExpression =>
-        Some(f.params, f.body)
+      case AnyFunEx(pars, tpe, body) =>
+        Some(pars, body)
       case _ =>
         None
     }
