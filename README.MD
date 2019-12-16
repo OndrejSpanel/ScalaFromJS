@@ -26,13 +26,23 @@ Besides of converting JS syntax to Scala the tools performs severals transformat
 - infer types for many symbols (variables, functions and arguments)
 - remove trailing `return` statements
 - detect `val` variables
-
-The most complicated parts are probably class detection and type inference.
+- many other transformation converting JS constructs into more natural Scala ones
 
 Class detection
 ---------------
 The converter detects some common ways how JS objects are written using prototypes and converts them to
 Scala classes. When not known otherwise, class types are derived from members used.
+
+Type declarations from d.ts
+---------------------------
+
+Types can be read from d.ts files. To do so, the file must be referenced in the settings file as:
+
+      var ScalaFromJS_settings = {
+          types: "input.d.ts"
+      };
+
+Similar to js files, d.ts files can import or export other d.ts files.
 
 Type inference
 --------------
@@ -46,8 +56,8 @@ Multiple files may be converted, referencing each other with `export` / `import`
 Usage examples
 --------------
 
-When an import is preceeded with a comment containing `@example`, it is considered as an usage example, and the
-correspoding file is read, but not output. This can be used to help type inference by providing examples of how
+When an import is preceded with a comment containing `@example`, it is considered as an usage example, and the
+corresponding file is read, but not output. This can be used to help type inference by providing examples of how
 functions are used.
 
 Transformation rules
@@ -99,8 +109,33 @@ interested in that version, see tag `uglify-scala.js`.
  [5]: https://github.com/OpenGrabeso/esprima-scala
  
  
- Command line usage
- ==================
+Command line usage
+==================
+
+`java -jar ScalaFromJS.jar temp/esprima/esprima-convert.js temp/esprima/scala/esprima-convert.scala`
  
- `java -jar ScalaFromJS.jar temp/esprima/esprima-convert.js temp/esprima/scala/esprima-convert.scala`
- 
+Conversion overview
+===================
+
+The conversion works in several phases:
+
+- js files are read, imports and exports resolved by concatenation, creating one large source file
+- the resulting file is parsed to create AST
+- AST is transformed by many transformation steps described in variable `transforms` in `com.github.opengrabeso.scalafromjs.Transform.apply`
+  - import transformation steps:
+    - preprocess regex substitution: `com.github.opengrabeso.scalafromjs.ConvertProject.RegexPreprocessRule`
+    - prototype to class conversion: `com.github.opengrabeso.scalafromjs.transform.classes.transforms`
+    - type imports: `com.github.opengrabeso.scalafromjs.transform.TypesRule`
+    - type inference: `com.github.opengrabeso.scalafromjs.transform.InferTypes.multipass`
+    - postprocess regex substitution `com.github.opengrabeso.scalafromjs.ConvertProject.RegexPostprocessRule`
+
+AST transformation
+==================
+
+There are two operations usually used to implement AST transformations: `walk` and `transform`. Both of them exist in a
+variant handling a `ScopeContext`, which is needed for proper variable scope resolution.
+
+One usually uses `walk` to gather any necessary information and `transform` to perform any work needed. There are two
+flavors of `transform`: `transformBefore` and `transformAfter`, which differ in a traversal order: `transformAfter`
+traverses all children first, while `transformBefore` is given a `descend` function and can determine the traversal order
+as required.

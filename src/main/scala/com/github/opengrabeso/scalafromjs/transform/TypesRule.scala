@@ -7,6 +7,10 @@ import com.github.opengrabeso.scalafromjs.esprima._
 import SymbolTypes._
 import TypesRule._
 
+/**
+  * Code responsible for parsing d.ts files and matching them to the main project AST
+  */
+
 object TypesRule {
   def transform(n: NodeExtended): NodeExtended = {
     val rules = n.config.collectRules[TypesRule]
@@ -58,7 +62,6 @@ object TypesRule {
   def typeFromAST(tpe: Node.TypeAnnotation)(context: symbols.ScopeContext): TypeDesc = {
     tpe match {
       case Node.TypeName(Node.Identifier(name)) =>
-        // TODO: handle scalar types
         name match {
           case "number" => SimpleType("Double")
           case "string" => SimpleType("String")
