@@ -379,10 +379,10 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
 
     /**@return (content, path) */
     def readJsFile(name: String): (String, String) = {
+      // imports often miss .js or .d.ts extension
+      val rootExtension = PathUtils.shortName(root).dropWhile(_ != '.')
+      val extension = if (rootExtension.nonEmpty) rootExtension else ".js"
       // first try if it is already loaded
-
-      // imports often miss .js extension
-      val extension = ".js"
       items.get(name).orElse(items.get(name + extension)).fold {
         //println(s"Read file $name as $singlePath (in $base)")
         try {
