@@ -427,7 +427,14 @@ object TypeInfo {
   def unknown: TypeInfo = TypeInfo(AnyType, NoType)
 
 }
-case class TypeInfo(source: TypeDesc, target: TypeDesc) {
+
+/**
+  *
+  * @param source inferred type when used as an assignment source
+  * @param target inferred type when used as an assignment target
+  * @param certain types imported from d.ts can never be overridden
+  */
+case class TypeInfo(source: TypeDesc, target: TypeDesc, certain: Boolean = false) {
   def equivalent(tp: TypeInfo): Boolean = source == tp.source && target == tp.target
 
   def knownItems = source.knownItems max target.knownItems
@@ -459,9 +466,9 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
     case _ => target
   }
 
-  def sourceFromTarget: TypeInfo = TypeInfo(sourceTypeFromTarget, NoType)
+  def sourceFromTarget: TypeInfo = TypeInfo(sourceTypeFromTarget, NoType, certain)
 
-  def map(f: TypeDesc => TypeDesc): TypeInfo = TypeInfo(f(source), f(target))
+  def map(f: TypeDesc => TypeDesc): TypeInfo = TypeInfo(f(source), f(target), certain)
 }
 
 sealed trait Hint

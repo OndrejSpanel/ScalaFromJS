@@ -11,7 +11,6 @@ object TypesRule {
   def transform(n: NodeExtended): NodeExtended = {
     val rules = n.config.collectRules[TypesRule]
     rules.foldLeft(n)((c, r) => r.provideTypes(c))
-    n
   }
 
   def loadSymbols(code: String) = {
@@ -72,6 +71,10 @@ object TypesRule {
         AnyType
     }
   }
+
+  def typeInfoFromAST(tpe: Node.TypeAnnotation)(context: symbols.ScopeContext): TypeInfo = {
+    TypeInfo.both(typeFromAST(tpe)(context)).copy(certain = true)
+  }
 }
 case class TypesRule(types: String, root: String) extends ExternalRule {
   // load the d.ts
@@ -108,10 +111,10 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
               Node.FunctionParameterWithType(_, Defined(t), defValue, optional)
             ) <- params zip pars
           } {
-            types += context.findSymId(pjs) -> TypeInfo.both(typeFromAST(t)(context))
+            types += context.findSymId(pjs) -> typeInfoFromAST(t)(context)
           }
           for (t <- tpe) {
-            types += context.findSymId(name) -> TypeInfo.both(typeFromAST(t)(context))
+            types += context.findSymId(name) -> typeInfoFromAST(t)(context)
           }
         }
         true

@@ -84,7 +84,8 @@ object InferTypes {
       typeIntersectOption(t1, t2)
     }
 
-    def addInferredType(tid: Option[SymbolMapId], tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*) = {
+    def addInferredType(tid: Option[SymbolMapId], tpeSrc: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*) = {
+      val tpe = tpeSrc.map(_.copy(certain = false)) // inferred type is never considered certain
       if (tpe.exists(_.known)) {
         def noType = Seq("undefined", "null", "this", "super") // never infer anything about those identifiers
 
@@ -115,12 +116,14 @@ object InferTypes {
               }
               */
 
-              if (!allTypes.t.locked) {
-                allTypes.t += tid -> tp
-              } else {
-                // allow only unknown type replacement
-                if (allTypes.t.get(tid).forall(tp.isSafeReplacementOf)) {
+              if (!allTypes.t.get(tid).exists(_.certain)) { // when a type is certain, do not overrwrite it
+                if (!allTypes.t.locked) {
                   allTypes.t += tid -> tp
+                } else {
+                  // allow only unknown type replacement
+                  if (allTypes.t.get(tid).forall(tp.isSafeReplacementOf)) {
+                    allTypes.t += tid -> tp
+                  }
                 }
               }
             } else if (false) {
@@ -136,7 +139,8 @@ object InferTypes {
       }
     }
 
-    def addInferredMemberType(idAccess: Option[MemberId], tpe: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*) = {
+    def addInferredMemberType(idAccess: Option[MemberId], tpeSrc: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: String*) = {
+      val tpe = tpeSrc.map(_.copy(certain = false)) // inferred type is never considered certain
       if (tpe.exists(_.known)) {
 
         val id = idAccess.flatMap { i =>
