@@ -504,12 +504,18 @@ object ScalaOut {
               out"var $key = $value\n"
           }
         } else value match {
-          case f@Node.FunctionExpression(id, params, body, generator, _) =>
+          case f@Node.FunctionExpression(MayBeNull(name), params, body, generator, _) =>
             context.withScope(f) {
               val postfix = if (kind == "set") "_=" else ""
               out"def $key$postfix"
               if (kind != "get" || params.nonEmpty) {
                 outputArgNames(params, true)(value)
+              }
+              for {
+                id <- name.flatMap(symId)
+                fType <- input.types.types.get(id) if fType.certain
+              } {
+                out": ${fType.declType.toOut}"
               }
               out(" = ")
               //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
@@ -1089,10 +1095,13 @@ object ScalaOut {
           out.unindent()
           out.eol()
           out("}")
-        case tn: DefFun =>
+        case tn: Node.FunctionDeclaration =>
           out.eol(2)
           out"def ${tn.id}"
           outputArgNames(tn.params, true)(tn)
+          for (fType <- input.types.types.get(Id(tn.id.name)) if fType.certain) {
+            out": ${fType.declType.toOut}"
+          }
           out(" = ")
           blockBracedToOut(tn.body)
           out.eol()
