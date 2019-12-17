@@ -259,6 +259,7 @@ object ConvertProject {
     terminatedCode
   }
   case class Item(code: String, included: Boolean, fullName: String) {
+    assert(!fullName.contains("../")) // must not contain .., because resolveSibling cannot handle it
     override def toString = s"($fullName:$included)"
   }
 
@@ -321,14 +322,16 @@ object ConvertProject {
 
 
 case class ConvertProject(root: String, preprocess: String => String, items: Map[String, Item]) {
-  lazy val values = items.values.toIndexedSeq
+  val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
   lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
 
   def checkIntegrity = {
     val missingEol = values.filterNot(_.code.endsWith("\n"))
     missingEol.map(_.fullName).foreach(s => println(s"Missing eol in $s"))
-    missingEol.isEmpty
+    val wrongPath = values.filter(i => i.fullName contains "../")
+    wrongPath.map(_.fullName).foreach(s => println(s"Wrong path in $s"))
+    missingEol.isEmpty && wrongPath.isEmpty
   }
 
   assert(checkIntegrity)
@@ -346,7 +349,8 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       val code = preprocess(readSourceFile(path))
       // try parsing, if unable, return a comment file instead
       try {
-        parse(code)
+        val typescript = PathUtils.extension(PathUtils.shortName(path)) == "ts"
+        parse(code, typescript)
         code -> path
       } catch {
         case ex: Exception =>
@@ -398,7 +402,8 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
 
     val ast = try {
       //println("** Parse\n" + items.mkString("\n"))
-      parse(code)
+      val typescript = PathUtils.extension(PathUtils.shortName(root)) == "ts"
+      parse(code, typescript)
     } catch {
       case ex: Exception =>
         println(s"Parse error $ex")
@@ -421,7 +426,9 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
           comment contains "@example"
         }
         val target = if (example) exampleBuffer else includeBuffer
-        target append readJsFile(resolveSibling(pathForOffset(i.range._1), i.source.value))
+        val inFile = pathForOffset(i.range._1)
+        val importPath = i.source.value
+        target append readJsFile(resolveSibling(inFile, importPath))
         false
       case e@ExportFromSource(Defined(StringLiteral(source))) =>
         // ignore exports in imported files
@@ -429,6 +436,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
           val index = indexOfItem(s)
           //println(s"index of ${s.pos} = $index in $offsets")
           if (values.isDefinedAt(index) && values(index).included) {
+            val inFile = pathForOffset(s)
             includeBuffer append readJsFile(resolveSibling(pathForOffset(s), source))
           }
         }

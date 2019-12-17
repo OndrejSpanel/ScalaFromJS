@@ -19,7 +19,7 @@ object TypesRule {
 
   def loadSymbols(code: String) = {
     // create a separate project for it, the result is the types only
-    val ast = parse(code)
+    val ast = parse(code, true)
     // scan all global symbols, esp. exported ones
     val symbols = Map.newBuilder[String, Node.Node]
 
