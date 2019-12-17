@@ -62,10 +62,10 @@ object TypesRule {
     symbols.result()
   }
 
-  def typeFromAST(tpe: Node.TypeAnnotation)(context: symbols.ScopeContext): TypeDesc = {
+  def typeFromAST(tpe: Node.TypeAnnotation)(context: symbols.ScopeContext): Option[TypeDesc] = {
     tpe match {
       case Node.TypeName(Node.Identifier(name)) =>
-        name match {
+        val t = name match {
           case "number" => SimpleType("Double")
           case "string" => SimpleType("String")
           case "boolean" => SimpleType("Boolean")
@@ -73,13 +73,14 @@ object TypesRule {
           case "void" => SimpleType("Unit")
           case _ => ClassType(context.findSymId(name))
         }
+        Some(t)
       case _ =>
-        AnyType
+        None
     }
   }
 
-  def typeInfoFromAST(tpe: Node.TypeAnnotation)(context: symbols.ScopeContext): TypeInfo = {
-    TypeInfo.both(typeFromAST(tpe)(context)).copy(certain = true)
+  def typeInfoFromAST(tpe: Node.TypeAnnotation)(context: symbols.ScopeContext): Option[TypeInfo] = {
+    typeFromAST(tpe)(context).map(TypeInfo.both(_).copy(certain = true))
   }
 }
 case class TypesRule(types: String, root: String) extends ExternalRule {
@@ -106,9 +107,10 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           (
             Transform.ParName(pjs),
             Node.FunctionParameterWithType(_, Defined(t), defValue, optional)
-            ) <- astPars zip dtsPars
+          ) <- astPars zip dtsPars
+          tt <- typeInfoFromAST(t)(context)
         } {
-          types += symbols.SymId(pjs, scopeId) -> typeInfoFromAST(t)(context)
+          types += symbols.SymId(pjs, scopeId) -> tt
         }
       }
 
@@ -116,8 +118,9 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         for {
           s@VarDecl(_, _, _) <- dtsSymbols.get(name)
           t <- Option(s.declarations.head.`type`)
+          tt <- typeInfoFromAST(t)(context)
         } {
-          types += context.findSymId(name) -> TypeInfo.both(typeFromAST(t)(context))
+          types += context.findSymId(name) -> tt
         }
         true
       }
@@ -125,8 +128,11 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         for (AnyFunEx(pars, tpe, body) <- dtsSymbols.get(name)) {
           // we have already entered the function scope, parameters can be found in localSymbols
           handleParameterTypes(params, pars)(symbols.ScopeContext.getNodeId(node))
-          for (t <- tpe) {
-            types += context.findSymId(name) -> typeInfoFromAST(t)(context)
+          for {
+            t <- tpe
+            tt <- typeInfoFromAST(t)(context)
+          } {
+            types += context.findSymId(name) -> tt
           }
         }
         true
@@ -143,8 +149,11 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           member match {
             // list d.ts members, create type information for corresponding symbols
             case Node.MethodDefinition(Node.Identifier(funName), ret, _, AnyFunEx(dtsPars, retFun, body), _, _) => // member function
-              for (t <- Option(ret).orElse(retFun)) {
-                types += SymbolMapId(funName, clsId) -> typeInfoFromAST(t)(context)
+              for {
+                t <- Option(ret).orElse(retFun)
+                tt <- typeInfoFromAST(t)(context)
+              } {
+                types += SymbolMapId(funName, clsId) -> tt
               }
               // to create parameter types we need to find the AST method definition node
               for {
@@ -156,7 +165,9 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
               }
 
             case Node.MethodDefinition(Node.Identifier(funName), Defined(ret), _, value, _, _) => // plain member with known type
-              types += SymbolMapId(funName, clsId) -> typeInfoFromAST(ret)(context)
+              for (tt <- typeInfoFromAST(ret)(context)) {
+                types += SymbolMapId(funName, clsId) -> tt
+              }
           }
         }
         true
