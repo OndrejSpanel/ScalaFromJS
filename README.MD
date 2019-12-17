@@ -139,3 +139,17 @@ One usually uses `walk` to gather any necessary information and `transform` to p
 flavors of `transform`: `transformBefore` and `transformAfter`, which differ in a traversal order: `transformAfter`
 traverses all children first, while `transformBefore` is given a `descend` function and can determine the traversal order
 as required.
+
+Symbols scopes and IDs
+======================
+
+Each symbol is made unique by pairing with its scope ID (`symbols.SymId`). The scope ID is the source code range of the
+corresponding block (see `symbols.ScopeContext#getNodeId`). The processing can be see in `enterScope`.
+
+There are some important cases:
+
+- scope ID of the class is the scope ID of its body
+- scope ID of the function is its corresponding Node.FunctionExpression or other `AnyFunEx` matching node, not of the
+  function body, so that parameters have the same scope as the body
+- scope ID of the for loop is the for statement, not the loop body, so that loop variable has the same scope as the body
+- scope ID of Node.MethodDefinition is ID of its value (most often `Node.FunctionExpression`)

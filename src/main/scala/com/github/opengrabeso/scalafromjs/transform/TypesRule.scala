@@ -6,6 +6,7 @@ import com.github.opengrabeso.scalafromjs.ConvertProject._
 import com.github.opengrabeso.scalafromjs.esprima._
 import SymbolTypes._
 import TypesRule._
+import com.github.opengrabeso.esprima.Node.MethodDefinition
 
 import scala.collection.mutable
 
@@ -96,8 +97,21 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     val classList = new Classes.ClassListHarmony(n.top, false)
 
     var types = n.types.types
-    val top = n.top
-    top.walkWithScope { (node, context) =>
+    val ast = n.top
+
+    ast.walkWithScope { (node, context) =>
+      def handleParameterTypes(astPars: Seq[Node.FunctionParameter], dtsPars: Seq[Node.FunctionParameter])(scopeId: symbols.ScopeContext.ScopeId) = {
+        // match parameters by position, their names may differ
+        for {
+          (
+            Transform.ParName(pjs),
+            Node.FunctionParameterWithType(_, Defined(t), defValue, optional)
+            ) <- astPars zip dtsPars
+        } {
+          types += symbols.SymId(pjs, scopeId) -> typeInfoFromAST(t)(context)
+        }
+      }
+
       def handleVar(node: Node.Node, name: String) = {
         for {
           s@VarDecl(_, _, _) <- dtsSymbols.get(name)
@@ -110,35 +124,37 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       def handleFunction(node: Node.Node, params: Seq[Node.FunctionParameter], name: String) = {
         for (AnyFunEx(pars, tpe, body) <- dtsSymbols.get(name)) {
           // we have already entered the function scope, parameters can be found in localSymbols
-          // match parameters by position, their names may differ
-          for {
-            (
-              Transform.ParName(pjs),
-              Node.FunctionParameterWithType(_, Defined(t), defValue, optional)
-            ) <- params zip pars
-          } {
-            types += context.findSymId(pjs) -> typeInfoFromAST(t)(context)
-          }
+          handleParameterTypes(params, pars)(symbols.ScopeContext.getNodeId(node))
           for (t <- tpe) {
             types += context.findSymId(name) -> typeInfoFromAST(t)(context)
           }
         }
         true
       }
-      def handleClass(node: Node.Node, name: String) = {
+      def handleClass(node: Node.ClassDeclaration, name: String) = {
         for {
           Node.ClassDeclaration(_, s, b) <- dtsSymbols.get(name)
           clsSym = context.findSymId(name)
-          if !clsSym.isGlobal // global means not defined in the "top" we are traversing
+          if !clsSym.isGlobal // global means not defined in the AST we are traversing
           clsNode <- classList.get(clsSym)
           clsId = symbols.ScopeContext.getNodeId(clsNode.body)
           member <- b.body
         } {
-          member match { // list d.ts members, create type information for corresponding
-            case Node.MethodDefinition(Node.Identifier(funName), ret, _, AnyFunEx(params, retFun, body), _, _) => // member function
+          member match {
+            // list d.ts members, create type information for corresponding symbols
+            case Node.MethodDefinition(Node.Identifier(funName), ret, _, AnyFunEx(dtsPars, retFun, body), _, _) => // member function
               for (t <- Option(ret).orElse(retFun)) {
                 types += SymbolMapId(funName, clsId) -> typeInfoFromAST(t)(context)
               }
+              // to create parameter types we need to find the AST method definition node
+              for {
+                astMethod <- Classes.findMethod(node, funName) // TODO: handle overloads
+                methodId = symbols.ScopeContext.getNodeId(astMethod.value)
+                Node.MethodDefinition(_, _, _, AnyFun(astPars, _), _, _) = astMethod
+              } {
+                handleParameterTypes(astPars, dtsPars)(methodId)
+              }
+
             case Node.MethodDefinition(Node.Identifier(funName), Defined(ret), _, value, _, _) => // plain member with known type
               types += SymbolMapId(funName, clsId) -> typeInfoFromAST(ret)(context)
           }
@@ -152,10 +168,10 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           handleFunction(node, params, name)
         case Node.FunctionExpression(Node.Identifier(name), params, body, generator, ret) =>
           handleFunction(node, params, name)
-        case Node.ClassDeclaration(Node.Identifier(name), params, body) =>
-          handleClass(node, name)
+        case c@Node.ClassDeclaration(Node.Identifier(name), params, body) =>
+          handleClass(c, name)
          // Node.ClassExpression(Node.Identifier(name), params, body) => name is ClassExpression is local only - it makes to sense to process it
-        case `top` =>
+        case `ast` =>
           false
         case _ =>
           true

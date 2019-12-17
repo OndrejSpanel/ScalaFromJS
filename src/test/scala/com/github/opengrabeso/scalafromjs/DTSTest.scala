@@ -5,10 +5,11 @@ import org.scalatest.FunSuite
 class DTSTest extends FunSuite with TestUtils with ProjectUtils {
   test("Types from d.ts should override any inference") {
     val outCode = convertProject("d.ts/input.js")
-    pendingUntilFixed {
-      exec check ResultCheck(outCode)
-        .required("r: String", "bnum: Double", "bstr: String", "xnum: Double")
-        .forbidden("x: Double", "x: Any", "x: Unit")
-    }
+    exec check ResultCheck(outCode)
+      .required(
+        "r: String", "m: Double", "bnum: Double", "bstr: String", "xnum: Double",
+        "var num: Double", "var str: String",
+        "def bMember(bpa: String, bpb: Double)"
+      )
   }
 }

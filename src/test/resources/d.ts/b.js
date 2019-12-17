@@ -4,4 +4,5 @@ class B {
         this.num = null;
     }
     clone(){return null;}
+    bMember(bpa, bpb){}
 }
