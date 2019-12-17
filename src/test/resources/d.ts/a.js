@@ -1,5 +1,5 @@
 class A {
-
+    member(){return global.x;}
 }
 
 function a(x) { // x defined in dt.s as string

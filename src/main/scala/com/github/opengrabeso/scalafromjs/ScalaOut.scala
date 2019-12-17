@@ -1417,7 +1417,7 @@ object ScalaOut {
       }
     }
 
-    val classListHarmony = new ClassListHarmony(ast)
+    val classListHarmony = new ClassListHarmony(ast.top)
     val inputContext = InputContext(input, ast.types, classListHarmony)
     val scopeContext = new ScopeContext
     scopeContext.withScope(ast.top) {

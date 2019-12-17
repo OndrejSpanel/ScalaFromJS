@@ -7,6 +7,8 @@ import com.github.opengrabeso.scalafromjs.esprima._
 import SymbolTypes._
 import TypesRule._
 
+import scala.collection.mutable
+
 /**
   * Code responsible for parsing d.ts files and matching them to the main project AST
   */
@@ -81,7 +83,7 @@ object TypesRule {
 }
 case class TypesRule(types: String, root: String) extends ExternalRule {
   // load the d.ts
-  val symbols = {
+  val dtsSymbols = {
     val project = ConvertProject.loadControlFile(PathUtils.resolveSibling(root, types))
     loadSymbols(project.code)
   }
@@ -90,14 +92,15 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
   def provideTypes(n: NodeExtended): NodeExtended = {
     // walk the AST, search for types for any global symbols
 
-    // for global classes
+    // list top-level classes only
+    val classList = new Classes.ClassListHarmony(n.top, false)
 
     var types = n.types.types
     val top = n.top
     top.walkWithScope { (node, context) =>
       def handleVar(node: Node.Node, name: String) = {
         for {
-          s@VarDecl(_, _, _) <- symbols.get(name)
+          s@VarDecl(_, _, _) <- dtsSymbols.get(name)
           t <- Option(s.declarations.head.`type`)
         } {
           types += context.findSymId(name) -> TypeInfo.both(typeFromAST(t)(context))
@@ -105,7 +108,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         true
       }
       def handleFunction(node: Node.Node, params: Seq[Node.FunctionParameter], name: String) = {
-        for (AnyFunEx(pars, tpe, body) <- symbols.get(name)) {
+        for (AnyFunEx(pars, tpe, body) <- dtsSymbols.get(name)) {
           // we have already entered the function scope, parameters can be found in localSymbols
           // match parameters by position, their names may differ
           for {
@@ -123,8 +126,22 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         true
       }
       def handleClass(node: Node.Node, name: String) = {
-        for (s <- symbols.get(name)) {
-
+        for {
+          Node.ClassDeclaration(_, s, b) <- dtsSymbols.get(name)
+          clsSym = context.findSymId(name)
+          if !clsSym.isGlobal // global means not defined in the "top" we are traversing
+          clsNode <- classList.get(clsSym)
+          clsId = symbols.ScopeContext.getNodeId(clsNode.body)
+          member <- b.body
+        } {
+          member match { // list d.ts members, create type information for corresponding
+            case Node.MethodDefinition(Node.Identifier(funName), ret, _, AnyFunEx(params, retFun, body), _, _) => // member function
+              for (t <- Option(ret).orElse(retFun)) {
+                types += SymbolMapId(funName, clsId) -> typeInfoFromAST(t)(context)
+              }
+            case Node.MethodDefinition(Node.Identifier(funName), Defined(ret), _, value, _, _) => // plain member with known type
+              types += SymbolMapId(funName, clsId) -> typeInfoFromAST(ret)(context)
+          }
         }
         true
       }
@@ -137,8 +154,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           handleFunction(node, params, name)
         case Node.ClassDeclaration(Node.Identifier(name), params, body) =>
           handleClass(node, name)
-        case Node.ClassExpression(Node.Identifier(name), params, body) =>
-          handleClass(node, name)
+         // Node.ClassExpression(Node.Identifier(name), params, body) => name is ClassExpression is local only - it makes to sense to process it
         case `top` =>
           false
         case _ =>

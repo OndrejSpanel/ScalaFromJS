@@ -50,7 +50,7 @@ object InferTypes {
     // TODO: cleanup inferred, was used for members, not for variables, now it is not used at all
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 
-    val classes = new ClassListHarmony(n)
+    val classes = new ClassListHarmony(n.top)
     //println("Classes:\n" + classes.keys)
 
 

@@ -232,9 +232,9 @@ object Classes {
   }
 
 
-  def classListHarmony(n: NodeExtended) = {
+  def classListHarmony(n: Node.Program, innerClasses: Boolean = true) = {
     var classes = Map.empty[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]
-    n.top.walkWithScope { (node, context) =>
+    n.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
         case d: Node.ClassDeclaration =>
@@ -244,7 +244,7 @@ object Classes {
             val parentId = Option(d.superClass).flatMap(symId)
             classes += id -> (parentId, d)
           }
-          false // classes may contain inner classes
+          !innerClasses // classes may contain inner classes - when the caller wants them, continue the traversal
         case _: Node.Program =>
           false
         case _ =>
@@ -256,7 +256,7 @@ object Classes {
 
   case class ClassListHarmony(classes: Map[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]) {
 
-    def this(n: NodeExtended) = this(classListHarmony(n))
+    def this(n: Node.Program, innerClasses: Boolean = true) = this(classListHarmony(n, innerClasses))
 
     def get(name: SymbolMapId): Option[Node.ClassDeclaration] = classes.get(name).map(_._2)
     def getParent(name: SymbolMapId): Option[SymId] = classes.get(name).flatMap(_._1)

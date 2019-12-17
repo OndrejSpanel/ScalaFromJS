@@ -203,7 +203,7 @@ object ClassesByMembers {
 
     // try to identify any symbol not inferred completely
     val classInfo = listDefinedClassMembers(n)
-    val classes = new ClassListHarmony(n)
+    val classes = new ClassListHarmony(n.top)
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 
     implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes)
