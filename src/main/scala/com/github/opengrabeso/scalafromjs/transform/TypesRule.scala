@@ -68,7 +68,7 @@ object TypesRule {
         name match {
           case "number" => SimpleType("Double")
           case "string" => SimpleType("String")
-          case "bool" => SimpleType("Boolean")
+          case "boolean" => SimpleType("Boolean")
           case "any" => SimpleType("Any")
           case "void" => SimpleType("Unit")
           case _ => ClassType(context.findSymId(name))
@@ -133,7 +133,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       }
       def handleClass(node: Node.ClassDeclaration, name: String) = {
         for {
-          Node.ClassDeclaration(_, s, b) <- dtsSymbols.get(name)
+          Node.ClassDeclaration(_, superClass, Defined(b)) <- dtsSymbols.get(name)
           clsSym = context.findSymId(name)
           if !clsSym.isGlobal // global means not defined in the AST we are traversing
           clsNode <- classList.get(clsSym)
