@@ -26,35 +26,29 @@ object ReadTypes {
       // processing similar to TypesRule handleClass / handleFunction, but simpler - we alredy are in a correct scope
       // TODO: handle d.ts processing in two phases - first copy AST types from TS to JS, then process here
       node match {
-        case c@Node.ClassDeclaration(Node.Identifier(Id(clsId)), superClass, body) =>
-          c.walkWithScope(context) {
-            (node, context) =>
-              implicit val ctx = context
-              node match {
-                case Node.MethodDefinition(Node.Identifier(funName), ret, _, AnyFunEx(pars, retFun, body), _, _) => // member function
-                  for {
-                    t <- Option(ret).orElse(retFun)
-                    tt <- typeInfoFromAST(t)(context)
-                  } {
-                    types += Id(funName) -> tt
-                  }
-                  handleParameters(pars)
-                  false
-                case _ =>
-                  false
-              }
-
-          }
-          true
-        case Node.FunctionDeclaration(funName, params, body, _, MayBeNull(ret)) =>
+        case Node.MethodDefinition(Node.Identifier(funName), ret, _, AnyFunEx(pars, retFun, body), _, _) => // member function
           for {
-            t <- ret
+            t <- Option(ret).orElse(retFun)
             tt <- typeInfoFromAST(t)(context)
           } {
             types += Id(funName) -> tt
           }
-          handleParameters(params)
+          false
+        case Node.FunctionParameterWithType(Node.Identifier(name), Defined(t), defValue, optional) =>
+          for (tt <- typeInfoFromAST(t)(context)) {
+            types += Id(name) -> tt
+          }
+          false
+        case Node.FunctionDeclaration(funName, params, body, _, Defined(t)) =>
+          for (tt <- typeInfoFromAST(t)(context)) {
+            types += Id(funName) -> tt
+          }
           false // there may be some inner functions in there - process them as well
+        case Node.VariableDeclarator(Node.Identifier(name), init, Defined(t)) =>
+          for (tt <- typeInfoFromAST(t)(context)) {
+            types += Id(name) -> tt
+          }
+          false // initialize may contain more variables - process them as well
         case _ =>
           false
       }
