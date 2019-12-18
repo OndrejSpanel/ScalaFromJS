@@ -12,18 +12,8 @@ object ReadTypes {
   def apply(n: NodeExtended): NodeExtended = {
     var types = n.types.types
 
-    def handleParameters(pars: Seq[Node.FunctionParameter])(implicit context: symbols.ScopeContext) = {
-      for {
-        Node.FunctionParameterWithType(Node.Identifier(parName), Defined(t), defValue, optional) <- pars
-        tt <- typeInfoFromAST(t)(context)
-      } {
-        types += Id(parName) -> tt
-      }
-    }
-
     n.top.walkWithScope { (node, context) =>
       implicit val ctx = context
-      // processing similar to TypesRule handleClass / handleFunction, but simpler - we alredy are in a correct scope
       // TODO: handle d.ts processing in two phases - first copy AST types from TS to JS, then process here
 
       def addType(name: String, t: Node.TypeAnnotation) = {
@@ -44,10 +34,10 @@ object ReadTypes {
           false
         case Node.FunctionDeclaration(Node.Identifier(funName), params, body, _, Defined(t)) =>
           addType(funName, t)
-          false // there may be some inner functions in there - process them as well
+          false
         case Node.VariableDeclarator(Node.Identifier(name), init, Defined(t)) =>
           addType(name, t)
-          false // initialize may contain more variables - process them as well
+          false
         case _ =>
           false
       }
