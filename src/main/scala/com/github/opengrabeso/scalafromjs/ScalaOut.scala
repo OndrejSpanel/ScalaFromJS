@@ -172,6 +172,8 @@ object ScalaOut {
           }
         case n: Node.Node =>
           nodeToOut(n)
+        case null =>
+          output("??? /*null*/")
         case any =>
           output(any.toString)
       }

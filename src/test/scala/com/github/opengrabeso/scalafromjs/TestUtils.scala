@@ -13,7 +13,7 @@ trait TestUtils extends Assertions {
   def normalizeEol(str: String) = str.replace("\r\n", "\n")
 
   object ConversionCheck {
-    val standardForbidden = Seq(";", "/* Unsupported:")
+    val standardForbidden = Seq(";", "/* Unsupported:", "??? /*null*/")
   }
 
   case class TestSetup(mustHave: Seq[String] = Seq.empty[String], mustNotHave: Seq[String] = ConversionCheck.standardForbidden, custom: String => Seq[String] = _ => Seq.empty)
