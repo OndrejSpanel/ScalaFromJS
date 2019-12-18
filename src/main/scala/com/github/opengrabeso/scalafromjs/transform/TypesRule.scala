@@ -153,8 +153,15 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                 types += SymbolMapId(funName, clsId) -> tt
               }
               // to create parameter types we need to find the AST method definition node
+              def findMethod(funName: String) = {
+                // if the method is a constructor, we need a special handling for variables as well
+                // an alternative could be to perform TS types handling after convertProtoClassesRecursive
+                // (before any constructor transformations)
+                if (funName == "constructor") Classes.findMethod(node, funName).toSeq ++ Classes.findInlineBody(node)
+                else Classes.findMethod(node, funName).toSeq
+              }
               for {
-                astMethod <- Classes.findMethod(node, funName) // TODO: handle overloads
+                astMethod <- findMethod(funName) // TODO: handle overloads
                 methodId = symbols.ScopeContext.getNodeId(astMethod.value)
                 Node.MethodDefinition(_, _, _, AnyFun(astPars, _), _, _) = astMethod
               } {
