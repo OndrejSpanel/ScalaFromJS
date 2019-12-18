@@ -32,7 +32,7 @@ object Parameters {
       }
     }
 
-    def renameParam(oldParam: Node.FunctionParameter , newName: String) = {
+    def renameParam(oldParam: Node.FunctionParameter , newName: String) : Seq[Node.FunctionParameter] = {
       params.map { x =>
         if (x == oldParam) {
           val replacedId = Node.Identifier(newName)
@@ -40,6 +40,9 @@ object Parameters {
             case ap: Node.AssignmentPattern =>
               ap.left = replacedId.withTokens(ap.left)
               ap
+            case pwt: Node.FunctionParameterWithType =>
+              pwt.copy(name = replacedId).copyNode(pwt)
+              pwt
             case nn: Node.Identifier =>
               replacedId.withTokens(nn)
           }
@@ -214,13 +217,13 @@ object Parameters {
 
           defValueCond.toSeq ++ defValueAssign match { // use only one option - two are bad
             case Seq(init) =>
-              val params = f.replaceParam(par, Node.AssignmentPattern(par, init))
+              val params = f.replaceParam(par, Node.AssignmentPattern(par, init).withTokens(init))
 
               // remove the use
               val body = f.body.transformBefore { (node, descend, transform) =>
                 node match {
                   case IsParDefaultHandlingAssignment(_) if defValueAssign.isDefined =>
-                    Node.EmptyStatement()
+                    Node.EmptyStatement().withTokens(node)
                   case IsParDefaultHandling(symRef, _) if defValueCond.isDefined =>
                     symRef.clone()
                   case _ =>
