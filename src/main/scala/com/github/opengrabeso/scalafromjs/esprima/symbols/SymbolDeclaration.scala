@@ -9,6 +9,8 @@ object SymbolDeclaration {
     nodes.flatMap {
       case Identifier(id) =>
         Some(id)
+      case FunctionParameterWithType(Identifier(id), _, _, _) =>
+        Some(id)
       case AssignmentPattern(Identifier(id), _) =>
         Some(id)
       case _ =>

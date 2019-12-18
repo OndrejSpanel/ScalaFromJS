@@ -11,6 +11,16 @@ import esprima._
 object ReadTypes {
   def apply(n: NodeExtended): NodeExtended = {
     var types = n.types.types
+
+    def handleParameters(pars: Seq[Node.FunctionParameter])(implicit context: symbols.ScopeContext) = {
+      for {
+        Node.FunctionParameterWithType(Node.Identifier(parName), Defined(t), defValue, optional) <- pars
+        tt <- typeInfoFromAST(t)(context)
+      } {
+        types += Id(parName) -> tt
+      }
+    }
+
     n.top.walkWithScope { (node, context) =>
       implicit val ctx = context
       // processing similar to TypesRule handleClass / handleFunction, but simpler - we alredy are in a correct scope
@@ -28,12 +38,7 @@ object ReadTypes {
                   } {
                     types += Id(funName) -> tt
                   }
-                  for {
-                    Node.FunctionParameterWithType(Node.Identifier(parName), Defined(t), defValue, optional) <- pars
-                    tt <- typeInfoFromAST(t)(context)
-                  } {
-                    types += Id(parName) -> tt
-                  }
+                  handleParameters(pars)
                   false
                 case _ =>
                   false
@@ -41,6 +46,15 @@ object ReadTypes {
 
           }
           true
+        case Node.FunctionDeclaration(funName, params, body, _, MayBeNull(ret)) =>
+          for {
+            t <- ret
+            tt <- typeInfoFromAST(t)(context)
+          } {
+            types += Id(funName) -> tt
+          }
+          handleParameters(params)
+          false // there may be some inner functions in there - process them as well
         case _ =>
           false
       }
