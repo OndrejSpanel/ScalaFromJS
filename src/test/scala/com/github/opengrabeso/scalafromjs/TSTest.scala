@@ -33,18 +33,17 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
               cs(s: string): string;
             }
             class D { // mixed style JS / TS class - members assigned
-              constructor(dnp: number, dsp, csp: string){
+              constructor(dnp: number, dsp: string){
                 this.num = dnp;
-                this.str = dnp;
+                this.str = dsp;
               };
             }
         """
     ).required(
-      "class C(cnp: Double, csp: String)",
-      "var num: Double",
-      "var str: String",
+      "cnp: Double", "csp: String",
+      "dnp: Double", "dsp: String",
       "def cf(): Double",
       "def cs(s: String): String"
-    )
+    ).forbidden("_par")
   }
 }

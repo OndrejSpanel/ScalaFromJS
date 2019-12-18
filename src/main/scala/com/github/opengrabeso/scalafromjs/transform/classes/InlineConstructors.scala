@@ -13,6 +13,10 @@ import VariableUtils._
 import com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
 
+/**
+  * Inline any suitable code from a real JS constructor function into the inline body method
+*/
+
 object InlineConstructors {
   private case class PrivateMember(sym: SymId, isVal: Boolean, tokens: Node.Node)
 
@@ -463,13 +467,13 @@ object InlineConstructors {
                 }
                 // add adjusted constructor argument names so that parser correctly resolves them inside of the function
 
-                accessorValue.params = params.map(Transform.funArg).map { p =>
-                  val a = p.cloneNode()
-                  a.name = p.name + parSuffix
-                  val aId = SymId(a.name, inlineBodyScope)
+                accessorValue.params = params.map { p =>
+                  val oldName = parameterNameString(p)
+                  val newName = oldName + parSuffix
+                  val newPar = Parameters.renameSingleParam(p, newName)
+                  val aId = SymId(newName, inlineBodyScope)
                   types = types addHint Some(aId) -> IsConstructorParameter
-                  // marking source as cls so that they use the class scope, same as member variables
-                  a
+                  newPar
                 }
                 //println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
 

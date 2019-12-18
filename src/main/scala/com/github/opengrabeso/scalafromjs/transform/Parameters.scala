@@ -11,7 +11,7 @@ import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, Sym
 object Parameters {
 
   /*
-  * AST types are incorrect - function parameters may be of a type other than Node.FunctionParameter
+  * AST types might be incorrect (it was the case with uglify) - function parameters may be of a type other than Node.FunctionParameter
   * This allows us to hotfix this.
   * */
   def isNormalPar(par: Node.Node): Boolean = {
@@ -24,6 +24,22 @@ object Parameters {
     }
   }
 
+  def renameSingleParam(oldParam: Node.FunctionParameter , newName: String): Node.FunctionParameter = {
+    // this could be implemented using type classes to always return correct parameter type
+    val replacedId = Node.Identifier(newName)
+    oldParam match {
+      case ap: Node.AssignmentPattern =>
+        ap.left = replacedId.withTokens(ap.left)
+        ap
+      case pwt: Node.FunctionParameterWithType =>
+        pwt.copy(name = replacedId).copyNode(pwt)
+        pwt
+      case nn: Node.Identifier =>
+        replacedId.withTokens(nn)
+    }
+  }
+
+
   case class FunctionBodyAndParams(body: Node.BlockStatement, params: Seq[Node.FunctionParameter]) {
     def replaceParam(name: Node.FunctionParameter, replace: Node.FunctionParameter) = {
       params.map { x =>
@@ -35,19 +51,8 @@ object Parameters {
     def renameParam(oldParam: Node.FunctionParameter , newName: String) : Seq[Node.FunctionParameter] = {
       params.map { x =>
         if (x == oldParam) {
-          val replacedId = Node.Identifier(newName)
-          x match {
-            case ap: Node.AssignmentPattern =>
-              ap.left = replacedId.withTokens(ap.left)
-              ap
-            case pwt: Node.FunctionParameterWithType =>
-              pwt.copy(name = replacedId).copyNode(pwt)
-              pwt
-            case nn: Node.Identifier =>
-              replacedId.withTokens(nn)
-          }
-        }
-        else x
+          renameSingleParam(x, newName)
+        } else x
       }
     }
   }
