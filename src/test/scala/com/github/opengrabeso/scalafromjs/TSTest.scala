@@ -25,12 +25,18 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
   test("TypeScript class conversion") {
     exec check ConversionCheckTypeScript(
       """
-            class C {
+            class C { // TS style class - members declared
               num: number;
               str: string;
               constructor(cnp: number, csp: string){};
               cf(): number;
               cs(s: string): string;
+            }
+            class D { // mixed style JS / TS class - members assigned
+              constructor(dnp: number, dsp, csp: string){
+                this.num = dnp;
+                this.str = dnp;
+              };
             }
         """
     ).required(
