@@ -30,7 +30,7 @@ object Transform {
   def identifierFromPar(p: Node.Node): Option[Node.Identifier] = p match {
     case x: Node.Identifier =>
       Some(x)
-    case Node.FunctionParameterWithType(x: Node.Identifier, _, __, _) =>
+    case Node.FunctionParameterWithType(x: Node.Identifier, _, _, _) =>
       Some(x)
     case Node.AssignmentPattern(x: Node.Identifier, _) =>
       Some(x)

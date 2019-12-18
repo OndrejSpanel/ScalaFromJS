@@ -328,10 +328,13 @@ trait NodeExt {
     }
   }
 
+  // TODO: DRY with Transform.identifierFromPar
   def parameterName(n: Node.FunctionParameter): (Node.Identifier, Option[Node.Node]) = {
     (n: @unchecked) match {
       case Node.AssignmentPattern(left: Node.Identifier, right) =>
         left -> Some(right)
+      case Node.FunctionParameterWithType(id: Node.Identifier, _, MayBeNull(init), _) =>
+        id -> init
       case id: Node.Identifier =>
         id -> None
       case Node.RestElement(arg: Node.Identifier, _) =>

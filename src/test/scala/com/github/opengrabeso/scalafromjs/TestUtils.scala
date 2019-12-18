@@ -54,6 +54,7 @@ trait TestUtils extends Assertions {
   def ProjectCheck(path: String) = TestCheck(getResult = () => Convert.project(path))
 
   def ConversionCheck(code: String) = TestCheck(getResult = () => Convert(code))
+  def ConversionCheckTypeScript(code: String) = TestCheck(getResult = () => Convert(code, typescript = true))
 
   def rscPath(path: String): String = "src/test/resources/" + path
 

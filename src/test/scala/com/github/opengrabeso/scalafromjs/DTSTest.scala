@@ -14,4 +14,5 @@ class DTSTest extends FunSuite with TestUtils with ProjectUtils {
         "class CX(var cn: Double, var cs: String, var cb: Boolean)"
       )
   }
+
 }

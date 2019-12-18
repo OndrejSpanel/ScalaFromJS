@@ -30,19 +30,19 @@ object Convert {
 
   def prefix(header: Boolean) = if (header) s"/* $fingerprint*/\n\n" else ""
 
-  def apply(code: String, header: Boolean = true): String = {
+  def apply(code: String, header: Boolean = true, typescript: Boolean = false): String = {
     // split input file based on //file: comments
 
     val files = code.split("\\/\\/file\\:")
     if (files.lengthCompare(1) <= 0) {
 
       // note: here we parse only to load the preprocess config
-      val preparse = parse(code)
+      val preparse = parse(code, typescript)
       val cfg = NodeExtended(preparse).loadConfig().config
 
       val preprocessed = cfg.preprocess(code)
 
-      val ast = parse(preprocessed)
+      val ast = parse(preprocessed, typescript)
 
       val ext = NodeExtended(ast).loadConfig()
 
