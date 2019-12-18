@@ -140,6 +140,12 @@ flavors of `transform`: `transformBefore` and `transformAfter`, which differ in 
 traverses all children first, while `transformBefore` is given a `descend` function and can determine the traversal order
 as required.
 
+Types
+=====
+
+Type information is stored outside of the AST, in `NodeExtended.types`. It is first constructed from TypeScript type
+information (when available) and then type inference fills the rest. 
+
 Symbols scopes and IDs
 ======================
 
@@ -153,3 +159,16 @@ There are some important cases:
   function body, so that parameters have the same scope as the body
 - scope ID of the for loop is the for statement, not the loop body, so that loop variable has the same scope as the body
 - scope ID of Node.MethodDefinition is ID of its value (most often `Node.FunctionExpression`)
+
+Class representation
+====================
+
+Classed are represented using `ClassDeclaration`. Member functions are listed in the class body as `MethodDefinition`s.
+There is a special method called "inline^" which corresponds to the Scala primary constructor.
+
+Class member variables
+----------------------
+
+Class member variables are represented using `MethodDefinition` (see `newValue`) with `kind = "value"`. 
+They are also listed using `VariableDeclaration` / `VariableDeclarator` in the  "inline^" method.
+ 
