@@ -25,29 +25,28 @@ object ReadTypes {
       implicit val ctx = context
       // processing similar to TypesRule handleClass / handleFunction, but simpler - we alredy are in a correct scope
       // TODO: handle d.ts processing in two phases - first copy AST types from TS to JS, then process here
+
+      def addType(name: String, t: Node.TypeAnnotation) = {
+        for (tt <- typeInfoFromAST(t)(context)) {
+          types += Id(name) -> tt
+        }
+      }
       node match {
         case Node.MethodDefinition(Node.Identifier(funName), ret, _, AnyFunEx(pars, retFun, body), _, _) => // member function
           for {
             t <- Option(ret).orElse(retFun)
-            tt <- typeInfoFromAST(t)(context)
           } {
-            types += Id(funName) -> tt
+            addType(funName, t)
           }
           false
         case Node.FunctionParameterWithType(Node.Identifier(name), Defined(t), defValue, optional) =>
-          for (tt <- typeInfoFromAST(t)(context)) {
-            types += Id(name) -> tt
-          }
+          addType(name, t)
           false
-        case Node.FunctionDeclaration(funName, params, body, _, Defined(t)) =>
-          for (tt <- typeInfoFromAST(t)(context)) {
-            types += Id(funName) -> tt
-          }
+        case Node.FunctionDeclaration(Node.Identifier(funName), params, body, _, Defined(t)) =>
+          addType(funName, t)
           false // there may be some inner functions in there - process them as well
         case Node.VariableDeclarator(Node.Identifier(name), init, Defined(t)) =>
-          for (tt <- typeInfoFromAST(t)(context)) {
-            types += Id(name) -> tt
-          }
+          addType(name, t)
           false // initialize may contain more variables - process them as well
         case _ =>
           false

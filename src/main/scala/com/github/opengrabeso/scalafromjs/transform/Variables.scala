@@ -32,13 +32,13 @@ object Variables {
             cm
           } else cm
 
-        case VarDecl(Id(varName), Some(value), kind) if kind != "const" => // var with init - search for a modification
+        case VarDeclTyped(Id(varName), Some(value), kind, tpe) if kind != "const" => // var with init - search for a modification
           // check if any reference is assignment target
 
           // isModified call is quite slow this is quite slow (15 sec. of 18 in detectVals for three.js - total time 160 s)
           val assignedInto = refs.isModified(varName)
           val n = if (!assignedInto) {
-            VarDecl(varName.name, Some(value), "const", node)
+            VarDecl(varName.name, Some(value), "const", tpe)(node)
           } else {
             node
           }
@@ -86,12 +86,12 @@ object Variables {
     n.transformBefore {(node, descend, transformer) =>
       implicit val ctx = transformer.context
       node match {
-        case VarDecl(Id(varName), init, kind) if ctx.scopes.last._1 == n && !usedAsForVar(varName.name, transformer) =>
+        case VarDeclTyped(Id(varName), init, kind, tpe) if ctx.scopes.last._1 == n && !usedAsForVar(varName.name, transformer) =>
           // declared in the top-level scope - special handling - if already exists, create a new variable
           assert(ctx.scopes.size == 1)
           val count = declaredGlobal.getOrElse(varName, -1)
           declaredGlobal += varName -> (count + 1)
-          VarDecl(addIndex(varName.name, count + 1), init, kind, node).withTokens(node)
+          VarDecl(addIndex(varName.name, count + 1), init, kind, tpe)(node)
 
         // we could assume Node.Let and Node.Const are already well scoped
         case VarDecl(Id(varName), Some(value), _) if !usedAsForVar(varName.name, transformer) => // var with init - search for a modification
@@ -259,15 +259,15 @@ object Variables {
 
 
     // walk the tree, check for first reference of each var
-    var defined = Map.empty[SymId, String] // symbol definition -> first reference
+    var defined = Map.empty[SymId, (String, Option[Node.TypeAnnotation])] // symbol definition -> first reference
     var used = Set.empty[SymId] // any use makes assignment not first
     val init = mutable.Map.empty[SymId, Int] // one or multiple assignments?
     val initAt = mutable.Map.empty[SymId, Node.Node] // one or multiple assignments?
     n.walkWithScope { (node, scopeContext) =>
       implicit val ctx = scopeContext
       node match {
-        case VarDecl(Id(name), None, kind) =>
-          defined += name -> kind
+        case VarDeclTyped(Id(name), None, kind, tpe) =>
+          defined += name -> (kind, tpe)
           true
         //case fn: Node.MethodDefinition if methodName(fn) == inlineBodyName =>
         //  true
@@ -318,10 +318,10 @@ object Variables {
               if (!(replaced contains vName)) {
                 replaced += vName
                 //val r = if (init(vName) == 0) "const" else "let"
-                val kind = defined(vName) // val detection will be done separately, no need to do it now
+                val (kind, tpe) = defined(vName) // val detection will be done separately, no need to do it now
                 // use td.orig if possible to keep original initialization tokens
                 //println(s"  Replaced $sr Node.Identifier with $r, init ${nodeClassName(right)}")
-                VarDecl(vName.name, Some(right), kind, right)
+                VarDecl(vName.name, Some(right), kind, tpe)(right)
               } else {
                 node
               }
@@ -582,7 +582,7 @@ object Variables {
     def createCaseVariable(from: Node.Node, name: String, castTo: Seq[String]) = {
       //println(s"createCaseVariable $name $from ${from.start.get.pos}..${from.start.get.endpos}")
       val symRef = Node.Identifier(name).withTokens(from)
-      VarDecl(name + castSuffix, Some(condition(symRef, castTo)), "let", from)
+      VarDecl(name + castSuffix, Some(condition(symRef, castTo)), "let")(from)
     }
 
     lazy val classInfo = Transform.listClassMembers(n)
@@ -830,7 +830,7 @@ object Variables {
             Node.BlockStatement(
               syms.flatMap { id =>
                 // first level of the globals is whether the variable is erased now (last initialization may be scalar)
-                globals(id).map(init => VarDecl(nameToUse(id.name, symbols), init, "var", block))
+                globals(id).map(init => VarDecl(nameToUse(id.name, symbols), init, "var")(block))
               } ++ block.body
             ).withTokens(block)
           }

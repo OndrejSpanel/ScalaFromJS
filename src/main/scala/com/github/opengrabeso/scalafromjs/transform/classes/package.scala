@@ -609,7 +609,7 @@ package object classes {
             //case Node.MethodDefinition(Node.SymbolName(p), _) =>
             case kv@ObjectKeyVal(p, v) if !propertyIsStatic(kv) =>
               //println(s"newMembers append $cls $p $v")
-              newMembers append VarDecl(p, Option(v).map(_.asInstanceOf[Node.Expression]), "var", kv)
+              newMembers append VarDecl(p, Option(v).map(_.asInstanceOf[Node.Expression]), "var")(kv)
             //case s: Node.ObjectSetter =>
             //case s: Node.ObjectGetter =>
             case _ =>

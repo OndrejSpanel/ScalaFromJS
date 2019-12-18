@@ -315,6 +315,15 @@ trait NodeExt {
     }
   }
 
+  object VarDeclTyped {
+    def unapply(arg: Node.VariableDeclaration): Option[(String, Option[Node.Expression], String, Option[Node.TypeAnnotation])] = arg match {
+      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), MayBeNull(init), MayBeNull(tpe))), kind) =>
+        Some(name, init, kind, tpe)
+      case _ =>
+        None
+    }
+  }
+
   object VarDecl {
     def unapply(arg: Node.VariableDeclaration): Option[(String, Option[Node.Expression], String)] = arg match {
       case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), MayBeNull(init), _)), kind) =>
@@ -323,8 +332,8 @@ trait NodeExt {
         None
     }
 
-    def apply(name: String, init: Option[Node.Expression], kind: String, fromTokens: Node.Node): Node.VariableDeclaration = {
-      Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name).withTokens(fromTokens), init.orNull, null)), kind).withTokens(fromTokens)
+    def apply(name: String, init: Option[Node.Expression], kind: String, tpe: Option[Node.TypeAnnotation] = None)(fromTokens: Node.Node): Node.VariableDeclaration = {
+      Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name).withTokens(fromTokens), init.orNull, tpe.orNull)), kind).withTokens(fromTokens)
     }
   }
 

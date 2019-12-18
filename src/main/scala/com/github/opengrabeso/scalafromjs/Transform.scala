@@ -38,14 +38,20 @@ object Transform {
       None
   }
 
-  def funArg(p: Node.Node): Node.Identifier = identifierFromPar(p).get
-  def nameFromPar(p: Node.Node): Option[String] = identifierFromPar(p).map(_.name)
-
-  object ParName {
-    def unapply(p: Node.Node) = nameFromPar(p)
+  def funArg(p: Node.FunctionParameter): Node.Identifier = identifierFromPar(p).get
+  def nameFromPar(p: Node.FunctionParameter): Option[String] = identifierFromPar(p).map(_.name)
+  def typeFromPar(p: Node.FunctionParameter): Option[Node.TypeAnnotation] = p match {
+    case Node.FunctionParameterWithType(_, t, _, _) =>
+      Some(t)
+    case _ =>
+      None
   }
 
-  def symbolFromPar(p: Node.Node)(implicit context: ScopeContext): Option[SymId] = {
+  object ParName {
+    def unapply(p: Node.FunctionParameter) = nameFromPar(p)
+  }
+
+  def symbolFromPar(p: Node.FunctionParameter)(implicit context: ScopeContext): Option[SymId] = {
     val s = nameFromPar(p)
     s.flatMap(symId)
   }

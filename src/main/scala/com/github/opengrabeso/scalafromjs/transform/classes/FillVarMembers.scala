@@ -62,7 +62,7 @@ object FillVarMembers {
 
           val clsTokenDef = classTokenSource(cls)
           val vars = newMembers.map { case (memberName, init) =>
-            VarDecl(memberName, init._2, "var", init._1)
+            VarDecl(memberName, init._2, "var")(init._1)
           }
 
           if (vars.nonEmpty) {

@@ -263,7 +263,7 @@ object InlineConstructors {
             val clsTokenDef = classTokenSource(cls)
 
             val vars = allPrivates.map { local =>
-              val varDecl = VarDecl(local.sym.name, None, if (local.isVal) "const" else "var", local.tokens)
+              val varDecl = VarDecl(local.sym.name, None, if (local.isVal) "const" else "var")(local.tokens)
               //println(s"privateVariables ${local.sym.name} $varDecl ${cls.start.get.pos}")
               varDecl
             }

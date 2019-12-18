@@ -250,31 +250,30 @@ object Parameters {
 
     def handleModification(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
       implicit val ctx = context
-      par match {
-        case Node.Identifier(parName@Id(parDef)) =>
-          //println(s"Checking $parName")
 
-          // TODO: cloning destroys reference stacks - gather first
+      for (parName <- nameFromPar(par)) yield {
+        val parDef = Id(parName)
+        //println(s"Checking $parName")
 
-          // check if the parameter is ever modified
-          val assignedInto = refs.isModified(parDef)
-          if (assignedInto) {
-            //println(s"Detected assignment into $parName")
-            // we need to replace parameter x with x_par and intruduce var x = x_par
+        // TODO: cloning destroys reference stacks - gather first
 
-            val params = f.renameParam(par, parName + Symbols.parSuffix)
+        // check if the parameter is ever modified
+        val assignedInto = refs.isModified(parDef)
+        if (assignedInto) {
+          //println(s"Detected assignment into $parName")
+          // we need to replace parameter x with x_par and intruduce var x = x_par
 
-            val decl = VarDecl(parName, Some(Node.Identifier(parName + Symbols.parSuffix).withTokens(par)), "let", par)
+          val params = f.renameParam(par, parName + Symbols.parSuffix)
 
-            val body = decl +: f.body.body
+          val decl = VarDecl(parName, Some(Node.Identifier(parName + Symbols.parSuffix).withTokens(par)), "let", typeFromPar(par))(par)
 
-            Some(FunctionBodyAndParams(Node.BlockStatement(body).withTokens(f.body), params))
+          val body = decl +: f.body.body
 
-          } else {
-            Some(f)
-          }
-        case _ =>
-          None
+          FunctionBodyAndParams(Node.BlockStatement(body).withTokens(f.body), params)
+
+        } else {
+          f
+        }
       }
 
 
