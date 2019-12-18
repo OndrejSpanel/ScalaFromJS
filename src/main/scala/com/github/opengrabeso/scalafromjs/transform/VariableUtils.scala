@@ -18,8 +18,8 @@ object VariableUtils {
     def unapply(arg: Node.Node): Option[X] = {
       //println(s"Check modification of $arg")
       arg match {
-        case Assign(extract(x), _, _) =>
-          //println(s"  Detected assignment modification of ${df.name}")
+        // we cannot use Assign(extract(x), _, _), because it matches AssignmentPattern as well, which is initialization, not assignment
+        case Node.AssignmentExpression(_, extract(x), _) =>
           Some(x)
         case Node.UpdateExpression(_, extract(x), _) =>
           Some(x)
