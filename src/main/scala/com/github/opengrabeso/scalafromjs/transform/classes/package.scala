@@ -817,7 +817,7 @@ package object classes {
             Dot(
               Node.Identifier(clsSymDef.name),
               Node.Identifier("prototype")
-            )
+            ).withTokens(node)
           }
         case _ =>
           node

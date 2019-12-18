@@ -843,7 +843,7 @@ object Variables {
               renamed // we do not know how to introduce variables here
           }
         case Node.Identifier(Id(id)) =>
-          globals.get(id).flatMap(_.map(_ /*init*/ => Node.Identifier(nameToUse(id.name, ctx.localSymbols)))).getOrElse(node)
+          globals.get(id).flatMap(_.map(_ /*init*/ => Node.Identifier(nameToUse(id.name, ctx.localSymbols)).withTokens(node))).getOrElse(node)
         case _ =>
           descend(node, transformer)
       }

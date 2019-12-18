@@ -248,7 +248,7 @@ object InlineConstructors {
               } else {
                 replaceVariableInit(replaced, privateVar.sym) { (sym, init) =>
                   Node.ExpressionStatement (
-                    Assign(newThisDotMember(sym.name), "=", init.cloneNode())
+                    Assign(newThisDotMember(sym.name).withTokens(replaced), "=", init.cloneNode())
                   )
                 }
               }
