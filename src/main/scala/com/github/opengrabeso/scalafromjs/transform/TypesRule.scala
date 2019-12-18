@@ -6,9 +6,6 @@ import com.github.opengrabeso.scalafromjs.ConvertProject._
 import com.github.opengrabeso.scalafromjs.esprima._
 import SymbolTypes._
 import TypesRule._
-import com.github.opengrabeso.esprima.Node.MethodDefinition
-
-import scala.collection.mutable
 
 /**
   * Code responsible for parsing d.ts files and matching them to the main project AST
