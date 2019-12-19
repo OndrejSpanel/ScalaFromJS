@@ -32,8 +32,7 @@ object Parameters {
         ap.left = replacedId.withTokens(ap.left)
         ap
       case pwt: Node.FunctionParameterWithType =>
-        pwt.copy(name = replacedId).copyNode(pwt)
-        pwt
+        pwt.copy(name = replacedId).copyNode(pwt).asInstanceOf[Node.FunctionParameterWithType]
       case nn: Node.Identifier =>
         replacedId.withTokens(nn)
     }
@@ -292,6 +291,21 @@ object Parameters {
 
   /*
   If a class inline body parameter is named xxx_par and a member named xxx does not exist, we can remove the _par
+
+  From:
+  class P(dnp_par: Any, dsp_par: Any) {
+    var pnum = _
+    var pstr = _
+    pnum = dnp_par
+    pstr = dsp_par
+  }
+  To:
+  class P(dnp: Any, dsp: Any) {
+    var pnum = _
+    var pstr = _
+    pnum = dnp
+    pstr = dsp
+  }
   */
   def simpleParameters(n: NodeExtended): NodeExtended = {
 
@@ -324,8 +338,7 @@ object Parameters {
             types = types.renameHint(parDef, parDef.copy(name = shortName))
 
             Some(FunctionBodyAndParams(renamedBody, params))
-          }
-          else Some(f)
+          } else Some(f)
         } else Some(f)
       }
     }
@@ -404,7 +417,16 @@ object Parameters {
 
   /*
   find constructor parameters which are assigned to a var member and replace them with a var parameter
-  * */
+
+  Example:
+  class P(dnp: Any, dsp: Any) {
+    var pnum = dnp
+    var pstr = dsp
+  }
+  To:
+  class P(var pnum: Any, var pstr: Any) {
+  }
+  */
   def inlineConstructorVars(n: NodeExtended): NodeExtended = {
     var types = n.types
     val logging = false

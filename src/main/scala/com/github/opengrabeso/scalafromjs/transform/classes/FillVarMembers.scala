@@ -8,6 +8,32 @@ import Classes._
 import Transform._
 import com.github.opengrabeso.scalafromjs.esprima.symbols.Id
 
+/*
+Create member variables
+
+Example:
+
+from:
+
+class P {
+  def constructor(dnp: Any, dsp: Any) = {
+    this.pnum = dnp
+    this.pstr = dsp
+  }
+}
+
+to:
+
+class P() {
+  var pnum = _
+  var pstr = _
+  def constructor(dnp: Any, dsp: Any) = {
+    this.pnum = dnp
+    this.pstr = dsp
+  }
+}
+*/
+
 object FillVarMembers {
   def apply(n: NodeExtended): NodeExtended = {
     object IsThis {

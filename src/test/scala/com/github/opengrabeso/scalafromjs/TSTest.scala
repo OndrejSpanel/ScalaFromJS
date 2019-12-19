@@ -40,10 +40,27 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
             }
         """
     ).required(
-      "cnp: Double", "csp: String",
-      "dnp: Double", "dsp: String",
-      "def cf(): Double",
-      "def cs(s: String): String"
+      "class C(cnp: Double", "csp: String)",
+      "class D(var dnp: Double, var dsp: String)",
+      "def cs(s: String)"
     ).forbidden("_par")
   }
+
+  test("TypeScript class conversion - esprima ArrayExpression") {
+    exec check ConversionCheckTypeScript(
+      """
+      export class ArrayExpression {
+          readonly type: string;
+          readonly elements: ArrayExpressionElement[];
+          constructor(elements: ArrayExpressionElement[]) {
+              this.type = Syntax.ArrayExpression;
+              this.elements = elements;
+          }
+      }
+        """
+    ).required(
+      "class ArrayExpression"
+    ).forbidden("_par", " elements = elements")
+  }
+
 }

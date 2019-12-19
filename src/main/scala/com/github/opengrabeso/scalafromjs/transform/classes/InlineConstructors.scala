@@ -13,8 +13,33 @@ import VariableUtils._
 import com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
 
-/**
-  * Inline any suitable code from a real JS constructor function into the inline body method
+/*
+Inline any suitable code from a real JS constructor function into the inline body method
+
+Example:
+
+from:
+
+class P() {
+  var pnum = _
+  var pstr = _
+
+  def constructor(dnp: Any, dsp: Any) = {
+    this.pnum = dnp
+    this.pstr = dsp
+  }
+
+}
+
+to:
+
+class P(var dnp_par: Any, var dsp_par: Any) {
+  var pnum = _
+  var pstr = _
+  pnum = dnp_par
+  pstr = dsp_par
+}
+
 */
 
 object InlineConstructors {
@@ -385,8 +410,8 @@ object InlineConstructors {
 
             val clsTokenDef = classTokenSource(cls)
             for {
-              md <- findConstructor(cls)
-              constructorProperty@AnyFun(params, b) <- Some(md.value)
+              constructorMethod <- findConstructor(cls)
+              constructorProperty@AnyFun(params, b) <- Some(constructorMethod.value)
             } {
               // anything before a first variable declaration can be inlined, variables need to stay private
               val body = Block.statements(b)
@@ -433,7 +458,7 @@ object InlineConstructors {
               val accessorValue = accessor.value.asInstanceOf[Node.FunctionExpression]
 
               val inlineBodyScope = ScopeContext.getNodeId(accessorValue)
-              val constructorScope = ScopeContext.getNodeId(md.value)
+              val constructorScope = ScopeContext.getNodeId(constructorMethod.value)
 
               //println(s"inlining $cls")
               //println(s"  inlined $inlined")
@@ -498,7 +523,7 @@ object InlineConstructors {
               if (rest.nonEmpty) {
                 constructorProperty.asInstanceOf[Node.FunctionExpression].body.body = rest
               } else {
-                cls.body.body = cls.body.body diff Seq(md)
+                cls.body.body = cls.body.body diff Seq(constructorMethod)
               }
             }
 
