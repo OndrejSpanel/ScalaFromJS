@@ -22,12 +22,13 @@ object ReadTypes {
         }
       }
       node match {
-        case Node.MethodDefinition(Node.Identifier(funName), ret, _, AnyFunEx(pars, retFun, body), _, _) => // member function
-          for {
-            t <- Option(ret).orElse(retFun)
-          } {
+        case Node.MethodDefinition(Node.Identifier(funName), MayBeNull(tpe), _, AnyFunEx(pars, retFun, body), _, _) => // member function
+          for (t <- tpe.orElse(retFun)) {
             addType(funName, t)
           }
+          false
+        case Node.MethodDefinition(Node.Identifier(funName), Defined(t), _, _, "value", _) => // member
+          addType(funName, t)
           false
         case Node.FunctionParameterWithType(Node.Identifier(name), Defined(t), defValue, optional) =>
           addType(name, t)

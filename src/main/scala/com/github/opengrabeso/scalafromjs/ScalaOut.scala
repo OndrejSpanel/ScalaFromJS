@@ -499,12 +499,12 @@ object ScalaOut {
           val name = propertyKeyName(key)
           val memberSymId = cls.map(c => ScopeContext.getNodeId(c.body)).map(SymId(name, _))
           val sType = input.types.get(memberSymId)
-          sType.map(_.declType) match {
-            case Some(ret) =>
-              out"var $key: ${ret.toOut} = $value\n"
-            case _ =>
-              out"var $key = $value\n"
+          out"var $key"
+          sType.map(_.declType).foreach(t => out(": " + t.toOut))
+          if (value != null) {
+            out" = $value"
           }
+          out("\n")
         } else value match {
           case f@Node.FunctionExpression(MayBeNull(name), params, body, generator, _) =>
             context.withScope(f) {
