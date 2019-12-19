@@ -544,6 +544,8 @@ object InferTypes {
           symLeft.addSymbolInferredType(numType, target)(s"Infer arithmetic: both unknown $symLeft $symRight")
           symRight.addSymbolInferredType(numType, target)(s"Infer arithmetic: both unknown $symLeft $symRight")
 
+        case Binary(_, "as", _) => // does not tell anthing about any side
+
         case Binary(SymbolInfo(symInfo), op, expr) if symInfo.unknownType(n.types) =>
           val tpe = typeFromOperation(op, expr)
           //println(s"Infer binary: left unknown $symInfo $tpe")

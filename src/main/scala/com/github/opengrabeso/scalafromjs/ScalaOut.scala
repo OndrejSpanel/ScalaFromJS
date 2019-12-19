@@ -307,7 +307,7 @@ object ScalaOut {
     n match {
       case Node.BinaryExpression(op, _, _) =>
         op match {
-          case `instanceof` | `asinstanceof` =>
+          case `instanceof` | `asinstanceof` | "as" =>
             outNode(n)
           case _ =>
             outInParens(n)
@@ -823,7 +823,7 @@ object ScalaOut {
             case `instanceof` =>
               termToOut(left)
               out".isInstanceOf[$right]"
-            case `asinstanceof` =>
+            case `asinstanceof` | "as" =>
               termToOut(left)
               out".asInstanceOf[$right]"
             case _ =>

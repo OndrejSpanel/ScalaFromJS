@@ -215,6 +215,10 @@ object Rules {
           val className = expr match {
             case StringLiteral(s) =>
               Some(s)
+            case Node.Identifier(parent) Dot s =>
+              // regex may exclude some parent classes - try it
+              if (parent.matches(member.cls.regex)) Some(s)
+              else None
             case _ Dot s =>
               Some(s)
             case Node.Identifier(s) =>

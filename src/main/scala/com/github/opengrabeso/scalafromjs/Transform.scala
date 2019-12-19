@@ -496,6 +496,9 @@ object Transform {
         if (log) println(s"Node.Conditional $te:$t / $fe:$f = $ret")
         ret
 
+      case Binary(expr, "as", Node.Identifier(cls)) => // typescript operator
+        typeInfoFromClassSym(symId(cls), true)
+
       case Binary(expr, `asinstanceof`, Node.Identifier(cls)) =>
         typeInfoFromClassSym(symId(cls), true)
 
