@@ -473,8 +473,10 @@ package object classes {
 
           val mergeProperties = classProperties(classes(ClassId(sym)))
 
-          classNode.body.body ++= mergeProperties
-          //println(s"Node.ClassDeclaration $classNode - merge members (${mergeProperties.size})")
+          if (mergeProperties.nonEmpty || classNode.body != null) { // classNode.body == null: trait or enum
+            classNode.body.body ++= mergeProperties
+            //println(s"Node.ClassDeclaration $classNode - merge members (${mergeProperties.size})")
+          }
 
           classNode
         //case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
@@ -605,7 +607,7 @@ package object classes {
           //println(s"convertClassMembers Node.ClassDeclaration ${ClassId(cls.name.get)}")
 
           val newMembers = mutable.ArrayBuffer.empty[Node.VariableDeclaration]
-          cls.body.body.foreach {
+          if (cls.body != null) cls.body.body.foreach {
             //case Node.MethodDefinition(Node.SymbolName(p), _) =>
             case kv@ObjectKeyVal(p, v) if !propertyIsStatic(kv) =>
               //println(s"newMembers append $cls $p $v")

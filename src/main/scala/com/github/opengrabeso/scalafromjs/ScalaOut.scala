@@ -1133,12 +1133,10 @@ object ScalaOut {
           out.eol()
         //case tn: Node.Program => outputUnknownNode(tn)
         //case tn: Node.Scope => outputUnknownNode(tn)
-        case tn: Node.ClassDeclaration =>
+        case tn: Node.ClassDeclaration if tn.body != null =>
 
           context.withScope(tn.body) {
-            val (staticProperties, nonStaticProperties) = tn.body.body.partition(propertyIsStatic)
-
-
+            val (staticProperties, nonStaticProperties) = Option(tn.body).map(_.body).getOrElse(Nil).partition(propertyIsStatic)
 
             if (staticProperties.nonEmpty || nonStaticProperties.isEmpty) {
               out.eol(2)
@@ -1195,7 +1193,7 @@ object ScalaOut {
               out" {\n"
               out.indent()
 
-              dumpInnerComments(tn.body)
+              if (tn.body != null) dumpInnerComments(tn.body)
 
               for {
                 inlineBody <- inlineBodyOpt
@@ -1295,6 +1293,11 @@ object ScalaOut {
               //blockBracedToOut(tn.body)
             }
           }
+        case tn: Node.ClassDeclaration =>
+          assert(tn.body == null)
+          out"trait ${tn.id}\n\n"
+
+
         case tn: Node.BlockStatement =>
           blockBracedToOut(tn)
         //case tn: Node.BlockStatement =>

@@ -21,7 +21,7 @@ object FillVarMembers {
     // TODO: detect access other than this (see Node.This in expressionType to check general this handling)
     val retTop = n.top.transformAfter { (node, _) =>
       node match {
-        case cls: Node.ClassDeclaration =>
+        case cls: Node.ClassDeclaration if cls.body != null =>
           val accessor = findInlineBody(cls).flatMap(getMethodMethod)
           //println(s"Node.ClassDeclaration ${cls.name.get.name} ${cls.start.get.pos}")
           var newMembers = collection.immutable.ListMap.empty[String, (Node.Node, Option[Node.Expression])]

@@ -48,7 +48,7 @@ object ClassesByMembers {
 
         //println(s"Class $clsName parent $parentName")
 
-        val propertiesSeq = cls.body.body
+        val propertiesSeq = Option(cls.body).map(_.body).getOrElse(Nil)
         val propertiesNonStatic = propertiesSeq.filterNot(propertyIsStatic)
 
 

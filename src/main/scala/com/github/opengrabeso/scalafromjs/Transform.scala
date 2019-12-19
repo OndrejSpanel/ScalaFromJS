@@ -629,7 +629,7 @@ object Transform {
     }
     */
 
-    cls.body.body.foreach {
+    Option(cls.body).foreach(_.body.foreach {
       case md: Node.MethodDefinition =>
         existingMembers = existingMembers :+ propertyKeyName(md.key)
       //case ObjectKeyVal(p, _) =>
@@ -641,7 +641,7 @@ object Transform {
         addAccessor(s)
       */
       case _ =>
-    }
+    })
     existingMembers
   }
 

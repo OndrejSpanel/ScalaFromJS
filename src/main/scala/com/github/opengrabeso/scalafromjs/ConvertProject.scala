@@ -490,7 +490,8 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       for (ConvertProject.Item(code, _, name) <- exportsImports) {
         try {
           println(s"Parse $name")
-          parse(code)
+          val typescript = PathUtils.extension(PathUtils.shortName(name)) == "ts"
+          parse(code, typescript)
         } catch {
           case util.control.NonFatal(ex) =>
             ex.printStackTrace()
@@ -506,7 +507,8 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
     val compositeFile = exportsImports.map(_.code).mkString
 
     val ast = Time(s"Parse ${compositeFile.linesIterator.length} lines") {
-      parse(compositeFile)
+      val typescript = PathUtils.extension(PathUtils.shortName(root)) == "ts"
+      parse(compositeFile, typescript)
     }
 
     val ext = NodeExtended(ast).loadConfig(Some(root))

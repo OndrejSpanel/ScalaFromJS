@@ -76,7 +76,7 @@ object Classes {
   }
 
   def findConstructor(c: Node.ClassDeclaration): Option[Node.MethodDefinition] = {
-    c.body.body.collectFirst(isConstructorProperty)
+    Option(c.body).flatMap(_.body.collectFirst(isConstructorProperty))
   }
 
   val inlineBodyName = "inline_^"
@@ -139,15 +139,15 @@ object Classes {
 
 
   def findMethod(c: Node.ClassDeclaration, name: String): Option[Node.MethodDefinition] = {
-    c.body.body.collectFirst {
+    Option(c.body).flatMap(_.body.collectFirst {
       case m: Node.MethodDefinition if propertyKeyName(m.key) == name => m
-    }
+    })
   }
 
   def findProperty(c: Node.ClassDeclaration, name: String): Option[Node.MethodDefinition] = {
-    c.body.body.collectFirst {
+    Option(c.body).flatMap(_.body.collectFirst {
       case m: Node.MethodDefinition if propertyKeyName(m.key) == name => m
-    }
+    })
   }
 
   def propertyIsStatic(p: Node.ClassBodyElement): Boolean = {
