@@ -41,7 +41,7 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
         """
     ).required(
       "class C(cnp: Double", "csp: String)",
-      "class D(var dnp: Double, var dsp: String)",
+      "class D(var num: Double, var str: String)",
       "def cs(s: String)"
     ).forbidden("_par")
   }
@@ -57,7 +57,7 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
               this.elements = elements;
           }
       }
-        """
+      """
     ).required(
       "class ArrayExpression"
     ).forbidden("_par", " elements = elements")
