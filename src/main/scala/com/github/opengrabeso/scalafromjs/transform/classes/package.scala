@@ -612,8 +612,8 @@ package object classes {
             case node@ObjectKeyVal(p, v) if !propertyIsStatic(node) => // probably relic from Uglify - Node.Property is not ClassBodyElement
               //println(s"newMembers append $cls $p $v")
               newMembers append VarDecl(p, Option(v).map(_.asInstanceOf[Node.Expression]), "var")(node)
-            case node@Node.MethodDefinition(Node.Identifier(name), tpe, false, value, "value", false) =>
-              newMembers append VarDecl(name, Option(value).map(_.asInstanceOf[Node.Expression]), "var", Option(tpe))(node)
+            case Node.MethodDefinition(identNode@Node.Identifier(name), tpe, false, value, "value", false) =>
+              newMembers append VarDecl(name, Option(value).map(_.asInstanceOf[Node.Expression]), "var", Option(tpe))(identNode)
             //case s: Node.ObjectSetter =>
             //case s: Node.ObjectGetter =>
             case _ =>
