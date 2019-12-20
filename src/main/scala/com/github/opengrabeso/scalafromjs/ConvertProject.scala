@@ -253,6 +253,8 @@ object ConvertProject {
     }
   }
 
+  def detectTypescript(in: String): Boolean = PathUtils.extension(PathUtils.shortName(in)) == "ts"
+
   def readSourceFile(in: String): String = {
     val code = readFile(in)
     val terminatedCode = if (code.lastOption.contains('\n')) code else code + "\n"
@@ -267,7 +269,7 @@ object ConvertProject {
 
     // parse only the control file to read the preprocess rules
     val inSource = readSourceFile(in)
-    val ext = NodeExtended(parse(inSource)).loadConfig(Some(in)).config
+    val ext = NodeExtended(parse(inSource, detectTypescript(in))).loadConfig(Some(in)).config
 
     Time("loadControlFile") {
       val code = ext.preprocess(inSource)
@@ -349,8 +351,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       val code = preprocess(readSourceFile(path))
       // try parsing, if unable, return a comment file instead
       try {
-        val typescript = PathUtils.extension(PathUtils.shortName(path)) == "ts"
-        parse(code, typescript)
+        parse(code, detectTypescript(path))
         code -> path
       } catch {
         case ex: Exception =>
@@ -402,8 +403,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
 
     val ast = try {
       //println("** Parse\n" + items.mkString("\n"))
-      val typescript = PathUtils.extension(PathUtils.shortName(root)) == "ts"
-      parse(code, typescript)
+      parse(code, detectTypescript(root))
     } catch {
       case ex: Exception =>
         println(s"Parse error $ex")
@@ -490,8 +490,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       for (ConvertProject.Item(code, _, name) <- exportsImports) {
         try {
           println(s"Parse $name")
-          val typescript = PathUtils.extension(PathUtils.shortName(name)) == "ts"
-          parse(code, typescript)
+          parse(code, detectTypescript(name))
         } catch {
           case util.control.NonFatal(ex) =>
             ex.printStackTrace()
@@ -507,8 +506,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
     val compositeFile = exportsImports.map(_.code).mkString
 
     val ast = Time(s"Parse ${compositeFile.linesIterator.length} lines") {
-      val typescript = PathUtils.extension(PathUtils.shortName(root)) == "ts"
-      parse(compositeFile, typescript)
+      parse(compositeFile, detectTypescript(root))
     }
 
     val ext = NodeExtended(ast).loadConfig(Some(root))
