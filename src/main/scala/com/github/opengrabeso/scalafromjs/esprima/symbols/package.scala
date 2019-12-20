@@ -101,8 +101,13 @@ package object symbols {
     val scopes =  ArrayBuffer.empty[(Node.Node, ScopeInfo)]
 
     def findScope(sym: String): Option[(Node.Node, ScopeInfo)] = {
-      for (i <- scopes.indices.reverse) {
-        if (scopes(i)._2.symbols.contains(sym)) return Some(scopes(i))
+      for {
+        i <- scopes.indices.reverse
+        scope = scopes(i)
+        // class symbols are accessible only using this.xxx notation - never use them to match a plain identifier
+        if !scope._1.isInstanceOf[Node.ClassBody]
+      } {
+        if (scope._2.symbols.contains(sym)) return Some(scope)
       }
       None
     }
