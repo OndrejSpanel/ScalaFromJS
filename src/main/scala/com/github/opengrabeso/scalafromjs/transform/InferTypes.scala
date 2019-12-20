@@ -586,6 +586,7 @@ object InferTypes {
               last match {
                 case Node.ReturnStatement(right@(Node.ThisExpression() Dot member)) =>
                   //println(s"Getter $sym from $member")
+                  // pretend we are assigning the returned value to this.sym
                   val left = Dot(Node.ThisExpression(), Node.Identifier(sym))
                   handleAssignment(left, right)
 
@@ -617,7 +618,10 @@ object InferTypes {
           }
 
         case Node.MethodDefinition(Node.Identifier(sym), _, _, fun: Node.FunctionExpression, kind, _) =>
-          val allReturns = scanFunctionReturns(fun.body)
+          val allReturns = scopeCtx.withScope(fun, fun.body) {
+            scanFunctionReturns(fun.body)
+          }
+
           // method of which class is this?
           val scope = findThisClass(scopeCtx)
           for {
