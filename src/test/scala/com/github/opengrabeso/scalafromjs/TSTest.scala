@@ -81,4 +81,24 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
       "val E101 = Value()",
     ).forbidden("_par", " elements = elements")
   }
+
+  test("Object type members") {
+    exec check ConversionCheckTypeScript(
+      """
+          interface D {};
+          class C {
+            nData: {[index: string]: number};
+            dData: {[index: number]: D};
+            oData: {
+              on: number;
+              os: string;
+            };
+          }
+      """
+    ).required(
+      "nData = Map.empty[String, Double]",
+      "dData = Map.empty[String, D]",
+    ).forbidden("object D")
+  }
+
 }

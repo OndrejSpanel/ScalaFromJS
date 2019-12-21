@@ -1,11 +1,12 @@
 package com.github.opengrabeso.scalafromjs
 package transform
 
-import com.github.opengrabeso.esprima.Node
 import com.github.opengrabeso.scalafromjs.ConvertProject._
 import com.github.opengrabeso.scalafromjs.esprima._
 import SymbolTypes._
 import TypesRule._
+import com.github.opengrabeso.esprima.Node
+import com.github.opengrabeso.esprima.Node.{ArrayType=>_,_}
 
 /**
   * Code responsible for parsing d.ts files and matching them to the main project AST
@@ -21,32 +22,32 @@ object TypesRule {
     // create a separate project for it, the result is the types only
     val ast = parse(code, true)
     // scan all global symbols, esp. exported ones
-    val symbols = Map.newBuilder[String, Node.Node]
+    val symbols = Map.newBuilder[String, Node]
 
     def handleExport() = false
-    def handleDeclaration(node: Node.Node, name: String) = {
+    def handleDeclaration(node: Node, name: String) = {
       symbols += name -> node
       true
     }
     ast.walkWithScope {(node, context) =>
       node match {
-        case _: Node.ExportAllDeclaration => // enter into any export (this is still top-level)
+        case _: ExportAllDeclaration => // enter into any export (this is still top-level)
           handleExport()
-        case _: Node.ExportNamedDeclaration =>
+        case _: ExportNamedDeclaration =>
           handleExport()
-        case _: Node.ExportDefaultDeclaration =>
+        case _: ExportDefaultDeclaration =>
           handleExport()
 
         case VarDecl(name, _, _) =>
           handleDeclaration(node, name)
         // find a corresponding global symbol in the d.ts types
-        case Node.FunctionDeclaration(Node.Identifier(name), params, body, generator, ret) =>
+        case FunctionDeclaration(Identifier(name), params, body, generator, ret) =>
           handleDeclaration(node, name)
-        case Node.FunctionExpression(Node.Identifier(name), params, body, generator, ret) =>
+        case FunctionExpression(Identifier(name), params, body, generator, ret) =>
           handleDeclaration(node, name)
-        case Node.ClassDeclaration(Node.Identifier(name), params, body) =>
+        case ClassDeclaration(Identifier(name), params, body) =>
           handleDeclaration(node, name)
-        case Node.ClassExpression(Node.Identifier(name), params, body) =>
+        case ClassExpression(Identifier(name), params, body) =>
           handleDeclaration(node, name)
 
         case `ast` => // enter the top level
@@ -71,20 +72,24 @@ object TypesRule {
     t
   }
 
-  def typeFromAST(tpe: Node.TypeAnnotation)(context: symbols.ScopeContext): Option[TypeDesc] = {
+  def typeFromAST(tpe: TypeAnnotation)(context: symbols.ScopeContext): Option[TypeDesc] = {
     tpe match {
-      case Node.TypeName(Node.Identifier(name)) =>
+      case TypeName(Identifier(name)) =>
         Some(typeFromIdentifierName(name)(context))
-      case Node.TypeReference(tpe, genType) =>
+      case TypeReference(tpe, genType) =>
         typeFromAST(tpe)(context) // TODO: represent generics in TypeInfo
       case Node.ArrayType(item) =>
         Some(ArrayType(typeFromAST(item)(context).getOrElse(AnyType)))
+      case ObjectType(Seq(TypeMember(null, _, t))) => // object containing only index signature, like {[i: number]: t}
+        typeFromAST(t)(context).map(MapType)
+      case ObjectType(body) =>
+        None // TODO: can be converted to structural typing
       case _ =>
         None
     }
   }
 
-  def typeInfoFromAST(tpe: Node.TypeAnnotation)(context: symbols.ScopeContext): Option[TypeInfo] = {
+  def typeInfoFromAST(tpe: TypeAnnotation)(context: symbols.ScopeContext): Option[TypeInfo] = {
     typeFromAST(tpe)(context).map(TypeInfo.both(_).copy(certain = true))
   }
 }
@@ -106,12 +111,12 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     val ast = n.top
 
     ast.walkWithScope { (node, context) =>
-      def handleParameterTypes(astPars: Seq[Node.FunctionParameter], dtsPars: Seq[Node.FunctionParameter])(scopeId: symbols.ScopeContext.ScopeId) = {
+      def handleParameterTypes(astPars: Seq[FunctionParameter], dtsPars: Seq[FunctionParameter])(scopeId: symbols.ScopeContext.ScopeId) = {
         // match parameters by position, their names may differ
         for {
           (
             Transform.ParName(pjs),
-            Node.FunctionParameterWithType(_, Defined(t), defValue, optional)
+            FunctionParameterWithType(_, Defined(t), defValue, optional)
           ) <- astPars zip dtsPars
           tt <- typeInfoFromAST(t)(context)
         } {
@@ -119,7 +124,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         }
       }
 
-      def handleVar(node: Node.Node, name: String) = {
+      def handleVar(node: Node, name: String) = {
         for {
           s@VarDecl(_, _, _) <- dtsSymbols.get(name)
           t <- Option(s.declarations.head.`type`)
@@ -129,7 +134,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         }
         true
       }
-      def handleFunction(node: Node.Node, params: Seq[Node.FunctionParameter], name: String) = {
+      def handleFunction(node: Node, params: Seq[FunctionParameter], name: String) = {
         for (AnyFunEx(pars, tpe, body) <- dtsSymbols.get(name)) {
           // we have already entered the function scope, parameters can be found in localSymbols
           handleParameterTypes(params, pars)(symbols.ScopeContext.getNodeId(node))
@@ -142,9 +147,9 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         }
         true
       }
-      def handleClass(node: Node.ClassDeclaration, name: String) = {
+      def handleClass(node: ClassDeclaration, name: String) = {
         for {
-          Node.ClassDeclaration(_, superClass, Defined(b)) <- dtsSymbols.get(name)
+          ClassDeclaration(_, superClass, Defined(b)) <- dtsSymbols.get(name)
           clsSym = context.findSymId(name)
           if !clsSym.isGlobal // global means not defined in the AST we are traversing
           clsNode <- classList.get(clsSym)
@@ -153,7 +158,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         } {
           member match {
             // list d.ts members, create type information for corresponding symbols
-            case Node.MethodDefinition(Node.Identifier(funName), ret, _, AnyFunEx(dtsPars, retFun, body), _, _) => // member function
+            case MethodDefinition(Identifier(funName), ret, _, AnyFunEx(dtsPars, retFun, body), _, _) => // member function
               for {
                 t <- Option(ret).orElse(retFun)
                 tt <- typeInfoFromAST(t)(context)
@@ -171,12 +176,12 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
               for {
                 astMethod <- findMethod(funName) // TODO: handle overloads
                 methodId = symbols.ScopeContext.getNodeId(astMethod.value)
-                Node.MethodDefinition(_, _, _, AnyFun(astPars, _), _, _) = astMethod
+                MethodDefinition(_, _, _, AnyFun(astPars, _), _, _) = astMethod
               } {
                 handleParameterTypes(astPars, dtsPars)(methodId)
               }
 
-            case Node.MethodDefinition(Node.Identifier(funName), Defined(ret), _, value, _, _) => // plain member with known type
+            case MethodDefinition(Identifier(funName), Defined(ret), _, value, _, _) => // plain member with known type
               for (tt <- typeInfoFromAST(ret)(context)) {
                 types += SymbolMapId(funName, clsId) -> tt
               }
@@ -187,11 +192,11 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       node match {
         case VarDecl(name, _, _) =>
           handleVar(node, name)
-        case Node.FunctionDeclaration(Node.Identifier(name), params, body, generator, ret) =>
+        case FunctionDeclaration(Identifier(name), params, body, generator, ret) =>
           handleFunction(node, params, name)
-        case Node.FunctionExpression(Node.Identifier(name), params, body, generator, ret) =>
+        case FunctionExpression(Identifier(name), params, body, generator, ret) =>
           handleFunction(node, params, name)
-        case c@Node.ClassDeclaration(Node.Identifier(name), params, body) =>
+        case c@ClassDeclaration(Identifier(name), params, body) =>
           handleClass(c, name)
          // Node.ClassExpression(Node.Identifier(name), params, body) => name is ClassExpression is local only - it makes to sense to process it
         case `ast` =>
