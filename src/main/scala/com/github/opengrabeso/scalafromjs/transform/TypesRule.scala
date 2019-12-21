@@ -3,10 +3,10 @@ package transform
 
 import com.github.opengrabeso.scalafromjs.ConvertProject._
 import com.github.opengrabeso.scalafromjs.esprima._
-import SymbolTypes._
 import TypesRule._
 import com.github.opengrabeso.esprima.Node
-import com.github.opengrabeso.esprima.Node.{ArrayType=>_,_}
+import com.github.opengrabeso.esprima.Node.{ArrayType=>_,FunctionType=>_,_}
+import SymbolTypes._
 
 /**
   * Code responsible for parsing d.ts files and matching them to the main project AST
@@ -84,6 +84,12 @@ object TypesRule {
         typeFromAST(t)(context).map(MapType)
       case ObjectType(body) =>
         None // TODO: can be converted to structural typing
+      case Node.FunctionType(pars, retType) =>
+        val retT = typeFromAST(retType)(context).getOrElse(AnyType)
+        val parsT = pars.map { p =>
+          Transform.typeFromPar(p).flatMap(typeFromAST(_)(context)).getOrElse(AnyType)
+        }
+        Some(FunctionType(retT, parsT.toArray[TypeDesc]))
       case _ =>
         None
     }

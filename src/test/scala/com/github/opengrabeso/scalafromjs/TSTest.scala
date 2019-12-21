@@ -98,7 +98,21 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
     ).required(
       "nData = Map.empty[String, Double]",
       "dData = Map.empty[String, D]",
-    ).forbidden("object D")
+    )
   }
 
+  test("Function type members") {
+    exec check ConversionCheckTypeScript(
+      """
+          interface D<T> {};
+          class C {
+            nFunString: (a: string, b: string) => string;
+            nFunComplex: (n: number, d: D<number>) => D<string>;
+          }
+      """
+    ).required(
+      "nFunString: (String, String) => String",
+      // TODO: "nFunComplex: (Double, D[Double) => D[String]",
+    )
+  }
 }
