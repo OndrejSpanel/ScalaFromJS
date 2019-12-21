@@ -265,6 +265,8 @@ trait NodeExt {
     def unapply(arg: Node.Node): Boolean = arg match {
       case _: Node.ClassBody =>
         true
+      case _: Node.EnumBody =>
+        true
       case _: Node.Program =>
         true
       case IsFunctionScope() =>

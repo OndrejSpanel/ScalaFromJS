@@ -1133,7 +1133,27 @@ object ScalaOut {
           out.eol()
         //case tn: Node.Program => outputUnknownNode(tn)
         //case tn: Node.Scope => outputUnknownNode(tn)
-        case tn: Node.ClassDeclaration if tn.body != null =>
+
+        case tn: Node.EnumDeclaration =>
+          out"object ${tn.name} extends Enumeration {\n"
+          out.indent()
+          context.withScope(tn.body) {
+            for (e <- tn.body.body) {
+              // TODO: for more natural output put multiple values one a single line
+              out"val ${e.name} = Value("
+              for (value <- Option(e.value)) {
+                out"${value}"
+              }
+              out(")\n")
+            }
+          }
+          out.unindent()
+          out("}\n\n")
+
+        case tn: Node.ClassDeclaration if tn.body == null =>
+          out"trait ${tn.id}\n\n"
+
+        case tn: Node.ClassDeclaration =>
 
           context.withScope(tn.body) {
             val (staticProperties, nonStaticProperties) = Option(tn.body).map(_.body).getOrElse(Nil).partition(propertyIsStatic)
@@ -1293,9 +1313,6 @@ object ScalaOut {
               //blockBracedToOut(tn.body)
             }
           }
-        case tn: Node.ClassDeclaration =>
-          assert(tn.body == null)
-          out"trait ${tn.id}\n\n"
 
 
         case tn: Node.BlockStatement =>

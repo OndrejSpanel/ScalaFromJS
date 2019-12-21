@@ -63,4 +63,22 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
     ).forbidden("_par", " elements = elements")
   }
 
+  test("TypeScript enum conversion") {
+    exec check ConversionCheckTypeScript(
+      """
+      export enum E {
+        E0,
+        E1,
+        E100 = 100,
+        E101
+      }
+      """
+    ).required(
+      "object E extends Enumeration",
+      "val E0 = Value()",
+      "val E1 = Value()",
+      "val E100 = Value(100)",
+      "val E101 = Value()",
+    ).forbidden("_par", " elements = elements")
+  }
 }
