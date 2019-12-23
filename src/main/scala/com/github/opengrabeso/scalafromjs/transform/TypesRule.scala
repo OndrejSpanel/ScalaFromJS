@@ -164,27 +164,28 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         } {
           member match {
             // list d.ts members, create type information for corresponding symbols
-            case MethodDefinition(Identifier(funName), ret, _, AnyFunEx(dtsPars, retFun, body), _, _) => // member function
-              for {
-                t <- Option(ret).orElse(retFun)
-                tt <- typeInfoFromAST(t)(context)
-              } {
-                types += SymbolMapId(funName, clsId) -> tt
-              }
+            case MethodDefinition(Identifier(funName), ret, _, AnyFunEx(dtsPars, retFun, body), _, static) => // member function
               // to create parameter types we need to find the AST method definition node
-              def findMethod(funName: String) = {
+              def findMethod() = {  // TODO: handle overloads
                 // if the method is a constructor, we need a special handling for variables as well
                 // an alternative could be to perform TS types handling after convertProtoClassesRecursive
                 // (before any constructor transformations)
-                if (funName == "constructor") Classes.findMethod(node, funName).toSeq ++ Classes.findInlineBody(node)
-                else Classes.findMethod(node, funName).toSeq
+                if (funName == "constructor") Classes.findMethod(node, funName, static).toSeq ++ Classes.findInlineBody(node)
+                else Classes.findMethod(node, funName, static).toSeq
               }
               for {
-                astMethod <- findMethod(funName) // TODO: handle overloads
+                astMethod <- findMethod()
                 methodId = symbols.ScopeContext.getNodeId(astMethod.value)
                 MethodDefinition(_, _, _, AnyFun(astPars, _), _, _) = astMethod
               } {
                 handleParameterTypes(astPars, dtsPars)(methodId)
+              }
+              for {
+                t <- Option(ret).orElse(retFun)
+                tt <- typeInfoFromAST(t)(context)
+              } {
+                // TODO: member type should be a function, not a return type only
+                types += SymbolMapId(funName, clsId) -> tt
               }
 
             case MethodDefinition(Identifier(funName), Defined(ret), _, value, _, _) => // plain member with known type
