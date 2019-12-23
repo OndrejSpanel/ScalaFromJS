@@ -53,6 +53,7 @@ object Variables {
 
 
   // detect variable defined twice in a scope, remove the 2nd definition
+  // for global do not remove the following defintions, rename them instead
   def detectDoubleVars(n: Node.Node): Node.Node = Time("detectDoubleVars") {
     // walk the tree, check for possible val replacements and perform them
     def usedAsForVar(varName: String, transformer: TreeTransformer) = {
@@ -83,6 +84,14 @@ object Variables {
 
     def addIndex(s: String, i: Int) = if (i > 0) s + "$" + i.toString else s
 
+    def isMethodIdentifier(name: Node.Identifier)(implicit ctx: ScopeContext) = {
+      ctx.parent() match {
+        case Some(Node.MethodDefinition(nameNode, _, _, _, _, _)) =>
+          nameNode eq name
+        case _ =>
+          false
+      }
+    }
     n.transformBefore {(node, descend, transformer) =>
       implicit val ctx = transformer.context
       node match {
@@ -91,7 +100,9 @@ object Variables {
           assert(ctx.scopes.size == 1)
           val count = declaredGlobal.getOrElse(varName, -1)
           declaredGlobal += varName -> (count + 1)
-          VarDecl(addIndex(varName.name, count + 1), init, kind, tpe)(node)
+          val ret = VarDecl(addIndex(varName.name, count + 1), init, kind, tpe)(node)
+          // global variable body may contain references to other global variables
+          descend(ret, transformer)
 
         // we could assume Node.Let and Node.Const are already well scoped
         case VarDecl(Id(varName), Some(value), _) if !usedAsForVar(varName.name, transformer) => // var with init - search for a modification
@@ -107,7 +118,9 @@ object Variables {
               right = value.cloneNode()
             )).withTokens(node), transformer)
           }
-        case Node.Identifier(Id(id)) if declaredGlobal contains id =>
+        case name@Node.Identifier(Id(id))
+          // do not rename symbols used as class member identifiers
+          if (declaredGlobal contains id) && !isMethodIdentifier(name) =>
           // $1, $2 ... used in three.js build as well
           Node.Identifier(addIndex(id.name, declaredGlobal(id))).withTokens(node)
         case _ =>

@@ -119,7 +119,7 @@ class RemoveTemporary extends FunSuite with TestUtils {
 
   }
 
-  test("Make multiple global variables unique") {
+  test("Remove multiple definition global variables as unique ones") {
     exec check ConversionCheck(
       // language=JavaScript
       """

@@ -11,12 +11,12 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("")
+    val watched = Set[String]("_x")
     name.startsWith("watch_") || watched.contains(name)
   }
 
   def watchedMember(cls: String, name: String): Boolean = watchCondition {
-    val watched = Set[(String, String)](("ClassToWatch", "memberToWatch"))
+    val watched = Set[(String, String)](("Quaternion", "_x"), ("Quaternion", "x"))
     val watchedAllClasses = Set[String]("")
     name.startsWith("watch_") || watched.contains(cls, name) || watchedAllClasses.contains(name)
   }
@@ -266,7 +266,7 @@ object SymbolTypes {
     val t2 = typeFromOption(tpe2)
     val union = typeUnion(t1.target, t2.target)
     //println(s"  union $t1 $t2 -> $union")
-    Some(t1.copy(target = union))
+    Some(t1.copy(target = union, certain = false))
   }
 
   def typeIntersectOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
@@ -274,7 +274,7 @@ object SymbolTypes {
     val t2 = typeFromOption(tpe2)
     val srcType = typeIntersect(t1.declType, t2.declType)
     //println(s"  intersect $t1 $t2 -> ${t1.declType} x ${t2.declType} = $srcType")
-    Some(t1.copy(source = srcType))
+    Some(t1.copy(source = srcType, certain = false))
   }
 
   def apply(): SymbolTypes = SymbolTypes.std
@@ -435,6 +435,7 @@ object TypeInfo {
   * @param certain types imported from d.ts can never be overridden
   */
 case class TypeInfo(source: TypeDesc, target: TypeDesc, certain: Boolean = false) {
+  assert(!certain || source == target) // when cerain, source and target need to be the same
   def equivalent(tp: TypeInfo): Boolean = source == tp.source && target == tp.target
 
   def knownItems = source.knownItems max target.knownItems
@@ -466,9 +467,9 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc, certain: Boolean = false
     case _ => target
   }
 
-  def sourceFromTarget: TypeInfo = TypeInfo(sourceTypeFromTarget, NoType, certain)
+  def sourceFromTarget: TypeInfo = TypeInfo(sourceTypeFromTarget, NoType, certain) // TODO: certain should not be here
 
-  def map(f: TypeDesc => TypeDesc): TypeInfo = TypeInfo(f(source), f(target), certain)
+  def map(f: TypeDesc => TypeDesc): TypeInfo = TypeInfo(f(source), f(target), certain) // TODO: certain should not be here
 }
 
 sealed trait Hint

@@ -70,4 +70,30 @@ class MemberResolutionTests extends FunSuite with TestUtils {
     )
   }
 
+  test("Proper scopes of local symbols") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+          var x = "";
+          const x = 1;
+          class Quaternion {
+            get x(){return ""}
+            set x(v){this._x = v;}
+            constructor(x) {
+              this._x = x;
+            }
+          }
+
+          var callback = () => {
+            var a = new Quaternion();
+            a.x = x;
+          };
+      """).required(
+      "def x = ",
+      "def x_=(",
+      "a.x = x$1",
+      "var _x: Double"
+      )
+  }
+
 }
