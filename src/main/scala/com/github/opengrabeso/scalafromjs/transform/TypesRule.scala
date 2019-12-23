@@ -117,14 +117,22 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     val ast = n.top
 
     ast.walkWithScope { (node, context) =>
-      def handleParameterTypes(astPars: Seq[FunctionParameter], dtsPars: Seq[FunctionParameter])(scopeId: symbols.ScopeContext.ScopeId) = {
+      def getParameterTypes(dtsPars: Seq[FunctionParameter])(scopeId: symbols.ScopeContext.ScopeId) = {
         // match parameters by position, their names may differ
         for {
-          (
-            Transform.ParName(pjs),
-            FunctionParameterWithType(_, Defined(t), defValue, optional)
-          ) <- astPars zip dtsPars
-          tt <- typeInfoFromAST(t)(context)
+          FunctionParameterWithType(_, Defined(t), defValue, optional) <- dtsPars
+          tt = typeInfoFromAST(t)(context)
+        } yield {
+          tt
+        }
+      }
+
+      def handleParameterTypes(astPars: Seq[FunctionParameter], dtsPars: Seq[FunctionParameter])(scopeId: symbols.ScopeContext.ScopeId) = {
+        // match parameters by position, their names may differ
+        val parNames = astPars.map(Transform.nameFromPar)
+        val parTypes = getParameterTypes(dtsPars)(scopeId)
+        for {
+          (Some(pjs), Some(tt)) <- parNames zip parTypes
         } {
           types += symbols.SymId(pjs, scopeId) -> tt
         }
@@ -177,15 +185,12 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                 astMethod <- findMethod()
                 methodId = symbols.ScopeContext.getNodeId(astMethod.value)
                 MethodDefinition(_, _, _, AnyFun(astPars, _), _, _) = astMethod
+                t = Option(ret).orElse(retFun)
+                tt = t.flatMap(typeFromAST(_)(context)).getOrElse(AnyType)
               } {
+                val parTypes = getParameterTypes(dtsPars)(methodId)
                 handleParameterTypes(astPars, dtsPars)(methodId)
-              }
-              for {
-                t <- Option(ret).orElse(retFun)
-                tt <- typeInfoFromAST(t)(context)
-              } {
-                // TODO: member type should be a function, not a return type only
-                types += SymbolMapId(funName, clsId) -> tt
+                FunctionType(tt, parTypes.map(_.map(_.declType).getOrElse(AnyType)).toArray[TypeDesc])
               }
 
             case MethodDefinition(Identifier(funName), Defined(ret), _, value, _, _) => // plain member with known type
