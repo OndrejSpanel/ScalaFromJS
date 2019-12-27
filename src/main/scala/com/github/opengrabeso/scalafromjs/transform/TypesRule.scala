@@ -62,12 +62,13 @@ object TypesRule {
 
   def typeFromIdentifierName(name: String)(context: symbols.ScopeContext) = {
     val t = name match {
-      case "number" => SimpleType("Double")
-      case "string" => SimpleType("String")
-      case "boolean" => SimpleType("Boolean")
-      case "any" => SimpleType("Any")
-      case "void" => SimpleType("Unit")
-      case _ => ClassType(context.findSymId(name))
+      case "number" => Some(SimpleType("Double"))
+      case "string" => Some(SimpleType("String"))
+      case "boolean" => Some(SimpleType("Boolean"))
+      case "any" => Some(SimpleType("Any"))
+      case "void" => Some(SimpleType("Unit"))
+      case "this" => None // TODO: some better support for this type
+      case _ => Some(ClassType(context.findSymId(name)))
     }
     t
   }
@@ -75,7 +76,7 @@ object TypesRule {
   def typeFromAST(tpe: TypeAnnotation)(context: symbols.ScopeContext): Option[TypeDesc] = {
     tpe match {
       case TypeName(Identifier(name)) =>
-        Some(typeFromIdentifierName(name)(context))
+        typeFromIdentifierName(name)(context)
       case TypeReference(tpe, genType) =>
         typeFromAST(tpe)(context) // TODO: represent generics in TypeInfo
       case Node.ArrayType(item) =>
