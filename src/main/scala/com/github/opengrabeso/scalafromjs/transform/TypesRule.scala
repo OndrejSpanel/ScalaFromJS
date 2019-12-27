@@ -9,6 +9,7 @@ import com.github.opengrabeso.esprima.Node.{ArrayType => _, FunctionType => _, _
 import SymbolTypes._
 
 import scala.collection.mutable
+import scala.util.Try
 
 /**
   * Code responsible for parsing d.ts files and matching them to the main project AST
@@ -63,11 +64,11 @@ object TypesRule {
     symbols.result()
   }
 
-  def typeFromIdentifierName(name: String)(context: symbols.ScopeContext) = {
+  def typeFromIdentifierName(name: String)(context: symbols.ScopeContext): Option[TypeDesc] = {
     val t = name match {
       case "number" => Some(SimpleType("Double"))
       case "string" => Some(SimpleType("String"))
-      case "boolean" => Some(SimpleType("Boolean"))
+      case "boolean" | "true" | "false" => Some(SimpleType("Boolean"))
       case "any" => Some(SimpleType("Any"))
       case "void" => Some(SimpleType("Unit"))
       case "this" => None // TODO: some better support for this type
@@ -76,8 +77,18 @@ object TypesRule {
     t
   }
 
+  def typeFromLiteral(raw: String): Option[TypeDesc] = raw match {
+    case "true" | "false" => Some(SimpleType("Boolean"))
+    case s if Try(s.toDouble).isSuccess || Try(s.toInt).isSuccess => Some(SimpleType("Double"))
+    case s if s.head == '"' && s.last == '"' => Some(SimpleType("String"))
+    case "null" => None
+    case _ => None
+  }
+
   def typeFromAST(tpe: TypeAnnotation)(context: symbols.ScopeContext): Option[TypeDesc] = {
     tpe match {
+      case LiteralType(Literal(_, raw)) =>
+        typeFromLiteral(raw)
       case TypeName(Identifier(name)) =>
         typeFromIdentifierName(name)(context)
       case TypeReference(tpe, genType) =>
