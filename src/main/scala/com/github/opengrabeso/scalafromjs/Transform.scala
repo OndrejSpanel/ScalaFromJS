@@ -633,7 +633,7 @@ object Transform {
     */
 
     Option(cls.body).foreach(_.body.foreach {
-      case md: Node.MethodDefinition =>
+      case md: Node.MethodDefinition if md.key != null =>
         existingMembers = existingMembers :+ propertyKeyName(md.key)
       //case ObjectKeyVal(p, _) =>
       //  existingMembers = existingMembers :+ p

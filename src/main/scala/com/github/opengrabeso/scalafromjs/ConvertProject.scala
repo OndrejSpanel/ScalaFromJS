@@ -16,6 +16,17 @@ import scala.reflect.ClassTag
 
 object ConvertProject {
 
+  val predefinedHeadersTS = Seq(
+    "ArrayLike.d.ts" ->
+      """
+      export interface ArrayLike<T> {
+        [n: number]: T;
+        length: number;
+      }
+      """.split('\n').map(_.trim).mkString("\n") // TODO: consider custom stripMargin acting like Java 13 instead
+  )
+  val predefinedHeadersJS = Nil
+
   def loadStringValue(o: OObject, name: String): Option[String] = {
     o.properties.collectFirst {
       case ObjectKeyVal(`name`, StringLiteral(value)) =>
@@ -269,11 +280,17 @@ object ConvertProject {
 
     // parse only the control file to read the preprocess rules
     val inSource = readSourceFile(in)
-    val ext = NodeExtended(parse(inSource, detectTypescript(in))).loadConfig(Some(in)).config
+    val typescript = detectTypescript(in)
+    val ext = NodeExtended(parse(inSource, typescript)).loadConfig(Some(in)).config
 
     Time("loadControlFile") {
       val code = ext.preprocess(inSource)
-      val project = ConvertProject(in, ext.preprocess, ListMap(in -> Item(code, true, in)))
+      val predef = if (typescript) predefinedHeadersTS else predefinedHeadersJS
+      val predefinedItems = ListMap(predef.map { case (name, code) =>
+        name -> Item(code, false, name)
+      }:_*)
+
+      val project = ConvertProject(in, ext.preprocess, predefinedItems ++ ListMap(in -> Item(code, true, in)))
 
       project.resolveImportsExports
     }
@@ -346,6 +363,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
     else ""
   }
 
+  @scala.annotation.tailrec
   final def resolveImportsExports: ConvertProject = {
     def readFileAsJs(path: String): (String, String) = {
       val code = preprocess(readSourceFile(path))

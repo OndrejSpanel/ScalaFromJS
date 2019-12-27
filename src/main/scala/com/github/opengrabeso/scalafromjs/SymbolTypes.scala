@@ -358,8 +358,8 @@ object SymbolTypes {
 
   val libs = Map(
     // -1 is a special handling for global symbols
-    SymbolMapId("Math", (-1, -1)) -> Seq(
-      "min", "max", "abs",
+    SymbolMapId("Math", (-1, -1)) -> Seq( // TODO: consider using a predefined header instead
+      "min", "max", "abs", // TODO: all these are static members
       "sin", "cos", "tan", "asin", "acos", "atan",
       "sqrt", "ceil", "floor",
       "round"
