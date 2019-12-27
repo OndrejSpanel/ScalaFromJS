@@ -1,3 +1,5 @@
+import {CSI} from "./c";
+
 class C {
     constructor(cn, cs, cb) {
         this.cn = cn;
@@ -17,4 +19,8 @@ class CS {
 
     static f(a, b){return b;}
     static g(a, b){return b;}
+}
+
+function createCSI() {
+    return new CS();
 }

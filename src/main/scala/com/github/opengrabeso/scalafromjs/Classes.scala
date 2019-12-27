@@ -254,6 +254,9 @@ object Classes {
     classes
   }
 
+  /*
+  classes: mapping from a symbol id to a tuple of parent and declaration
+  */
   case class ClassListHarmony(classes: Map[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]) {
 
     def this(n: Node.Program, innerClasses: Boolean = true) = this(classListHarmony(n, innerClasses))

@@ -5,14 +5,17 @@ import com.github.opengrabeso.scalafromjs.ConvertProject._
 import com.github.opengrabeso.scalafromjs.esprima._
 import TypesRule._
 import com.github.opengrabeso.esprima.Node
-import com.github.opengrabeso.esprima.Node.{ArrayType=>_,FunctionType=>_,_}
+import com.github.opengrabeso.esprima.Node.{ArrayType => _, FunctionType => _, _}
 import SymbolTypes._
+
+import scala.collection.mutable
 
 /**
   * Code responsible for parsing d.ts files and matching them to the main project AST
   */
 
 object TypesRule {
+
   def transform(n: NodeExtended): NodeExtended = {
     val rules = n.config.collectRules[TypesRule]
     rules.foldLeft(n)((c, r) => r.provideTypes(c))
@@ -101,11 +104,9 @@ object TypesRule {
   }
 }
 case class TypesRule(types: String, root: String) extends ExternalRule {
+  val project = ConvertProject.loadControlFile(PathUtils.resolveSibling(root, types))
   // load the d.ts
-  val dtsSymbols = {
-    val project = ConvertProject.loadControlFile(PathUtils.resolveSibling(root, types))
-    loadSymbols(project.code)
-  }
+  val dtsSymbols = loadSymbols(project.code)
 
   // we cannot use normal apply, as we need to be called at a specific stage
   def provideTypes(n: NodeExtended): NodeExtended = {

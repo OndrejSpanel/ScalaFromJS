@@ -343,6 +343,7 @@ object ConvertProject {
 case class ConvertProject(root: String, preprocess: String => String, items: Map[String, Item]) {
   val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
+  // offset boundaries for all items, including before the first one (zero), and after the last one (total input lenght)
   lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
 
   def checkIntegrity = {
@@ -356,6 +357,10 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
   assert(checkIntegrity)
 
   def indexOfItem(offset: Int): Int = offsets.prefixLength(_ <= offset) - 1
+  def rangeOfPath(path: String): (Int, Int) = {
+    val index = values.indexWhere(_.fullName == path)
+    (offsets(index), offsets(index + 1))
+  }
 
   def pathForOffset(offset: Int): String = {
     val index = indexOfItem(offset)
@@ -535,6 +540,9 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
 
+    // find any declaration in the DTS which has no matching counterpart
+
+
     if (false) {
       (fileOffsets zip exports).foreach { case (offset, filename) =>
         println(s"  Offset $offset filename ${filename.fullName}")
@@ -545,6 +553,55 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       inFile -> outCode
     }
 
-    Converted(outFiles, ext.config)
+    // (filename, code)
+    // add d.ts only declarations esp. traits (interface)
+    def addDeclarations(n: NodeExtended, outFiles: Seq[(String, String)]): Seq[(String, String)] = {
+      // for each file find declarations which belong to an accompanying d.ts and and add them
+      val rules = n.config.collectRules[transform.TypesRule]
+      val classes = new Classes.ClassListHarmony(n.top, innerClasses = false).classes.map { case (k, v) =>
+        k.name -> v._2
+      }
+      rules.foldLeft(outFiles) { (files, r) =>
+        val symbolsToInclude = r.project.items.values.zipWithIndex.map {case (item, itemIndex) =>
+          if (item.included) {
+            val itemRange = (r.project.offsets(itemIndex), r.project.offsets(itemIndex + 1))
+            // find code corresponding to the offset
+            val itemSymbols = r.dtsSymbols.filter { case (s, node) =>
+              // check if node is in the proper range
+              node.range._1 >= itemRange._1 && node.range._2 <= itemRange._2
+            }
+            // any class which does not have a corresponding js definition should be included
+            // we have toplevel symbols only, match only by name, sym id not available for d.ts symbols
+            item.fullName -> itemSymbols.collect {
+              case (_, cls@Node.ClassDeclaration(Node.Identifier(name), _, _)) if !classes.contains(name) =>
+                cls
+            }
+          } else {
+            item.fullName -> Nil
+          }
+        }.toMap
+
+        // now output those symbols as a prefix for the file
+        files.map { case (name, code) =>
+          // match js to d.ts
+          val dtsFromJS = name.replaceAll(".js$", ".d.ts")
+          val symbolsOut = for {
+            symbols <- symbolsToInclude.get(dtsFromJS).toSeq // some d.ts files may contain no symbols at all
+            c <- symbols
+          } yield {
+            ScalaOut.outputNode(c) // simple output, no context, no config, no types
+          }
+          val symbolsCode = symbolsOut.mkString("\n")
+          name -> (symbolsCode + code)
+        }
+      }
+
+    }
+
+    val addedDecls = addDeclarations(astOptimized, outFiles)
+
+
+
+    Converted(addedDecls, ext.config)
   }
 }

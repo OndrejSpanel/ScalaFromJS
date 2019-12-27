@@ -18,7 +18,12 @@ class DTSTest extends FunSuite with TestUtils with ProjectUtils {
         "def g(a: Boolean, b: Boolean)",
         "dn: Double",
         "ds: String",
-
+        "def createCSI(): CSI",
+        "def fff(a: Double): Double",
+        "var fv: Double",
+        "var fs: String",
+        "trait CSI",
+        "extends CSI"
     )
   }
 

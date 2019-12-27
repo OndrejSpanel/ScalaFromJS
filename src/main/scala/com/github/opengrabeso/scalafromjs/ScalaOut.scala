@@ -1464,9 +1464,7 @@ object ScalaOut {
     val classListEmpty = ClassListHarmony(Map.empty)
     val inputContext = InputContext(input, SymbolTypes(), classListEmpty)
     val scopeContext = new ScopeContext
-    scopeContext.withScope(ast) {
-      nodeToOut(ast)(outConfig, inputContext, ret, scopeContext)
-    }
+    nodeToOut(ast)(outConfig, inputContext, ret, scopeContext)
     ret.flush()
     sb.result
   }
