@@ -395,9 +395,9 @@ object ScalaOut {
                 out("}\n")
               }
             // empty object - might be a map instead
-            case v@Node.VariableDeclarator(s: Node.Identifier, OObject(Seq()), _) =>
+            case Node.VariableDeclarator(s: Node.Identifier, OObject(Seq()), MayBeNull(vType)) =>
               val sid = symId(s)
-              val tpe = input.types.get(sid).map(_.declType)
+              val tpe = input.types.get(sid).map(_.declType).orElse(astType(vType))
               //println(s"Var $name ($sid) type $tpe empty object")
               tpe match {
                 case Some(mType: SymbolTypes.MapType) =>
@@ -411,10 +411,10 @@ object ScalaOut {
                   outputVarDef(s, None, tpe, false)
               }
 
-            case v@VarDef(s@Node.Identifier(Id(name)), MayBeNull(init), _) =>
+            case VarDef(s@Node.Identifier(Id(name)), MayBeNull(init), MayBeNull(vType)) =>
               outValVar(init.isDefined)
               //out("/*outputDefinitions 1*/")
-              val sType = getSymbolType(name)
+              val sType = getSymbolType(name).orElse(astType(vType))
               //out"/*Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType*/"
               //println(s"Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType")
               //println(getType(sym))
@@ -435,11 +435,15 @@ object ScalaOut {
         }
       }
 
-      def outputArgType(n: Node.Identifier, init: Option[Node.Node])(scopeNode: Node.Node) = {
+      def astType(vType: Option[Node.TypeAnnotation]): Option[SymbolTypes.TypeDesc] = {
+        vType.flatMap(transform.TypesRule.typeFromAST(_)(context))
+      }
+
+      def outputArgType(n: Node.Identifier, init: Option[Node.Node], tpe: Option[Node.TypeAnnotation])(scopeNode: Node.Node) = {
         val scope = ScopeContext.getNodeId(scopeNode)
-        val typeString = input.types.getAsScala(Some(SymId(n.name, scope)))
-        //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeString")
-        out": $typeString"
+        val typeDecl = input.types.get(Some(SymId(n.name, scope))).map(_.declType).orElse(astType(tpe)).getOrElse(SymbolTypes.AnyType)
+        //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeDecl")
+        out": ${typeDecl.toOut}"
         for (init <- init) {
           out" = $init"
         }
@@ -452,13 +456,13 @@ object ScalaOut {
         out("(")
         outputNodes(argnames) { n =>
           dumpLeadingComments(n)
-          val (sym, init) = parameterName(n)
+          val (sym, tpe, init) = Transform.funArg(n)
           // parSuffix is still used for parameters which are modified
           if (!input.types.getHint(Some(SymId(sym.name, scopeId))).contains(IsConstructorParameter) && !sym.name.endsWith(parSuffix)) {
             out("var ")
           }
           out"$sym"
-          outputArgType(sym, init)(scopeNode)
+          outputArgType(sym, init, Option(tpe))(scopeNode)
           dumpTrailingComments(n)
         }
         out(")")
@@ -470,10 +474,10 @@ object ScalaOut {
         out("(")
         outputNodes(argnames) { n =>
           dumpLeadingComments(n)
-          val (sym, init) = parameterName(n)
+          val (sym, MayBeNull(tpe), init) = Transform.funArg(n)
           out"$sym"
           if (types) {
-            outputArgType(sym, init)(scopeNode)
+            outputArgType(sym, init, tpe)(scopeNode)
           } else {
             val scope = ScopeContext.getNodeId(scopeNode)
             val sid = SymId(sym.name, scope)
@@ -493,36 +497,46 @@ object ScalaOut {
         out(")")
       }
 
-      def outputMethod(key: Node.PropertyKey, value: Node.PropertyValue, kind: String, decl: String = "def") = {
+      def outputMethod(key: Node.PropertyKey, value: Node.PropertyValue, kind: String, tpe: Option[Node.TypeAnnotation], decl: String = "def") = {
+        val cls = findThisClass(context)
+        val name = propertyKeyName(key)
+        val memberSymId = cls.map(c => ScopeContext.getNodeId(c.body)).map(SymId(name, _))
         if (kind == "value") {
-          val cls = findThisClass(context)
-          val name = propertyKeyName(key)
-          val memberSymId = cls.map(c => ScopeContext.getNodeId(c.body)).map(SymId(name, _))
           val sType = input.types.get(memberSymId)
           out"var $key"
-          sType.map(_.declType).foreach(t => out(": " + t.toOut))
+          sType.map(_.declType).orElse(astType(tpe)).foreach(t => out(": " + t.toOut))
           if (value != null) {
             out" = $value"
           }
           out("\n")
         } else value match {
-          case f@Node.FunctionExpression(MayBeNull(name), params, body, generator, _) =>
+          case f@Node.FunctionExpression(_, params, body, generator, MayBeNull(dType)) =>
             context.withScope(f) {
               val postfix = if (kind == "set") "_=" else ""
               out"def $key$postfix"
               if (kind != "get" || params.nonEmpty) {
                 outputArgNames(params, true)(value)
               }
-              for {
-                id <- name.flatMap(symId)
-                fType <- input.types.types.get(id) if fType.certain
-              } {
-                out": ${fType.declType.toOut}"
+              def certainType(id: SymId) = {
+                val tpe = input.types.types.get(id)
+                if (tpe.exists(_.certain)) {
+                  tpe.map(_.declType)
+                } else {
+                  astType(dType)
+                }
               }
-              out(" = ")
-              //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
-              context.withScope(body) {
-                blockBracedToOut(body)
+              for {
+                id <- memberSymId
+                fType <- certainType(id)
+              } {
+                out": ${fType.toOut}"
+              }
+              if (body != null) {
+                out(" = ")
+                //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
+                context.withScope(body) {
+                  blockBracedToOut(body)
+                }
               }
               out("\n") // use this to better match Uglify.js based version output - this is not counted in NiceOutput.eolDone
               //out.eol()
@@ -545,7 +559,7 @@ object ScalaOut {
         if (eol) out.eol()
         pm match {
           case p: Node.MethodDefinition =>
-            outputMethod(p.key, p.value, p.kind, decl)
+            outputMethod(p.key, p.value, p.kind, Option(p.`type`), decl)
           case _ =>
             nodeToOut(pm)
         }
@@ -785,14 +799,14 @@ object ScalaOut {
 
         case tn@ObjectKeyVal(key, value) =>
           out.eol()
-          outputMethod(tn.key, value, tn.kind, "var")
+          outputMethod(tn.key, value, tn.kind, None,"var")
 
         //out"/*${nodeClassName(n)}*/"
         //case tn: Node.ObjectProperty =>
         case tn: Node.MethodDefinition =>
           //out"/*${nodeClassName(n)}*/"
           out.eol()
-          outputMethod(tn.key, tn.value, tn.kind)
+          outputMethod(tn.key, tn.value, tn.kind, Option(tn.`type`))
         case tn: OObject =>
           if (tn.properties.isEmpty) {
             out("new {}")
@@ -876,9 +890,8 @@ object ScalaOut {
           outputCall(tn.callee, tn.arguments)
         case tn: Node.CallExpression =>
           outputCall(tn.callee, tn.arguments)
-
-        case Node.VariableDeclarator(s@Node.Identifier(Id(name)), MayBeNull(init), _) =>
-          val sType = getSymbolType(name)
+        case Node.VariableDeclarator(s@Node.Identifier(Id(name)), MayBeNull(init), MayBeNull(vType)) =>
+          val sType = getSymbolType(name).orElse(astType(vType))
           outputVarDef(s, init, sType, false)
 
         case tn@Node.VariableDeclaration(decl, kind) =>

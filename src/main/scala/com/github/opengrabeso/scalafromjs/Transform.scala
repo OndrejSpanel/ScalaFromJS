@@ -27,18 +27,18 @@ object Transform {
     symId(symbol)
   }
 
-  def identifierFromPar(p: Node.Node): Option[(Node.Identifier, Node.TypeAnnotation)] = p match {
+  def identifierFromPar(p: Node.Node): Option[(Node.Identifier, Node.TypeAnnotation, Option[Node.Expression])] = p match {
     case x: Node.Identifier =>
-      Some(x, null)
-    case Node.FunctionParameterWithType(x: Node.Identifier, tpe, _, _) =>
-      Some(x, tpe)
-    case Node.AssignmentPattern(x: Node.Identifier, _) =>
-      Some(x, null)
+      Some(x, null, None)
+    case Node.FunctionParameterWithType(x: Node.Identifier, tpe, MayBeNull(defValue), _) =>
+      Some(x, tpe, defValue)
+    case Node.AssignmentPattern(x: Node.Identifier, init) =>
+      Some(x, null, Some(init))
     case _ =>
       None
   }
 
-  def funArg(p: Node.FunctionParameter): (Node.Identifier, Node.TypeAnnotation) = identifierFromPar(p).get
+  def funArg(p: Node.FunctionParameter): (Node.Identifier, Node.TypeAnnotation, Option[Node.Expression]) = identifierFromPar(p).get
   def nameFromPar(p: Node.FunctionParameter): Option[String] = identifierFromPar(p).map(_._1.name)
   def typeFromPar(p: Node.FunctionParameter): Option[Node.TypeAnnotation] = identifierFromPar(p).map(_._2)
 
