@@ -409,7 +409,7 @@ package object classes {
         }
 
         def newClass(sym: Node.Identifier, base: Option[Node.Identifier], props: Seq[Node.ClassBodyElement], tokensFrom: Node.Node): Node.ClassDeclaration = {
-          val cls = new Node.ClassDeclaration(sym, base.orNull, Node.ClassBody(props).withTokens(tokensFrom)).withTokens(tokensFrom)
+          val cls = new Node.ClassDeclaration(sym, base.orNull, Nil, Node.ClassBody(props).withTokens(tokensFrom), "class").withTokens(tokensFrom)
           cls.body.range = (
             sym.range._1 min tokensFrom.range._1,
             sym.range._2 max tokensFrom.range._2
@@ -468,7 +468,7 @@ package object classes {
           emptyNode
         case DefineProperty(name, _, _) if classes.contains(name) =>
           emptyNode
-        case classNode@Node.ClassDeclaration(Defined(sym), _, _) if classes contains ClassId(sym) =>
+        case classNode@Node.ClassDeclaration(Defined(sym), _, _, _, _) if classes contains ClassId(sym) =>
           // add any prototype member definitions as needed
 
           val mergeProperties = classProperties(classes(ClassId(sym)))
@@ -481,9 +481,8 @@ package object classes {
           classNode
         //case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
         //  emptyNode
-        case classNode@Node.ClassDeclaration(_, _, _) =>
-          //println(s"Node.ClassDeclaration $classNode - not in ${classes.keys}")
-
+        case Node.ClassDeclaration(_, _, _, _, _) =>
+          //println(s"Node.ClassDeclaration node - not in ${classes.keys}")
           node
         case _ =>
           node
@@ -646,7 +645,7 @@ package object classes {
     val ret = n.top.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {
-        case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _) if c.forall(_.findFirstIn(cName).isDefined) =>
+        case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _, _, _) if c.forall(_.findFirstIn(cName).isDefined) =>
           p(cls, ctx)
         case _ =>
           node

@@ -115,4 +115,25 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
       // TODO: "nFunComplex: (Double, D[Double) => D[String]",
     )
   }
+
+  test("TypeScript interface and implements conversion") {
+    exec check ConversionCheckTypeScript(
+      """
+            interface C {
+              num: number;
+              str: string;
+            }
+            class D implements C {
+              constructor(dnp: number, dsp: string){
+                this.num = dnp;
+                this.str = dsp;
+              };
+            }
+        """
+    ).required(
+      "trait C",
+      "extends C"
+    ).forbidden("_par")
+  }
+
 }

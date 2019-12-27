@@ -167,7 +167,7 @@ object Rules {
       }
     }
     n.top.walk {
-      case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _) if (member.cls findFirstIn cName).isDefined =>
+      case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _, _, _) if (member.cls findFirstIn cName).isDefined =>
         val matching = cls.body.body
           .collect{
             // we expect getter, no parameters, containing a single true statement
@@ -194,7 +194,7 @@ object Rules {
 
     val ret = n.top.transformAfter { (node, _) =>
       node match {
-        case callOn Dot GetClass(Node.ClassDeclaration(Defined(propId@Node.Identifier(prop)), _, _)) =>
+        case callOn Dot GetClass(Node.ClassDeclaration(Defined(propId), _, _, _, _)) =>
           //println(s"Detect call $prop")
           Binary (callOn, instanceof, propId)
         case _ =>

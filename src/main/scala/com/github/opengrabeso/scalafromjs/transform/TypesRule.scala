@@ -48,7 +48,7 @@ object TypesRule {
           handleDeclaration(node, name)
         case FunctionExpression(Identifier(name), params, body, generator, ret) =>
           handleDeclaration(node, name)
-        case ClassDeclaration(Identifier(name), params, body) =>
+        case ClassDeclaration(Identifier(name), parent, interfaces, params, body) =>
           handleDeclaration(node, name)
         case ClassExpression(Identifier(name), params, body) =>
           handleDeclaration(node, name)
@@ -165,40 +165,50 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       }
       def handleClass(node: ClassDeclaration, name: String) = {
         for {
-          ClassDeclaration(_, superClass, Defined(b)) <- dtsSymbols.get(name)
+          ClassDeclaration(_, superClass, moreParents, Defined(b), _) <- dtsSymbols.get(name)
           clsSym = context.findSymId(name)
           if !clsSym.isGlobal // global means not defined in the AST we are traversing
           clsNode <- classList.get(clsSym)
           clsId = symbols.ScopeContext.getNodeId(clsNode.body)
-          member <- b.body
         } {
-          member match {
-            // list d.ts members, create type information for corresponding symbols
-            case MethodDefinition(Identifier(funName), ret, _, AnyFunEx(dtsPars, retFun, body), _, static) => // member function
-              // to create parameter types we need to find the AST method definition node
-              def findMethod() = {  // TODO: handle overloads
-                // if the method is a constructor, we need a special handling for variables as well
-                // an alternative could be to perform TS types handling after convertProtoClassesRecursive
-                // (before any constructor transformations)
-                if (funName == "constructor") Classes.findMethod(node, funName, static).toSeq ++ Classes.findInlineBody(node)
-                else Classes.findMethod(node, funName, static).toSeq
-              }
-              for {
-                astMethod <- findMethod()
-                methodId = symbols.ScopeContext.getNodeId(astMethod.value)
-                MethodDefinition(_, _, _, AnyFun(astPars, _), _, _) = astMethod
-                t = Option(ret).orElse(retFun)
-                tt = t.flatMap(typeFromAST(_)(context)).getOrElse(AnyType)
-              } {
-                val parTypes = getParameterTypes(dtsPars)(methodId)
-                handleParameterTypes(astPars, dtsPars)(methodId)
-                FunctionType(tt, parTypes.map(_.map(_.declType).getOrElse(AnyType)).toArray[TypeDesc])
-              }
+          for (firstParent <- Option(superClass).orElse(moreParents.headOption)) {
+            // TODO: avoid mutating original AST
+            // TODO: handle more parents
+            if (node.superClass == null) {
+              node.superClass = firstParent
+            }
+          }
 
-            case MethodDefinition(Identifier(funName), Defined(ret), _, value, _, _) => // plain member with known type
-              for (tt <- typeInfoFromAST(ret)(context)) {
-                types += SymbolMapId(funName, clsId) -> tt
-              }
+          // process parent
+          for (member <- b.body) {
+            member match {
+              // list d.ts members, create type information for corresponding symbols
+              case MethodDefinition(Identifier(funName), ret, _, AnyFunEx(dtsPars, retFun, body), _, static) => // member function
+                // to create parameter types we need to find the AST method definition node
+                def findMethod() = { // TODO: handle overloads
+                  // if the method is a constructor, we need a special handling for variables as well
+                  // an alternative could be to perform TS types handling after convertProtoClassesRecursive
+                  // (before any constructor transformations)
+                  if (funName == "constructor") Classes.findMethod(node, funName, static).toSeq ++ Classes.findInlineBody(node)
+                  else Classes.findMethod(node, funName, static).toSeq
+                }
+                for {
+                  astMethod <- findMethod()
+                  methodId = symbols.ScopeContext.getNodeId(astMethod.value)
+                  MethodDefinition(_, _, _, AnyFun(astPars, _), _, _) = astMethod
+                  t = Option(ret).orElse(retFun)
+                  tt = t.flatMap(typeFromAST(_)(context)).getOrElse(AnyType)
+                } {
+                  val parTypes = getParameterTypes(dtsPars)(methodId)
+                  handleParameterTypes(astPars, dtsPars)(methodId)
+                  FunctionType(tt, parTypes.map(_.map(_.declType).getOrElse(AnyType)).toArray[TypeDesc])
+                }
+
+              case MethodDefinition(Identifier(funName), Defined(ret), _, value, _, _) => // plain member with known type
+                for (tt <- typeInfoFromAST(ret)(context)) {
+                  types += SymbolMapId(funName, clsId) -> tt
+                }
+            }
           }
         }
         true
@@ -210,7 +220,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           handleFunction(node, params, name)
         case FunctionExpression(Identifier(name), params, body, generator, ret) =>
           handleFunction(node, params, name)
-        case c@ClassDeclaration(Identifier(name), params, body) =>
+        case c@ClassDeclaration(Identifier(name), superClass, moreParents, body, _) =>
           handleClass(c, name)
          // Node.ClassExpression(Node.Identifier(name), params, body) => name is ClassExpression is local only - it makes to sense to process it
         case `ast` =>

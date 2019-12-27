@@ -49,7 +49,7 @@ object ClassList {
           //println(s"Node.Identifier ${name.name}")
           classNames += ClassId(name)
           false
-        case Node.ClassDeclaration(Defined(name), _, _) =>
+        case Node.ClassDeclaration(Defined(name), _, _, _, _) =>
           //println(s"Node.ClassDeclaration ${name.name}")
           classNames += ClassId(name)
           true
@@ -356,7 +356,7 @@ object ClassList {
             classes.defineStaticMember(clsSym, member, value)
           }
           true
-        case Node.ClassDeclaration(Defined(clsSym), _, _) =>
+        case Node.ClassDeclaration(Defined(clsSym), _, _, _, _) =>
           createClassAsNeeded(ClassId(clsSym))
           true
         case IsDeclScope() =>

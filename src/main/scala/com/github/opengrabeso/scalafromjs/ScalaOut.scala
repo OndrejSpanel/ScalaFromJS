@@ -558,6 +558,9 @@ object ScalaOut {
       def outputMethodNode(pm: Node.ClassBodyElement, decl: String = "def", eol: Boolean = true) = {
         if (eol) out.eol()
         pm match {
+          case Node.MethodDefinition(null, MayBeNull(tpe), _, null, _, _) =>
+            // probably IndexSignature - we cannot output that in Scala
+            out"/* IndexSignature ${astType(tpe).getOrElse(SymbolTypes.AnyType).toOut} */\n"
           case p: Node.MethodDefinition =>
             outputMethod(p.key, p.value, p.kind, Option(p.`type`), decl)
           case _ =>
@@ -1171,7 +1174,7 @@ object ScalaOut {
           context.withScope(tn.body) {
             val (staticProperties, nonStaticProperties) = Option(tn.body).map(_.body).getOrElse(Nil).partition(propertyIsStatic)
 
-            if (staticProperties.nonEmpty || nonStaticProperties.isEmpty) {
+            if (staticProperties.nonEmpty || nonStaticProperties.isEmpty && tn.kind == "class") {
               out.eol(2)
 
               out"object ${tn.id} {\n"
@@ -1194,7 +1197,13 @@ object ScalaOut {
             if (!isStaticOnly) {
               out.eol(2)
 
-              out"class ${tn.id}"
+              val kind = tn.kind match {
+                case "interface" => "trait"
+                case "namespace" => "object"
+                case _ => "class"
+              }
+
+              out"$kind ${tn.id}"
               val inlineBodyOpt = Classes.findInlineBody(tn)
 
               val constructor = Classes.findConstructor(tn).map(_.value)
@@ -1206,8 +1215,10 @@ object ScalaOut {
                 outputClassArgNames(method.params)(method)
               }
 
+              var firstExtends = true
               for (base <- Option(tn.superClass)) {
                 out" extends $base"
+                firstExtends = false
 
                 for {
                   inlineBody <- inlineBodyOpt
@@ -1223,6 +1234,13 @@ object ScalaOut {
                   }
                 }
               }
+
+              for (base <- tn.implements) {
+                val extendKeyword = if (firstExtends) "extends" else "with"
+                out" $extendKeyword $base"
+                firstExtends = false
+              }
+
               out" {\n"
               out.indent()
 

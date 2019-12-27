@@ -573,7 +573,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
             // any class which does not have a corresponding js definition should be included
             // we have toplevel symbols only, match only by name, sym id not available for d.ts symbols
             item.fullName -> itemSymbols.collect {
-              case (_, cls@Node.ClassDeclaration(Node.Identifier(name), _, _)) if !classes.contains(name) =>
+              case (_, cls@Node.ClassDeclaration(Node.Identifier(name), _, _, _, _)) if !classes.contains(name) =>
                 cls
             }
           } else {

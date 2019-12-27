@@ -34,6 +34,8 @@ object Transform {
       Some(x, tpe, defValue)
     case Node.AssignmentPattern(x: Node.Identifier, init) =>
       Some(x, null, Some(init))
+    case Node.RestElement(x: Node.Identifier, tpe) =>
+      Some(x, tpe, None)
     case _ =>
       None
   }
@@ -653,7 +655,7 @@ object Transform {
     ast.top.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
-        case cls@Node.ClassDeclaration(Node.Identifier(Id(clsSym)), MayBeNull(parentNode), _) =>
+        case cls@Node.ClassDeclaration(Node.Identifier(Id(clsSym)), MayBeNull(parentNode), moreParents, _, _) =>
           for (clsId <- id(clsSym)) {
             for (Node.Identifier(Id(parentId)) <- parentNode) {
               //println(s"Add parent $parent for $clsSym")
@@ -722,7 +724,7 @@ object Transform {
       def unapply(arg: Seq[Node.Node])(implicit context: ScopeContext): Option[(Node.Node, SymId)] = {
         val compact = arg.filterNot(_.isInstanceOf[Node.EmptyStatement])
         compact match {
-          case Seq(defClass@Node.ClassDeclaration(Defined(Id(c)), _, _), ReturnedExpression(Node.Identifier(Id(r)))) if c == r =>
+          case Seq(defClass@Node.ClassDeclaration(Defined(Id(c)), _, _, _, _), ReturnedExpression(Node.Identifier(Id(r)))) if c == r =>
             Some(defClass, c)
           case _ =>
             None

@@ -17,7 +17,7 @@ object InferTypes {
     import ctx.classOps
 
     var allReturns = Option.empty[TypeInfo]
-    node.walkWithScope(context) { (node, context) =>
+    if (node != null) node.walkWithScope(context) { (node, context) =>
       implicit val scopeCtx = context
       node match {
         // include any sub-scopes, but not local functions
@@ -38,9 +38,11 @@ object InferTypes {
 
     allReturns.orElse {
       //println("Infer no return function")
-      node.body match {
-        case Seq(Node.ExpressionStatement(ex)) => expressionType(ex)
-        case _ => None
+      Option(node).flatMap {
+        _.body match {
+          case Seq(Node.ExpressionStatement(ex)) => expressionType(ex)
+          case _ => None
+        }
       }
     }
   }
@@ -630,7 +632,7 @@ object InferTypes {
           val scope = findThisClass(scopeCtx)
           for {
             retType <- allReturns
-            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
+            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _, _, _) <- scope
             clsId = Id(cls)
           } {
             //println(s"Infer return type for method ${cls.name}.$sym as $retType")
@@ -643,7 +645,7 @@ object InferTypes {
           val scope = findThisClass(scopeCtx)
           for {
             retType <- expressionType(expr)
-            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
+            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _, _, _) <- scope
             clsId = Id(cls)
           } {
             val classId = MemberId(clsId, sym)
@@ -664,7 +666,7 @@ object InferTypes {
           //println(s"Infer getter $sym as $allReturns")
           for {
             retType <- allReturns
-            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
+            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _, _, _) <- scope
             clsId = Id(cls)
           } {
             //println(s"Infer return type for getter ${cls.name}.$sym as $retType")
@@ -679,7 +681,7 @@ object InferTypes {
           for {
             arg <- fun.params.headOption
             retType <- allTypes.get(symbolFromPar(arg).flatMap(id))
-            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
+            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _, _, _) <- scope
             clsId <- Id(cls)
           } {
             //println(s"Infer return type for setter $cls.$sym as $retType")
@@ -690,7 +692,7 @@ object InferTypes {
         case ObjectKeyVal(name, value) =>
           val scope = findThisClassInWalker(scopeCtx)
           for {
-            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _) <- scope
+            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _, _, _) <- scope
             clsId <- Id(cls)
           } {
             val classId = MemberId(clsId, name)
