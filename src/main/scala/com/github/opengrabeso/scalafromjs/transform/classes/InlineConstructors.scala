@@ -238,7 +238,7 @@ object InlineConstructors {
       node match {
         case cls: Node.ClassDeclaration =>
           for {
-            constructorProperty@Node.MethodDefinition(_, _, _, AnyFun(params, body), _, _) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, _, _, AnyFun(params, Defined(body)), _, _) <- findConstructor(cls)
           } ctx.withScope(cls.body, constructorProperty, constructorProperty.value) {
 
             // constructor parameters need a different handling
@@ -323,7 +323,7 @@ object InlineConstructors {
       node match {
         case cls: Node.ClassDeclaration =>
           for {
-            constructorProperty@Node.MethodDefinition(_, _, _, AnyFun(params, body), _, _) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, _, _, AnyFun(params, Defined(body)), _, _) <- findConstructor(cls)
           } {
             val functionsToConvert = detectPrivateFunctions(body)
             if (log) println(s"functionsToConvert $functionsToConvert")
@@ -411,7 +411,7 @@ object InlineConstructors {
             val clsTokenDef = classTokenSource(cls)
             for {
               constructorMethod <- findConstructor(cls)
-              constructorProperty@AnyFun(params, b) <- Some(constructorMethod.value)
+              constructorProperty@AnyFun(params, Defined(b)) <- Some(constructorMethod.value)
             } {
               // anything before a first variable declaration can be inlined, variables need to stay private
               val body = Block.statements(b)

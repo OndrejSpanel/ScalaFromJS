@@ -68,7 +68,7 @@ object TypesRule {
     val t = name match {
       case "number" => Some(SimpleType("Double"))
       case "string" => Some(SimpleType("String"))
-      case "boolean" | "true" | "false" => Some(SimpleType("Boolean"))
+      case "boolean" => Some(SimpleType("Boolean"))
       case "any" => Some(SimpleType("Any"))
       case "void" => Some(SimpleType("Unit"))
       case "this" => None // TODO: some better support for this type
@@ -80,7 +80,7 @@ object TypesRule {
   def typeFromLiteral(raw: String): Option[TypeDesc] = raw match {
     case "true" | "false" => Some(SimpleType("Boolean"))
     case s if Try(s.toDouble).isSuccess || Try(s.toInt).isSuccess => Some(SimpleType("Double"))
-    case s if s.head == '"' && s.last == '"' => Some(SimpleType("String"))
+    case s if s.head == '"' && s.last == '"' || s.head == '\'' && s.last == '\'' => Some(SimpleType("String"))
     case "null" => None
     case _ => None
   }
@@ -175,6 +175,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         true
       }
       def handleClass(node: ClassDeclaration, name: String) = {
+        // process parent
         for {
           ClassDeclaration(_, superClass, moreParents, Defined(b), _) <- dtsSymbols.get(name)
           clsSym = context.findSymId(name)
@@ -190,7 +191,6 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
             }
           }
 
-          // process parent
           for (member <- b.body) {
             member match {
               // list d.ts members, create type information for corresponding symbols
@@ -212,7 +212,8 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                 } {
                   val parTypes = getParameterTypes(dtsPars)(methodId)
                   handleParameterTypes(astPars, dtsPars)(methodId)
-                  FunctionType(tt, parTypes.map(_.map(_.declType).getOrElse(AnyType)).toArray[TypeDesc])
+                  val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toArray[TypeDesc]
+                  types += SymbolMapId(funName, clsId) -> TypeInfo.both(FunctionType(tt, parTypesDesc)).copy(certain = true)
                 }
 
               case MethodDefinition(Identifier(funName), Defined(ret), _, value, _, _) => // plain member with known type

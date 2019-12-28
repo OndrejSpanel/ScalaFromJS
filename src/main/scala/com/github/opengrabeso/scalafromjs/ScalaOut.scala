@@ -65,7 +65,7 @@ object ScalaOut {
     }
   }
 
-  abstract class Output extends ((String) => Unit) {
+  abstract class Output extends (String => Unit) {
     def out(x: String): Unit
 
     def appendLine(x: String): Unit = apply(x)
@@ -518,11 +518,24 @@ object ScalaOut {
                 outputArgNames(params, true)(value)
               }
               def certainType(id: SymId) = {
-                val tpe = input.types.types.get(id)
-                if (tpe.exists(_.certain)) {
-                  tpe.map(_.declType)
-                } else {
-                  astType(dType)
+                if (kind == "set") Some(SymbolTypes.NoType) // setter always returns unit
+                else {
+                  val tpe = input.types.types.get(id)
+                  if (tpe.exists(_.certain)) {
+                    // unless it is a getter, tpe should be a function type
+                    (kind, tpe.map(_.declType)) match {
+                      case ("get", t) =>
+                        t
+                      case (_, Some(SymbolTypes.FunctionType(ret, _))) =>
+                        // Any is most often result of "this" type
+                        if (ret == SymbolTypes.AnyType) None // rather than outputing Any do not output anything
+                        else Some(ret)
+                      case _ =>
+                        None
+                    }
+                  } else {
+                    astType(dType)
+                  }
                 }
               }
               for {
@@ -574,7 +587,7 @@ object ScalaOut {
         // non-associative need to be parenthesed when used on the right side
 
         arg match {
-          case a@Node.BinaryExpression(op, _, _) if OperatorPriorities.useParens(op, outer, right) =>
+          case Node.BinaryExpression(op, _, _) if OperatorPriorities.useParens(op, outer, right) =>
             // TODO: compare priorities
             out"($arg)"
           case _ =>
@@ -1158,7 +1171,7 @@ object ScalaOut {
               // TODO: for more natural output put multiple values one a single line
               out"val ${e.name} = Value("
               for (value <- Option(e.value)) {
-                out"${value}"
+                out"$value"
               }
               out(")\n")
             }

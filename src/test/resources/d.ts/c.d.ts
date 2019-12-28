@@ -20,6 +20,8 @@ export class CS implements CSI {
     f(a: number): number;
     g(a: string): string;
 
+    gs: boolean;
+
     static f(a: boolean, b: boolean): boolean;
     static g(a: boolean, b: boolean): boolean;
 }

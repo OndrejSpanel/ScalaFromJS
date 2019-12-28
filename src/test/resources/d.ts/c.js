@@ -17,6 +17,8 @@ class CS {
     f(a){return a;}
     g(a){return a;}
 
+    get gs(){return this._gs;}
+    set gs(b){this._gs = b;}
     static f(a, b){return b;}
     static g(a, b){return b;}
 }

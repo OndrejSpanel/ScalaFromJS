@@ -12,16 +12,19 @@ class DTSTest extends FunSuite with TestUtils with ProjectUtils {
         "def bMember(bpa: String, bpb: Double)",
         "class C(var cn: Double, var cs: String, var cb: Boolean)",
         "class CX(cn: Double, cs: String, cb: Boolean)",
-        "def f(a: Double)",
-        "def g(a: String)",
-        "def f(a: Boolean, b: Boolean)", // static functions - should be in object
-        "def g(a: Boolean, b: Boolean)",
+        "def f(a: Double): Boolean =",
+        "def g(a: String): Boolean =",
+        "def f(a: Boolean, b: Boolean): Boolean =", // static functions - should be in object
+        "def g(a: Boolean, b: Boolean): Boolean =",
         "dn: Double",
         "ds: String",
         "def createCSI(): CSI",
         "def fff(a: Double): Double",
+        "def f(a: Double): Double",
         "var fv: Double",
         "var fs: String",
+        "def gs: Boolean =",
+        "def gs_=(b: Boolean): Unit =",
         "trait CSI",
         "extends CSI"
     )
