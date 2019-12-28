@@ -110,7 +110,7 @@ object ScalaFromJS extends SimpleSwingApplication {
           }
           if (lastInput._1 == null) return
           val start = now()
-          val resultText = Try(Convert(lastInput._1))
+          val resultText = Try(Convert(lastInput._1, typescript = true)) // almost all JS can be parsed as TS and we want to parse TS as well
           val duration = now() - start
 
           // avoid overwriting newer result
