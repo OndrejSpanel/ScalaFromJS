@@ -26,4 +26,9 @@ export class CS implements CSI {
     static g(a: boolean, b: boolean): boolean;
 }
 
+export class SObj {
+    static sfa(): string;
+    static sfb(): number;
+}
+
 export function createCSI(): CSI;

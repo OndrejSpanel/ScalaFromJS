@@ -1187,7 +1187,8 @@ object ScalaOut {
           context.withScope(tn.body) {
             val (staticProperties, nonStaticProperties) = Option(tn.body).map(_.body).getOrElse(Nil).partition(propertyIsStatic)
 
-            if (staticProperties.nonEmpty || nonStaticProperties.isEmpty && tn.kind == "class") {
+            val isObject = staticProperties.nonEmpty || nonStaticProperties.isEmpty && tn.kind == "class"
+            if (isObject) {
               out.eol(2)
 
               out"object ${tn.id} {\n"
@@ -1207,7 +1208,7 @@ object ScalaOut {
                 false
             }
 
-            if (!isStaticOnly) {
+            if (!isStaticOnly && !(isObject && nonStaticProperties.isEmpty && tn.superClass == null)) {
               out.eol(2)
 
               val kind = tn.kind match {

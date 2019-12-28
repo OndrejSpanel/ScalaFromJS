@@ -27,6 +27,8 @@ class DTSTest extends FunSuite with TestUtils with ProjectUtils {
         "def gs_=(b: Boolean): Unit =",
         "trait CSI",
         "extends CSI"
+    ).forbidden(
+      "class SObj","trait SObj"
     )
   }
 

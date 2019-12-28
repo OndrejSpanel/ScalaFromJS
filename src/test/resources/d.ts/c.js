@@ -23,6 +23,11 @@ class CS {
     static g(a, b){return b;}
 }
 
+class SObj {
+    static sfa(){return "";}
+    static sfb(){return 0;}
+}
+
 function createCSI() {
     return new CS();
 }
