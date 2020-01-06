@@ -14,3 +14,10 @@ require:
 dn: Double
 ds: String
 */
+
+var SNamespace = {
+    sVarN: 1.0,
+
+    sGenS: function () {return "s"},
+    sCompute: function(x){return x;}
+};
