@@ -7,6 +7,7 @@ import TypesRule._
 import com.github.opengrabeso.esprima.Node
 import com.github.opengrabeso.esprima.Node.{ArrayType => _, FunctionType => _, _}
 import SymbolTypes._
+import com.github.opengrabeso.scalafromjs
 
 import scala.collection.mutable
 import scala.util.Try
@@ -50,6 +51,8 @@ object TypesRule {
         case FunctionExpression(Identifier(name), params, body, generator, ret) =>
           handleDeclaration(node, name)
         case ClassDeclaration(Identifier(name), parent, interfaces, params, body) =>
+          handleDeclaration(node, name)
+        case NamespaceDeclaration(Identifier(name), body) =>
           handleDeclaration(node, name)
         case ClassExpression(Identifier(name), params, body) =>
           handleDeclaration(node, name)
@@ -124,7 +127,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     // walk the AST, search for types for any global symbols
 
     // list top-level classes only
-    val classList = new Classes.ClassListHarmony(n.top, false)
+    val classList = Classes.ClassListHarmony.fromAST(n.top, false)
 
     var types = n.types.types
     val ast = n.top
@@ -151,13 +154,71 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         }
       }
 
+      /**
+        *
+        * @param node d.ts node
+        * @param name name of the dst node (same as node.id.name)
+        * @param astVarNode js node
+        */
+      def handleNamespace(node: NamespaceDeclaration, name: String, astVarId: symbols.SymId, astVarNode: VariableDeclaration) = {
+        // convert to a class with static members
+        object ExtractExport {
+          def unapply(arg: ExportDeclaration): Option[ExportableNamedDeclaration] = {
+            arg match {
+              case e: ExportNamedDeclaration =>
+                Some(e.declaration)
+              case d: ExportableNamedDeclaration =>
+                Some(d)
+              case _ =>
+                None
+            }
+          }
+        }
+        // TODO: we need a class body to scope the symbol properly, we have VariableDeclaration only
+        // a dedicated transformation would be necessary for this
+        val clsId = symbols.ScopeContext.getNodeId(node.body)
+        context.withScope(node.body) {
+          for (ExtractExport(member) <- node.body.body) {
+            member match {
+              case FunctionDeclaration(Identifier(funName), dtsPars, _, _, ret) => // member function
+                /*
+                val tt = typeFromAST(ret)(context)
+                // TODO: find a js member corresponding to funName
+                astVarNode.walk
+                //val methodId = SymbolMapId(funName, clsId)
+                val parTypes = getParameterTypes(dtsPars)(astVarId)
+                // TODO: astPars from astNode
+                //handleParameterTypes(astPars, dtsPars)(methodId)
+                val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toArray[TypeDesc]
+                types += SymbolMapId(funName, clsId) -> TypeInfo.both(FunctionType(tt, parTypesDesc)).copy(certain = true)
+                 */
+
+              case VarDeclTyped(name, _, _, Some(tpe)) => // plain member with known type
+                for (tt <- typeInfoFromAST(tpe)(context)) {
+                  types += SymbolMapId(name, clsId) -> tt
+                }
+              case _ =>
+
+            }
+          }
+        }
+      }
       def handleVar(node: Node, name: String) = {
-        for {
-          s@VarDecl(_, _, _) <- dtsSymbols.get(name)
-          t <- Option(s.declarations.head.`type`)
-          tt <- typeInfoFromAST(t)(context)
-        } {
-          types += context.findSymId(name) -> tt
+        // the variable may correspond to a namespace
+        for (s <- dtsSymbols.get(name)) {
+          (s, node) match {
+            case (v: VariableDeclaration, _) =>
+              for {
+                t <- Option(v.declarations.head.`type`)
+                tt <- typeInfoFromAST(t)(context)
+              } {
+                types += context.findSymId(name) -> tt
+              }
+            case (n: NamespaceDeclaration, vd@VarDeclTyped(varName, _, _, _)) =>
+              val astVarId = context.findSymId(varName)
+              handleNamespace(n, n.id.name, astVarId, vd)
+            case _ =>
+          }
         }
         true
       }
@@ -177,7 +238,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       def handleClass(node: ClassDeclaration, name: String) = {
         // process parent
         for {
-          ClassDeclaration(_, superClass, moreParents, Defined(b), _) <- dtsSymbols.get(name)
+          ClassDeclaration(_, superClass, moreParents, Defined(b), kind) <- dtsSymbols.get(name)
           clsSym = context.findSymId(name)
           if !clsSym.isGlobal // global means not defined in the AST we are traversing
           clsNode <- classList.get(clsSym)
@@ -220,6 +281,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                 for (tt <- typeInfoFromAST(ret)(context)) {
                   types += SymbolMapId(funName, clsId) -> tt
                 }
+              case _ =>
             }
           }
         }
@@ -234,7 +296,6 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           handleFunction(node, params, name)
         case c@ClassDeclaration(Identifier(name), superClass, moreParents, body, _) =>
           handleClass(c, name)
-         // Node.ClassExpression(Node.Identifier(name), params, body) => name is ClassExpression is local only - it makes to sense to process it
         case `ast` =>
           false
         case _ =>

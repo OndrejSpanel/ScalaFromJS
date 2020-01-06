@@ -558,7 +558,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
     def addDeclarations(n: NodeExtended, outFiles: Seq[(String, String)]): Seq[(String, String)] = {
       // for each file find declarations which belong to an accompanying d.ts and and add them
       val rules = n.config.collectRules[transform.TypesRule]
-      val classes = new Classes.ClassListHarmony(n.top, innerClasses = false).classes.map { case (k, v) =>
+      val classes = Classes.ClassListHarmony.fromAST(n.top, innerClasses = false).classes.map { case (k, v) =>
         k.name -> v._2
       }
       rules.foldLeft(outFiles) { (files, r) =>

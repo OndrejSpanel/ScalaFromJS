@@ -1182,6 +1182,17 @@ object ScalaOut {
         case tn: Node.ClassDeclaration if tn.body == null =>
           out"trait ${tn.id}\n\n"
 
+        case tn: Node.NamespaceDeclaration =>
+          out"object ${tn.id} {\n"
+          context.withScope(tn.body) {
+            out.indent()
+            tn.body.body.foreach { i =>
+              nodeToOut(i)
+            }
+            out.unindent()
+          }
+          out("}\n")
+
         case tn: Node.ClassDeclaration =>
 
           context.withScope(tn.body) {
@@ -1213,7 +1224,6 @@ object ScalaOut {
 
               val kind = tn.kind match {
                 case "interface" => "trait"
-                case "namespace" => "object"
                 case _ => "class"
               }
 
@@ -1484,7 +1494,7 @@ object ScalaOut {
       }
     }
 
-    val classListHarmony = new ClassListHarmony(ast.top)
+    val classListHarmony = ClassListHarmony.fromAST(ast.top)
     val inputContext = InputContext(input, ast.types, classListHarmony)
     val scopeContext = new ScopeContext
     scopeContext.withScope(ast.top) {
@@ -1506,7 +1516,7 @@ object ScalaOut {
     val ret = new NiceOutput {
       def out(x: String) = sb append x
     }
-    val classListEmpty = ClassListHarmony(Map.empty)
+    val classListEmpty = ClassListHarmony.empty
     val inputContext = InputContext(input, SymbolTypes(), classListEmpty)
     val scopeContext = new ScopeContext
     nodeToOut(ast)(outConfig, inputContext, ret, scopeContext)

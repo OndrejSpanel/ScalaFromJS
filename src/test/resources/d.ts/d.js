@@ -19,5 +19,6 @@ var SNamespace = {
     sVarN: 1.0,
 
     sGenS: function () {return "s"},
-    sCompute: function(x){return x;}
+    sCompute: function(x){return x;},
+    sInfer: function(sns){return sns === "SNS";}
 };

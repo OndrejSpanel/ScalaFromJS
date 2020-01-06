@@ -136,4 +136,33 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
     ).forbidden("_par")
   }
 
+  test("Static class members") {
+    exec check ConversionCheckTypeScript(
+      """
+            class D {
+              static fun(dnp: number, dsp: string): string {
+                return dsp;
+              };
+            }
+        """
+    ).required(
+      "object D",
+      "def fun(dnp: Double, dsp: String): String"
+    ).forbidden("Any")
+  }
+
+  test("Namespace as object") {
+    exec check ConversionCheckTypeScript(
+      """
+            export namespace D {
+              export function fun(dnp: number, dsp: string): string {
+                return dsp;
+              };
+            }
+        """
+    ).required(
+      "object D",
+      "def fun(dnp: Double, dsp: String): String"
+    ).forbidden("Any")
+  }
 }

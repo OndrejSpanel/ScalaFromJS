@@ -399,11 +399,16 @@ object Transform {
     * */
     def typeInfoFromClassSym(classSym: SymbolDef, certain: Boolean = false): Option[TypeInfo] = {
       // is the symbol a class?
-      for {
-        cls <- classSym
-        if certain || ctx.classes.get(cls).isDefined
-      } yield {
-        TypeInfo.target(ClassType(cls))
+      classSym.filter(_.name == "<anonymous>").map { c =>
+        c._1
+        TypeInfo.target(AnonymousClassType(c.sourcePos))
+      }.orElse {
+        for {
+          cls <- classSym
+          if certain || ctx.classes.get(cls).isDefined
+        } yield {
+          TypeInfo.target(ClassType(cls))
+        }
       }
     }
 
@@ -437,14 +442,30 @@ object Transform {
       case expr Dot name =>
         val exprType = expressionType(expr, log)(ctx, context)
         if (log) println(s"type of member $expr.$name, class $exprType")
-        for {
-          TypeDecl(ClassType(callOn)) <- exprType
-          c <- findInParents(callOn, name)(ctx)
-          r <- types.getMember(Some(MemberId(c, name)))
-        } yield {
-          if (log) println(s"type of member $c.$name as $r")
-          r
+        exprType match {
+          case Some(TypeDecl(ClassType(callOn))) =>
+            for {
+              c <- findInParents(callOn, name)(ctx)
+              r <- types.getMember(Some(MemberId(c, name)))
+            } yield {
+              if (log) println(s"type of member $c.$name as $r")
+              r
+            }
+          case Some(TypeDecl(AnonymousClassType(sourcePos))) =>
+            val id = SymbolMapId(name, sourcePos)
+            types.get(Some(id))
+          case _ =>
+            None
+
         }
+
+      case Node.ObjectExpression(Nil) =>
+        // avoid handling empty object as an anonymous class - handling it as a map has more sense
+        Some(TypeInfo.target(ObjectOrMap))
+
+      case oe: Node.ObjectExpression =>
+        val nodeId = ScopeContext.getNodeId(oe)
+        typeInfoFromClassSym(Some(SymbolMapId("<anonymous>", nodeId)))
 
       case expr Sub name =>
         //println(s"Infer type of array item $name, et ${expressionType(expr)(ctx)}")
@@ -468,8 +489,6 @@ object Transform {
           println(s"  elementTypes $elementTypes => $elType")
         }
         Some(elType.map(_.map(ArrayType)).getOrElse(TypeInfo(ArrayType(AnyType), ArrayType(NoType))))
-      case a: OObject =>
-        Some(TypeInfo.target(ObjectOrMap))
       case Node.Literal(Defined(literal), _) =>
         literal.value match {
           case _: Double =>
@@ -550,13 +569,24 @@ object Transform {
       case Node.CallExpression(cls Dot name, _) =>
         val exprType = expressionType(cls, log)
         if (log) println(s"Infer type of member call $cls.$name class $exprType")
-        for {
-          TypeDecl(ClassType(callOn)) <- exprType
-          c <- findInParents(callOn, name)(ctx)
-          r <- types.getMember(Some(MemberId(c, name)))
-        } yield {
-          if (log) println(s"  Infer type of member call $c.$name as $r")
-          callReturn(r)
+
+        {
+          for {
+            TypeDecl(ClassType(callOn)) <- exprType
+            c <- findInParents(callOn, name)(ctx)
+            r <- types.getMember(Some(MemberId(c, name)))
+          } yield {
+            if (log) println(s"  Infer type of member call $c.$name as $r")
+            callReturn(r)
+          }
+        }.orElse {
+          for {
+            TypeDecl(AnonymousClassType(callOn)) <- exprType
+            r <- types.get(Some(SymbolMapId(name, callOn)))
+          } yield {
+            if (log) println(s"  Infer type of anonymous member call $name as $r")
+            callReturn(r)
+          }
         }
 
       case seq: Node.SequenceExpression =>

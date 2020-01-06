@@ -265,9 +265,13 @@ trait NodeExt {
     def unapply(arg: Node.Node): Boolean = arg match {
       case _: Node.ClassBody =>
         true
+      case _: Node.NamespaceBody =>
+        true
       case _: Node.EnumBody =>
         true
       case _: Node.Program =>
+        true
+      case _: Node.ObjectExpression =>
         true
       case IsFunctionScope() =>
         true
@@ -275,7 +279,7 @@ trait NodeExt {
         true
       /*
       case _: Node.IfStatement =>
-        // note: each branch statement could be considered a saperate scope, however cases needing this should be very rare
+        // note: each branch statement could be considered a separate scope, however cases needing this should be very rare
         // ... and such cases should (and most likely will) use BlockStatement as a branch body anyway
         true
       */

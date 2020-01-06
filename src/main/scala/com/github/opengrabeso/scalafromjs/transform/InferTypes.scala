@@ -52,7 +52,7 @@ object InferTypes {
     // TODO: cleanup inferred, was used for members, not for variables, now it is not used at all
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 
-    val classes = new ClassListHarmony(n.top)
+    val classes = ClassListHarmony.fromAST(n.top)
     //println("Classes:\n" + classes.keys)
 
 
@@ -132,11 +132,7 @@ object InferTypes {
       val tpe = tpeSrc.map(_.copy(certain = false)) // inferred type is never considered certain
       if (tpe.exists(_.known)) {
 
-        val id = idAccess.flatMap { i =>
-          classInfo.classContains(i.cls, i.name).map { containedIn =>
-            i.copy(cls = containedIn)
-          }
-        }
+        val id = idAccess
 
         //println(s"Member type was $id: ${inferred.getMember(id)}")
 
@@ -689,17 +685,28 @@ object InferTypes {
             // target, because setter parameter is typically used as a source for the property variable, which sets source only
             addInferredMemberType(Some(classId), Some(TypeInfo.target(retType.declType)))(()=>s"Infer return type for setter $cls.$sym as $retType")
           }
-        case ObjectKeyVal(name, value) =>
-          val scope = findThisClassInWalker(scopeCtx)
-          for {
-            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _, _, _) <- scope
-            clsId <- Id(cls)
-          } {
-            val classId = MemberId(clsId, name)
-            // target, because setter parameter is typically used as a source for the property variable, which sets source only
-            val tpe = expressionType(value)
-            //println(s"Infer type for value $cls.$name as $tpe")
-            addInferredMemberType(Some(classId), tpe)(()=>s"Infer type for value $cls.$name as $tpe")
+
+        case ObjectKeyVal(name, value) => // cannot be a class member, only part of an object pattern
+          for (inObject <- scopeCtx.findTypedParent[Node.ObjectExpression]) {
+            val nodeId = ScopeContext.getNodeId(inObject)
+            val symId = Some(SymbolMapId(name, nodeId))
+            // TODO: value may be a function expression
+            value match {
+              case AnyFun(pars, body: Node.BlockStatement) =>
+                scopeCtx.withScope(value, body) {
+                  for (retType <- scanFunctionReturns(body)) {
+                    // parameters do not matter here, they are infered as separate symbols
+                    val funType = FunctionType(retType.declType, IndexedSeq())
+                    addInferredType(symId, Some(TypeInfo.target(funType)))(() => s"Infer property fun $name")
+                  }
+                }
+
+                // ??? // TODO
+              case _ =>
+                val tpe = expressionType(value)
+                // we avoid using addInferredMemberType, as we already know the proper scoped id
+                addInferredType(symId, tpe)(() => s"Infer type for value $inObject.$name as $tpe")
+            }
           }
 
         case Node.NewExpression(Node.Identifier(Id(clsId)), args) =>
@@ -741,11 +748,27 @@ object InferTypes {
                 val elemType = args.map(expressionType(_)).reduce(typeUnionOption)
                 sym.addSymbolInferredType(elemType.map(_.map(ArrayType)), target)(()=>s"Array.push $sym elem: $elemType array: $arrayElemType")
               }
-            case _ =>
+            case (Some(AnonymousClassType(sourcePos)), _, _) =>
+              val log = call.isWatched
+              val symId = SymbolMapId(call, sourcePos)
+              val tpe = inferFunction(args, log)
+              addInferredType(Some(symId), Some(TypeInfo.target(tpe)))(()=>s"Infer par types for an anonymous member call $call as $tpe")
+              // TODO: inferArgs for the function
+
+              // TODO: use function types only for member functions
+              // fill class symbols (if they exists)
+              for {
+                c <- classes.getAnonymous(SymbolMapId("<anonymous>", sourcePos))
+                m@AnyFun(pars, _) <- findObjectMethod(c, call)
+              } {
+                inferParsOrArgs(m, pars, args)(()=>s"Method call anonymous: $expr.$call offset ${expr.start}")
+              }
+
+
+            case (Some(ClassType(callOn)), _, _) =>
               //println(s"Dot call $call")
               // fill ctx.type function types information
               for {
-                TypeDecl(ClassType(callOn)) <- exprType
                 c <- getParents(callOn)(ctx) // infer for all overrides
               } {
                 val memberId = MemberId(c, call)
@@ -772,8 +795,6 @@ object InferTypes {
               // TODO: use function types only for member functions
               // fill class symbols (if they exists)
               for {
-                TypeDecl(ClassType(callOn)) <- exprType
-                clazz <- classes.get(callOn)
                 c <- getParents(callOn)(ctx) // infer for all overrides
                 parentC <- classes.get(c)
                 m <- findMethod(parentC, call)
@@ -781,6 +802,7 @@ object InferTypes {
               } {
                 inferParsOrArgs(m.value, pars, args)(()=>s"Method call $callOn: $expr.$call offset ${expr.start}")
               }
+            case _ =>
           }
 
         case SymbolInfo(symbol) Sub property =>

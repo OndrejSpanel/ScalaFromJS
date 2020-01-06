@@ -84,6 +84,17 @@ object SymbolTypes {
 
     def isSafeReplacement(source: TypeDesc): Boolean = source == this
   }
+  case class AnonymousClassType(sourcePos: (Int, Int)) extends TypeDesc {
+    override def toString = s"anonymous_${sourcePos._1}.${sourcePos._2}"
+    override def toOut = "AnyRef"
+    override def scalaConstruct: String = "new {}"
+    override def typeOnInit = false
+
+    override def knownItems = 1
+
+    def isSafeReplacement(source: TypeDesc): Boolean = source == this
+  }
+
   case class ArrayType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Array[${elem.toString}]"
     override def toOut = s"Array[${elem.toOut}]"
@@ -205,6 +216,18 @@ object SymbolTypes {
 
   // intersect: assignment source
   def typeIntersect(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+    object IsObject {
+      def unapply(t: TypeDesc) = {
+        t match {
+          case _: AnonymousClassType =>
+            true
+          case ObjectOrMap =>
+            true
+          case _ =>
+            false
+        }
+      }
+    }
     val r = (tpe1, tpe2) match {
       case _ if tpe1 == tpe2 =>
         tpe1
@@ -222,8 +245,8 @@ object SymbolTypes {
       case (a1: MapType, a2: MapType) =>
         //println(s"a1 intersect a2 $a1 $a2")
         a1 intersect a2
-      case (a: MapType, ObjectOrMap) => a
-      case (ObjectOrMap, a: MapType) => a
+      case (a: MapType, IsObject()) => a
+      case (IsObject(), a: MapType) => a
       case (c1: ClassType, _) => // while technically incorrect, we always prefer a class type against a non-class one
         c1
       case (_, c2: ClassType) =>

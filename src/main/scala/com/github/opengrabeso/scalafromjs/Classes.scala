@@ -13,11 +13,7 @@ object Classes {
 
   def findThisClassInWalker(walker: ScopeContext): Option[Node.ClassDeclaration] = {
     //println(walker.stack.map(nodeClassName).mkString(":"))
-    walker.parents.reverse.collectFirst {
-      case c: Node.ClassDeclaration =>
-        //println(s"Found ${c.name.map(_.name)}")
-        c
-    }
+    walker.findTypedParent[Node.ClassDeclaration]
   }
 
     // ignore function scopes, find a class one
@@ -140,8 +136,16 @@ object Classes {
 
   def findMethod(c: Node.ClassDeclaration, name: String, static: Boolean = false): Option[Node.MethodDefinition] = {
     Option(c.body).flatMap(_.body.collectFirst {
-      case m: Node.MethodDefinition if m.key != null && propertyKeyName(m.key) == name && m.static == static => m
+      case m: Node.MethodDefinition if m.key != null && propertyKeyName(m.key) == name && m.static == static =>
+        m
     })
+  }
+
+  def findObjectMethod(c: Node.ObjectExpression, name: String, static: Boolean = false): Option[Node.PropertyValue] = {
+    c.properties.collectFirst {
+      case Node.Property(_, KeyName(`name`), _, m, _, _) =>
+        m
+    }
   }
 
   def findProperty(c: Node.ClassDeclaration, name: String): Option[Node.MethodDefinition] = {
@@ -232,37 +236,14 @@ object Classes {
   }
 
 
-  def classListHarmony(n: Node.Program, innerClasses: Boolean = true) = {
-    var classes = Map.empty[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]
-    n.walkWithScope { (node, context) =>
-      implicit val ctx = context
-      node match {
-        case d: Node.ClassDeclaration =>
-          for {
-            id <- symId(d.id)
-          } {
-            val parentId = Option(d.superClass).flatMap(symId)
-            classes += id -> (parentId, d)
-          }
-          !innerClasses // classes may contain inner classes - when the caller wants them, continue the traversal
-        case _: Node.Program =>
-          false
-        case _ =>
-          false
-      }
-    }
-    classes
-  }
-
   /*
   classes: mapping from a symbol id to a tuple of parent and declaration
   */
-  case class ClassListHarmony(classes: Map[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]) {
-
-    def this(n: Node.Program, innerClasses: Boolean = true) = this(classListHarmony(n, innerClasses))
+  case class ClassListHarmony(classes: Map[SymbolMapId, (Option[SymId], Node.ClassDeclaration)], anonymous: Map[SymbolMapId, Node.ObjectExpression]) {
 
     def get(name: SymbolMapId): Option[Node.ClassDeclaration] = classes.get(name).map(_._2)
     def getParent(name: SymbolMapId): Option[SymId] = classes.get(name).flatMap(_._1)
+    def getAnonymous(name: SymbolMapId): Option[Node.ObjectExpression] = anonymous.get(name)
 
     def classPos(name: SymbolMapId): (Int, Int) = {
       classes.get(name).map(_._2.body.range).getOrElse((-1, -1))
@@ -270,4 +251,34 @@ object Classes {
 
   }
 
+  object ClassListHarmony {
+    def empty: ClassListHarmony = new ClassListHarmony(Map.empty, Map.empty)
+    def fromAST(n: Node.Program, innerClasses: Boolean = true): ClassListHarmony = {
+      var classes = Map.empty[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]
+      var anonymous = Map.empty[SymbolMapId, Node.ObjectExpression]
+      n.walkWithScope { (node, context) =>
+        implicit val ctx = context
+        node match {
+          case d: Node.ClassDeclaration =>
+            for {
+              id <- symId(d.id)
+            } {
+              val parentId = Option(d.superClass).flatMap(symId)
+              classes += id -> (parentId, d)
+            }
+            !innerClasses // classes may contain inner classes - when the caller wants them, continue the traversal
+          case oe: Node.ObjectExpression =>
+            val id = symbols.ScopeContext.getNodeId(oe)
+            anonymous += SymbolMapId("<anonymous>", id) -> oe
+            !innerClasses
+
+          case _: Node.Program =>
+            false
+          case _ =>
+            false
+        }
+      }
+      new ClassListHarmony(classes, anonymous)
+    }
+  }
 }

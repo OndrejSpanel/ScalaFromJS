@@ -4,6 +4,7 @@ import com.github.opengrabeso.esprima.Node
 import Node._
 
 import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 
 package object symbols {
   // create symbol lists for all relevant scopes
@@ -112,6 +113,12 @@ package object symbols {
       None
     }
     def localSymbols: Set[String] = scopes.last._2.symbols
+
+    def findTypedParent[T<: Node: ClassTag]: Option[T] = {
+      parents.reverse.collectFirst {
+        case c: T => c
+      }
+    }
 
     // find the first parent scope which is a function (member, explicit, implicit, arrow ..._)
     def findFuncScope: Option[(Node.Node, ScopeInfo)] = {
