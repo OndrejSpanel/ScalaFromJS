@@ -120,6 +120,13 @@ package object symbols {
       }
     }
 
+    def findClassScope: Option[Node] = {
+      parents.reverse.collectFirst {
+        case c: Node.ClassDeclaration => c
+        case o: Node.ObjectExpression => o
+      }
+    }
+
     // find the first parent scope which is a function (member, explicit, implicit, arrow ..._)
     def findFuncScope: Option[(Node.Node, ScopeInfo)] = {
       scopes.reverse.find(s => IsFunctionScope.unapply(s._1))

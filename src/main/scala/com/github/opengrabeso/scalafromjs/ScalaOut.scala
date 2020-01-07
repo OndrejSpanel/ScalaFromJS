@@ -376,26 +376,28 @@ object ScalaOut {
           context.scanSymbols(node)
           node match {
 
-            case Node.VariableDeclarator(name: Node.Identifier, OObject(props), _) if props.nonEmpty && isVal =>
+            case Node.VariableDeclarator(name: Node.Identifier, oe@OObject(props), _) if props.nonEmpty && isVal =>
               // special case handling for isResource marked object (see readFileAsJs)
               val propNames = props.map(propertyName)
               //println(s"propNames $propNames")
               val markerKey = "isResource"
-              if (propNames.toSet == Set("value", markerKey)) {
-                out"object $name extends Resource {\n"
-                out.indent()
-                for (elem <- props if propertyName(elem) != markerKey) nodeToOut(elem)
-                out.unindent()
-                out("}\n")
-              } else {
-                out"object $name {\n"
-                out.indent()
-                for (elem <- props) nodeToOut(elem)
-                out.unindent()
-                out("}\n")
+              context.withScope(oe) {
+                if (propNames.toSet == Set("value", markerKey)) {
+                  out"object $name extends Resource {\n"
+                  out.indent()
+                  for (elem <- props if propertyName(elem) != markerKey) nodeToOut(elem)
+                  out.unindent()
+                  out("}\n")
+                } else {
+                  out"object $name {\n"
+                  out.indent()
+                  for (elem <- props) nodeToOut(elem)
+                  out.unindent()
+                  out("}\n")
+                }
               }
-            // empty object - might be a map instead
             case Node.VariableDeclarator(s: Node.Identifier, OObject(Seq()), MayBeNull(vType)) =>
+              // empty object - might be a map instead
               val sid = symId(s)
               val tpe = input.types.get(sid).map(_.declType).orElse(astType(vType))
               //println(s"Var $name ($sid) type $tpe empty object")
@@ -498,9 +500,14 @@ object ScalaOut {
       }
 
       def outputMethod(key: Node.PropertyKey, value: Node.PropertyValue, kind: String, tpe: Option[Node.TypeAnnotation], decl: String = "def") = {
-        val cls = findThisClass(context)
         val name = propertyKeyName(key)
-        val memberSymId = cls.map(c => ScopeContext.getNodeId(c.body)).map(SymId(name, _))
+        val memberSymId = context.findClassScope.map {
+          case cls: Node.ClassDeclaration =>
+            SymId(name, ScopeContext.getNodeId(cls.body))
+          case oe: Node.ObjectExpression =>
+            SymId(name, ScopeContext.getNodeId(oe))
+        }
+
         if (kind == "value") {
           val sType = input.types.get(memberSymId)
           out"var $key"

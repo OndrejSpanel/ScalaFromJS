@@ -72,8 +72,8 @@ object TypesRule {
       case "number" => Some(SimpleType("Double"))
       case "string" => Some(SimpleType("String"))
       case "boolean" => Some(SimpleType("Boolean"))
-      case "any" => Some(SimpleType("Any"))
-      case "void" => Some(SimpleType("Unit"))
+      case "any" => Some(AnyType)
+      case "void" => Some(NoType)
       case "this" => None // TODO: some better support for this type
       case _ => Some(ClassType(context.findSymId(name)))
     }
@@ -133,7 +133,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     val ast = n.top
 
     ast.walkWithScope { (node, context) =>
-      def getParameterTypes(dtsPars: Seq[FunctionParameter])(scopeId: symbols.ScopeContext.ScopeId) = {
+      def getParameterTypes(dtsPars: Seq[FunctionParameter]) = {
         // match parameters by position, their names may differ
         for {
           FunctionParameterWithType(_, Defined(t), defValue, optional) <- dtsPars
@@ -146,7 +146,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       def handleParameterTypes(astPars: Seq[FunctionParameter], dtsPars: Seq[FunctionParameter])(scopeId: symbols.ScopeContext.ScopeId) = {
         // match parameters by position, their names may differ
         val parNames = astPars.map(Transform.nameFromPar)
-        val parTypes = getParameterTypes(dtsPars)(scopeId)
+        val parTypes = getParameterTypes(dtsPars)
         for {
           (Some(pjs), Some(tt)) <- parNames zip parTypes
         } {
@@ -174,31 +174,32 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
             }
           }
         }
-        // TODO: we need a class body to scope the symbol properly, we have VariableDeclaration only
-        // a dedicated transformation would be necessary for this
-        val clsId = symbols.ScopeContext.getNodeId(node.body)
-        context.withScope(node.body) {
-          for (ExtractExport(member) <- node.body.body) {
-            member match {
-              case FunctionDeclaration(Identifier(funName), dtsPars, _, _, ret) => // member function
-                /*
-                val tt = typeFromAST(ret)(context)
-                // TODO: find a js member corresponding to funName
-                astVarNode.walk
-                //val methodId = SymbolMapId(funName, clsId)
-                val parTypes = getParameterTypes(dtsPars)(astVarId)
-                // TODO: astPars from astNode
-                //handleParameterTypes(astPars, dtsPars)(methodId)
-                val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toArray[TypeDesc]
-                types += SymbolMapId(funName, clsId) -> TypeInfo.both(FunctionType(tt, parTypesDesc)).copy(certain = true)
-                 */
+        for {
+          Seq(VariableDeclarator(_, oe: ObjectExpression, _)) <- Option(astVarNode.declarations)
+        } {
+          val astClsId = symbols.ScopeContext.getNodeId(oe)
+          context.withScope(node.body) {
+            for (ExtractExport(member) <- node.body.body) {
+              member match {
+                case FunctionDeclaration(Identifier(funName), dtsPars, _, _, ret) => // member function
+                  for {
+                    Seq(VariableDeclarator(_, oe: ObjectExpression, _)) <- Option(astVarNode.declarations)
+                    fun@AnyFun(astPars, astBody) <- Classes.findObjectMethod(oe, funName)
+                    tt <- typeFromAST(ret)(context)
+                  } {
+                    val parTypes = getParameterTypes(dtsPars)
+                    handleParameterTypes(astPars, dtsPars)(symbols.ScopeContext.getNodeId(fun))
+                    val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toArray[TypeDesc]
+                    types += SymbolMapId(funName, astClsId) -> TypeInfo.both(FunctionType(tt, parTypesDesc)).copy(certain = true)
+                  }
 
-              case VarDeclTyped(name, _, _, Some(tpe)) => // plain member with known type
-                for (tt <- typeInfoFromAST(tpe)(context)) {
-                  types += SymbolMapId(name, clsId) -> tt
-                }
-              case _ =>
+                case VarDeclTyped(name, _, _, Some(tpe)) => // plain member with known type
+                  for (tt <- typeInfoFromAST(tpe)(context)) {
+                    types += SymbolMapId(name, astClsId) -> tt
+                  }
+                case _ =>
 
+              }
             }
           }
         }
@@ -271,7 +272,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                   t = Option(ret).orElse(retFun)
                   tt = t.flatMap(typeFromAST(_)(context)).getOrElse(AnyType)
                 } {
-                  val parTypes = getParameterTypes(dtsPars)(methodId)
+                  val parTypes = getParameterTypes(dtsPars)
                   handleParameterTypes(astPars, dtsPars)(methodId)
                   val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toArray[TypeDesc]
                   types += SymbolMapId(funName, clsId) -> TypeInfo.both(FunctionType(tt, parTypesDesc)).copy(certain = true)

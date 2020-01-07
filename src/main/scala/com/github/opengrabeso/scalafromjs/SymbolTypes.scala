@@ -11,13 +11,13 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("_x")
+    val watched = Set[String]("lights")
     name.startsWith("watch_") || watched.contains(name)
   }
 
   def watchedMember(cls: String, name: String): Boolean = watchCondition {
-    val watched = Set[(String, String)](("Quaternion", "_x"), ("Quaternion", "x"))
-    val watchedAllClasses = Set[String]("")
+    val watched = Set[(String, String)](("UniformsCache", "lights"))
+    val watchedAllClasses = Set[String]("lights")
     name.startsWith("watch_") || watched.contains(cls, name) || watchedAllClasses.contains(name)
   }
 
@@ -167,7 +167,7 @@ object SymbolTypes {
     override def toOut = "Unit"
   }
 
-  val any = SimpleType("Any")
+  val any = AnyType
   val number = SimpleType("Double")
   val boolean = SimpleType("Boolean")
   val string = SimpleType("String")
@@ -258,6 +258,8 @@ object SymbolTypes {
     r
   }
 
+  def mapFromArray(a: ArrayType): MapType = MapType(a.elem)
+
   // union: assignment target
   def typeUnion(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
     (tpe1, tpe2) match {
@@ -267,15 +269,25 @@ object SymbolTypes {
       case (AnyType, _) => AnyType
       case (t, NoType) => t
       case (NoType, t) => t
+      case (_: AnonymousClassType, c: ClassType) => c
+      case (c: ClassType, _: AnonymousClassType) => c
+      case (ObjectOrMap, c: ClassType) => c
+      case (c: ClassType, ObjectOrMap) => c
       case (c1: ClassType, c2: ClassType) =>
         classOps.commonBase(c1, c2)
       case (f1: FunctionType, f2: FunctionType) =>
         f1 union f2
       case (a1: ArrayType, a2: ArrayType) =>
         a1 union a2
+      case (a1: ArrayType, a2: MapType) =>
+        mapFromArray(a1) union a2 // what looks like array can be actually a map, as array access is possible on maps
+      case (a1: MapType, a2: ArrayType) =>
+        a1 union mapFromArray(a2)
       case (a1: MapType, a2: MapType) => a1 union a2
       case (ObjectOrMap, a: MapType) => a
       case (a: MapType, ObjectOrMap) => a
+      case (ObjectOrMap, a: ArrayType) => a
+      case (a: ArrayType, ObjectOrMap) => a
       case _ =>
         AnyType
     }

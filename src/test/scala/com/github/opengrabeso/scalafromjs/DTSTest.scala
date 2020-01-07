@@ -28,7 +28,6 @@ class DTSTest extends FunSuite with TestUtils with ProjectUtils {
         "trait CSI",
         "extends CSI",
         "object SNamespace",
-        "var sVarN: Double",
         "def sGenS(): String",
         "def sCompute(x: Double): Double"
       ).forbidden(
