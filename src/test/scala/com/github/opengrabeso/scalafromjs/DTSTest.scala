@@ -35,4 +35,25 @@ class DTSTest extends FunSuite with TestUtils with ProjectUtils {
     )
   }
 
+  test("d.ts enum conversion") {
+    val outCode = convertProject("enum.d.ts/input.js")
+    exec check ResultCheck(outCode)
+      .required(
+        "enum A",
+        "A0: A = 0",
+        "A1: A = 1",
+        "A2: A = 2",
+        "enum E",
+        "E0 = 0",
+        "E1 = 1",
+        "E2 = 2",
+        "var eVar: E",
+        "val F0 = 0",
+        "val F1 = 1",
+        "val F2 = 2",
+      ).forbidden(
+      "var E0","val E0", "var E1", "val E1"
+    )
+  }
+
 }

@@ -360,9 +360,9 @@ object ScalaOut {
         out.eol()
       }
 
-      def getSymbolType(symDef: SymId): Option[SymbolTypes.TypeDesc] = {
+      def getSymbolType(symDef: SymId): Option[(SymbolTypes.TypeDesc, Boolean)] = {
         //println(s"getSymbolType ${input.types.types}")
-        input.types.types.get(symDef).map(_.declType)
+        input.types.types.get(symDef).map(s => (s.declType, s.certain))
       }
 
       def outputDefinitions(isVal: Boolean, tn: Node.VariableDeclaration, types: Boolean = false) = {
@@ -416,11 +416,11 @@ object ScalaOut {
             case VarDef(s@Node.Identifier(Id(name)), MayBeNull(init), MayBeNull(vType)) =>
               outValVar(init.isDefined)
               //out("/*outputDefinitions 1*/")
-              val sType = getSymbolType(name).orElse(astType(vType))
+              val sType = getSymbolType(name).orElse(astType(vType).map(_ -> true))
               //out"/*Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType*/"
               //println(s"Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType")
               //println(getType(sym))
-              outputVarDef(s, init, sType, types)
+              outputVarDef(s, init, sType.map(_._1), types || sType.exists(_._2))
             case _ =>
               out"/* Unsupported var */ var ${node.id}"
               if (node.init != null) {
@@ -914,8 +914,8 @@ object ScalaOut {
         case tn: Node.CallExpression =>
           outputCall(tn.callee, tn.arguments)
         case Node.VariableDeclarator(s@Node.Identifier(Id(name)), MayBeNull(init), MayBeNull(vType)) =>
-          val sType = getSymbolType(name).orElse(astType(vType))
-          outputVarDef(s, init, sType, false)
+          val sType = getSymbolType(name).orElse(astType(vType).map(_ -> true))
+          outputVarDef(s, init, sType.map(_._1), sType.exists(_._2))
 
         case tn@Node.VariableDeclaration(decl, kind) =>
           outputDefinitions(kind == "const", tn)

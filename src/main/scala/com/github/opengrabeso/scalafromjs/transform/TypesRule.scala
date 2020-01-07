@@ -5,11 +5,11 @@ import com.github.opengrabeso.scalafromjs.ConvertProject._
 import com.github.opengrabeso.scalafromjs.esprima._
 import TypesRule._
 import com.github.opengrabeso.esprima.Node
+import com.github.opengrabeso.esprima.OrType
 import com.github.opengrabeso.esprima.Node.{ArrayType => _, FunctionType => _, _}
 import SymbolTypes._
-import com.github.opengrabeso.scalafromjs
 
-import scala.collection.mutable
+import scala.reflect.ClassTag
 import scala.util.Try
 
 /**
@@ -55,6 +55,8 @@ object TypesRule {
         case NamespaceDeclaration(Identifier(name), body) =>
           handleDeclaration(node, name)
         case ClassExpression(Identifier(name), params, body) =>
+          handleDeclaration(node, name)
+        case EnumDeclaration(Identifier(name), body) =>
           handleDeclaration(node, name)
 
         case `ast` => // enter the top level
@@ -121,6 +123,16 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
   val project = ConvertProject.loadControlFile(PathUtils.resolveSibling(root, types))
   // load the d.ts
   val dtsSymbols = loadSymbols(project.code)
+  val enumValues = {
+    dtsSymbols.values.collect {
+      case e: EnumDeclaration =>
+        e
+    }.flatMap { e =>
+      e.body.body.map { ev =>
+        ev.name.name -> e
+      }
+    }.toMap
+  }
 
   // we cannot use normal apply, as we need to be called at a specific stage
   def provideTypes(n: NodeExtended): NodeExtended = {
@@ -204,9 +216,46 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           }
         }
       }
+      def handleEnumValue(vd: VariableDeclarator): Boolean = {
+        vd match {
+          case VariableDeclarator(Identifier(name), Literal(OrType(value: Double), _), tpe) =>
+            dtsSymbols.get(name).exists {
+              case vd: VariableDeclaration =>
+                vd.declarations.exists {
+                  case VariableDeclarator(Identifier(name), _, Defined(TypeName(Identifier(tpe)))) =>
+                    // TODO: verify it is an enum
+                    // TODO: proper scoped type (source global, not JS global)
+                    val enumType = ClassType(SymbolMapId(tpe, (-1, -1)))
+                    types += context.findSymId(name) -> TypeInfo.both(enumType).copy(certain = true)
+                    true
+                  case _ =>
+                    false
+                }
+              case _ =>
+                false
+            } || enumValues.get(name).exists { e =>
+              // TODO: proper scoped type (source global, not JS global)
+              val enumType = ClassType(SymbolMapId(e.name.name, (-1, -1)))
+              types += context.findSymId(name) -> TypeInfo.both(enumType).copy(certain = true)
+              true
+            }
+          case _ =>
+            false
+        }
+      }
+
+      object Typed {
+        def unapply[T](v: T) = Some(v)
+      }
       def handleVar(node: Node, name: String) = {
         // the variable may correspond to a namespace
-        for (s <- dtsSymbols.get(name)) {
+        val isEnum = node match {
+          case v: VariableDeclaration =>
+            handleEnumValue(v.declarations.head)
+          case _ =>
+            false
+        }
+        if (!isEnum) for (s <- dtsSymbols.get(name)) {
           (s, node) match {
             case (v: VariableDeclaration, _) =>
               for {
