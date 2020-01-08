@@ -99,7 +99,7 @@ object TypesRule {
       case "number" => Some(SimpleType("Double"))
       case "string" => Some(SimpleType("String"))
       case "boolean" => Some(SimpleType("Boolean"))
-      case "any" => Some(AnyType)
+      case "any" => None // any is usually a placeholder for missing information
       case "void" => Some(NoType)
       case "this" => None // TODO: some better support for this type
       case _ => Some(ClassType(context.findSymId(name)))
