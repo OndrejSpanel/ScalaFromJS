@@ -30,15 +30,34 @@ object TypesRule {
     rules.foldLeft(n)((c, r) => r.transformEnums(c))
   }
 
+  def countTypes(node: Node): Int = {
+    var count = 0
+    node.walk {
+      case _: TypeAnnotation =>
+        count += 1
+        false
+      case _ =>
+        false
+    }
+    count
+  }
+
   def loadSymbols(code: String) = {
     // create a separate project for it, the result is the types only
     val ast = parse(code, true)
     // scan all global symbols, esp. exported ones
-    val symbols = Map.newBuilder[String, Node]
+    var symbols = Map.empty[String, Node]
 
     def handleExport() = false
-    def handleDeclaration(node: Node, name: String) = {
-      symbols += name -> node
+    def handleDeclaration(node: Node, name: String): Boolean = {
+      symbols.get(name).map { nodeOld =>
+        // if the symbol already exists, choose the more useful one
+        if (countTypes(node) > countTypes(nodeOld)) {
+          symbols += name -> node
+        }
+      }.getOrElse {
+        symbols += name -> node
+      }
       true
     }
     ast.walkWithScope {(node, context) =>
@@ -49,8 +68,7 @@ object TypesRule {
           handleExport()
         case _: ExportDefaultDeclaration =>
           handleExport()
-
-        case VarDecl(name, _, _) =>
+        case VarDecl(name, _, _) => // ignore variables without a type
           handleDeclaration(node, name)
         // find a corresponding global symbol in the d.ts types
         case FunctionDeclaration(Identifier(name), params, body, generator, ret) =>
@@ -73,7 +91,7 @@ object TypesRule {
       }
     }
 
-    symbols.result()
+    symbols
   }
 
   def typeFromIdentifierName(name: String)(context: symbols.ScopeContext): Option[TypeDesc] = {
@@ -224,12 +242,11 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       }
       def handleEnumValue(vd: VariableDeclarator): Boolean = {
         vd match {
-          case VariableDeclarator(Identifier(name), Literal(OrType(value: Double), _), tpe) =>
+          case VariableDeclarator(Identifier(name), Literal(OrType(_: Double), _), _) =>
             dtsSymbols.get(name).exists {
               case vd: VariableDeclaration =>
                 vd.declarations.exists {
-                  case VariableDeclarator(Identifier(name), _, Defined(TypeName(Identifier(tpe)))) =>
-                    // TODO: verify it is an enum
+                  case VariableDeclarator(Identifier(name), _, Defined(TypeName(Identifier(tpe)))) if enums.contains(tpe) =>
                     // TODO: proper scoped type (source global, not JS global)
                     val enumType = ClassType(SymbolMapId(tpe, (-1, -1)))
                     types += context.findSymId(name) -> TypeInfo.both(enumType).copy(certain = true)
@@ -250,9 +267,6 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         }
       }
 
-      object Typed {
-        def unapply[T](v: T) = Some(v)
-      }
       def handleVar(node: Node, name: String) = {
         // the variable may correspond to a namespace
         val isEnum = node match {
