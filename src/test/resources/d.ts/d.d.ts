@@ -1,4 +1,4 @@
-export class C {
+export class D {
     f(a: ArrayLike<string>);
 }
 
