@@ -8,7 +8,9 @@ import com.github.opengrabeso.esprima.Node
 import com.github.opengrabeso.esprima.OrType
 import com.github.opengrabeso.esprima.Node.{ArrayType => _, FunctionType => _, _}
 import SymbolTypes._
+import com.github.opengrabeso.scalafromjs.esprima.symbols.Id
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.Try
 
@@ -426,7 +428,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       node match {
         // convert top level objects which represent known enums
         case Node.VariableDeclarator(id@Identifier(name), oe: ObjectExpression, tpe) if transformer.context.scopes.size == 1 &&  enums.contains(name) =>
-          val enumValues = transformer.context.withScope(oe) {
+          val enumMembers = transformer.context.withScope(oe) {
             oe.properties.map {
               case p@Property("init", _: Node.Identifier, false, pvalue@Literal(OrType(_: Double), _), false, _) =>
                 val wrapValue = CallExpression(Identifier("Value"), Seq(pvalue)).withTokens(pvalue)
@@ -438,7 +440,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
             }
           }
           Node.VariableDeclarator(
-            id, ObjectExpression(enumValues).withTokens(oe), Node.TypeName(Node.Identifier("Enumeration").withTokens(oe))
+            id, ObjectExpression(enumMembers).withTokens(oe), Node.TypeName(Node.Identifier("Enumeration").withTokens(oe))
           ).copyLoc(node)
         case _ =>
           node
@@ -452,7 +454,74 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
   d.ts enum X {}; const X0: X; const X1: X + js var X0 = 0; var X1 = 1 => object X {val X0 = Value(0); val X1=Value(1)};val X0 = X.X0;val X1 = X.X1
   */
   def transformEnumValues(n: NodeExtended): NodeExtended = {
-    n
+    // gather all enum values declared in d.ts
+    val enumGlobalValues = dtsSymbols.filter {
+      case (_, VarDeclTyped(name, _, "const", Some(TypeName(Identifier(enumName))))) if enums.contains(enumName) =>
+        true
+      case _ =>
+        false
+    }
+    // transform each of them into a separate enum definition with one value
+    val values = mutable.ArrayBuffer.empty[(String, VariableDeclaration)]
+    n.top.walkWithScope {(node, ctx) =>
+      implicit val c = ctx
+      node match {
+        case vd@VarDeclTyped(name, Some(value@Literal(OrType(_: Double), _)), kind, _) =>
+          val id = Id(name)
+          val tpe = n.types.get(Some(id))
+          tpe.exists(_.declType match {
+            case ClassType(t) if enums.contains(t.name) && enumGlobalValues.contains(name) =>
+              values += t.name -> vd
+              true
+            case _ =>
+              false
+          })
+        case x =>
+          false
+      }
+    }
+    // merge all definitions of the same enum into one
+    val grouped = values.groupBy(_._1).map(x => x._1 -> x._2.map(_._2))
+    val firstValues = grouped.mapValues(_.head).map(_.swap)
+    val allValues = values.map(_.swap).toMap
+
+    val newBody = n.top.body.flatMap {
+      case node@(vd: VariableDeclaration) =>
+        // first value of each enum is transformed into an enum declaration
+        val first = firstValues.get(vd).map { t =>
+          val tEnumValues = grouped(t)
+          val wrappedValues = tEnumValues.map {
+            case vd@VarDeclTyped(name, Some(value@Literal(OrType(_: Double), _)), _, _) =>
+              val wrapValue = CallExpression(Identifier("Value"), Seq(value)).withTokens(value)
+              Property("init", Identifier(name).withTokens(vd), false, wrapValue, false, false).withTokens(vd)
+          }
+          VarDecl(
+            t, Some(ObjectExpression(wrappedValues).withTokens(vd)), "const", Some(Node.TypeName(Node.Identifier("Enumeration").withTokens(vd)))
+          )(node)
+        }
+
+        // all values including the first are transformed into value aliases
+        val dotValues = allValues.get(vd).map { t =>
+          vd match {
+            case vd@VarDeclTyped(name, _, _, _) =>
+              VarDecl(
+                name, Some(Dot(Identifier(t), Identifier(name)).withTokensDeep(vd)), "const", None
+              )(node)
+          }
+        }
+
+        if (first.nonEmpty || dotValues.nonEmpty) {
+          first.toList ++ dotValues
+        } else {
+          List(vd)
+        }
+
+      case node =>
+        List(node)
+    }
+    val ret = n.top.cloneNode()
+    ret.body = newBody
+    n.copy(top = ret)
   }
 
   def transformEnums(n: NodeExtended): NodeExtended = {
