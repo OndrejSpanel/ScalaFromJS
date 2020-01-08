@@ -23,6 +23,11 @@ object TypesRule {
     rules.foldLeft(n)((c, r) => r.provideTypes(c))
   }
 
+  def transformEnums(n: NodeExtended): NodeExtended = {
+    val rules = n.config.collectRules[TypesRule]
+    rules.foldLeft(n)((c, r) => r.transformEnums(c))
+  }
+
   def loadSymbols(code: String) = {
     // create a separate project for it, the result is the types only
     val ast = parse(code, true)
@@ -123,16 +128,15 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
   val project = ConvertProject.loadControlFile(PathUtils.resolveSibling(root, types))
   // load the d.ts
   val dtsSymbols = loadSymbols(project.code)
-  val enumValues = {
-    dtsSymbols.values.collect {
-      case e: EnumDeclaration =>
-        e
-    }.flatMap { e =>
-      e.body.body.map { ev =>
-        ev.name.name -> e
-      }
-    }.toMap
+  val enums = dtsSymbols.collect {
+    case (k, v: EnumDeclaration) =>
+      (k, v)
   }
+  val enumValues = enums.values.flatMap { e =>
+    e.body.body.map { ev =>
+      ev.name.name -> e
+    }
+  }.toMap
 
   // we cannot use normal apply, as we need to be called at a specific stage
   def provideTypes(n: NodeExtended): NodeExtended = {
@@ -354,5 +358,104 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       }
     }
     n.copy(types = n.types.copy(types = types))
+  }
+
+  def addDeclarations(ast: Node.Program, files: Seq[(String, String)]) = {
+    val classes = Classes.ClassListHarmony.fromAST(ast, innerClasses = false).classes.map { case (k, v) =>
+      k.name -> v._2
+    }
+    val objects = {
+      val objectBuilder = Map.newBuilder[String, ObjectExpression]
+      ast.walkWithScope { (node, ctx) =>
+        node match {
+          case Node.VariableDeclarator(Identifier(name), oe: ObjectExpression, _) =>
+            objectBuilder += name -> oe
+            false
+          case _ =>
+            false
+        }
+      }
+      objectBuilder.result()
+    }
+
+    val symbolsToInclude = project.items.values.zipWithIndex.map {case (item, itemIndex) =>
+      if (item.included) {
+        val itemRange = (project.offsets(itemIndex), project.offsets(itemIndex + 1))
+        // find code corresponding to the offset
+        val itemSymbols = dtsSymbols.filter { case (s, node) =>
+          // check if node is in the proper range
+          node.range._1 >= itemRange._1 && node.range._2 <= itemRange._2
+        }
+        // any class which does not have a corresponding js definition should be included
+        // we have toplevel symbols only, match only by name, sym id not available for d.ts symbols
+        item.fullName -> itemSymbols.values.collect {
+          case cls@Node.ClassDeclaration(Identifier(name), _, _, _, kind) if !classes.contains(name) && kind != "namespace" =>
+            // namespace should always be represented as an object
+            cls
+          case e@Node.EnumDeclaration(Identifier(name), _) if !objects.contains(name) =>
+            e
+        }
+      } else {
+        item.fullName -> Nil
+      }
+    }.toMap
+
+    // now output those symbols as a prefix for the file
+    files.map { case (name, code) =>
+      // match js to d.ts
+      val dtsFromJS = name.replaceAll(".js$", ".d.ts")
+      val symbolsOut = for {
+        symbols <- symbolsToInclude.get(dtsFromJS).toSeq // some d.ts files may contain no symbols at all
+        c <- symbols
+      } yield {
+        ScalaOut.outputNode(c) // simple output, no context, no config, no types
+      }
+      val symbolsCode = symbolsOut.mkString("\n")
+      name -> (symbolsCode + code)
+    }
+
+  }
+
+  /*
+  Transform enums represented in JS as objects:
+  d.ts enum X {X0, X1} + js object X {X0: 0, X1: 1} => object X {val X0 = Value(0); val X1=Value(1)}
+  */
+  def transformEnumObjects(n: NodeExtended): NodeExtended = {
+
+    val ret = n.top.transformAfter { (node, transformer) =>
+      node match {
+        // convert top level objects which represent known enums
+        case Node.VariableDeclarator(id@Identifier(name), oe: ObjectExpression, tpe) if transformer.context.scopes.size == 1 &&  enums.contains(name) =>
+          val enumValues = transformer.context.withScope(oe) {
+            oe.properties.map {
+              case p@Property("init", _: Node.Identifier, false, pvalue@Literal(OrType(_: Double), _), false, _) =>
+                val wrapValue = CallExpression(Identifier("Value"), Seq(pvalue)).withTokens(pvalue)
+                val cloned = p.cloneNode()
+                cloned.value = wrapValue
+                cloned
+              case x =>
+                x
+            }
+          }
+          Node.VariableDeclarator(
+            id, ObjectExpression(enumValues).withTokens(oe), Node.TypeName(Node.Identifier("Enumeration").withTokens(oe))
+          ).copyLoc(node)
+        case _ =>
+          node
+      }
+    }
+    n.copy(top = ret)
+  }
+
+  /*
+  Transform enums represented in JS as values:
+  d.ts enum X {}; const X0: X; const X1: X + js var X0 = 0; var X1 = 1 => object X {val X0 = Value(0); val X1=Value(1)};val X0 = X.X0;val X1 = X.X1
+  */
+  def transformEnumValues(n: NodeExtended): NodeExtended = {
+    n
+  }
+
+  def transformEnums(n: NodeExtended): NodeExtended = {
+    transformEnumValues(transformEnumObjects(n))
   }
 }

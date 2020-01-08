@@ -56,7 +56,6 @@ class DTSTest extends FunSuite with TestUtils with ProjectUtils {
         "val F2 = 2",
       ).forbidden(
       "F0:", "F1:", "F2:",
-      "var E0", "var E1", "var E2",
       "E0 = 0", "E1 = 1", "E2 = 2",
       )
   }

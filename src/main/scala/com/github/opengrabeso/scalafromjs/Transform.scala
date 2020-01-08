@@ -908,6 +908,7 @@ object Transform {
       'types -> TypesRule.transform _,
       'readTypes -> ReadTypes.apply _,
       'multipass -> InferTypes.multipass _,
+      'enums -> TypesRule.transformEnums _,
       'removeTrailingBreak -> onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       'removeTrailingReturn -> onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
       'inlineConstructorVars -> Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred

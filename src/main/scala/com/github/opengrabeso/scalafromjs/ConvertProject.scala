@@ -558,45 +558,8 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
     def addDeclarations(n: NodeExtended, outFiles: Seq[(String, String)]): Seq[(String, String)] = {
       // for each file find declarations which belong to an accompanying d.ts and and add them
       val rules = n.config.collectRules[transform.TypesRule]
-      val classes = Classes.ClassListHarmony.fromAST(n.top, innerClasses = false).classes.map { case (k, v) =>
-        k.name -> v._2
-      }
       rules.foldLeft(outFiles) { (files, r) =>
-        val symbolsToInclude = r.project.items.values.zipWithIndex.map {case (item, itemIndex) =>
-          if (item.included) {
-            val itemRange = (r.project.offsets(itemIndex), r.project.offsets(itemIndex + 1))
-            // find code corresponding to the offset
-            val itemSymbols = r.dtsSymbols.filter { case (s, node) =>
-              // check if node is in the proper range
-              node.range._1 >= itemRange._1 && node.range._2 <= itemRange._2
-            }
-            // any class which does not have a corresponding js definition should be included
-            // we have toplevel symbols only, match only by name, sym id not available for d.ts symbols
-            item.fullName -> itemSymbols.values.collect {
-              case cls@Node.ClassDeclaration(Node.Identifier(name), _, _, _, kind) if !classes.contains(name) && kind != "namespace" =>
-                // namespace should always be represented as an object
-                cls
-              case e: Node.EnumDeclaration =>
-                e
-            }
-          } else {
-            item.fullName -> Nil
-          }
-        }.toMap
-
-        // now output those symbols as a prefix for the file
-        files.map { case (name, code) =>
-          // match js to d.ts
-          val dtsFromJS = name.replaceAll(".js$", ".d.ts")
-          val symbolsOut = for {
-            symbols <- symbolsToInclude.get(dtsFromJS).toSeq // some d.ts files may contain no symbols at all
-            c <- symbols
-          } yield {
-            ScalaOut.outputNode(c) // simple output, no context, no config, no types
-          }
-          val symbolsCode = symbolsOut.mkString("\n")
-          name -> (symbolsCode + code)
-        }
+        r.addDeclarations(n.top, files)
       }
 
     }

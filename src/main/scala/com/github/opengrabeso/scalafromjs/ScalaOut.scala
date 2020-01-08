@@ -170,6 +170,8 @@ object ScalaOut {
             out"/*${sid.fold((-1,-1))(_.sourcePos)}*/"
             out"/*${input.types.get(sid)}*/"
           }
+        case t: SymbolTypes.TypeDesc =>
+          output(t.toOut)
         case n: Node.Node =>
           nodeToOut(n)
         case null =>
@@ -376,16 +378,24 @@ object ScalaOut {
           context.scanSymbols(node)
           node match {
 
-            case Node.VariableDeclarator(name: Node.Identifier, oe@OObject(props), _) if props.nonEmpty && isVal =>
-              // special case handling for isResource marked object (see readFileAsJs)
+            case Node.VariableDeclarator(name: Node.Identifier, oe@OObject(props), MayBeNull(tpe)) if props.nonEmpty && isVal =>
               val propNames = props.map(propertyName)
               //println(s"propNames $propNames")
               val markerKey = "isResource"
               context.withScope(oe) {
-                if (propNames.toSet == Set("value", markerKey)) {
+                if (propNames.toSet == Set("value", markerKey)) { // special case handling for isResource marked object (see readFileAsJs)
                   out"object $name extends Resource {\n"
                   out.indent()
                   for (elem <- props if propertyName(elem) != markerKey) nodeToOut(elem)
+                  out.unindent()
+                  out("}\n")
+                } else if (tpe.isDefined) { // special handling for enums
+                  out"object $name"
+                  val parent = astType(tpe)
+                  parent.foreach(p => out" extends $p")
+                  out" {\n"
+                  out.indent()
+                  for (elem <- props) nodeToOut(elem)
                   out.unindent()
                   out("}\n")
                 } else {
