@@ -70,13 +70,19 @@ object SymbolTypes {
     override def typeOnInit = false
     override def knownItems = 0
   }
+
+  // when any of the following types is used as a global class, it probably means a failing to convert a TS type
+  val forbiddenGlobalTypes = Set("number", "boolean", "string", "void", "any", "this")
+
   case class SimpleType(name: String) extends TypeDesc {
+    assert(!forbiddenGlobalTypes.contains(name))
     override def toString = name
     override def toOut = name
 
     override def knownItems = 1
   }
   case class ClassType(name: SymbolMapId) extends TypeDesc {
+    assert(name.sourcePos != (-1, -1) || !forbiddenGlobalTypes.contains(name.name))
     override def toString = name.toString
     override def toOut = name.name
 
@@ -275,6 +281,10 @@ object SymbolTypes {
       case (c: ClassType, ObjectOrMap) => c
       case (c1: ClassType, c2: ClassType) =>
         classOps.commonBase(c1, c2)
+      case (c: ClassType, SimpleType("Double")) =>
+        c // TODO: detect if c is enum and return AnyType if it is not
+      case (SimpleType("Double"), c: ClassType) =>
+        c // TODO: detect if c is enum and return AnyType if it is not
       case (f1: FunctionType, f2: FunctionType) =>
         f1 union f2
       case (a1: ArrayType, a2: ArrayType) =>
