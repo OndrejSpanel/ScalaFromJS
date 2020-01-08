@@ -4,9 +4,11 @@ const A2 = 2;
 
 var aVar;
 
-var E0 = 0;
-var E1 = 1;
-const E2 = 2;
+var E = {
+    E0: 0,
+    E1: 1,
+    E2: 2,
+};
 
 var eVar;
 

@@ -40,20 +40,38 @@ class DTSTest extends FunSuite with TestUtils with ProjectUtils {
     exec check ResultCheck(outCode)
       .required(
         "object A",
-        "A0: A = 0",
-        "A1: A = 1",
-        "A2: A = 2",
+        "A0 = Value(0)",
+        "A1 = Value(1)",
+        "A2 = Value(2)",
+        "val A0 = A.A0",
+        "val A1 = A.A1",
+        "val A2 = A.A2",
         "object E",
-        "E0: E = 0",
-        "E1: E = 1",
-        "E2: E = 2",
+        "E0 = Value(0)",
+        "E1 = Value(1)",
+        "E2 = Value(2)",
         "var eVar: E",
         "val F0 = 0",
         "val F1 = 1",
         "val F2 = 2",
       ).forbidden(
-      "F0:", "F1:", "F2:"
+      "F0:", "F1:", "F2:",
+      "var E0", "var E1", "var E2",
+      "E0 = 0", "E1 = 1", "E2 = 2",
       )
   }
 
+  test("d.ts base class inference") {
+    pendingUntilFixed {
+      val outCode = convertProject("base.d.ts/input.js")
+      exec check ResultCheck(outCode)
+        .required(
+          "var i1: I1",
+          "var i2: I2",
+        ).forbidden(
+        "var i1: A", "var i1: B", "var i1: Any",
+        "var i2: A", "var i2: B", "var i2: Any"
+      )
+    }
+  }
 }
