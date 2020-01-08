@@ -866,13 +866,22 @@ object ScalaOut {
           out" $op "
           nodeToOut(right)
         case Node.BinaryExpression(op, left, right) =>
+          def typeNameFromExpression(ex: Node.Expression) = {
+            val tpe = right match {
+              case Node.Identifier(rTypeName) =>
+                transform.TypesRule.typeFromIdentifierName(rTypeName)(context).map(_.toOut)
+              case _ =>
+                None
+            }
+            tpe.getOrElse(right.toString)
+          }
           op match {
             case `instanceof` =>
               termToOut(left)
-              out".isInstanceOf[$right]"
+              out".isInstanceOf[${typeNameFromExpression(right)}]"
             case `asinstanceof` | "as" =>
               termToOut(left)
-              out".asInstanceOf[$right]"
+              out".asInstanceOf[${typeNameFromExpression(right)}]"
             case _ =>
               outputBinaryArgument(left, op)
               out" $op "
