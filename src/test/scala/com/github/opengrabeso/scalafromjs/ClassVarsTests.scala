@@ -425,5 +425,77 @@ class ClassVarsTests extends FunSuite with TestUtils {
   }
 
 
+  test("Members should be declared in the order of appearance") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      class X {
+        constructor() {
+          this.a0 = 0;
+          this.a1 = 0;
+          this.a2 = 0;
+          this.ff = 0;
+          this.xx = 0;
 
+        }
+        f() {
+          this.ff = 0;
+        }
+        g() {
+          this.gg = 0;
+        }
+        h() {
+          this.hh = 0;
+        }
+      }
+      """).requiredInOrder(
+      "var a0",
+      "var a1",
+      "var a2",
+      "var ff",
+      "var xx",
+      "var gg",
+      "var hh",
+    )
+
+  }
+
+  test("Members extracted from exported functions should be declared in the order of appearance") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      class X {
+        constructor() {
+          var a0;
+          var a1;
+          var a2;
+          var a3;
+          var a4;
+          this.cf = function() {
+            a0 = 0;
+            a1 = 0;
+            a2 = 0;
+            a3 = 0;
+            a4 = 0;
+          }
+        }
+        f() {
+          this.ff = 0
+        }
+        g() {
+          this.gg = 0
+        }
+        h() {
+          this.hh = 0
+        }
+      }
+      """).requiredInOrder(
+      "var a0",
+      "var a1",
+      "var a2",
+      "var a3",
+      "var a4",
+    )
+
+  }
 }

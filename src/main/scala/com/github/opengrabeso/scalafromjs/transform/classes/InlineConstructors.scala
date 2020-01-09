@@ -13,6 +13,8 @@ import VariableUtils._
 import com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
 
+import scala.collection.mutable
+
 /*
 Inline any suitable code from a real JS constructor function into the inline body method
 
@@ -200,7 +202,7 @@ object InlineConstructors {
     val functions = detectPrivateFunctions(n)
 
     // check if they are references from any private function
-    var privates = Set.empty[SymId]
+    val privates = mutable.LinkedHashSet.empty[SymId]
 
     n.walkWithScope(ctx) { (node, context) =>
       implicit val ctx = context
