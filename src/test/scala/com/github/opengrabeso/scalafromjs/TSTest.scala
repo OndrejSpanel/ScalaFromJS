@@ -111,6 +111,7 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
           }
       """
     ).required(
+      "trait D[T]",
       "nFunString: (String, String) => String",
       // TODO: "nFunComplex: (Double, D[Double) => D[String]",
     )

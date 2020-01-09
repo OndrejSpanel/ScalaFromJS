@@ -480,6 +480,20 @@ object ScalaOut {
         out(")")
       }
 
+      def outputTypeParameters(typeParameters: Node.TypeParameterList) = {
+        if (typeParameters != null) {
+          out("[")
+          for (t <- typeParameters.types) {
+            out"${t.name}"
+            if (t.constraint != null) {
+              out(" <: ")
+              out"{$t.constraint}"
+            }
+          }
+          out("]")
+        }
+      }
+
       def outputArgNames(argnames: Seq[Node.FunctionParameter], types: Boolean = false)(scopeNode: Node.Node) = {
         //noinspection ScalaUnusedSymbol
         val ctx = null // hide implicit context scope
@@ -1206,7 +1220,9 @@ object ScalaOut {
           out("}\n\n")
 
         case tn: Node.ClassDeclaration if tn.body == null =>
-          out"trait ${tn.id}\n\n"
+          out"trait ${tn.id}"
+          outputTypeParameters(tn.typeParameters)
+          out("\n\n")
 
         case tn: Node.NamespaceDeclaration =>
           out"object ${tn.id} {\n"
@@ -1254,6 +1270,8 @@ object ScalaOut {
               }
 
               out"$kind ${tn.id}"
+              outputTypeParameters(tn.typeParameters)
+
               val inlineBodyOpt = Classes.findInlineBody(tn)
 
               val constructor = Classes.findConstructor(tn).map(_.value)
