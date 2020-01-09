@@ -493,6 +493,16 @@ object ScalaOut {
           out("]")
         }
       }
+      def outputTypeArguments(typeArgs: Seq[Node.TypeAnnotation]) = {
+        if (typeArgs != null) {
+          out("[")
+          for (t <- typeArgs) {
+            val tt = transform.TypesRule.typeFromAST(t)(context).getOrElse(SymbolTypes.AnyType)
+            out"$tt"
+          }
+          out("]")
+        }
+      }
 
       def outputArgNames(argnames: Seq[Node.FunctionParameter], types: Boolean = false)(scopeNode: Node.Node) = {
         //noinspection ScalaUnusedSymbol
@@ -516,8 +526,9 @@ object ScalaOut {
         out(")")
       }
 
-      def outputCall(callee: Node.Node, arguments: Seq[Node.ArgumentListElement]) = {
+      def outputCall(callee: Node.Node, typeArgs: Seq[Node.TypeAnnotation], arguments: Seq[Node.ArgumentListElement]) = {
         nodeToOut(callee)
+        outputTypeArguments(typeArgs)
         out("(")
         outputNodes(arguments)(nodeToOut)
         out(")")
@@ -943,9 +954,9 @@ object ScalaOut {
           out("}")
         case tn: Node.NewExpression =>
           out("new ")
-          outputCall(tn.callee, tn.arguments)
+          outputCall(tn.callee, tn.typeArgs, tn.arguments)
         case tn: Node.CallExpression =>
-          outputCall(tn.callee, tn.arguments)
+          outputCall(tn.callee, null, tn.arguments)
         case Node.VariableDeclarator(s@Node.Identifier(Id(name)), MayBeNull(init), MayBeNull(vType)) =>
           val sType = getSymbolType(name).orElse(astType(vType).map(_ -> true))
           outputVarDef(s, init, sType.map(_._1), sType.exists(_._2))

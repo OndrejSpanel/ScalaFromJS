@@ -166,4 +166,41 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
       "def fun(dnp: Double, dsp: String): String"
     ).forbidden("Any")
   }
+
+  test("Support generic classes") {
+    pendingUntilFixed {
+      exec check ConversionCheckTypeScript(
+        //language=TypeScript
+        """
+            class C<T> {
+              member: T;
+              anyMember: any;
+              fun(): T {return this.anyMember;};
+            }
+
+            var cs = new C<string>();
+            var cn = new C<number>();
+            var fs;
+            var fn;
+            var ms;
+            var mn;
+            if (true) {
+              fs = cs.fun();
+              fn = cn.fun();
+              ms = cs.member;
+              mn = cn.member;
+            }
+
+        """
+      ).required(
+        "class C[T]",
+        "new C[String]",
+        "new C[Double]",
+        "var fs: String",
+        "var fn: Double",
+        "var ms: String",
+        "var mn: Double",
+      ).forbidden("Any")
+    }
+  }
 }
