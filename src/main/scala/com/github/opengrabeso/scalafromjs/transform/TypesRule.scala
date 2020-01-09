@@ -122,7 +122,9 @@ object TypesRule {
       case TypeName(Identifier(name)) =>
         typeFromIdentifierName(name)(context)
       case TypeReference(TypeName(Identifier(typeName)), genType) =>
-        typeFromIdentifierName(typeName)(context) // TODO: represent generics in TypeInfo
+        val typeNameId = context.findSymId(typeName)
+        val typePar = typeFromAST(genType)(context).getOrElse(AnyType)
+        Some(ClassTypeEx(typeNameId, Seq(typePar)))
       case Node.ArrayType(item) =>
         Some(ArrayType(typeFromAST(item)(context).getOrElse(AnyType)))
       case ObjectType(Seq(TypeMember(null, _, t))) => // object containing only index signature, like {[i: number]: t}
