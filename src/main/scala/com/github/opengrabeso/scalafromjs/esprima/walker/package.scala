@@ -27,7 +27,7 @@ package object walker {
           }
         case NullaryMethodType(resultType) if resultType <:< typeOf[Seq[Node]] =>
           Some[TermCallback]{(oMirror, callback) =>
-            oMirror.reflectField(term).get.asInstanceOf[Seq[Node]].foreach(callback)
+            Option(oMirror.reflectField(term).get).foreach(_.asInstanceOf[Seq[Node]].foreach(callback))
           }
         case NullaryMethodType(resultType) if resultType <:< typeOf[Array[_]] =>
           resultType.typeArgs match {
@@ -72,8 +72,10 @@ package object walker {
         case NullaryMethodType(resultType) if resultType <:< typeOf[Seq[Node]] =>
           Some[TermTransformerCallback]{(oMirror, callback) =>
             val termMirror = oMirror.reflectField(term)
-            val transformed = termMirror.get.asInstanceOf[Seq[Node]].map(callback)
-            termMirror set transformed
+            Option(termMirror.get).foreach { t =>
+              val transformed = t.asInstanceOf[Seq[Node]].map(callback)
+              termMirror set transformed
+            }
           }
         case NullaryMethodType(resultType) if resultType <:< typeOf[Array[_]] =>
           resultType.typeArgs match {
