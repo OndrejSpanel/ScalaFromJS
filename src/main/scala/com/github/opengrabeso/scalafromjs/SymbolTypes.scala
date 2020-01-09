@@ -81,14 +81,26 @@ object SymbolTypes {
 
     override def knownItems = 1
   }
-  case class ClassType(name: SymbolMapId) extends TypeDesc {
+  case class ClassTypeEx(name: SymbolMapId, typePars: Seq[TypeDesc] = Seq.empty) extends TypeDesc {
     assert(name.sourcePos != (-1, -1) || !forbiddenGlobalTypes.contains(name.name))
-    override def toString = name.toString
-    override def toOut = name.name
+    private def toSomething(x: TypeDesc => String) = {
+      if (typePars.isEmpty) {
+        name.name
+      } else {
+        name.name + typePars.map(x).mkString("[", ",", "]")
+      }
+    }
+    override def toString = toSomething(_.toString)
+    override def toOut = toSomething(_.toOut)
 
     override def knownItems = 1
 
     def isSafeReplacement(source: TypeDesc): Boolean = source == this
+  }
+  type ClassType = ClassTypeEx
+  object ClassType {
+    def apply(name: SymbolMapId): ClassTypeEx = new ClassTypeEx(name)
+    def unapply(arg: ClassTypeEx) = ClassTypeEx.unapply(arg).map(_._1)
   }
   case class AnonymousClassType(sourcePos: (Int, Int)) extends TypeDesc {
     override def toString = s"anonymous_${sourcePos._1}.${sourcePos._2}"

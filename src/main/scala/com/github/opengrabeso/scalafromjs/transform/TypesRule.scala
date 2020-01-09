@@ -121,8 +121,8 @@ object TypesRule {
         typeFromLiteral(raw)
       case TypeName(Identifier(name)) =>
         typeFromIdentifierName(name)(context)
-      case TypeReference(tpe, genType) =>
-        typeFromAST(tpe)(context) // TODO: represent generics in TypeInfo
+      case TypeReference(TypeName(Identifier(typeName)), genType) =>
+        typeFromIdentifierName(typeName)(context) // TODO: represent generics in TypeInfo
       case Node.ArrayType(item) =>
         Some(ArrayType(typeFromAST(item)(context).getOrElse(AnyType)))
       case ObjectType(Seq(TypeMember(null, _, t))) => // object containing only index signature, like {[i: number]: t}

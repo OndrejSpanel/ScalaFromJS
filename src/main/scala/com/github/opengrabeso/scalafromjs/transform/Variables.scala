@@ -603,12 +603,12 @@ object Variables {
     implicit object classOps extends ClassOps {
       def mostDerived(c1: ClassType, c2: ClassType) = {
         //println("mostDerived")
-        classInfo.mostDerived(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
+        classInfo.mostDerived(c1.name, c2.name).fold[TypeDesc](any)(ClassType.apply)
       }
 
       def commonBase(c1: ClassType, c2: ClassType) = {
         //println("commonBase")
-        classInfo.commonBase(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
+        classInfo.commonBase(c1.name, c2.name).fold[TypeDesc](any)(ClassType.apply)
       }
     }
 
