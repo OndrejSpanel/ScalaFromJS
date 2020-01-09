@@ -434,28 +434,18 @@ class ClassVarsTests extends FunSuite with TestUtils {
           this.a0 = 0;
           this.a1 = 0;
           this.a2 = 0;
-          this.ff = 0;
-          this.xx = 0;
-
-        }
-        f() {
-          this.ff = 0;
-        }
-        g() {
-          this.gg = 0;
-        }
-        h() {
-          this.hh = 0;
+          this.a3 = 0;
+          this.a4 = 0;
+          this.a5 = 0;
         }
       }
       """).requiredInOrder(
       "var a0",
       "var a1",
       "var a2",
-      "var ff",
-      "var xx",
-      "var gg",
-      "var hh",
+      "var a3",
+      "var a4",
+      "var a5",
     )
 
   }
