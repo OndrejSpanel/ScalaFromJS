@@ -409,7 +409,7 @@ package object classes {
         }
 
         def newClass(sym: Node.Identifier, base: Option[Node.Identifier], props: Seq[Node.ClassBodyElement], tokensFrom: Node.Node): Node.ClassDeclaration = {
-          val cls = new Node.ClassDeclaration(sym, base.orNull, Nil, Node.ClassBody(props).withTokens(tokensFrom), "class").withTokens(tokensFrom)
+          val cls = Node.ClassDeclaration(sym, base.orNull, Nil, Node.ClassBody(props).withTokens(tokensFrom), "class").withTokens(tokensFrom)
           cls.body.range = (
             sym.range._1 min tokensFrom.range._1,
             sym.range._2 max tokensFrom.range._2
