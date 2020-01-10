@@ -310,18 +310,24 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       def handleClass(node: ClassDeclaration, name: String) = {
         // process parent
         for {
-          ClassDeclaration(_, superClass, moreParents, Defined(b), kind) <- dtsSymbols.get(name)
+          ClassDeclarationEx(_, typePars, superClass, moreParents, Defined(b), kind) <- dtsSymbols.get(name)
           clsSym = context.findSymId(name)
           if !clsSym.isGlobal // global means not defined in the AST we are traversing
           clsNode <- classList.get(clsSym)
           clsId = symbols.ScopeContext.getNodeId(clsNode.body)
         } {
+          // TODO: avoid mutating original AST
           for (firstParent <- Option(superClass).orElse(moreParents.headOption)) {
-            // TODO: avoid mutating original AST
             // TODO: handle more parents
             if (node.superClass == null) {
               node.superClass = firstParent
             }
+          }
+
+          if (node.typeParameters != null && typePars != null) {
+            node.typeParameters.types ++= typePars.types
+          } else if (typePars != null) {
+            node.typeParameters = typePars.cloneNode()
           }
 
           for (member <- b.body) {

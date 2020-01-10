@@ -487,7 +487,7 @@ object ScalaOut {
             out"${t.name}"
             if (t.constraint != null) {
               out(" <: ")
-              out"{$t.constraint}"
+              out(transform.TypesRule.typeFromAST(t.constraint)(context).getOrElse(SymbolTypes.AnyType).toOut)
             }
           }
           out("]")
