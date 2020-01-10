@@ -834,6 +834,9 @@ object ScalaOut {
         //case tn: Node.Identifier => identifierToOut(out, tn.name)
         case tn: Node.Identifier =>
           out"$tn"
+        case Node.TypeAliasDeclaration(name, tpe) =>
+          val tt = astType(Some(tpe)).getOrElse(SymbolTypes.AnyType)
+          out"type $name = $tt"
         //identifierToOut(out, tn.name)
         case tn@ScalaNode.MemberTemplate(name, original, template) =>
 

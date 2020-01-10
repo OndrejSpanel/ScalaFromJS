@@ -115,16 +115,18 @@ object TypesRule {
     case _ => None
   }
 
-  def typeFromAST(tpe: TypeAnnotation)(context: symbols.ScopeContext): Option[TypeDesc] = {
+  def typeFromAST(tpe: TypeAnnotation)(implicit context: symbols.ScopeContext): Option[TypeDesc] = {
     tpe match {
       case LiteralType(Literal(_, raw)) =>
         typeFromLiteral(raw)
-      case TypeName(Identifier(name)) =>
+      case TypeName(Seq(Identifier(name))) =>
         typeFromIdentifierName(name)(context)
-      case TypeReference(TypeName(Identifier(typeName)), genType) =>
-        val typeNameId = context.findSymId(typeName)
+      case TypeName(names) =>
+        Some(ClassTypeEx(names.init.map(_.name), Id(names.last)))
+      case TypeReference(TypeName(names), genType) =>
+        val typeNameId = context.findSymId(names.last.name)
         val typePar = typeFromAST(genType)(context).getOrElse(AnyType)
-        Some(ClassTypeEx(typeNameId, Seq(typePar)))
+        Some(ClassTypeEx(names.init.map(_.name), typeNameId, Seq(typePar)))
       case Node.ArrayType(item) =>
         Some(ArrayType(typeFromAST(item)(context).getOrElse(AnyType)))
       case ObjectType(Seq(TypeMember(null, _, _, t))) => // object containing only index signature, like {[i: number]: t}
@@ -248,7 +250,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
             dtsSymbols.get(name).exists {
               case vd: VariableDeclaration =>
                 vd.declarations.exists {
-                  case VariableDeclarator(Identifier(name), _, Defined(TypeName(Identifier(tpe)))) if enums.contains(tpe) =>
+                  case VariableDeclarator(Identifier(name), _, Defined(TypeName(Seq(Identifier(tpe))))) if enums.contains(tpe) =>
                     // TODO: proper scoped type (source global, not JS global)
                     val enumType = ClassType(SymbolMapId(tpe, (-1, -1)))
                     types += context.findSymId(name) -> TypeInfo.both(enumType).copy(certain = true)
@@ -445,12 +447,11 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
   d.ts enum X {X0, X1} + js object X {X0: 0, X1: 1} => object X {val X0 = Value(0); val X1=Value(1)}
   */
   def transformEnumObjects(n: NodeExtended): NodeExtended = {
-
-    val ret = n.top.transformAfter { (node, transformer) =>
+    val newBody = n.top.body.flatMap { node =>
       node match {
         // convert top level objects which represent known enums
-        case Node.VariableDeclarator(id@Identifier(name), oe: ObjectExpression, tpe) if transformer.context.scopes.size == 1 &&  enums.contains(name) =>
-          val enumMembers = transformer.context.withScope(oe) {
+        case Node.VariableDeclaration(Seq(vd@Node.VariableDeclarator(id@Identifier(name), oe: ObjectExpression, tpe)), kind) if enums.contains(name) =>
+          val enumMembers = {
             oe.properties.map {
               case p@Property("init", _: Node.Identifier, false, pvalue@Literal(OrType(_: Double), _), false, _) =>
                 val wrapValue = CallExpression(Identifier("Value"), Seq(pvalue)).withTokens(pvalue)
@@ -462,13 +463,22 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                 x
             }
           }
-          Node.VariableDeclarator(
-            id, ObjectExpression(enumMembers).withTokens(oe), Node.TypeName(Node.Identifier("Enumeration").withTokens(oe))
-          ).copyLoc(node)
+          Seq(
+            Node.VariableDeclaration(
+              Seq(Node.VariableDeclarator(
+                id, ObjectExpression(enumMembers).withTokens(oe), Node.TypeName(Seq(Node.Identifier("Enumeration").withTokens(oe)))
+              ).copyLoc(vd)),
+              kind
+            ).copyLoc(node),
+            TypeAliasDeclaration(id, TypeName(Seq(id, Identifier("Value").copyLoc(id)))).copyLoc(vd)
+          )
         case _ =>
-          node
+          Seq(node)
       }
     }
+
+    val ret = n.top.cloneNode()
+    ret.body = newBody
     n.copy(top = ret)
   }
 
@@ -479,12 +489,12 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
   def transformEnumValues(n: NodeExtended): NodeExtended = {
     // gather all enum values declared in d.ts
     val enumGlobalValues = dtsSymbols.filter {
-      case (_, VarDeclTyped(name, _, "const", Some(TypeName(Identifier(enumName))))) if enums.contains(enumName) =>
+      case (_, VarDeclTyped(name, _, "const", Some(TypeName(Seq(Identifier(enumName)))))) if enums.contains(enumName) =>
         true
       case _ =>
         false
     }
-    // transform each of them into a separate enum definition with one value
+    // gather all enum values defined in js
     val values = mutable.ArrayBuffer.empty[(String, VariableDeclaration)]
     n.top.walkWithScope {(node, ctx) =>
       implicit val c = ctx
@@ -511,16 +521,19 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     val newBody = n.top.body.flatMap {
       case node@(vd: VariableDeclaration) =>
         // first value of each enum is transformed into an enum declaration
-        val first = firstValues.get(vd).map { t =>
+        val first = firstValues.get(vd).toSeq.flatMap { t =>
           val tEnumValues = grouped(t)
           val wrappedValues = tEnumValues.map {
             case vd@VarDeclTyped(name, Some(value@Literal(OrType(_: Double), _)), _, _) =>
               val wrapValue = CallExpression(Identifier("Value"), Seq(value)).withTokens(value)
               PropertyEx("init", Identifier(name).withTokens(vd), false, wrapValue, false, false, true).withTokens(vd)
           }
-          VarDecl(
-            t, Some(ObjectExpression(wrappedValues).withTokens(vd)), "const", Some(Node.TypeName(Node.Identifier("Enumeration").withTokens(vd)))
-          )(node)
+          Seq(
+            VarDecl(
+              t, Some(ObjectExpression(wrappedValues).withTokens(vd)), "const", Some(Node.TypeName(Seq(Identifier("Enumeration").withTokens(vd))))
+            )(node),
+            TypeAliasDeclaration(Identifier(t).withTokens(vd), TypeName(Seq(Identifier(t).withTokens(vd), Identifier("Value").withTokens(vd)))).withTokens(vd)
+          )
         }
 
         // all values including the first are transformed into value aliases
@@ -534,13 +547,13 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         }
 
         if (first.nonEmpty || dotValues.nonEmpty) {
-          first.toList ++ dotValues
+          first ++ dotValues
         } else {
-          List(vd)
+          Seq(vd)
         }
 
       case node =>
-        List(node)
+        Seq(node)
     }
     val ret = n.top.cloneNode()
     ret.body = newBody

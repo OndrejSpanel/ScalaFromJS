@@ -81,13 +81,14 @@ object SymbolTypes {
 
     override def knownItems = 1
   }
-  case class ClassTypeEx(name: SymbolMapId, typePars: Seq[TypeDesc] = Seq.empty) extends TypeDesc {
-    assert(name.sourcePos != (-1, -1) || !forbiddenGlobalTypes.contains(name.name))
+  case class ClassTypeEx(parents: Seq[String], name: SymbolMapId, typePars: Seq[TypeDesc] = Seq.empty) extends TypeDesc {
+    assert(parents.nonEmpty || name.sourcePos != (-1, -1) || !forbiddenGlobalTypes.contains(name.name))
     private def toSomething(x: TypeDesc => String) = {
+      val baseName = (parents :+ name.name).mkString(".")
       if (typePars.isEmpty) {
-        name.name
+        baseName
       } else {
-        name.name + typePars.map(x).mkString("[", ",", "]")
+        baseName + typePars.map(x).mkString("[", ",", "]")
       }
     }
     override def toString = toSomething(_.toString)
@@ -99,8 +100,8 @@ object SymbolTypes {
   }
   type ClassType = ClassTypeEx
   object ClassType {
-    def apply(name: SymbolMapId): ClassTypeEx = new ClassTypeEx(name)
-    def unapply(arg: ClassTypeEx) = ClassTypeEx.unapply(arg).map(_._1)
+    def apply(name: SymbolMapId): ClassTypeEx = new ClassTypeEx(Seq.empty, name)
+    def unapply(arg: ClassTypeEx) = ClassTypeEx.unapply(arg).map(_._2)
   }
   case class AnonymousClassType(sourcePos: (Int, Int)) extends TypeDesc {
     override def toString = s"anonymous_${sourcePos._1}.${sourcePos._2}"
