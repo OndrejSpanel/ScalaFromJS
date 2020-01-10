@@ -409,4 +409,43 @@ class TypeTests extends FunSuite with TestUtils {
       )
   }
 
+  test("Union types should be constructed as needed") {
+    exec check ConversionCheck(
+      """
+         var n = 0;
+         var s = "";
+         var b = false;
+         var a = [0, 1];
+         var o = {a: "A", b: "B"};
+         var sn;
+         var bn;
+         var snb;
+         var snbao;
+
+         if (true) {
+          sn = s;
+          sn = n;
+
+          bn = b;
+          bn = n;
+
+          snb = s;
+          snb = n;
+          snb = b;
+
+          snbao = s;
+          snbao = n;
+          snbao = b;
+          snbao = a;
+          snbao = o;
+         }
+      """
+    ).required(
+      "var sn: String | Double",
+      "var bn: Boolean | Double",
+      "var snb: String | Double | Boolean",
+      "var snbao: Any",
+    )
+  }
+
 }

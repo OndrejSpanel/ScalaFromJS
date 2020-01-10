@@ -176,6 +176,28 @@ object SymbolTypes {
 
     def intersect(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeIntersect, typeUnion)
   }
+
+  case class UnionType(types: Seq[TypeDesc]) extends TypeDesc {
+    override def knownItems = 1
+
+    override def toOut = types.map(_.toOut).mkString(" | ")
+    override def toString = types.map(_.toString).mkString(" | ")
+
+    override def depthComplexity = types.map(_.depthComplexity).max
+
+    def union(that: UnionType): TypeDesc = {
+      val tpe = types ++ that.types
+      if (tpe.size > 4) AnyType // when the union type is very long, represent it as AnyType instead
+      else UnionType(tpe)
+    }
+    def intersect(that: UnionType): TypeDesc = {
+      // TODO: try smart class intersection using common base
+      val tpe = types.intersect(that.types)
+      if (tpe.isEmpty) NoType
+      else if (tpe.size == 1) tpe.head
+      else UnionType(tpe)
+    }
+  }
   case object AnyType extends TypeDesc { // supertype of all
     override def toString = "Any"
     override def toOut = "Any"
@@ -184,6 +206,10 @@ object SymbolTypes {
   case object NoType extends TypeDesc { // subtype of all
     override def toString = "Unit"
     override def toOut = "Unit"
+  }
+  case object NullType extends TypeDesc {
+    override def toString = "Null"
+    override def toOut = "Null"
   }
 
   val any = AnyType
@@ -233,6 +259,11 @@ object SymbolTypes {
     def commonBase(c1: ClassType, c2: ClassType): TypeDesc = c2
   }
 
+  object ClassOpsUnion extends ClassOps {
+    def mostDerived(c1: ClassType, c2: ClassType) = NoType
+    def commonBase(c1: ClassType, c2: ClassType) = UnionType(Seq(c1, c2))
+  }
+
   // intersect: assignment source
   def typeIntersect(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
     object IsObject {
@@ -264,6 +295,12 @@ object SymbolTypes {
       case (a1: MapType, a2: MapType) =>
         //println(s"a1 intersect a2 $a1 $a2")
         a1 intersect a2
+      case (u1: UnionType, u2: UnionType) =>
+        u1 intersect u2
+      case (u: UnionType, t: TypeDesc) =>
+        u intersect UnionType(Seq(t))
+      case (t: TypeDesc, u: UnionType) =>
+        UnionType(Seq(t)) intersect u
       case (a: MapType, IsObject()) => a
       case (IsObject(), a: MapType) => a
       case (c1: ClassType, _) => // while technically incorrect, we always prefer a class type against a non-class one
@@ -311,6 +348,14 @@ object SymbolTypes {
       case (a: MapType, ObjectOrMap) => a
       case (ObjectOrMap, a: ArrayType) => a
       case (a: ArrayType, ObjectOrMap) => a
+      case (u1: UnionType, u2: UnionType) =>
+        u1 union u2
+      case (u: UnionType, t: TypeDesc) =>
+        u union UnionType(Seq(t))
+      case (t: TypeDesc, u: UnionType) =>
+        UnionType(Seq(t)) union u
+      case (a: TypeDesc, b: TypeDesc) =>
+        UnionType(Seq(a, b))
       case _ =>
         AnyType
     }

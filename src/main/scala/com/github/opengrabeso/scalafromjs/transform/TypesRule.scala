@@ -111,7 +111,7 @@ object TypesRule {
     case "true" | "false" => Some(SimpleType("Boolean"))
     case s if Try(s.toDouble).isSuccess || Try(s.toInt).isSuccess => Some(SimpleType("Double"))
     case s if s.head == '"' && s.last == '"' || s.head == '\'' && s.last == '\'' => Some(SimpleType("String"))
-    case "null" => None
+    case "null" => Some(NullType)
     case _ => None
   }
 
@@ -139,6 +139,14 @@ object TypesRule {
           Transform.typeFromPar(p).flatMap(typeFromAST(_)(context)).getOrElse(AnyType)
         }
         Some(FunctionType(retT, parsT.toArray[TypeDesc]))
+      case Node.UnionType(left, right) =>
+        val l = typeFromAST(left).getOrElse(AnyType)
+        val r = typeFromAST(right).getOrElse(AnyType)
+        def makeUnion(t: TypeDesc) = t match {
+          case u: SymbolTypes.UnionType => u
+          case _ => SymbolTypes.UnionType(Seq(t))
+        }
+        Some(SymbolTypes.UnionType(makeUnion(l).types ++ makeUnion(r).types))
       case _ =>
         None
     }

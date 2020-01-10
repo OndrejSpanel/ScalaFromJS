@@ -75,4 +75,13 @@ class DTSTest extends FunSuite with TestUtils with ProjectUtils {
       )
     }
   }
+
+  test("d.ts ArrayLike handling") {
+    val outCode = convertProject("arraylike.d.ts/input.js")
+    exec check ResultCheck(outCode)
+      .required(
+        "ArrayLike[Double]"
+      ).forbidden(
+      )
+  }
 }
