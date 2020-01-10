@@ -855,9 +855,9 @@ object ScalaOut {
           }
           out("\n")
 
-        case tn@ObjectKeyVal(key, value) =>
+        case Node.PropertyEx(kind, key, _, value, _, _, readOnly) =>
           out.eol()
-          outputMethod(tn.key, value, tn.kind, None,"var")
+          outputMethod(key, value, kind, None,if (readOnly) "val" else "var")
 
         //out"/*${nodeClassName(n)}*/"
         //case tn: Node.ObjectProperty =>

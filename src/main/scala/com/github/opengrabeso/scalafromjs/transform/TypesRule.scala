@@ -127,7 +127,7 @@ object TypesRule {
         Some(ClassTypeEx(typeNameId, Seq(typePar)))
       case Node.ArrayType(item) =>
         Some(ArrayType(typeFromAST(item)(context).getOrElse(AnyType)))
-      case ObjectType(Seq(TypeMember(null, _, t))) => // object containing only index signature, like {[i: number]: t}
+      case ObjectType(Seq(TypeMember(null, _, _, t))) => // object containing only index signature, like {[i: number]: t}
         typeFromAST(t)(context).map(MapType)
       case ObjectType(body) =>
         None // TODO: can be converted to structural typing
@@ -456,6 +456,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                 val wrapValue = CallExpression(Identifier("Value"), Seq(pvalue)).withTokens(pvalue)
                 val cloned = p.cloneNode()
                 cloned.value = wrapValue
+                cloned.readonly = true
                 cloned
               case x =>
                 x
@@ -515,7 +516,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           val wrappedValues = tEnumValues.map {
             case vd@VarDeclTyped(name, Some(value@Literal(OrType(_: Double), _)), _, _) =>
               val wrapValue = CallExpression(Identifier("Value"), Seq(value)).withTokens(value)
-              Property("init", Identifier(name).withTokens(vd), false, wrapValue, false, false).withTokens(vd)
+              PropertyEx("init", Identifier(name).withTokens(vd), false, wrapValue, false, false, true).withTokens(vd)
           }
           VarDecl(
             t, Some(ObjectExpression(wrappedValues).withTokens(vd)), "const", Some(Node.TypeName(Node.Identifier("Enumeration").withTokens(vd)))
