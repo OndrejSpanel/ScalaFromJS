@@ -400,8 +400,9 @@ object Transform {
     def typeInfoFromClassSym(classSym: SymbolDef, certain: Boolean = false): Option[TypeInfo] = {
       // is the symbol a class?
       classSym.filter(_.name == "<anonymous>").map { c =>
-        c._1
         TypeInfo.target(AnonymousClassType(c.sourcePos))
+      }.orElse {
+        classSym.filter(_ == SymId("Array", (-1, -1))).map(_ => TypeInfo.target(ArrayType(AnyType)))
       }.orElse {
         for {
           cls <- classSym
@@ -500,6 +501,9 @@ object Transform {
           case _ =>
             None
         }
+
+      case Node.CallExpression(expr Dot "join", Seq()) if (expressionType(expr).exists(_.declType.isInstanceOf[ArrayType])) =>
+        Some(TypeInfo.target(SimpleType("String")))
 
       // Array.isArray( name ) ? name : [name]
       case Node.ConditionalExpression(Node.CallExpression(Node.Identifier("Array") Dot "isArray",  Seq(isArrayArg)), exprTrue, exprFalse) =>

@@ -123,6 +123,9 @@ object TypesRule {
         typeFromIdentifierName(name)(context)
       case TypeName(names) =>
         Some(ClassTypeEx(names.init.map(_.name), Id(names.last)))
+      case TypeReference(TypeName(Seq(Identifier("Array"))), genType) =>
+        val typePar = typeFromAST(genType)(context).getOrElse(AnyType)
+        Some(ArrayType(typePar))
       case TypeReference(TypeName(names), genType) =>
         val typeNameId = context.findSymId(names.last.name)
         val typePar = typeFromAST(genType)(context).getOrElse(AnyType)
@@ -183,11 +186,11 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     ast.walkWithScope { (node, context) =>
       def getParameterTypes(dtsPars: Seq[FunctionParameter]) = {
         // match parameters by position, their names may differ
-        for {
-          FunctionParameterWithType(_, Defined(t), defValue, optional) <- dtsPars
-          tt = typeInfoFromAST(t)(context)
-        } yield {
-          tt
+        dtsPars.map {
+          case FunctionParameterWithType(_, Defined(t), defValue, optional) =>
+            typeInfoFromAST(t)(context)
+          case _ =>
+            None
         }
       }
 

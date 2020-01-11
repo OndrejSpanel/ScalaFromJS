@@ -72,7 +72,7 @@ object SymbolTypes {
   }
 
   // when any of the following types is used as a global class, it probably means a failing to convert a TS type
-  val forbiddenGlobalTypes = Set("number", "boolean", "string", "void", "any", "this")
+  val forbiddenGlobalTypes = Set("Array", "number", "boolean", "string", "void", "any", "this")
 
   case class SimpleType(name: String) extends TypeDesc {
     assert(!forbiddenGlobalTypes.contains(name))
@@ -179,14 +179,14 @@ object SymbolTypes {
 
   case class UnionType(types: Seq[TypeDesc]) extends TypeDesc {
     override def knownItems = 1
-
-    override def toOut = types.map(_.toOut).mkString(" | ")
+    // distinct because there may be e.g. several anonymous classes which are output as AnyRef
+    override def toOut = types.map(_.toOut).distinct.mkString(" | ")
     override def toString = types.map(_.toString).mkString(" | ")
 
     override def depthComplexity = types.map(_.depthComplexity).max
 
     def union(that: UnionType): TypeDesc = {
-      val tpe = types ++ that.types
+      val tpe = (types ++ that.types).distinct
       if (tpe.size > 4) AnyType // when the union type is very long, represent it as AnyType instead
       else UnionType(tpe)
     }
@@ -264,20 +264,20 @@ object SymbolTypes {
     def commonBase(c1: ClassType, c2: ClassType) = UnionType(Seq(c1, c2))
   }
 
-  // intersect: assignment source
-  def typeIntersect(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
-    object IsObject {
-      def unapply(t: TypeDesc) = {
-        t match {
-          case _: AnonymousClassType =>
-            true
-          case ObjectOrMap =>
-            true
-          case _ =>
-            false
-        }
+  object IsObject {
+    def unapply(t: TypeDesc) = {
+      t match {
+        case _: AnonymousClassType =>
+          true
+        case ObjectOrMap =>
+          true
+        case _ =>
+          false
       }
     }
+  }
+  // intersect: assignment source
+  def typeIntersect(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
     val r = (tpe1, tpe2) match {
       case _ if tpe1 == tpe2 =>
         tpe1
@@ -325,16 +325,14 @@ object SymbolTypes {
       case (AnyType, _) => AnyType
       case (t, NoType) => t
       case (NoType, t) => t
-      case (_: AnonymousClassType, c: ClassType) => c
-      case (c: ClassType, _: AnonymousClassType) => c
-      case (ObjectOrMap, c: ClassType) => c
-      case (c: ClassType, ObjectOrMap) => c
+      case (IsObject(), c: ClassType) => c
+      case (c: ClassType, IsObject()) => c
       case (c1: ClassType, c2: ClassType) =>
         classOps.commonBase(c1, c2)
       case (c: ClassType, SimpleType("Double")) =>
-        c // TODO: detect if c is enum and return AnyType if it is not
+        c // TODO: detect if c is enum and return AnyType or UnionType if it is not
       case (SimpleType("Double"), c: ClassType) =>
-        c // TODO: detect if c is enum and return AnyType if it is not
+        c // TODO: detect if c is enum and return AnyType or UnionType if it is not
       case (f1: FunctionType, f2: FunctionType) =>
         f1 union f2
       case (a1: ArrayType, a2: ArrayType) =>
@@ -344,8 +342,8 @@ object SymbolTypes {
       case (a1: MapType, a2: ArrayType) =>
         a1 union mapFromArray(a2)
       case (a1: MapType, a2: MapType) => a1 union a2
-      case (ObjectOrMap, a: MapType) => a
-      case (a: MapType, ObjectOrMap) => a
+      case (IsObject(), a: MapType) => a
+      case (a: MapType, IsObject()) => a
       case (ObjectOrMap, a: ArrayType) => a
       case (a: ArrayType, ObjectOrMap) => a
       case (u1: UnionType, u2: UnionType) =>
