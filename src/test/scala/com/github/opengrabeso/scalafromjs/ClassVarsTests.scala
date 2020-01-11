@@ -488,4 +488,32 @@ class ClassVarsTests extends FunSuite with TestUtils {
     )
 
   }
+
+  test("Members type should inferred from a derived class access") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      class B {
+        f(p){}
+        getM(){return this.m;}
+      }
+      class X extends B {
+        constructor(v) {super();
+          this.m = v;
+        }
+        f(p){}
+      }
+      var x = new X();
+      var b = new B();
+      x.f("a");
+      x.m = false;
+      """).requiredInOrder(
+      "class B",
+      "var m: Boolean",
+      "f(p: String)",
+      "class X",
+      "f(p: String)",
+    )
+
+  }
 }

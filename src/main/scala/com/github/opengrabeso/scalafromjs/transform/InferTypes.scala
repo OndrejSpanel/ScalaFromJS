@@ -132,7 +132,13 @@ object InferTypes {
       val tpe = tpeSrc.map(_.copy(certain = false)) // inferred type is never considered certain
       if (tpe.exists(_.known)) {
 
-        val id = idAccess
+        // search parents, we may be accessing an inherited member
+
+        val id = idAccess.flatMap { i =>
+          classInfo.classContains(i.cls, i.name).map { containedIn =>
+            i.copy(cls = containedIn)
+          }
+        }.orElse(idAccess)
 
         //println(s"Member type was $id: ${inferred.getMember(id)}")
 
