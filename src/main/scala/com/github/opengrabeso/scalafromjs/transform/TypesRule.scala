@@ -192,13 +192,37 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       }
 
       def handleParameterTypes(astPars: Seq[FunctionParameter], dtsPars: Seq[FunctionParameter])(scopeId: symbols.ScopeContext.ScopeId) = {
-        // match parameters by position, their names may differ
         val parNames = astPars.map(Transform.nameFromPar)
-        val parTypes = getParameterTypes(dtsPars)
-        for {
-          (Some(pjs), Some(tt)) <- parNames zip parTypes
-        } {
-          types += symbols.SymId(pjs, scopeId) -> tt
+        def inferParType(pjs: String, tt: TypeInfo) = {
+          val id = symbols.SymId(pjs, scopeId)
+          val log = watched(pjs)
+          if (log) {
+            println(s"Set from d.ts $id $tt")
+          }
+          types += id -> tt
+          tt
+        }
+        if (astPars.size == dtsPars.size) {
+          // match parameters by position, their names may differ
+          val parTypes = getParameterTypes(dtsPars)
+          for {
+            (pjs, tt) <- parNames zip parTypes
+          } yield {
+            pjs.flatMap(p => tt.map(t => inferParType(p, t)))
+          }
+        } else { // the signature is wrong, we need to guess
+          for {
+            pn <- parNames
+          } yield {
+            for {
+              pjs <- pn
+              pd <- dtsPars.find(p => Transform.nameFromPar(p).contains(pjs))
+              t <- Transform.typeFromPar(pd)
+              tt <- typeInfoFromAST(t)(context)
+            } yield {
+              inferParType(pjs, tt)
+            }
+          }
         }
       }
 
@@ -235,9 +259,8 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                     fun@AnyFun(astPars, astBody) <- Classes.findObjectMethod(oe, funName)
                     tt <- typeFromAST(ret)(context)
                   } {
-                    val parTypes = getParameterTypes(dtsPars)
-                    handleParameterTypes(astPars, dtsPars)(symbols.ScopeContext.getNodeId(fun))
-                    val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toArray[TypeDesc]
+                    val parTypes = handleParameterTypes(astPars, dtsPars)(symbols.ScopeContext.getNodeId(fun))
+                    val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toIndexedSeq
                     types += SymbolMapId(funName, astClsId) -> TypeInfo.both(FunctionType(tt, parTypesDesc)).copy(certain = true)
                   }
 
@@ -359,9 +382,8 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                   t = Option(ret).orElse(retFun)
                   tt = t.flatMap(typeFromAST(_)(context)).getOrElse(AnyType)
                 } {
-                  val parTypes = getParameterTypes(dtsPars)
-                  handleParameterTypes(astPars, dtsPars)(methodId)
-                  val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toArray[TypeDesc]
+                  val parTypes = handleParameterTypes(astPars, dtsPars)(methodId)
+                  val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toIndexedSeq
                   types += SymbolMapId(funName, clsId) -> TypeInfo.both(FunctionType(tt, parTypesDesc)).copy(certain = true)
                 }
 

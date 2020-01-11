@@ -84,4 +84,14 @@ class DTSTest extends FunSuite with TestUtils with ProjectUtils {
       ).forbidden(
       )
   }
+
+  test("d.ts mismatched and partial prototype handling") {
+    val outCode = convertProject("mismatch.d.ts/input.js")
+    exec check ResultCheck(outCode)
+      .required(
+        "a: Double", "d: String",
+        "x: Double", "z: Boolean",
+        "p0: Double", "p2: Boolean",
+      )
+  }
 }
