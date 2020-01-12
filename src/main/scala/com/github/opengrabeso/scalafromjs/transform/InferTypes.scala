@@ -524,7 +524,9 @@ object InferTypes {
           val rightT = expressionType(right, log)
 
 
-          if (log) println(s"Infer var $symId $leftT - $rightT `$node` $right")
+          if (log) {
+            println(s"Infer var $symId $leftT - $rightT `$node` $right")
+          }
           if (leftT != rightT) { // equal: nothing to infer (may be both None, or both same type)
             for (symInfo <- Some(new SymbolAccessSymbol(symDef))) {
               if (log) println(s"  Infer var: $symInfo = $rightT")

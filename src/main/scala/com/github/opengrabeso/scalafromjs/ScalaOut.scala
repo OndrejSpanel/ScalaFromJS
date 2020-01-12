@@ -165,7 +165,7 @@ object ScalaOut {
           //println("symbol")
           identifierToOut(output, s.name)
 
-          if (false) { // output symbol ids and types
+          if (false || SymbolTypes.watched(s.name)) { // output symbol ids and types
             val sid = symId(s.name)
             out"/*${sid.fold((-1,-1))(_.sourcePos)}*/"
             out"/*${input.types.get(sid)}*/"

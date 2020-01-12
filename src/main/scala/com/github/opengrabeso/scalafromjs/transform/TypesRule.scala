@@ -199,9 +199,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         def inferParType(pjs: String, tt: TypeInfo) = {
           val id = symbols.SymId(pjs, scopeId)
           val log = watched(pjs)
-          if (log) {
-            println(s"Set from d.ts $id $tt")
-          }
+          if (log) println(s"Set from d.ts $id $tt")
           types += id -> tt
           tt
         }
@@ -321,6 +319,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                 tt <- typeInfoFromAST(t)(context)
               } {
                 types += context.findSymId(name) -> tt
+                if (watched(name)) println(s"Set from d.ts ${context.findSymId(name)} $tt")
               }
             case (n: NamespaceDeclaration, vd@VarDeclTyped(varName, _, _, _)) =>
               val astVarId = context.findSymId(varName)
@@ -339,6 +338,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
             tt <- typeInfoFromAST(t)(context)
           } {
             types += context.findSymId(name) -> tt
+            if (watched(name)) println(s"Set from d.ts ${context.findSymId(name)} $tt")
           }
         }
         true
