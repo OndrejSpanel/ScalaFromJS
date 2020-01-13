@@ -727,6 +727,8 @@ object Variables {
     // the purpose of the construct it optimization. If the value is scalar, it makes no sense. Therefore if we see
     // a scalar (number or string) global, it is most likely a proper global
     def nonScalarInitializer(init: Node.Node): Boolean = init match {
+      case Node.Literal(null, _) =>
+        true
       case _: Node.TemplateLiteral =>
         false
       case Node.Literal(literal, _) =>
