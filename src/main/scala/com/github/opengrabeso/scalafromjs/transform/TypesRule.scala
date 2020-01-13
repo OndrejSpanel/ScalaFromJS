@@ -123,13 +123,13 @@ object TypesRule {
         typeFromIdentifierName(name)(context)
       case TypeName(names) =>
         Some(ClassTypeEx(names.init.map(_.name), Id(names.last)))
-      case TypeReference(TypeName(Seq(Identifier("Array"))), genType) =>
+      case TypeReference(TypeName(Seq(Identifier("Array"))), Seq(genType)) =>
         val typePar = typeFromAST(genType)(context).getOrElse(AnyType)
         Some(ArrayType(typePar))
       case TypeReference(TypeName(names), genType) =>
         val typeNameId = context.findSymId(names.last.name)
-        val typePar = typeFromAST(genType)(context).getOrElse(AnyType)
-        Some(ClassTypeEx(names.init.map(_.name), typeNameId, Seq(typePar)))
+        val typePar = genType.map(typeFromAST(_)(context).getOrElse(AnyType))
+        Some(ClassTypeEx(names.init.map(_.name), typeNameId, typePar))
       case Node.ArrayType(item) =>
         Some(ArrayType(typeFromAST(item)(context).getOrElse(AnyType)))
       case ObjectType(Seq(TypeMember(null, _, _, t))) => // object containing only index signature, like {[i: number]: t}
