@@ -516,4 +516,28 @@ class ClassVarsTests extends FunSuite with TestUtils {
     )
 
   }
+
+  test("Member variables should be distinguished from constructor local ones") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      function f(fp) {
+      }
+      function C(xp) {
+        var x = xp;
+        f(x);
+      }
+
+      C.prototype.f = function () {
+        this.x = false;
+      };
+
+      var c = new C("");
+      """).required(
+        "xp: String",
+        "x: Boolean",
+        "f(fp: String)",
+      )
+
+  }
 }

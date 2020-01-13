@@ -2,6 +2,7 @@ package com.github.opengrabeso.scalafromjs.esprima
 
 import com.github.opengrabeso.esprima.Node
 import Node._
+import com.github.opengrabeso.scalafromjs.Classes
 
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
@@ -46,11 +47,23 @@ package object symbols {
     def apply(name: Node.Identifier)(implicit context: ScopeContext): SymId = context.findSymId(name.name)
   }
 
+
   object ScopeContext {
     type ScopeId = (Int, Int)
+    def markAsClass(r: ScopeId): ScopeId = r.copy(_2 = r._2 + 1)
+
     def getNodeId(n: Node.Node): ScopeId = {
       assert(IsScope.unapply(n))
-      if (n.range != null) n.range
+      if (n.range != null) {
+        n match {
+          case cb: ClassBody =>
+            markAsClass(n.range)
+          case fe: FunctionExpression if fe.id != null && fe.id.name == Classes.inlineBodyName =>
+            markAsClass(n.range)
+          case _ =>
+            n.range
+        }
+      }
       else {
         throw new NoSuchElementException(s"Missing node id for $n")
       }

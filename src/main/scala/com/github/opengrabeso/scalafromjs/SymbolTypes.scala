@@ -11,7 +11,7 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("unrollLoops", "string", "vertexShader", "fragmentShader", "shader")
+    val watched = Set[String]("unrollLoops", "string", "vertexShader", "fragmentShader", "shader", "xp", "x")
     name.startsWith("watch_") || watched.contains(name)
   }
 
@@ -21,7 +21,7 @@ object SymbolTypes {
       ("WebGLProgram", "vertexShader"),("WebGLProgram", "fragmentShader")
     )
     val watchedAllClasses = Set[String](
-      "shader", "vertexShader", "fragmentShader"
+      "shader", "vertexShader", "fragmentShader", "gl", "xp", "x"
     )
     name.startsWith("watch_") || watched.contains(cls, name) || watchedAllClasses.contains(name)
   }

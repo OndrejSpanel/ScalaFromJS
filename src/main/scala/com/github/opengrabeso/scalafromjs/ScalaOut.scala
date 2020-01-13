@@ -168,7 +168,7 @@ object ScalaOut {
           if (false || SymbolTypes.watched(s.name)) { // output symbol ids and types
             val sid = symId(s.name)
             out"/*${sid.fold((-1,-1))(_.sourcePos)}*/"
-            out"/*${input.types.get(sid)}*/"
+            //out"/*${input.types.get(sid)}*/"
           }
         case t: SymbolTypes.TypeDesc =>
           output(t.toOut)
@@ -453,7 +453,11 @@ object ScalaOut {
 
       def outputArgType(n: Node.Identifier, init: Option[Node.Node], tpe: Option[Node.TypeAnnotation])(scopeNode: Node.Node) = {
         val scope = ScopeContext.getNodeId(scopeNode)
-        val typeDecl = input.types.get(Some(SymId(n.name, scope))).map(_.declType).orElse(astType(tpe)).getOrElse(SymbolTypes.AnyType)
+        val sid = SymId(n.name, scope)
+        val typeDecl = input.types.get(Some(sid)).map(_.declType).orElse(astType(tpe)).getOrElse(SymbolTypes.AnyType)
+        if (SymbolTypes.watched(sid.name)) { // output symbol ids and types
+          out"/*$sid*/"
+        }
         //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeDecl")
         out": ${typeDecl.toOut}"
         for (init <- init) {
@@ -473,7 +477,7 @@ object ScalaOut {
           if (!input.types.getHint(Some(SymId(sym.name, scopeId))).contains(IsConstructorParameter) && !sym.name.endsWith(parSuffix)) {
             out("var ")
           }
-          out"$sym"
+          out(identifier(sym.name))
           outputArgType(sym, init, Option(tpe))(scopeNode)
           dumpTrailingComments(n)
         }
@@ -941,10 +945,14 @@ object ScalaOut {
           out("(")
           nodeToOut(tn.property)
           out(")")
-        case tn: Dot =>
-          termToOut(tn.`object`)
+        case obj Dot name =>
+          termToOut(obj)
           out(".")
-          nodeToOut(tn.property)
+          out(identifier(name))
+        case Node.StaticMemberExpression(obj, prop) =>
+          termToOut(obj)
+          out(".")
+          nodeToOut(prop)
         //case tn: Node.PropAccess => outputUnknownNode(tn)
         case tn: Node.SequenceExpression =>
           out("{\n")

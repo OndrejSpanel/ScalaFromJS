@@ -100,22 +100,25 @@ object Classes {
   }
 
   def newMethod(k: String, args: Seq[Node.FunctionParameter], methodBody: Node.BlockStatement, tokensFrom: Node.Node, isStatic: Boolean = false): Node.MethodDefinition = {
+    val key = Node.Identifier(k).copyLoc(tokensFrom)
     Node.MethodDefinition(
-      key = Node.Identifier(k).copyLoc(tokensFrom),
+      key,
       null,
       false,
-      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false, null).withTokens(tokensFrom),
+      // pass key to FunctionExpression so that it can check for special cases (inlineBodyName)
+      Node.FunctionExpression(key, args, methodBody.copyLoc(tokensFrom), false, null).withTokens(tokensFrom),
       if (k == "constructor") "constructor" else "method",
       isStatic
     ).withTokens(tokensFrom)
   }
 
   def newProperty(kind: String, k: String, args: Seq[Node.FunctionParameter], methodBody: Node.BlockStatement, tokensFrom: Node.Node, isStatic: Boolean = false): Node.Property = {
+    val key = Node.Identifier(k).copyLoc(tokensFrom)
     Node.Property(
-      kind = kind,
-      key = Node.Identifier(k).copyLoc(tokensFrom),
+      kind,
+      key,
       false,
-      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false, null).withTokens(tokensFrom),
+      Node.FunctionExpression(key, args, methodBody.copyLoc(tokensFrom), false, null).withTokens(tokensFrom),
       false,
       false
     ).withTokens(tokensFrom)
@@ -246,7 +249,7 @@ object Classes {
     def getAnonymous(name: SymbolMapId): Option[Node.ObjectExpression] = anonymous.get(name)
 
     def classPos(name: SymbolMapId): (Int, Int) = {
-      classes.get(name).map(_._2.body.range).getOrElse((-1, -1))
+      classes.get(name).map(_._2.body.range).map(symbols.ScopeContext.markAsClass).getOrElse((-1, -1))
     }
 
   }

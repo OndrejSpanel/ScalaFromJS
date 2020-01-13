@@ -419,14 +419,13 @@ package object classes {
       }
 
       def classProperties(clazz: ClassDef): Seq[Node.ClassBodyElement] = {
-        object helper extends Helper(node)
-        import helper._
+        val helper = new Helper(node)
 
-        val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }.toSeq
-        val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.tokensFrom, v.args, v.body) }
-        val mappedSetters = clazz.setters.map { case (k, v) => newSetter(k, v.tokensFrom, v.args, v.body) }
-        val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value, false) }
-        val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
+        val mappedMembers = clazz.members.map { case (k, v) => helper.newMember(k, v) }.toSeq
+        val mappedGetters = clazz.getters.map { case (k, v) => helper.newGetter(k, v.tokensFrom, v.args, v.body) }
+        val mappedSetters = clazz.setters.map { case (k, v) => helper.newSetter(k, v.tokensFrom, v.args, v.body) }
+        val mappedValues = clazz.values.map { case (k, v) => helper.newValue(k, v.value, false) }
+        val mappedStatic = clazz.membersStatic.map { case (k, v) => helper.newMember(k, v, true) }
 
         (mappedGetters ++ mappedSetters ++ mappedValues ++ mappedMembers ++ mappedStatic).toSeq
       }

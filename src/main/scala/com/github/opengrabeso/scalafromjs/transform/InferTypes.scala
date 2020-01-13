@@ -173,7 +173,7 @@ object InferTypes {
               (!allTypes.t.locked || allTypes.t.getMember(id).forall(tp.isSafeReplacementOf)) // when locked, allow only unknown type replacement
             ) {
               if (id.exists(_.isWatched)) {
-                println(s"Watched member ${id.get} result $tp, type ${tpe.get}, was $oldType")
+                println(s"Watched member ${id.get} ${allTypes.t.symbolFromMember(id.get)} result $tp, type ${tpe.get}, was $oldType")
                 debug.foreach(s => println("  " + s()))
               }
               allTypes.t = allTypes addMember id -> tp
