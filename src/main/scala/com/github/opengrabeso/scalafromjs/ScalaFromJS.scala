@@ -5,9 +5,11 @@ import java.util.concurrent.{ConcurrentLinkedQueue, Semaphore}
 import java.util.prefs.Preferences
 
 import javax.swing.{SwingUtilities, UIManager}
+import org.fife.ui.rsyntaxtextarea.{RSyntaxTextArea, SyntaxConstants}
+import org.fife.ui.rtextarea.RTextScrollPane
 
 import scala.util.Try
-import scala.swing.{Action, BorderPanel, Component, Dimension, Label, MainFrame, Menu, MenuBar, MenuItem, Orientation, ScrollPane, SimpleSwingApplication, SplitPane, TextPane}
+import scala.swing.{Action, BorderPanel, Component, Dimension, Label, MainFrame, Menu, MenuBar, MenuItem, Orientation, ScrollPane, SimpleSwingApplication, SplitPane, TextArea, TextComponent, TextPane}
 import scala.swing.BorderPanel.Position._
 import scala.swing.event.ValueChanged
 
@@ -30,19 +32,35 @@ object ScalaFromJS extends SimpleSwingApplication {
 
     minimumSize = new Dimension(800, 600)
 
-    private def myTextPane(edit: Boolean): TextPane = new TextPane {
+    class MyTextArea(edit: Boolean) extends TextArea {
+      override lazy val peer: RSyntaxTextArea = new RSyntaxTextArea("", 40, 80) with SuperMixin
       minimumSize = new Dimension(300, 100)
       editable = edit
+
+      if (edit) {
+        peer.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_TYPESCRIPT)
+      } else {
+        peer.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SCALA)
+      }
+      peer.setHighlightSecondaryLanguages(false)
+      //peer.setCodeFoldingEnabled(true)
     }
+
+    class MyScrollPane(panel: TextComponent) extends ScrollPane(panel) {
+      override lazy val peer: RTextScrollPane = new RTextScrollPane(panel.peer, false) with SuperMixin
+    }
+
     private def mySplit(o: Orientation.Value, w: Double)(l: Component, r: Component): SplitPane = new SplitPane(o, l, r) {
       resizeWeight = w
     }
-    val result = myTextPane(false)
-    val input = myTextPane(true)
+    val result = new MyTextArea(false)
+    val input = new MyTextArea(true)
     val statusBar = new Label
 
+
+
     contents = new BorderPanel {
-      layout += mySplit(Orientation.Vertical, 0.5)(new ScrollPane(input), new ScrollPane(result)) -> Center
+      layout += mySplit(Orientation.Vertical, 0.5)(new MyScrollPane(input), new MyScrollPane(result)) -> Center
       layout += statusBar -> South
     }
 

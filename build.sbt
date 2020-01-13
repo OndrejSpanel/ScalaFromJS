@@ -21,3 +21,5 @@ libraryDependencies += "com.github.opengrabeso" %% "esprimascala" % "0.1.3-SNAPS
 libraryDependencies += "org.apache.commons" % "commons-text" % "1.2"
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "2.1.1"
+
+libraryDependencies += "com.fifesoft" % "rsyntaxtextarea" % "3.0.8"
