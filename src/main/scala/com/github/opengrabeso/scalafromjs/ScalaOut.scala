@@ -645,6 +645,8 @@ object ScalaOut {
           case Node.BinaryExpression(op, _, _) if OperatorPriorities.useParens(op, outer, right) =>
             // TODO: compare priorities
             out"($arg)"
+          case _: Node.IfStatement | _: Conditional =>
+            termToOut(arg)
           case _ =>
             out"$arg"
         }
