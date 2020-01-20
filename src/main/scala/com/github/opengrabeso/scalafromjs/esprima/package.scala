@@ -224,12 +224,14 @@ package object esprima extends NodeExt {
 
   object ParseOptions extends Parser.Options {
     range = true
+    loc = true // usefull to keep line formating where needed
     attachComment = true
     sourceType = "module" // to avoid "Unexpected token" with import statements - see https://github.com/jquery/esprima/issues/1273
     tolerant = true
   }
   object ParseOptionsTS extends Parser.Options {
     range = true
+    loc = true
     attachComment = true
     sourceType = "module" // to avoid "Unexpected token" with import statements - see https://github.com/jquery/esprima/issues/1273
     typescript = true

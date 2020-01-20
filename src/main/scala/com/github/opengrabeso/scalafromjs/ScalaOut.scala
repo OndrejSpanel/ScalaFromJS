@@ -440,11 +440,23 @@ object ScalaOut {
         }
       }
 
-      def outputNodes[T](ns: Seq[T])(outOne: T => Unit, delimiter: String = ", ") = {
+      def outputNodes[T <: Node.Node](ns: Seq[T], root: Option[Node.Node] = None)(outOne: T => Unit, delimiter: String = ", ") = {
+        // try to respect line boundaries as specified in the input
+        val firstLine = root.orElse(ns.headOption).flatMap(h => Option(h.loc)).map(_.start.line).getOrElse(0)
+        val lastLine = root.orElse(ns.headOption).flatMap(h => Option(h.loc)).map(_.end.line).getOrElse(0)
+        var currentLine = firstLine
         for ((arg, delim) <- markEnd(ns)) {
-          outOne(arg) + ": Any"
-          if (delim) out(delimiter)
+          val argLine = Option(arg.loc).map(_.start.line).getOrElse(currentLine)
+          if (root.isDefined && argLine > currentLine) {
+            out.eol()
+            currentLine = argLine
+          }
+          outOne(arg)
+          if (delim) {
+            out(delimiter)
+          }
         }
+        if (root.isDefined && lastLine > currentLine) out.eol()
       }
 
       def astType(vType: Option[Node.TypeAnnotation]): Option[SymbolTypes.TypeDesc] = {
@@ -628,10 +640,7 @@ object ScalaOut {
       }
 
       def outputBinaryArgument(arg: Node.Node, outer: String, right: Boolean = false) = {
-
-
         // non-associative need to be parenthesed when used on the right side
-
         arg match {
           case Node.BinaryExpression(op, _, _) if OperatorPriorities.useParens(op, outer, right) =>
             // TODO: compare priorities
@@ -888,7 +897,9 @@ object ScalaOut {
           }
         case tn: AArray =>
           out("Array(")
-          outputNodes(tn.elements)(nodeToOut)
+          out.indent()
+          outputNodes(tn.elements, Some(tn))(nodeToOut)
+          out.unindent()
           out(")")
         case tn: Node.ConditionalExpression =>
           out"if (${tn.test}) ${tn.consequent} else ${tn.alternate}"
