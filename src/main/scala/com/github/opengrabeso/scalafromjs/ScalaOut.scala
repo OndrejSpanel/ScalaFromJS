@@ -65,7 +65,7 @@ object ScalaOut {
     }
   }
 
-  abstract class Output extends ((String) => Unit) {
+  abstract class Output extends (String => Unit) {
     def out(x: String): Unit
 
     def appendLine(x: String): Unit = apply(x)
@@ -165,13 +165,17 @@ object ScalaOut {
           //println("symbol")
           identifierToOut(output, s.name)
 
-          if (false) { // output symbol ids and types
+          if (false || SymbolTypes.watched(s.name)) { // output symbol ids and types
             val sid = symId(s.name)
             out"/*${sid.fold((-1,-1))(_.sourcePos)}*/"
-            out"/*${input.types.get(sid)}*/"
+            //out"/*${input.types.get(sid)}*/"
           }
+        case t: SymbolTypes.TypeDesc =>
+          output(t.toOut)
         case n: Node.Node =>
           nodeToOut(n)
+        case null =>
+          output("??? /*null*/")
         case any =>
           output(any.toString)
       }
@@ -305,7 +309,7 @@ object ScalaOut {
     n match {
       case Node.BinaryExpression(op, _, _) =>
         op match {
-          case `instanceof` | `asinstanceof` =>
+          case `instanceof` | `asinstanceof` | "as" =>
             outNode(n)
           case _ =>
             outInParens(n)
@@ -358,9 +362,9 @@ object ScalaOut {
         out.eol()
       }
 
-      def getSymbolType(symDef: SymId): Option[SymbolTypes.TypeDesc] = {
+      def getSymbolType(symDef: SymId): Option[(SymbolTypes.TypeDesc, Boolean)] = {
         //println(s"getSymbolType ${input.types.types}")
-        input.types.types.get(symDef).map(_.declType)
+        input.types.types.get(symDef).map(s => (s.declType, s.certain))
       }
 
       def outputDefinitions(isVal: Boolean, tn: Node.VariableDeclaration, types: Boolean = false) = {
@@ -374,28 +378,38 @@ object ScalaOut {
           context.scanSymbols(node)
           node match {
 
-            case Node.VariableDeclarator(name: Node.Identifier, OObject(props)) if props.nonEmpty && isVal =>
-              // special case handling for isResource marked object (see readFileAsJs)
+            case Node.VariableDeclarator(name: Node.Identifier, oe@OObject(props), MayBeNull(tpe)) if props.nonEmpty && isVal =>
               val propNames = props.map(propertyName)
               //println(s"propNames $propNames")
               val markerKey = "isResource"
-              if (propNames.toSet == Set("value", markerKey)) {
-                out"object $name extends Resource {\n"
-                out.indent()
-                for (elem <- props if propertyName(elem) != markerKey) nodeToOut(elem)
-                out.unindent()
-                out("}\n")
-              } else {
-                out"object $name {\n"
-                out.indent()
-                for (elem <- props) nodeToOut(elem)
-                out.unindent()
-                out("}\n")
+              context.withScope(oe) {
+                if (propNames.toSet == Set("value", markerKey)) { // special case handling for isResource marked object (see readFileAsJs)
+                  out"object $name extends Resource {\n"
+                  out.indent()
+                  for (elem <- props if propertyName(elem) != markerKey) nodeToOut(elem)
+                  out.unindent()
+                  out("}\n")
+                } else if (tpe.isDefined) { // special handling for enums
+                  out"object $name"
+                  val parent = astType(tpe)
+                  parent.foreach(p => out" extends $p")
+                  out" {\n"
+                  out.indent()
+                  for (elem <- props) nodeToOut(elem)
+                  out.unindent()
+                  out("}\n")
+                } else {
+                  out"object $name {\n"
+                  out.indent()
+                  for (elem <- props) nodeToOut(elem)
+                  out.unindent()
+                  out("}\n")
+                }
               }
-            // empty object - might be a map instead
-            case v@Node.VariableDeclarator(s: Node.Identifier, OObject(Seq())) =>
+            case Node.VariableDeclarator(s: Node.Identifier, OObject(Seq()), MayBeNull(vType)) =>
+              // empty object - might be a map instead
               val sid = symId(s)
-              val tpe = input.types.get(sid).map(_.declType)
+              val tpe = input.types.get(sid).map(_.declType).orElse(astType(vType))
               //println(s"Var $name ($sid) type $tpe empty object")
               tpe match {
                 case Some(mType: SymbolTypes.MapType) =>
@@ -409,14 +423,14 @@ object ScalaOut {
                   outputVarDef(s, None, tpe, false)
               }
 
-            case v@VarDef(s@Node.Identifier(Id(name)), MayBeNull(init)) =>
+            case VarDef(s@Node.Identifier(Id(name)), MayBeNull(init), MayBeNull(vType)) =>
               outValVar(init.isDefined)
               //out("/*outputDefinitions 1*/")
-              val sType = getSymbolType(name)
+              val sType = getSymbolType(name).orElse(astType(vType).map(_ -> true))
               //out"/*Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType*/"
               //println(s"Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType")
               //println(getType(sym))
-              outputVarDef(s, init, sType, types)
+              outputVarDef(s, init, sType.map(_._1), types || sType.exists(_._2))
             case _ =>
               out"/* Unsupported var */ var ${node.id}"
               if (node.init != null) {
@@ -426,18 +440,38 @@ object ScalaOut {
         }
       }
 
-      def outputNodes[T](ns: Seq[T])(outOne: T => Unit, delimiter: String = ", ") = {
+      def outputNodes[T <: Node.Node](ns: Seq[T], root: Option[Node.Node] = None)(outOne: T => Unit, delimiter: String = ", ") = {
+        // try to respect line boundaries as specified in the input
+        val firstLine = root.orElse(ns.headOption).flatMap(h => Option(h.loc)).map(_.start.line).getOrElse(0)
+        val lastLine = root.orElse(ns.headOption).flatMap(h => Option(h.loc)).map(_.end.line).getOrElse(0)
+        var currentLine = firstLine
         for ((arg, delim) <- markEnd(ns)) {
-          outOne(arg) + ": Any"
-          if (delim) out(delimiter)
+          val argLine = Option(arg.loc).map(_.start.line).getOrElse(currentLine)
+          if (root.isDefined && argLine > currentLine) {
+            out.eol()
+            currentLine = argLine
+          }
+          outOne(arg)
+          if (delim) {
+            out(delimiter)
+          }
         }
+        if (root.isDefined && lastLine > currentLine) out.eol()
       }
 
-      def outputArgType(n: Node.Identifier, init: Option[Node.Node])(scopeNode: Node.Node) = {
+      def astType(vType: Option[Node.TypeAnnotation]): Option[SymbolTypes.TypeDesc] = {
+        vType.flatMap(transform.TypesRule.typeFromAST(_)(context))
+      }
+
+      def outputArgType(n: Node.Identifier, init: Option[Node.Node], tpe: Option[Node.TypeAnnotation])(scopeNode: Node.Node) = {
         val scope = ScopeContext.getNodeId(scopeNode)
-        val typeString = input.types.getAsScala(Some(SymId(n.name, scope)))
-        //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeString")
-        out": $typeString"
+        val sid = SymId(n.name, scope)
+        val typeDecl = input.types.get(Some(sid)).map(_.declType).orElse(astType(tpe)).getOrElse(SymbolTypes.AnyType)
+        if (SymbolTypes.watched(sid.name)) { // output symbol ids and types
+          out"/*$sid*/"
+        }
+        //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeDecl")
+        out": ${typeDecl.toOut}"
         for (init <- init) {
           out" = $init"
         }
@@ -450,16 +484,40 @@ object ScalaOut {
         out("(")
         outputNodes(argnames) { n =>
           dumpLeadingComments(n)
-          val (sym, init) = parameterName(n)
+          val (sym, tpe, init) = Transform.funArg(n)
           // parSuffix is still used for parameters which are modified
           if (!input.types.getHint(Some(SymId(sym.name, scopeId))).contains(IsConstructorParameter) && !sym.name.endsWith(parSuffix)) {
             out("var ")
           }
-          out"$sym"
-          outputArgType(sym, init)(scopeNode)
+          out(identifier(sym.name))
+          outputArgType(sym, init, Option(tpe))(scopeNode)
           dumpTrailingComments(n)
         }
         out(")")
+      }
+
+      def outputTypeParameters(typeParameters: Node.TypeParameterList) = {
+        if (typeParameters != null) {
+          out("[")
+          for (t <- typeParameters.types) {
+            out"${t.name}"
+            if (t.constraint != null) {
+              out(" <: ")
+              out(transform.TypesRule.typeFromAST(t.constraint)(context).getOrElse(SymbolTypes.AnyType).toOut)
+            }
+          }
+          out("]")
+        }
+      }
+      def outputTypeArguments(typeArgs: Seq[Node.TypeAnnotation]) = {
+        if (typeArgs != null) {
+          out("[")
+          for (t <- typeArgs) {
+            val tt = transform.TypesRule.typeFromAST(t)(context).getOrElse(SymbolTypes.AnyType)
+            out"$tt"
+          }
+          out("]")
+        }
       }
 
       def outputArgNames(argnames: Seq[Node.FunctionParameter], types: Boolean = false)(scopeNode: Node.Node) = {
@@ -468,10 +526,10 @@ object ScalaOut {
         out("(")
         outputNodes(argnames) { n =>
           dumpLeadingComments(n)
-          val (sym, init) = parameterName(n)
+          val (sym, MayBeNull(tpe), init) = Transform.funArg(n)
           out"$sym"
           if (types) {
-            outputArgType(sym, init)(scopeNode)
+            outputArgType(sym, init, tpe)(scopeNode)
           } else {
             val scope = ScopeContext.getNodeId(scopeNode)
             val sid = SymId(sym.name, scope)
@@ -484,37 +542,72 @@ object ScalaOut {
         out(")")
       }
 
-      def outputCall(callee: Node.Node, arguments: Seq[Node.ArgumentListElement]) = {
+      def outputCall(callee: Node.Node, typeArgs: Seq[Node.TypeAnnotation], arguments: Seq[Node.ArgumentListElement]) = {
         nodeToOut(callee)
+        outputTypeArguments(typeArgs)
         out("(")
         outputNodes(arguments)(nodeToOut)
         out(")")
       }
 
-      def outputMethod(key: Node.PropertyKey, value: Node.PropertyValue, kind: String, decl: String = "def") = {
+      def outputMethod(key: Node.PropertyKey, value: Node.PropertyValue, kind: String, tpe: Option[Node.TypeAnnotation], decl: String = "def") = {
+        val name = propertyKeyName(key)
+        val memberSymId = context.findClassScope.map {
+          case cls: Node.ClassDeclaration =>
+            SymId(name, ScopeContext.getNodeId(cls.body))
+          case oe: Node.ObjectExpression =>
+            SymId(name, ScopeContext.getNodeId(oe))
+        }
+
         if (kind == "value") {
-          val cls = findThisClass(context)
-          val name = propertyKeyName(key)
-          val memberSymId = cls.map(c => ScopeContext.getNodeId(c.body)).map(SymId(name, _))
           val sType = input.types.get(memberSymId)
-          sType.map(_.declType) match {
-            case Some(ret) =>
-              out"var $key: ${ret.toOut} = $value\n"
-            case _ =>
-              out"var $key = $value\n"
+          out"var $key"
+          sType.map(_.declType).orElse(astType(tpe)).foreach(t => out(": " + t.toOut))
+          if (value != null) {
+            out" = $value"
           }
+          out("\n")
         } else value match {
-          case f@Node.FunctionExpression(id, params, body, generator) =>
+          case f@Node.FunctionExpression(_, params, body, generator, MayBeNull(dType)) =>
             context.withScope(f) {
               val postfix = if (kind == "set") "_=" else ""
               out"def $key$postfix"
               if (kind != "get" || params.nonEmpty) {
                 outputArgNames(params, true)(value)
               }
-              out(" = ")
-              //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
-              context.withScope(body) {
-                blockBracedToOut(body)
+              def certainType(id: SymId) = {
+                if (kind == "set") Some(SymbolTypes.NoType) // setter always returns unit
+                else {
+                  val tpe = input.types.types.get(id)
+                  if (tpe.exists(_.certain)) {
+                    // unless it is a getter, tpe should be a function type
+                    (kind, tpe.map(_.declType)) match {
+                      case ("get", t) =>
+                        t
+                      case (_, Some(SymbolTypes.FunctionType(ret, _))) =>
+                        // Any is most often result of "this" type
+                        if (ret == SymbolTypes.AnyType) None // rather than outputing Any do not output anything
+                        else Some(ret)
+                      case _ =>
+                        None
+                    }
+                  } else {
+                    astType(dType)
+                  }
+                }
+              }
+              for {
+                id <- memberSymId
+                fType <- certainType(id)
+              } {
+                out": ${fType.toOut}"
+              }
+              if (body != null) {
+                out(" = ")
+                //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
+                context.withScope(body) {
+                  blockBracedToOut(body)
+                }
               }
               out("\n") // use this to better match Uglify.js based version output - this is not counted in NiceOutput.eolDone
               //out.eol()
@@ -536,22 +629,24 @@ object ScalaOut {
       def outputMethodNode(pm: Node.ClassBodyElement, decl: String = "def", eol: Boolean = true) = {
         if (eol) out.eol()
         pm match {
+          case Node.MethodDefinition(null, MayBeNull(tpe), _, null, _, _) =>
+            // probably IndexSignature - we cannot output that in Scala
+            out"/* IndexSignature ${astType(tpe).getOrElse(SymbolTypes.AnyType).toOut} */\n"
           case p: Node.MethodDefinition =>
-            outputMethod(p.key, p.value, p.kind, decl)
+            outputMethod(p.key, p.value, p.kind, Option(p.`type`), decl)
           case _ =>
             nodeToOut(pm)
         }
       }
 
       def outputBinaryArgument(arg: Node.Node, outer: String, right: Boolean = false) = {
-
-
         // non-associative need to be parenthesed when used on the right side
-
         arg match {
-          case a@Node.BinaryExpression(op, _, _) if OperatorPriorities.useParens(op, outer, right) =>
+          case Node.BinaryExpression(op, _, _) if OperatorPriorities.useParens(op, outer, right) =>
             // TODO: compare priorities
             out"($arg)"
+          case _: Node.IfStatement | _: Conditional =>
+            termToOut(arg)
           case _ =>
             out"$arg"
         }
@@ -754,6 +849,9 @@ object ScalaOut {
         //case tn: Node.Identifier => identifierToOut(out, tn.name)
         case tn: Node.Identifier =>
           out"$tn"
+        case Node.TypeAliasDeclaration(name, tpe) =>
+          val tt = astType(Some(tpe)).getOrElse(SymbolTypes.AnyType)
+          out"type $name = $tt"
         //identifierToOut(out, tn.name)
         case tn@ScalaNode.MemberTemplate(name, original, template) =>
 
@@ -775,16 +873,16 @@ object ScalaOut {
           }
           out("\n")
 
-        case tn@ObjectKeyVal(key, value) =>
+        case Node.PropertyEx(kind, key, _, value, _, _, readOnly) =>
           out.eol()
-          outputMethod(tn.key, value, tn.kind, "var")
+          outputMethod(key, value, kind, None,if (readOnly) "val" else "var")
 
         //out"/*${nodeClassName(n)}*/"
         //case tn: Node.ObjectProperty =>
         case tn: Node.MethodDefinition =>
           //out"/*${nodeClassName(n)}*/"
           out.eol()
-          outputMethod(tn.key, tn.value, tn.kind)
+          outputMethod(tn.key, tn.value, tn.kind, Option(tn.`type`))
         case tn: OObject =>
           if (tn.properties.isEmpty) {
             out("new {}")
@@ -801,7 +899,9 @@ object ScalaOut {
           }
         case tn: AArray =>
           out("Array(")
-          outputNodes(tn.elements)(nodeToOut)
+          out.indent()
+          outputNodes(tn.elements, Some(tn))(nodeToOut)
+          out.unindent()
           out(")")
         case tn: Node.ConditionalExpression =>
           out"if (${tn.test}) ${tn.consequent} else ${tn.alternate}"
@@ -811,13 +911,22 @@ object ScalaOut {
           out" $op "
           nodeToOut(right)
         case Node.BinaryExpression(op, left, right) =>
+          def typeNameFromExpression(ex: Node.Expression) = {
+            val tpe = right match {
+              case Node.Identifier(rTypeName) =>
+                transform.TypesRule.typeFromIdentifierName(rTypeName)(context).map(_.toOut)
+              case _ =>
+                None
+            }
+            tpe.getOrElse(right.toString)
+          }
           op match {
             case `instanceof` =>
               termToOut(left)
-              out".isInstanceOf[$right]"
-            case `asinstanceof` =>
+              out".isInstanceOf[${typeNameFromExpression(right)}]"
+            case `asinstanceof` | "as" =>
               termToOut(left)
-              out".asInstanceOf[$right]"
+              out".asInstanceOf[${typeNameFromExpression(right)}]"
             case _ =>
               outputBinaryArgument(left, op)
               out" $op "
@@ -849,10 +958,14 @@ object ScalaOut {
           out("(")
           nodeToOut(tn.property)
           out(")")
-        case tn: Dot =>
-          termToOut(tn.`object`)
+        case obj Dot name =>
+          termToOut(obj)
           out(".")
-          nodeToOut(tn.property)
+          out(identifier(name))
+        case Node.StaticMemberExpression(obj, prop) =>
+          termToOut(obj)
+          out(".")
+          nodeToOut(prop)
         //case tn: Node.PropAccess => outputUnknownNode(tn)
         case tn: Node.SequenceExpression =>
           out("{\n")
@@ -865,13 +978,12 @@ object ScalaOut {
           out("}")
         case tn: Node.NewExpression =>
           out("new ")
-          outputCall(tn.callee, tn.arguments)
+          outputCall(tn.callee, tn.typeArgs, tn.arguments)
         case tn: Node.CallExpression =>
-          outputCall(tn.callee, tn.arguments)
-
-        case Node.VariableDeclarator(s@Node.Identifier(Id(name)), MayBeNull(init)) =>
-          val sType = getSymbolType(name)
-          outputVarDef(s, init, sType, false)
+          outputCall(tn.callee, null, tn.arguments)
+        case Node.VariableDeclarator(s@Node.Identifier(Id(name)), MayBeNull(init), MayBeNull(vType)) =>
+          val sType = getSymbolType(name).orElse(astType(vType).map(_ -> true))
+          outputVarDef(s, init, sType.map(_._1), sType.exists(_._2))
 
         case tn@Node.VariableDeclaration(decl, kind) =>
           outputDefinitions(kind == "const", tn)
@@ -1067,7 +1179,7 @@ object ScalaOut {
               }
 
               tn.consequent match {
-                case Seq(block@Node.BlockStatement(Node.VariableDeclaration(Seq(Node.VariableDeclarator(sv, AsInstanceOfCondition(_, _))), _) +: body)) =>
+                case Seq(block@Node.BlockStatement(Node.VariableDeclaration(Seq(Node.VariableDeclarator(sv, AsInstanceOfCondition(_, _), _)), _) +: body)) =>
                   // we might check sv - variable name correspondence
                   context.withScope(block) {
                     outputCaseBody(body)
@@ -1089,10 +1201,13 @@ object ScalaOut {
           out.unindent()
           out.eol()
           out("}")
-        case tn: DefFun =>
+        case tn: Node.FunctionDeclaration =>
           out.eol(2)
           out"def ${tn.id}"
           outputArgNames(tn.params, true)(tn)
+          for (fType <- input.types.types.get(Id(tn.id.name)) if fType.certain) {
+            out": ${fType.declType.toOut}"
+          }
           out(" = ")
           blockBracedToOut(tn.body)
           out.eol()
@@ -1122,14 +1237,46 @@ object ScalaOut {
           out.eol()
         //case tn: Node.Program => outputUnknownNode(tn)
         //case tn: Node.Scope => outputUnknownNode(tn)
+
+        case tn: Node.EnumDeclaration =>
+          out"object ${tn.name} extends Enumeration {\n"
+          out.indent()
+          context.withScope(tn.body) {
+            for (e <- tn.body.body) {
+              // TODO: for more natural output put multiple values one a single line
+              out"val ${e.name} = Value("
+              for (value <- Option(e.value)) {
+                out"$value"
+              }
+              out(")\n")
+            }
+          }
+          out.unindent()
+          out("}\n\n")
+
+        case tn: Node.ClassDeclaration if tn.body == null =>
+          out"trait ${tn.id}"
+          outputTypeParameters(tn.typeParameters)
+          out("\n\n")
+
+        case tn: Node.NamespaceDeclaration =>
+          out"object ${tn.id} {\n"
+          context.withScope(tn.body) {
+            out.indent()
+            tn.body.body.foreach { i =>
+              nodeToOut(i)
+            }
+            out.unindent()
+          }
+          out("}\n")
+
         case tn: Node.ClassDeclaration =>
 
           context.withScope(tn.body) {
-            val (staticProperties, nonStaticProperties) = tn.body.body.partition(propertyIsStatic)
+            val (staticProperties, nonStaticProperties) = Option(tn.body).map(_.body).getOrElse(Nil).partition(propertyIsStatic)
 
-
-
-            if (staticProperties.nonEmpty || nonStaticProperties.isEmpty) {
+            val isObject = staticProperties.nonEmpty || nonStaticProperties.isEmpty && tn.kind == "class"
+            if (isObject) {
               out.eol(2)
 
               out"object ${tn.id} {\n"
@@ -1149,10 +1296,17 @@ object ScalaOut {
                 false
             }
 
-            if (!isStaticOnly) {
+            if (!isStaticOnly && !(isObject && nonStaticProperties.isEmpty && tn.superClass == null)) {
               out.eol(2)
 
-              out"class ${tn.id}"
+              val kind = tn.kind match {
+                case "interface" => "trait"
+                case _ => "class"
+              }
+
+              out"$kind ${tn.id}"
+              outputTypeParameters(tn.typeParameters)
+
               val inlineBodyOpt = Classes.findInlineBody(tn)
 
               val constructor = Classes.findConstructor(tn).map(_.value)
@@ -1164,8 +1318,10 @@ object ScalaOut {
                 outputClassArgNames(method.params)(method)
               }
 
+              var firstExtends = true
               for (base <- Option(tn.superClass)) {
                 out" extends $base"
+                firstExtends = false
 
                 for {
                   inlineBody <- inlineBodyOpt
@@ -1181,10 +1337,17 @@ object ScalaOut {
                   }
                 }
               }
+
+              for (base <- tn.implements) {
+                val extendKeyword = if (firstExtends) "extends" else "with"
+                out" $extendKeyword $base"
+                firstExtends = false
+              }
+
               out" {\n"
               out.indent()
 
-              dumpInnerComments(tn.body)
+              if (tn.body != null) dumpInnerComments(tn.body)
 
               for {
                 inlineBody <- inlineBodyOpt
@@ -1196,7 +1359,7 @@ object ScalaOut {
                   if (false) {
                     out"/* inlineBody defs ${
                       method.body.body.collect {
-                        case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(vn), _)), _) =>
+                        case VarDecl(vn, _, _) =>
                           vn
                       }.mkString(",")
                     } */\n"
@@ -1284,6 +1447,8 @@ object ScalaOut {
               //blockBracedToOut(tn.body)
             }
           }
+
+
         case tn: Node.BlockStatement =>
           blockBracedToOut(tn)
         //case tn: Node.BlockStatement =>
@@ -1408,7 +1573,7 @@ object ScalaOut {
       }
     }
 
-    val classListHarmony = new ClassListHarmony(ast)
+    val classListHarmony = ClassListHarmony.fromAST(ast.top)
     val inputContext = InputContext(input, ast.types, classListHarmony)
     val scopeContext = new ScopeContext
     scopeContext.withScope(ast.top) {
@@ -1430,12 +1595,10 @@ object ScalaOut {
     val ret = new NiceOutput {
       def out(x: String) = sb append x
     }
-    val classListEmpty = ClassListHarmony(Map.empty)
+    val classListEmpty = ClassListHarmony.empty
     val inputContext = InputContext(input, SymbolTypes(), classListEmpty)
     val scopeContext = new ScopeContext
-    scopeContext.withScope(ast) {
-      nodeToOut(ast)(outConfig, inputContext, ret, scopeContext)
-    }
+    nodeToOut(ast)(outConfig, inputContext, ret, scopeContext)
     ret.flush()
     sb.result
   }

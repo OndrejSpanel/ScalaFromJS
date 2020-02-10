@@ -16,6 +16,17 @@ import scala.reflect.ClassTag
 
 object ConvertProject {
 
+  val predefinedHeadersTS = Seq(
+    "ArrayLike.d.ts" ->
+      """
+      export interface ArrayLike<T> {
+        [n: number]: T;
+        length: number;
+      }
+      """.split('\n').map(_.trim).mkString("\n") // TODO: consider custom stripMargin acting like Java 13 instead
+  )
+  val predefinedHeadersJS = Nil
+
   def loadStringValue(o: OObject, name: String): Option[String] = {
     o.properties.collectFirst {
       case ObjectKeyVal(`name`, StringLiteral(value)) =>
@@ -36,6 +47,15 @@ object ConvertProject {
   }
   trait Rule {
     def apply(c: NodeExtended): NodeExtended
+  }
+
+  /**
+    * Use for rules which perform no AST processsing
+    * Such rules carry the information alongside with the AST
+    * they are called separately by using collectRules and calling their specific methods
+    * */
+  trait ExternalRule extends Rule {
+    override def apply(c: NodeExtended) = c
   }
 
   case class MemberDesc(cls: Regex, name: Regex)
@@ -85,8 +105,7 @@ object ConvertProject {
     }
   }
 
-  case class AliasPackageRule(folder: String, name: String, template: Option[String]) extends Rule {
-    override def apply(n: NodeExtended) = n
+  case class AliasPackageRule(folder: String, name: String, template: Option[String]) extends ExternalRule {
     def namePackage(path: String): Option[String] = {
       if (path startsWith folder) {
         val aliased = name ++ path.drop(folder.length)
@@ -114,26 +133,12 @@ object ConvertProject {
     }
   }
 
-  /**
-    * The real functionality of the regex rule is outside of AST processing, as a text only postprocess
-    * */
-  case class RegexPostprocessRule(find: String, replace: String) extends Rule {
-    def apply(c: NodeExtended): NodeExtended = c
-
-    def transformText(src: String): String = {
-      src.replaceAll(find, replace)
-    }
+  case class RegexPostprocessRule(find: String, replace: String) extends ExternalRule {
+    def transformText(src: String): String = src.replaceAll(find, replace)
   }
 
-  /**
-    * The real functionality of the regex rule is outside of AST processing, as a text only postprocess
-    * */
-  case class RegexPreprocessRule(find: String, replace: String) extends Rule {
-    def apply(c: NodeExtended): NodeExtended = c
-
-    def transformText(src: String): String = {
-      src.replaceAll(find, replace)
-    }
+  case class RegexPreprocessRule(find: String, replace: String) extends ExternalRule {
+    def transformText(src: String): String = src.replaceAll(find, replace)
   }
 
   val configName = "ScalaFromJS_settings"
@@ -153,7 +158,7 @@ object ConvertProject {
 
   object ConvertConfig {
 
-    def load(props: Seq[Node.ObjectExpressionProperty]) = {
+    def load(props: Seq[Node.ObjectExpressionProperty], root: Option[String]) = {
       val rules: Seq[Rule] = props.flatMap {
         case ObjectKeyVal("members", a: AArray) =>
           a.elements.flatMap {
@@ -247,6 +252,8 @@ object ConvertProject {
             case _ =>
               None
           }
+        case ObjectKeyVal("types", StringLiteral(types)) =>
+          root.map(r => transform.TypesRule(types, r))
         case ObjectKeyVal(name, _) =>
           throw new UnsupportedOperationException(s"Unexpected config entry $name")
         case n =>
@@ -257,12 +264,15 @@ object ConvertProject {
     }
   }
 
+  def detectTypescript(in: String): Boolean = PathUtils.extension(PathUtils.shortName(in)) == "ts"
+
   def readSourceFile(in: String): String = {
     val code = readFile(in)
-    val terminatedCode = if (code.last == '\n') code else code + "\n"
+    val terminatedCode = if (code.lastOption.contains('\n')) code else code + "\n"
     terminatedCode
   }
   case class Item(code: String, included: Boolean, fullName: String) {
+    assert(!fullName.contains("../")) // must not contain .., because resolveSibling cannot handle it
     override def toString = s"($fullName:$included)"
   }
 
@@ -270,22 +280,28 @@ object ConvertProject {
 
     // parse only the control file to read the preprocess rules
     val inSource = readSourceFile(in)
-    val ext = NodeExtended(parse(inSource)).loadConfig.config
+    val typescript = detectTypescript(in)
+    val ext = NodeExtended(parse(inSource, typescript)).loadConfig(Some(in)).config
 
     Time("loadControlFile") {
       val code = ext.preprocess(inSource)
-      val project = ConvertProject(in, ext.preprocess, ListMap(in -> Item(code, true, in)))
+      val predef = if (typescript) predefinedHeadersTS else predefinedHeadersJS
+      val predefinedItems = ListMap(predef.map { case (name, code) =>
+        name -> Item(code, false, name)
+      }:_*)
+
+      val project = ConvertProject(in, ext.preprocess, predefinedItems ++ ListMap(in -> Item(code, true, in)))
 
       project.resolveImportsExports
     }
   }
 
-  def loadConfig(ast: Node.Program): (ConvertConfig, Node.Program) = {
+  def loadConfig(ast: Node.Program, root: Option[String]): (ConvertConfig, Node.Program) = {
     var readConfig = Option.empty[ConvertConfig]
 
     object GetConfig {
       def unapply(arg: Node.Node) = arg match {
-        case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(`configName`), OObject(props)) ), _) =>
+        case VarDecl(`configName`, Some(OObject(props)), _) =>
           Some(props)
         case _ =>
           None
@@ -294,7 +310,7 @@ object ConvertProject {
 
     ast.walk {
       case GetConfig(props) =>
-        readConfig = Some(ConvertConfig.load(props))
+        readConfig = Some(ConvertConfig.load(props, root))
         false
       case _: Node.Program =>
         false
@@ -325,19 +341,26 @@ object ConvertProject {
 
 
 case class ConvertProject(root: String, preprocess: String => String, items: Map[String, Item]) {
-  lazy val values = items.values.toIndexedSeq
+  val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
+  // offset boundaries for all items, including before the first one (zero), and after the last one (total input lenght)
   lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
 
   def checkIntegrity = {
     val missingEol = values.filterNot(_.code.endsWith("\n"))
     missingEol.map(_.fullName).foreach(s => println(s"Missing eol in $s"))
-    missingEol.isEmpty
+    val wrongPath = values.filter(i => i.fullName contains "../")
+    wrongPath.map(_.fullName).foreach(s => println(s"Wrong path in $s"))
+    missingEol.isEmpty && wrongPath.isEmpty
   }
 
   assert(checkIntegrity)
 
   def indexOfItem(offset: Int): Int = offsets.prefixLength(_ <= offset) - 1
+  def rangeOfPath(path: String): (Int, Int) = {
+    val index = values.indexWhere(_.fullName == path)
+    (offsets(index), offsets(index + 1))
+  }
 
   def pathForOffset(offset: Int): String = {
     val index = indexOfItem(offset)
@@ -345,29 +368,38 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
     else ""
   }
 
+  @scala.annotation.tailrec
   final def resolveImportsExports: ConvertProject = {
     def readFileAsJs(path: String): (String, String) = {
       val code = preprocess(readSourceFile(path))
       // try parsing, if unable, return a comment file instead
       try {
-        parse(code)
+        parse(code, detectTypescript(path))
         code -> path
       } catch {
-        case _: Exception =>
+        case ex: Exception =>
           //println(s"Parse ex: ${ex.toString} in $path")
           val short = shortName(path)
           val dot = short.indexOf('.')
-          val simpleName = if (dot <0) short else short.take(dot)
-          // embed wrapped code as a variable using ES6 template string
-          // use isResource so that Scala output can check it and handle it as a special case
-          val wrap =
+          val simpleName = if (dot < 0) short else short.take(dot)
+          // never attempt to wrap source files as resources
+          // note: this is no longer necessary for Three.js, as they have already wrapped the sources as glsl.js files
+          // it may be handy for other projects, though
+          val neverWrap = Seq(".js", ".ts", ".d.ts")
+          if (dot >= 0 && neverWrap.contains(short.drop(dot))) {
+            throw ex
+          } else {
+            // embed wrapped code as a variable using ES6 template string
+            // use isResource so that Scala output can check it and handle it as a special case
+            val wrap =
             s"""
                |const $simpleName = {
                |  value: `$code`,
                |  isResource: true
                |}
                |""".stripMargin
-          wrap -> path
+            wrap -> path
+          }
       }
 
     }
@@ -375,10 +407,10 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
 
     /**@return (content, path) */
     def readJsFile(name: String): (String, String) = {
+      // imports often miss .js or .d.ts extension
+      val rootExtension = PathUtils.shortName(root).dropWhile(_ != '.')
+      val extension = if (rootExtension.nonEmpty) rootExtension else ".js"
       // first try if it is already loaded
-
-      // imports often miss .js extension
-      val extension = ".js"
       items.get(name).orElse(items.get(name + extension)).fold {
         //println(s"Read file $name as $singlePath (in $base)")
         try {
@@ -394,7 +426,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
 
     val ast = try {
       //println("** Parse\n" + items.mkString("\n"))
-      parse(code)
+      parse(code, detectTypescript(root))
     } catch {
       case ex: Exception =>
         println(s"Parse error $ex")
@@ -417,7 +449,9 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
           comment contains "@example"
         }
         val target = if (example) exampleBuffer else includeBuffer
-        target append readJsFile(resolveSibling(pathForOffset(i.range._1), i.source.value))
+        val inFile = pathForOffset(i.range._1)
+        val importPath = i.source.value
+        target append readJsFile(resolveSibling(inFile, importPath))
         false
       case e@ExportFromSource(Defined(StringLiteral(source))) =>
         // ignore exports in imported files
@@ -425,6 +459,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
           val index = indexOfItem(s)
           //println(s"index of ${s.pos} = $index in $offsets")
           if (values.isDefinedAt(index) && values(index).included) {
+            val inFile = pathForOffset(s)
             includeBuffer append readJsFile(resolveSibling(pathForOffset(s), source))
           }
         }
@@ -478,7 +513,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       for (ConvertProject.Item(code, _, name) <- exportsImports) {
         try {
           println(s"Parse $name")
-          parse(code)
+          parse(code, detectTypescript(name))
         } catch {
           case util.control.NonFatal(ex) =>
             ex.printStackTrace()
@@ -494,16 +529,19 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
     val compositeFile = exportsImports.map(_.code).mkString
 
     val ast = Time(s"Parse ${compositeFile.linesIterator.length} lines") {
-      parse(compositeFile)
+      parse(compositeFile, detectTypescript(root))
     }
 
-    val ext = NodeExtended(ast).loadConfig
+    val ext = NodeExtended(ast).loadConfig(Some(root))
 
     val astOptimized = if (true) Transform(ext) else ext
 
     val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1).withRoot(root)
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
+
+    // find any declaration in the DTS which has no matching counterpart
+
 
     if (false) {
       (fileOffsets zip exports).foreach { case (offset, filename) =>
@@ -515,6 +553,21 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       inFile -> outCode
     }
 
-    Converted(outFiles, ext.config)
+    // (filename, code)
+    // add d.ts only declarations esp. traits (interface)
+    def addDeclarations(n: NodeExtended, outFiles: Seq[(String, String)]): Seq[(String, String)] = {
+      // for each file find declarations which belong to an accompanying d.ts and and add them
+      val rules = n.config.collectRules[transform.TypesRule]
+      rules.foldLeft(outFiles) { (files, r) =>
+        r.addDeclarations(n.top, files)
+      }
+
+    }
+
+    val addedDecls = addDeclarations(astOptimized, outFiles)
+
+
+
+    Converted(addedDecls, ext.config)
   }
 }

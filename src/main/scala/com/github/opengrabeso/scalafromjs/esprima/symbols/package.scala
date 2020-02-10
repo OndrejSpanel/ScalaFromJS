@@ -2,8 +2,10 @@ package com.github.opengrabeso.scalafromjs.esprima
 
 import com.github.opengrabeso.esprima.Node
 import Node._
+import com.github.opengrabeso.scalafromjs.Classes
 
 import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 
 package object symbols {
   // create symbol lists for all relevant scopes
@@ -17,6 +19,8 @@ package object symbols {
 
   case class SymId(name: String, sourcePos: (Int, Int)) {
     override def toString = s"$name:$sourcePos"
+    def isGlobal = sourcePos._1 < 0
+
     def compare(that: SymId) = {
       val d = name compare that.name
       if (d != 0) {
@@ -43,11 +47,23 @@ package object symbols {
     def apply(name: Node.Identifier)(implicit context: ScopeContext): SymId = context.findSymId(name.name)
   }
 
+
   object ScopeContext {
     type ScopeId = (Int, Int)
+    def markAsClass(r: ScopeId): ScopeId = r.copy(_2 = r._2 + 1)
+
     def getNodeId(n: Node.Node): ScopeId = {
       assert(IsScope.unapply(n))
-      if (n.range != null) n.range
+      if (n.range != null) {
+        n match {
+          case cb: ClassBody =>
+            markAsClass(n.range)
+          case fe: FunctionExpression if fe.id != null && fe.id.name == Classes.inlineBodyName =>
+            markAsClass(n.range)
+          case _ =>
+            n.range
+        }
+      }
       else {
         throw new NoSuchElementException(s"Missing node id for $n")
       }
@@ -99,12 +115,30 @@ package object symbols {
     val scopes =  ArrayBuffer.empty[(Node.Node, ScopeInfo)]
 
     def findScope(sym: String): Option[(Node.Node, ScopeInfo)] = {
-      for (i <- scopes.indices.reverse) {
-        if (scopes(i)._2.symbols.contains(sym)) return Some(scopes(i))
+      for {
+        i <- scopes.indices.reverse
+        scope = scopes(i)
+        // class symbols are accessible only using this.xxx notation - never use them to match a plain identifier
+        if !scope._1.isInstanceOf[Node.ClassBody]
+      } {
+        if (scope._2.symbols.contains(sym)) return Some(scope)
       }
       None
     }
     def localSymbols: Set[String] = scopes.last._2.symbols
+
+    def findTypedParent[T<: Node: ClassTag]: Option[T] = {
+      parents.reverse.collectFirst {
+        case c: T => c
+      }
+    }
+
+    def findClassScope: Option[Node] = {
+      parents.reverse.collectFirst {
+        case c: Node.ClassDeclaration => c
+        case o: Node.ObjectExpression => o
+      }
+    }
 
     // find the first parent scope which is a function (member, explicit, implicit, arrow ..._)
     def findFuncScope: Option[(Node.Node, ScopeInfo)] = {

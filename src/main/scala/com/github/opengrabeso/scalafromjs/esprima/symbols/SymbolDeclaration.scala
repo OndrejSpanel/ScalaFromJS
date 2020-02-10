@@ -9,6 +9,8 @@ object SymbolDeclaration {
     nodes.flatMap {
       case Identifier(id) =>
         Some(id)
+      case FunctionParameterWithType(Identifier(id), _, _, _) =>
+        Some(id)
       case AssignmentPattern(Identifier(id), _) =>
         Some(id)
       case _ =>
@@ -24,7 +26,7 @@ object SymbolDeclaration {
           Seq(f.id)
         case f: AsyncFunctionDeclaration =>
           Seq(f.id)
-        case MethodDefinition(id: Identifier, _, _, _, _) =>
+        case MethodDefinition(id: Identifier, _, _, _, _, _) =>
           Seq(id)
         case v: VariableDeclaration =>
           v.declarations.map(_.id)

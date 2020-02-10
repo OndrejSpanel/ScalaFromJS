@@ -11,7 +11,7 @@ import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, Sym
 object Parameters {
 
   /*
-  * AST types are incorrect - function parameters may be of a type other than Node.FunctionParameter
+  * AST types might be incorrect (it was the case with uglify) - function parameters may be of a type other than Node.FunctionParameter
   * This allows us to hotfix this.
   * */
   def isNormalPar(par: Node.Node): Boolean = {
@@ -24,6 +24,21 @@ object Parameters {
     }
   }
 
+  def renameSingleParam(oldParam: Node.FunctionParameter , newName: String): Node.FunctionParameter = {
+    // this could be implemented using type classes to always return correct parameter type
+    val replacedId = Node.Identifier(newName)
+    oldParam match {
+      case ap: Node.AssignmentPattern =>
+        ap.left = replacedId.withTokens(ap.left)
+        ap
+      case pwt: Node.FunctionParameterWithType =>
+        pwt.copy(name = replacedId).copyNode(pwt).asInstanceOf[Node.FunctionParameterWithType]
+      case nn: Node.Identifier =>
+        replacedId.withTokens(nn)
+    }
+  }
+
+
   case class FunctionBodyAndParams(body: Node.BlockStatement, params: Seq[Node.FunctionParameter]) {
     def replaceParam(name: Node.FunctionParameter, replace: Node.FunctionParameter) = {
       params.map { x =>
@@ -32,19 +47,11 @@ object Parameters {
       }
     }
 
-    def renameParam(oldParam: Node.FunctionParameter , newName: String) = {
+    def renameParam(oldParam: Node.FunctionParameter , newName: String) : Seq[Node.FunctionParameter] = {
       params.map { x =>
         if (x == oldParam) {
-          val replacedId = Node.Identifier(newName)
-          x match {
-            case ap: Node.AssignmentPattern =>
-              ap.left = replacedId.withTokens(ap.left)
-              ap
-            case nn: Node.Identifier =>
-              replacedId.withTokens(nn)
-          }
-        }
-        else x
+          renameSingleParam(x, newName)
+        } else x
       }
     }
   }
@@ -214,13 +221,13 @@ object Parameters {
 
           defValueCond.toSeq ++ defValueAssign match { // use only one option - two are bad
             case Seq(init) =>
-              val params = f.replaceParam(par, Node.AssignmentPattern(par, init))
+              val params = f.replaceParam(par, Node.AssignmentPattern(par, init).withTokens(init))
 
               // remove the use
               val body = f.body.transformBefore { (node, descend, transform) =>
                 node match {
                   case IsParDefaultHandlingAssignment(_) if defValueAssign.isDefined =>
-                    Node.EmptyStatement()
+                    Node.EmptyStatement().withTokens(node)
                   case IsParDefaultHandling(symRef, _) if defValueCond.isDefined =>
                     symRef.clone()
                   case _ =>
@@ -250,31 +257,30 @@ object Parameters {
 
     def handleModification(f: FunctionBodyAndParams, par: Node.FunctionParameter, context: ScopeContext): Option[FunctionBodyAndParams] = {
       implicit val ctx = context
-      par match {
-        case Node.Identifier(parName@Id(parDef)) =>
-          //println(s"Checking $parName")
 
-          // TODO: cloning destroys reference stacks - gather first
+      for (parName <- nameFromPar(par)) yield {
+        val parDef = Id(parName)
+        //println(s"Checking $parName")
 
-          // check if the parameter is ever modified
-          val assignedInto = refs.isModified(parDef)
-          if (assignedInto) {
-            //println(s"Detected assignment into $parName")
-            // we need to replace parameter x with x_par and intruduce var x = x_par
+        // TODO: cloning destroys reference stacks - gather first
 
-            val params = f.renameParam(par, parName + Symbols.parSuffix)
+        // check if the parameter is ever modified
+        val assignedInto = refs.isModified(parDef)
+        if (assignedInto) {
+          //println(s"Detected assignment into $parName")
+          // we need to replace parameter x with x_par and intruduce var x = x_par
 
-            val decl = VarDecl(parName, Some(Node.Identifier(parName + Symbols.parSuffix).withTokens(par)), "let", par)
+          val params = f.renameParam(par, parName + Symbols.parSuffix)
 
-            val body = decl +: f.body.body
+          val decl = VarDecl(parName, Some(Node.Identifier(parName + Symbols.parSuffix).withTokens(par)), "let", typeFromPar(par))(par)
 
-            Some(FunctionBodyAndParams(Node.BlockStatement(body).withTokens(f.body), params))
+          val body = decl +: f.body.body
 
-          } else {
-            Some(f)
-          }
-        case _ =>
-          None
+          FunctionBodyAndParams(Node.BlockStatement(body).withTokens(f.body), params)
+
+        } else {
+          f
+        }
       }
 
 
@@ -285,6 +291,21 @@ object Parameters {
 
   /*
   If a class inline body parameter is named xxx_par and a member named xxx does not exist, we can remove the _par
+
+  From:
+  class P(dnp_par: Any, dsp_par: Any) {
+    var pnum = _
+    var pstr = _
+    pnum = dnp_par
+    pstr = dsp_par
+  }
+  To:
+  class P(dnp: Any, dsp: Any) {
+    var pnum = _
+    var pstr = _
+    pnum = dnp
+    pstr = dsp
+  }
   */
   def simpleParameters(n: NodeExtended): NodeExtended = {
 
@@ -301,7 +322,7 @@ object Parameters {
           // check for existence of variable without a suffix
           val shortName = parName dropRight parSuffix.length
           val conflict = f.body.body.exists {
-            case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(`shortName`), _)), _) =>
+            case VarDecl(`shortName`, _, _) =>
               true
             case _ =>
               false
@@ -317,8 +338,7 @@ object Parameters {
             types = types.renameHint(parDef, parDef.copy(name = shortName))
 
             Some(FunctionBodyAndParams(renamedBody, params))
-          }
-          else Some(f)
+          } else Some(f)
         } else Some(f)
       }
     }
@@ -397,7 +417,16 @@ object Parameters {
 
   /*
   find constructor parameters which are assigned to a var member and replace them with a var parameter
-  * */
+
+  Example:
+  class P(dnp: Any, dsp: Any) {
+    var pnum = dnp
+    var pstr = dsp
+  }
+  To:
+  class P(var pnum: Any, var pstr: Any) {
+  }
+  */
   def inlineConstructorVars(n: NodeExtended): NodeExtended = {
     var types = n.types
     val logging = false
@@ -419,7 +448,7 @@ object Parameters {
           object IsVarPar {
 
             def unapply(arg: Node.Node)(implicit ctx: ScopeContext) = arg match {
-              case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(Id(symDef)), Defined(Node.Identifier(Id(`parDef`))))), _) =>
+              case VarDecl(Id(symDef), Some(Node.Identifier(Id(`parDef`))), _) =>
                 if (logging) println(s"IsVarPar $symDef ${parDef.name}")
                 Some(symDef)
               case _ =>
@@ -472,14 +501,9 @@ object Parameters {
           isVarPar.map { varSym =>
             if (logging) println(s"Rename '${varSym.name}'")
 
-            val params = f.params.map {
-              case nn@Node.Identifier(`parName`) =>
-                Node.Identifier(varSym.name).withTokens(nn)
-              case nn@Node.AssignmentPattern(Node.Identifier(`parName`), right) =>
-                nn.left = Node.Identifier(varSym.name).withTokens(nn.left)
-                nn
-              case nn =>
-                nn
+            val params = f.params.map { p =>
+              if (parameterNameString(p) == parName) renameSingleParam(p, varSym.name)
+              else p
             }
             // redirect also a symbol type
               //println(s"${parSym.name} -> ${varSym.name} Redirect type $tpe")

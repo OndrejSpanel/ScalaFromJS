@@ -27,30 +27,28 @@ object Transform {
     symId(symbol)
   }
 
-  def funArg(p: Node.Node): Node.Identifier = {
-    (p: @unchecked) match {
-      case p: Node.Identifier =>
-        p
-      case p: Node.AssignmentPattern =>
-        p.left match {
-          case a: Node.Identifier =>
-            a
-          case _ =>
-            throw new UnsupportedOperationException(s"Unexpected argument node ${p.left} in Node.DefaultAssign")
-        }
-    }
-  }
-
-  def nameFromPar(p: Node.Node): Option[String] = p match {
-    case Node.Identifier(s) =>
-      Some(s)
-    case Node.AssignmentPattern(Node.Identifier(s), _) =>
-      Some(s)
+  def identifierFromPar(p: Node.Node): Option[(Node.Identifier, Node.TypeAnnotation, Option[Node.Expression])] = p match {
+    case x: Node.Identifier =>
+      Some(x, null, None)
+    case Node.FunctionParameterWithType(x: Node.Identifier, tpe, MayBeNull(defValue), _) =>
+      Some(x, tpe, defValue)
+    case Node.AssignmentPattern(x: Node.Identifier, init) =>
+      Some(x, null, Some(init))
+    case Node.RestElement(x: Node.Identifier, tpe) =>
+      Some(x, tpe, None)
     case _ =>
       None
   }
 
-  def symbolFromPar(p: Node.Node)(implicit context: ScopeContext): Option[SymId] = {
+  def funArg(p: Node.FunctionParameter): (Node.Identifier, Node.TypeAnnotation, Option[Node.Expression]) = identifierFromPar(p).get
+  def nameFromPar(p: Node.FunctionParameter): Option[String] = identifierFromPar(p).map(_._1.name)
+  def typeFromPar(p: Node.FunctionParameter): Option[Node.TypeAnnotation] = identifierFromPar(p).map(_._2)
+
+  object ParName {
+    def unapply(p: Node.FunctionParameter) = nameFromPar(p)
+  }
+
+  def symbolFromPar(p: Node.FunctionParameter)(implicit context: ScopeContext): Option[SymId] = {
     val s = nameFromPar(p)
     s.flatMap(symId)
   }
@@ -125,7 +123,7 @@ object Transform {
                   Seq(operation, value)
                 } else {
                   val tempName = "temp"
-                  val storeValue = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(tempName), expr.cloneNode())), "const")
+                  val storeValue = Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(tempName), expr.cloneNode(), null)), "const")
                   val loadValue = Node.ExpressionStatement(Node.Identifier(tempName)).copyLoc(expr)
                   Seq(storeValue, operation, loadValue)
                 }
@@ -360,12 +358,12 @@ object Transform {
     implicit object classOps extends ClassOps {
       def mostDerived(c1: ClassType, c2: ClassType) = {
         //println("mostDerived")
-        classInfo.mostDerived(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
+        classInfo.mostDerived(c1.name, c2.name).fold[TypeDesc](any)(ClassType.apply)
       }
 
       def commonBase(c1: ClassType, c2: ClassType) = {
         //println("commonBase")
-        classInfo.commonBase(c1.name, c2.name).fold[TypeDesc](any)(ClassType)
+        classInfo.commonBase(c1.name, c2.name).fold[TypeDesc](any)(ClassType.apply)
       }
     }
 
@@ -401,11 +399,17 @@ object Transform {
     * */
     def typeInfoFromClassSym(classSym: SymbolDef, certain: Boolean = false): Option[TypeInfo] = {
       // is the symbol a class?
-      for {
-        cls <- classSym
-        if certain || ctx.classes.get(cls).isDefined
-      } yield {
-        TypeInfo.target(ClassType(cls))
+      classSym.filter(_.name == "<anonymous>").map { c =>
+        TypeInfo.target(AnonymousClassType(c.sourcePos))
+      }.orElse {
+        classSym.filter(_ == SymId("Array", (-1, -1))).map(_ => TypeInfo.target(ArrayType(AnyType)))
+      }.orElse {
+        for {
+          cls <- classSym
+          if certain || ctx.classes.get(cls).isDefined
+        } yield {
+          TypeInfo.target(ClassType(cls))
+        }
       }
     }
 
@@ -439,14 +443,30 @@ object Transform {
       case expr Dot name =>
         val exprType = expressionType(expr, log)(ctx, context)
         if (log) println(s"type of member $expr.$name, class $exprType")
-        for {
-          TypeDecl(ClassType(callOn)) <- exprType
-          c <- findInParents(callOn, name)(ctx)
-          r <- types.getMember(Some(MemberId(c, name)))
-        } yield {
-          if (log) println(s"type of member $c.$name as $r")
-          r
+        exprType match {
+          case Some(TypeDecl(ClassType(callOn))) =>
+            for {
+              c <- findInParents(callOn, name)(ctx)
+              r <- types.getMember(Some(MemberId(c, name)))
+            } yield {
+              if (log) println(s"type of member $c.$name as $r")
+              r
+            }
+          case Some(TypeDecl(AnonymousClassType(sourcePos))) =>
+            val id = SymbolMapId(name, sourcePos)
+            types.get(Some(id))
+          case _ =>
+            None
+
         }
+
+      case Node.ObjectExpression(Nil) =>
+        // avoid handling empty object as an anonymous class - handling it as a map has more sense
+        Some(TypeInfo.target(ObjectOrMap))
+
+      case oe: Node.ObjectExpression =>
+        val nodeId = ScopeContext.getNodeId(oe)
+        typeInfoFromClassSym(Some(SymbolMapId("<anonymous>", nodeId)))
 
       case expr Sub name =>
         //println(s"Infer type of array item $name, et ${expressionType(expr)(ctx)}")
@@ -470,8 +490,6 @@ object Transform {
           println(s"  elementTypes $elementTypes => $elType")
         }
         Some(elType.map(_.map(ArrayType)).getOrElse(TypeInfo(ArrayType(AnyType), ArrayType(NoType))))
-      case a: OObject =>
-        Some(TypeInfo.target(ObjectOrMap))
       case Node.Literal(Defined(literal), _) =>
         literal.value match {
           case _: Double =>
@@ -483,6 +501,9 @@ object Transform {
           case _ =>
             None
         }
+
+      case Node.CallExpression(expr Dot "join", Seq()) if (expressionType(expr).exists(_.declType.isInstanceOf[ArrayType])) =>
+        Some(TypeInfo.target(SimpleType("String")))
 
       // Array.isArray( name ) ? name : [name]
       case Node.ConditionalExpression(Node.CallExpression(Node.Identifier("Array") Dot "isArray",  Seq(isArrayArg)), exprTrue, exprFalse) =>
@@ -500,8 +521,11 @@ object Transform {
         if (log) println(s"Node.Conditional $te:$t / $fe:$f = $ret")
         ret
 
+      case Binary(expr, "as", Node.Identifier(cls)) => // typescript operator
+        transform.TypesRule.typeFromIdentifierName(cls)(context).map(TypeInfo.both)
+
       case Binary(expr, `asinstanceof`, Node.Identifier(cls)) =>
-        typeInfoFromClassSym(symId(cls), true)
+        transform.TypesRule.typeFromIdentifierName(cls)(context).map(TypeInfo.both)
 
       case Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
@@ -549,13 +573,24 @@ object Transform {
       case Node.CallExpression(cls Dot name, _) =>
         val exprType = expressionType(cls, log)
         if (log) println(s"Infer type of member call $cls.$name class $exprType")
-        for {
-          TypeDecl(ClassType(callOn)) <- exprType
-          c <- findInParents(callOn, name)(ctx)
-          r <- types.getMember(Some(MemberId(c, name)))
-        } yield {
-          if (log) println(s"  Infer type of member call $c.$name as $r")
-          callReturn(r)
+
+        {
+          for {
+            TypeDecl(ClassType(callOn)) <- exprType
+            c <- findInParents(callOn, name)(ctx)
+            r <- types.getMember(Some(MemberId(c, name)))
+          } yield {
+            if (log) println(s"  Infer type of member call $c.$name as $r")
+            callReturn(r)
+          }
+        }.orElse {
+          for {
+            TypeDecl(AnonymousClassType(callOn)) <- exprType
+            r <- types.get(Some(SymbolMapId(name, callOn)))
+          } yield {
+            if (log) println(s"  Infer type of anonymous member call $name as $r")
+            callReturn(r)
+          }
         }
 
       case seq: Node.SequenceExpression =>
@@ -591,7 +626,7 @@ object Transform {
     var getter = Option.empty[Node.Expression]
     var setter = false
     cls.body.body.filter(p => methodName(p) == name).foreach {
-      case Node.MethodDefinition(Node.Identifier(p), _, AnyFun(Seq(), value), "get", _) =>
+      case Node.MethodDefinition(Node.Identifier(p), null, _, AnyFun(Seq(), value), "get", _) =>
         value match {
           case ex: Node.Expression =>
             getter = Some(ex)
@@ -601,9 +636,9 @@ object Transform {
             val wrapped = ScalaNode.StatementExpression(bs).withTokens(bs)
             getter = Some(wrapped)
         }
-      case Node.MethodDefinition(Node.Identifier(p), _, _, "set", _) =>
+      case Node.MethodDefinition(Node.Identifier(p),  _, _, _, "set", _) =>
         setter = true
-      case Node.MethodDefinition(Node.Identifier(p), _, _, _, _) =>
+      case Node.MethodDefinition(Node.Identifier(p), _, _, _, _, _) =>
         //println(s"  function $p")
         //getter = true
       case ObjectKeyVal(p, value) =>
@@ -633,8 +668,8 @@ object Transform {
     }
     */
 
-    cls.body.body.foreach {
-      case md: Node.MethodDefinition =>
+    Option(cls.body).foreach(_.body.foreach {
+      case md: Node.MethodDefinition if md.key != null =>
         existingMembers = existingMembers :+ propertyKeyName(md.key)
       //case ObjectKeyVal(p, _) =>
       //  existingMembers = existingMembers :+ p
@@ -645,7 +680,7 @@ object Transform {
         addAccessor(s)
       */
       case _ =>
-    }
+    })
     existingMembers
   }
 
@@ -654,7 +689,7 @@ object Transform {
     ast.top.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
-        case cls@Node.ClassDeclaration(Node.Identifier(Id(clsSym)), MayBeNull(parentNode), _) =>
+        case cls@Node.ClassDeclaration(Node.Identifier(Id(clsSym)), MayBeNull(parentNode), moreParents, _, _) =>
           for (clsId <- id(clsSym)) {
             for (Node.Identifier(Id(parentId)) <- parentNode) {
               //println(s"Add parent $parent for $clsSym")
@@ -723,7 +758,7 @@ object Transform {
       def unapply(arg: Seq[Node.Node])(implicit context: ScopeContext): Option[(Node.Node, SymId)] = {
         val compact = arg.filterNot(_.isInstanceOf[Node.EmptyStatement])
         compact match {
-          case Seq(defClass@Node.ClassDeclaration(Defined(Id(c)), _, _), ReturnedExpression(Node.Identifier(Id(r)))) if c == r =>
+          case Seq(defClass@Node.ClassDeclaration(Defined(Id(c)), _, _, _, _), ReturnedExpression(Node.Identifier(Id(r)))) if c == r =>
             Some(defClass, c)
           case _ =>
             None
@@ -793,7 +828,7 @@ object Transform {
         case Node.BlockStatement(Seq(inner: Node.BlockStatement)) =>
           //println("Remove Node.BlockStatement <- Node.BlockStatement")
           inner
-        case func@Node.FunctionExpression(_, _, body, _) =>
+        case func@Node.FunctionExpression(_, _, body, _, _) =>
           //println(s"${nodeClassName(func)} in: ${transformer.parent().map(nodeClassName)}")
           func
         case Node.BlockStatement(seq) =>
@@ -874,7 +909,10 @@ object Transform {
       'instanceofImpliedCast -> Variables.instanceofImpliedCast _,
       'objectAssign -> objectAssign _,
       'removeVarClassScope -> onTopNode(removeVarClassScope),
+      'types -> TypesRule.transform _,
+      'readTypes -> ReadTypes.apply _,
       'multipass -> InferTypes.multipass _,
+      'enums -> TypesRule.transformEnums _,
       'removeTrailingBreak -> onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       'removeTrailingReturn -> onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
       'inlineConstructorVars -> Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred

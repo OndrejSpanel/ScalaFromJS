@@ -13,11 +13,7 @@ object Classes {
 
   def findThisClassInWalker(walker: ScopeContext): Option[Node.ClassDeclaration] = {
     //println(walker.stack.map(nodeClassName).mkString(":"))
-    walker.parents.reverse.collectFirst {
-      case c: Node.ClassDeclaration =>
-        //println(s"Found ${c.name.map(_.name)}")
-        c
-    }
+    walker.findTypedParent[Node.ClassDeclaration]
   }
 
     // ignore function scopes, find a class one
@@ -71,12 +67,12 @@ object Classes {
   }
 
   val isConstructorProperty: PartialFunction[Node.ClassBodyElement, Node.MethodDefinition] = {
-    case m: Node.MethodDefinition if propertyKeyName(m.key) == "constructor" =>
+    case m: Node.MethodDefinition if m.key != null && propertyKeyName(m.key) == "constructor" =>
       m
   }
 
   def findConstructor(c: Node.ClassDeclaration): Option[Node.MethodDefinition] = {
-    c.body.body.collectFirst(isConstructorProperty)
+    Option(c.body).flatMap(_.body.collectFirst(isConstructorProperty))
   }
 
   val inlineBodyName = "inline_^"
@@ -96,7 +92,7 @@ object Classes {
 
   def getMethodBody(m: Node.MethodDefinition): Option[Node.BlockStatement] = {
     m.value match {
-      case Node.FunctionExpression(id, params, body, generator) =>
+      case Node.FunctionExpression(id, params, body, generator, _) =>
         Some(body)
       case _ =>
         None
@@ -104,21 +100,25 @@ object Classes {
   }
 
   def newMethod(k: String, args: Seq[Node.FunctionParameter], methodBody: Node.BlockStatement, tokensFrom: Node.Node, isStatic: Boolean = false): Node.MethodDefinition = {
+    val key = Node.Identifier(k).copyLoc(tokensFrom)
     Node.MethodDefinition(
-      key = Node.Identifier(k).copyLoc(tokensFrom),
+      key,
+      null,
       false,
-      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false).withTokens(tokensFrom),
+      // pass key to FunctionExpression so that it can check for special cases (inlineBodyName)
+      Node.FunctionExpression(key, args, methodBody.copyLoc(tokensFrom), false, null).withTokens(tokensFrom),
       if (k == "constructor") "constructor" else "method",
       isStatic
     ).withTokens(tokensFrom)
   }
 
   def newProperty(kind: String, k: String, args: Seq[Node.FunctionParameter], methodBody: Node.BlockStatement, tokensFrom: Node.Node, isStatic: Boolean = false): Node.Property = {
+    val key = Node.Identifier(k).copyLoc(tokensFrom)
     Node.Property(
-      kind = kind,
-      key = Node.Identifier(k).copyLoc(tokensFrom),
+      kind,
+      key,
       false,
-      Node.FunctionExpression(null, args, methodBody.copyLoc(tokensFrom), false).withTokens(tokensFrom),
+      Node.FunctionExpression(key, args, methodBody.copyLoc(tokensFrom), false, null).withTokens(tokensFrom),
       false,
       false
     ).withTokens(tokensFrom)
@@ -137,16 +137,24 @@ object Classes {
 
 
 
-  def findMethod(c: Node.ClassDeclaration, name: String): Option[Node.MethodDefinition] = {
-    c.body.body.collectFirst {
-      case m: Node.MethodDefinition if propertyKeyName(m.key) == name => m
+  def findMethod(c: Node.ClassDeclaration, name: String, static: Boolean = false): Option[Node.MethodDefinition] = {
+    Option(c.body).flatMap(_.body.collectFirst {
+      case m: Node.MethodDefinition if m.key != null && propertyKeyName(m.key) == name && m.static == static =>
+        m
+    })
+  }
+
+  def findObjectMethod(c: Node.ObjectExpression, name: String, static: Boolean = false): Option[Node.PropertyValue] = {
+    c.properties.collectFirst {
+      case Node.Property(_, KeyName(`name`), _, m, _, _) =>
+        m
     }
   }
 
   def findProperty(c: Node.ClassDeclaration, name: String): Option[Node.MethodDefinition] = {
-    c.body.body.collectFirst {
-      case m: Node.MethodDefinition if propertyKeyName(m.key) == name => m
-    }
+    Option(c.body).flatMap(_.body.collectFirst {
+      case m: Node.MethodDefinition if m.key != null && propertyKeyName(m.key) == name => m
+    })
   }
 
   def propertyIsStatic(p: Node.ClassBodyElement): Boolean = {
@@ -171,7 +179,7 @@ object Classes {
       val body = getMethodBody(retIB)
       for (b <- body) {
         b.body = b.body.filterNot {
-          case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(v), _)), _) if member.findFirstIn(v).isDefined =>
+          case VarDecl(v, _, _) if member.findFirstIn(v).isDefined =>
             true
           case _ =>
             false
@@ -179,7 +187,7 @@ object Classes {
         Classes.replaceProperty(c, ib, retIB)
       }
       c.body.body = c.body.body.filterNot {
-        case Node.MethodDefinition(Node.Identifier(v), _, _, _, _) if member.findFirstIn(v).isDefined =>
+        case Node.MethodDefinition(Node.Identifier(v), _, _, _, _, _) if member.findFirstIn(v).isDefined =>
           true
         case _ =>
           false
@@ -231,39 +239,49 @@ object Classes {
   }
 
 
-  def classListHarmony(n: NodeExtended) = {
-    var classes = Map.empty[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]
-    n.top.walkWithScope { (node, context) =>
-      implicit val ctx = context
-      node match {
-        case d: Node.ClassDeclaration =>
-          for {
-            id <- symId(d.id)
-          } {
-            val parentId = Option(d.superClass).flatMap(symId)
-            classes += id -> (parentId, d)
-          }
-          false // classes may contain inner classes
-        case _: Node.Program =>
-          false
-        case _ =>
-          false
-      }
-    }
-    classes
-  }
-
-  case class ClassListHarmony(classes: Map[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]) {
-
-    def this(n: NodeExtended) = this(classListHarmony(n))
+  /*
+  classes: mapping from a symbol id to a tuple of parent and declaration
+  */
+  case class ClassListHarmony(classes: Map[SymbolMapId, (Option[SymId], Node.ClassDeclaration)], anonymous: Map[SymbolMapId, Node.ObjectExpression]) {
 
     def get(name: SymbolMapId): Option[Node.ClassDeclaration] = classes.get(name).map(_._2)
     def getParent(name: SymbolMapId): Option[SymId] = classes.get(name).flatMap(_._1)
+    def getAnonymous(name: SymbolMapId): Option[Node.ObjectExpression] = anonymous.get(name)
 
     def classPos(name: SymbolMapId): (Int, Int) = {
-      classes.get(name).map(_._2.body.range).getOrElse((-1, -1))
+      classes.get(name).map(_._2.body.range).map(symbols.ScopeContext.markAsClass).getOrElse((-1, -1))
     }
 
   }
 
+  object ClassListHarmony {
+    def empty: ClassListHarmony = new ClassListHarmony(Map.empty, Map.empty)
+    def fromAST(n: Node.Program, innerClasses: Boolean = true): ClassListHarmony = {
+      var classes = Map.empty[SymbolMapId, (Option[SymId], Node.ClassDeclaration)]
+      var anonymous = Map.empty[SymbolMapId, Node.ObjectExpression]
+      n.walkWithScope { (node, context) =>
+        implicit val ctx = context
+        node match {
+          case d: Node.ClassDeclaration =>
+            for {
+              id <- symId(d.id)
+            } {
+              val parentId = Option(d.superClass).flatMap(symId)
+              classes += id -> (parentId, d)
+            }
+            !innerClasses // classes may contain inner classes - when the caller wants them, continue the traversal
+          case oe: Node.ObjectExpression =>
+            val id = symbols.ScopeContext.getNodeId(oe)
+            anonymous += SymbolMapId("<anonymous>", id) -> oe
+            !innerClasses
+
+          case _: Node.Program =>
+            false
+          case _ =>
+            false
+        }
+      }
+      new ClassListHarmony(classes, anonymous)
+    }
+  }
 }

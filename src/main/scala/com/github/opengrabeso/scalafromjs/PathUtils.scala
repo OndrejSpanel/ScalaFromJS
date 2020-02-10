@@ -19,7 +19,10 @@ object PathUtils {
   }
 
 
+  // inspired by https://docs.oracle.com/javase/7/docs/api/java/nio/file/Path.html#resolveSibling(java.nio.file.Path)
+  @scala.annotation.tailrec
   def resolveSibling(path: String, short: String): String = {
+    assert(!path.contains("../"))
     val dir = path.lastIndexOf('/')
     if (dir < 0) short
     else {
@@ -28,12 +31,17 @@ object PathUtils {
       if (short.startsWith(parentPrefix)) {
         resolveSibling(path.take(dir), short.drop(parentPrefix.length))
       } else {
-        val shortFixed = if (short.startsWith(currentPrefix)) short.drop(currentPrefix.length) else short
-        path.take(dir + 1) + shortFixed
+        if (short.startsWith(currentPrefix)) {
+          resolveSibling(path, short.drop(currentPrefix.length))
+        } else {
+          assert(!short.contains("../"))
+          path.take(dir + 1) + short
+        }
       }
     }
   }
 
+  // make path relative to a base file. When a folder is given as base, it must include terminating "/"
   def relativePath(base: String, path: String): String = {
     val dir = base.lastIndexOf('/')
     if (dir < 0) path

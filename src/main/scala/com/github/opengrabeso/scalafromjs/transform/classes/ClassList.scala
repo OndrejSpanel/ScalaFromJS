@@ -49,7 +49,7 @@ object ClassList {
           //println(s"Node.Identifier ${name.name}")
           classNames += ClassId(name)
           false
-        case Node.ClassDeclaration(Defined(name), _, _) =>
+        case Node.ClassDeclaration(Defined(name), _, _, _, _) =>
           //println(s"Node.ClassDeclaration ${name.name}")
           classNames += ClassId(name)
           true
@@ -225,7 +225,7 @@ object ClassList {
               }
 
               body.foreach {
-                case f@DefFun(Defined(Node.Identifier(sym)), fArgs, fBody, _) =>
+                case f@DefFun(Defined(Node.Identifier(sym)), fArgs, fBody, _, _) =>
                   ctx.withScope(f, fBody) {
                     val member = ClassFunMember(fArgs, transformReferencesInBody(fBody.body), f)
                     res.clazz = res.clazz.addMember(sym, member)
@@ -233,10 +233,10 @@ object ClassList {
                 case Node.VariableDeclaration(vars, kind) =>
                   //println("Vardef")
                   vars.foreach {
-                    case v@Node.VariableDeclarator(Node.Identifier(vName), Defined(vValue)) =>
+                    case v@Node.VariableDeclarator(Node.Identifier(vName), Defined(vValue), _) =>
                       val member = ClassVarMember(vValue, v)
                       res.clazz = res.clazz.addValue(vName, member)
-                    case vd@Node.VariableDeclarator(Node.Identifier(vName), _) =>
+                    case vd@Node.VariableDeclarator(Node.Identifier(vName), _, _) =>
                       //println(s"value member $vName as undefined")
                       val member = ClassVarMember(ScalaNode.StatementExpression(Node.EmptyStatement()), vd)
                       res.clazz = res.clazz.addValue(vName, member)
@@ -356,7 +356,7 @@ object ClassList {
             classes.defineStaticMember(clsSym, member, value)
           }
           true
-        case Node.ClassDeclaration(Defined(clsSym), _, _) =>
+        case Node.ClassDeclaration(Defined(clsSym), _, _, _, _) =>
           createClassAsNeeded(ClassId(clsSym))
           true
         case IsDeclScope() =>

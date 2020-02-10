@@ -8,6 +8,32 @@ import Classes._
 import Transform._
 import com.github.opengrabeso.scalafromjs.esprima.symbols.Id
 
+/*
+Create member variables
+
+Example:
+
+from:
+
+class P {
+  def constructor(dnp: Any, dsp: Any) = {
+    this.pnum = dnp
+    this.pstr = dsp
+  }
+}
+
+to:
+
+class P() {
+  var pnum = _
+  var pstr = _
+  def constructor(dnp: Any, dsp: Any) = {
+    this.pnum = dnp
+    this.pstr = dsp
+  }
+}
+*/
+
 object FillVarMembers {
   def apply(n: NodeExtended): NodeExtended = {
     object IsThis {
@@ -21,7 +47,7 @@ object FillVarMembers {
     // TODO: detect access other than this (see Node.This in expressionType to check general this handling)
     val retTop = n.top.transformAfter { (node, _) =>
       node match {
-        case cls: Node.ClassDeclaration =>
+        case cls: Node.ClassDeclaration if cls.body != null =>
           val accessor = findInlineBody(cls).flatMap(getMethodMethod)
           //println(s"Node.ClassDeclaration ${cls.name.get.name} ${cls.start.get.pos}")
           var newMembers = collection.immutable.ListMap.empty[String, (Node.Node, Option[Node.Expression])]
@@ -62,7 +88,7 @@ object FillVarMembers {
 
           val clsTokenDef = classTokenSource(cls)
           val vars = newMembers.map { case (memberName, init) =>
-            VarDecl(memberName, init._2, "var", init._1)
+            VarDecl(memberName, init._2, "var")(init._1)
           }
 
           if (vars.nonEmpty) {

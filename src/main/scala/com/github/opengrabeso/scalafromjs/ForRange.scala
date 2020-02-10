@@ -38,7 +38,7 @@ object ForRange {
     (Option(arg.init), Option(arg.test), Option(arg.update)) match {
       // for ( var i = 0; i < xxxx; i += step )
       case (
-        Some(VarOrLet(Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(Id(vName)), Defined(vValue))), _))),
+        Some(VarOrLet(VarDecl(Id(vName), Some(vValue), _))),
         Some(Node.BinaryExpression(rel, Node.Identifier(Id(cLeftName)), cRight)),
         Some(Node.AssignmentExpression(assign, Node.Identifier(Id(exprName)), step))
         ) if cLeftName == vName && exprName == vName =>
@@ -46,7 +46,7 @@ object ForRange {
       // for ( var i = 0, limit = xxxx; i < limit; i += step )
       case (
         Some(VarOrLet(Node.VariableDeclaration(
-          Seq(Node.VariableDeclarator(Node.Identifier(Id(vName)), Defined(vValue)), Node.VariableDeclarator(Node.Identifier(Id(limitName)), Defined(limitValue))), _
+          Seq(Node.VariableDeclarator(Node.Identifier(Id(vName)), Defined(vValue), _), Node.VariableDeclarator(Node.Identifier(Id(limitName)), Defined(limitValue), _)), _
         ))),
         Some(Node.BinaryExpression(rel, Node.Identifier(Id(cLeftName)), Node.Identifier(Id(cRightName)))),
         Some(Node.AssignmentExpression(assign, Node.Identifier(Id(exprName)), step))

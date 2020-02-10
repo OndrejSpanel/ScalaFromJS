@@ -121,7 +121,7 @@ object Collections {
     forStatement.body.walkWithScope(ctx) { (node, scope) =>
       implicit val ctx = scope
       node match {
-        case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(Id(name)), Defined(Node.Identifier(Id(`varName`))))), "const") =>
+        case VarDecl(Id(name), Some(Node.Identifier(Id(`varName`))), "const") =>
           subst = Some(name)
           true
         case Node.Identifier(Id(`varName`)) =>

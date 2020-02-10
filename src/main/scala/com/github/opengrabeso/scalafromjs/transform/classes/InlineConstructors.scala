@@ -13,6 +13,37 @@ import VariableUtils._
 import com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
 
+import scala.collection.mutable
+
+/*
+Inline any suitable code from a real JS constructor function into the inline body method
+
+Example:
+
+from:
+
+class P() {
+  var pnum = _
+  var pstr = _
+
+  def constructor(dnp: Any, dsp: Any) = {
+    this.pnum = dnp
+    this.pstr = dsp
+  }
+
+}
+
+to:
+
+class P(var dnp_par: Any, var dsp_par: Any) {
+  var pnum = _
+  var pstr = _
+  pnum = dnp_par
+  pstr = dsp_par
+}
+
+*/
+
 object InlineConstructors {
   private case class PrivateMember(sym: SymId, isVal: Boolean, tokens: Node.Node)
 
@@ -171,7 +202,7 @@ object InlineConstructors {
     val functions = detectPrivateFunctions(n)
 
     // check if they are references from any private function
-    var privates = Set.empty[SymId]
+    val privates = mutable.LinkedHashSet.empty[SymId]
 
     n.walkWithScope(ctx) { (node, context) =>
       implicit val ctx = context
@@ -209,7 +240,7 @@ object InlineConstructors {
       node match {
         case cls: Node.ClassDeclaration =>
           for {
-            constructorProperty@Node.MethodDefinition(_, _, AnyFun(params, body), _, _) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, _, _, AnyFun(params, Defined(body)), _, _) <- findConstructor(cls)
           } ctx.withScope(cls.body, constructorProperty, constructorProperty.value) {
 
             // constructor parameters need a different handling
@@ -248,7 +279,7 @@ object InlineConstructors {
               } else {
                 replaceVariableInit(replaced, privateVar.sym) { (sym, init) =>
                   Node.ExpressionStatement (
-                    Assign(newThisDotMember(sym.name), "=", init.cloneNode())
+                    Assign(newThisDotMember(sym.name).withTokens(replaced), "=", init.cloneNode())
                   )
                 }
               }
@@ -263,7 +294,7 @@ object InlineConstructors {
             val clsTokenDef = classTokenSource(cls)
 
             val vars = allPrivates.map { local =>
-              val varDecl = VarDecl(local.sym.name, None, if (local.isVal) "const" else "var", local.tokens)
+              val varDecl = VarDecl(local.sym.name, None, if (local.isVal) "const" else "var")(local.tokens)
               //println(s"privateVariables ${local.sym.name} $varDecl ${cls.start.get.pos}")
               varDecl
             }
@@ -294,7 +325,7 @@ object InlineConstructors {
       node match {
         case cls: Node.ClassDeclaration =>
           for {
-            constructorProperty@Node.MethodDefinition(_, _, AnyFun(params, body), _, _) <- findConstructor(cls)
+            constructorProperty@Node.MethodDefinition(_, _, _, AnyFun(params, Defined(body)), _, _) <- findConstructor(cls)
           } {
             val functionsToConvert = detectPrivateFunctions(body)
             if (log) println(s"functionsToConvert $functionsToConvert")
@@ -304,7 +335,7 @@ object InlineConstructors {
             val functions = bodyStatements.collect {
               case s@DefinePrivateFunction(funName, f) if functionsToConvert contains f =>
                 (s, funName, f)
-              case s@DefFun(Defined(Node.Identifier(funName)), _, _, _) if functionsToConvert contains s =>
+              case s@DefFun(Defined(Node.Identifier(funName)), _, _, _, _) if functionsToConvert contains s =>
                 (s, funName, s)
             }
 
@@ -352,8 +383,9 @@ object InlineConstructors {
                 ctx.withScope(cls.body, fun, funBody) {
                   Node.MethodDefinition(
                     Node.Identifier(funName).withTokens(statement),
+                    null,
                     false,
-                    Node.FunctionExpression(null, funParams, transformParametersInBody(Block(funBody).withTokens(body))(ctx), false).withTokens(statement),
+                    Node.FunctionExpression(null, funParams, transformParametersInBody(Block(funBody).withTokens(body))(ctx), false, null).withTokens(statement),
                     "init",
                     false
                   )
@@ -380,8 +412,8 @@ object InlineConstructors {
 
             val clsTokenDef = classTokenSource(cls)
             for {
-              md <- findConstructor(cls)
-              constructorProperty@AnyFun(params, b) <- Some(md.value)
+              constructorMethod <- findConstructor(cls)
+              constructorProperty@AnyFun(params, Defined(b)) <- Some(constructorMethod.value)
             } {
               // anything before a first variable declaration can be inlined, variables need to stay private
               val body = Block.statements(b)
@@ -428,7 +460,7 @@ object InlineConstructors {
               val accessorValue = accessor.value.asInstanceOf[Node.FunctionExpression]
 
               val inlineBodyScope = ScopeContext.getNodeId(accessorValue)
-              val constructorScope = ScopeContext.getNodeId(md.value)
+              val constructorScope = ScopeContext.getNodeId(constructorMethod.value)
 
               //println(s"inlining $cls")
               //println(s"  inlined $inlined")
@@ -462,13 +494,13 @@ object InlineConstructors {
                 }
                 // add adjusted constructor argument names so that parser correctly resolves them inside of the function
 
-                accessorValue.params = params.map(Transform.funArg).map { p =>
-                  val a = p.cloneNode()
-                  a.name = p.name + parSuffix
-                  val aId = SymId(a.name, inlineBodyScope)
+                accessorValue.params = params.map { p =>
+                  val oldName = parameterNameString(p)
+                  val newName = oldName + parSuffix
+                  val newPar = Parameters.renameSingleParam(p, newName)
+                  val aId = SymId(newName, inlineBodyScope)
                   types = types addHint Some(aId) -> IsConstructorParameter
-                  // marking source as cls so that they use the class scope, same as member variables
-                  a
+                  newPar
                 }
                 //println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
 
@@ -493,7 +525,7 @@ object InlineConstructors {
               if (rest.nonEmpty) {
                 constructorProperty.asInstanceOf[Node.FunctionExpression].body.body = rest
               } else {
-                cls.body.body = cls.body.body diff Seq(md)
+                cls.body.body = cls.body.body diff Seq(constructorMethod)
               }
             }
 

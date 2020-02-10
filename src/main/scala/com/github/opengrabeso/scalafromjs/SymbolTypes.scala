@@ -11,13 +11,18 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("")
+    val watched = Set[String]("unrollLoops", "string", "vertexShader", "fragmentShader", "shader", "xp", "x")
     name.startsWith("watch_") || watched.contains(name)
   }
 
   def watchedMember(cls: String, name: String): Boolean = watchCondition {
-    val watched = Set[(String, String)](("ClassToWatch", "memberToWatch"))
-    val watchedAllClasses = Set[String]("")
+    val watched = Set[(String, String)](
+      ("WebGLProgram", "constructor"), ("WebGLProgram", "shader"),
+      ("WebGLProgram", "vertexShader"),("WebGLProgram", "fragmentShader")
+    )
+    val watchedAllClasses = Set[String](
+      "shader", "vertexShader", "fragmentShader", "gl", "xp", "x"
+    )
     name.startsWith("watch_") || watched.contains(cls, name) || watchedAllClasses.contains(name)
   }
 
@@ -70,20 +75,50 @@ object SymbolTypes {
     override def typeOnInit = false
     override def knownItems = 0
   }
+
+  // when any of the following types is used as a global class, it probably means a failing to convert a TS type
+  val forbiddenGlobalTypes = Set("Array", "number", "boolean", "string", "void", "any", "this")
+
   case class SimpleType(name: String) extends TypeDesc {
+    assert(!forbiddenGlobalTypes.contains(name))
     override def toString = name
     override def toOut = name
 
     override def knownItems = 1
   }
-  case class ClassType(name: SymbolMapId) extends TypeDesc {
-    override def toString = name.toString
-    override def toOut = name.name
+  case class ClassTypeEx(parents: Seq[String], name: SymbolMapId, typePars: Seq[TypeDesc] = Seq.empty) extends TypeDesc {
+    assert(parents.nonEmpty || name.sourcePos != (-1, -1) || !forbiddenGlobalTypes.contains(name.name))
+    private def toSomething(x: TypeDesc => String) = {
+      val baseName = (parents :+ name.name).mkString(".")
+      if (typePars.isEmpty) {
+        baseName
+      } else {
+        baseName + typePars.map(x).mkString("[", ",", "]")
+      }
+    }
+    override def toString = toSomething(_.toString)
+    override def toOut = toSomething(_.toOut)
 
     override def knownItems = 1
 
     def isSafeReplacement(source: TypeDesc): Boolean = source == this
   }
+  type ClassType = ClassTypeEx
+  object ClassType {
+    def apply(name: SymbolMapId): ClassTypeEx = new ClassTypeEx(Seq.empty, name)
+    def unapply(arg: ClassTypeEx) = ClassTypeEx.unapply(arg).map(_._2)
+  }
+  case class AnonymousClassType(sourcePos: (Int, Int)) extends TypeDesc {
+    override def toString = s"anonymous_${sourcePos._1}.${sourcePos._2}"
+    override def toOut = "AnyRef"
+    override def scalaConstruct: String = "new {}"
+    override def typeOnInit = false
+
+    override def knownItems = 1
+
+    def isSafeReplacement(source: TypeDesc): Boolean = source == this
+  }
+
   case class ArrayType(elem: TypeDesc) extends TypeDesc {
     override def toString = s"Array[${elem.toString}]"
     override def toOut = s"Array[${elem.toOut}]"
@@ -146,6 +181,28 @@ object SymbolTypes {
 
     def intersect(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeIntersect, typeUnion)
   }
+
+  case class UnionType(types: Seq[TypeDesc]) extends TypeDesc {
+    override def knownItems = 1
+    // distinct because there may be e.g. several anonymous classes which are output as AnyRef
+    override def toOut = types.map(_.toOut).distinct.mkString(" | ")
+    override def toString = types.map(_.toString).mkString(" | ")
+
+    override def depthComplexity = types.map(_.depthComplexity).max
+
+    def union(that: UnionType): TypeDesc = {
+      val tpe = (types ++ that.types).distinct
+      if (tpe.size > 4) AnyType // when the union type is very long, represent it as AnyType instead
+      else UnionType(tpe)
+    }
+    def intersect(that: UnionType): TypeDesc = {
+      // TODO: try smart class intersection using common base
+      val tpe = types.intersect(that.types)
+      if (tpe.isEmpty) NoType
+      else if (tpe.size == 1) tpe.head
+      else UnionType(tpe)
+    }
+  }
   case object AnyType extends TypeDesc { // supertype of all
     override def toString = "Any"
     override def toOut = "Any"
@@ -155,8 +212,12 @@ object SymbolTypes {
     override def toString = "Unit"
     override def toOut = "Unit"
   }
+  case object NullType extends TypeDesc {
+    override def toString = "Null"
+    override def toOut = "Null"
+  }
 
-  val any = SimpleType("Any")
+  val any = AnyType
   val number = SimpleType("Double")
   val boolean = SimpleType("Boolean")
   val string = SimpleType("String")
@@ -203,6 +264,23 @@ object SymbolTypes {
     def commonBase(c1: ClassType, c2: ClassType): TypeDesc = c2
   }
 
+  object ClassOpsUnion extends ClassOps {
+    def mostDerived(c1: ClassType, c2: ClassType) = NoType
+    def commonBase(c1: ClassType, c2: ClassType) = UnionType(Seq(c1, c2))
+  }
+
+  object IsObject {
+    def unapply(t: TypeDesc) = {
+      t match {
+        case _: AnonymousClassType =>
+          true
+        case ObjectOrMap =>
+          true
+        case _ =>
+          false
+      }
+    }
+  }
   // intersect: assignment source
   def typeIntersect(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
     val r = (tpe1, tpe2) match {
@@ -222,8 +300,14 @@ object SymbolTypes {
       case (a1: MapType, a2: MapType) =>
         //println(s"a1 intersect a2 $a1 $a2")
         a1 intersect a2
-      case (a: MapType, ObjectOrMap) => a
-      case (ObjectOrMap, a: MapType) => a
+      case (u1: UnionType, u2: UnionType) =>
+        u1 intersect u2
+      case (u: UnionType, t: TypeDesc) =>
+        u intersect UnionType(Seq(t))
+      case (t: TypeDesc, u: UnionType) =>
+        UnionType(Seq(t)) intersect u
+      case (a: MapType, IsObject()) => a
+      case (IsObject(), a: MapType) => a
       case (c1: ClassType, _) => // while technically incorrect, we always prefer a class type against a non-class one
         c1
       case (_, c2: ClassType) =>
@@ -235,6 +319,8 @@ object SymbolTypes {
     r
   }
 
+  def mapFromArray(a: ArrayType): MapType = MapType(a.elem)
+
   // union: assignment target
   def typeUnion(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
     (tpe1, tpe2) match {
@@ -244,15 +330,35 @@ object SymbolTypes {
       case (AnyType, _) => AnyType
       case (t, NoType) => t
       case (NoType, t) => t
+      case (IsObject(), c: ClassType) => c
+      case (c: ClassType, IsObject()) => c
       case (c1: ClassType, c2: ClassType) =>
         classOps.commonBase(c1, c2)
+      case (c: ClassType, SimpleType("Double")) =>
+        c // TODO: detect if c is enum and return AnyType or UnionType if it is not
+      case (SimpleType("Double"), c: ClassType) =>
+        c // TODO: detect if c is enum and return AnyType or UnionType if it is not
       case (f1: FunctionType, f2: FunctionType) =>
         f1 union f2
       case (a1: ArrayType, a2: ArrayType) =>
         a1 union a2
+      case (a1: ArrayType, a2: MapType) =>
+        mapFromArray(a1) union a2 // what looks like array can be actually a map, as array access is possible on maps
+      case (a1: MapType, a2: ArrayType) =>
+        a1 union mapFromArray(a2)
       case (a1: MapType, a2: MapType) => a1 union a2
-      case (ObjectOrMap, a: MapType) => a
-      case (a: MapType, ObjectOrMap) => a
+      case (IsObject(), a: MapType) => a
+      case (a: MapType, IsObject()) => a
+      case (ObjectOrMap, a: ArrayType) => a
+      case (a: ArrayType, ObjectOrMap) => a
+      case (u1: UnionType, u2: UnionType) =>
+        u1 union u2
+      case (u: UnionType, t: TypeDesc) =>
+        u union UnionType(Seq(t))
+      case (t: TypeDesc, u: UnionType) =>
+        UnionType(Seq(t)) union u
+      case (a: TypeDesc, b: TypeDesc) =>
+        UnionType(Seq(a, b))
       case _ =>
         AnyType
     }
@@ -266,7 +372,7 @@ object SymbolTypes {
     val t2 = typeFromOption(tpe2)
     val union = typeUnion(t1.target, t2.target)
     //println(s"  union $t1 $t2 -> $union")
-    Some(t1.copy(target = union))
+    Some(t1.copy(target = union, certain = false))
   }
 
   def typeIntersectOption(tpe1: Option[TypeInfo], tpe2: Option[TypeInfo])(implicit classOps: ClassOps): Option[TypeInfo] = {
@@ -274,7 +380,7 @@ object SymbolTypes {
     val t2 = typeFromOption(tpe2)
     val srcType = typeIntersect(t1.declType, t2.declType)
     //println(s"  intersect $t1 $t2 -> ${t1.declType} x ${t2.declType} = $srcType")
-    Some(t1.copy(source = srcType))
+    Some(t1.copy(source = srcType, certain = false))
   }
 
   def apply(): SymbolTypes = SymbolTypes.std
@@ -358,8 +464,8 @@ object SymbolTypes {
 
   val libs = Map(
     // -1 is a special handling for global symbols
-    SymbolMapId("Math", (-1, -1)) -> Seq(
-      "min", "max", "abs",
+    SymbolMapId("Math", (-1, -1)) -> Seq( // TODO: consider using a predefined header instead
+      "min", "max", "abs", // TODO: all these are static members
       "sin", "cos", "tan", "asin", "acos", "atan",
       "sqrt", "ceil", "floor",
       "round"
@@ -427,7 +533,15 @@ object TypeInfo {
   def unknown: TypeInfo = TypeInfo(AnyType, NoType)
 
 }
-case class TypeInfo(source: TypeDesc, target: TypeDesc) {
+
+/**
+  *
+  * @param source inferred type when used as an assignment source
+  * @param target inferred type when used as an assignment target
+  * @param certain types imported from d.ts can never be overridden
+  */
+case class TypeInfo(source: TypeDesc, target: TypeDesc, certain: Boolean = false) {
+  assert(!certain || source == target) // when cerain, source and target need to be the same
   def equivalent(tp: TypeInfo): Boolean = source == tp.source && target == tp.target
 
   def knownItems = source.knownItems max target.knownItems
@@ -459,9 +573,9 @@ case class TypeInfo(source: TypeDesc, target: TypeDesc) {
     case _ => target
   }
 
-  def sourceFromTarget: TypeInfo = TypeInfo(sourceTypeFromTarget, NoType)
+  def sourceFromTarget: TypeInfo = TypeInfo(sourceTypeFromTarget, NoType, certain) // TODO: certain should not be here
 
-  def map(f: TypeDesc => TypeDesc): TypeInfo = TypeInfo(f(source), f(target))
+  def map(f: TypeDesc => TypeDesc): TypeInfo = TypeInfo(f(source), f(target), certain) // TODO: certain should not be here
 }
 
 sealed trait Hint

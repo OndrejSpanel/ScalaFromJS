@@ -48,12 +48,12 @@ object ClassesByMembers {
 
         //println(s"Class $clsName parent $parentName")
 
-        val propertiesSeq = cls.body.body
+        val propertiesSeq = Option(cls.body).map(_.body).getOrElse(Nil)
         val propertiesNonStatic = propertiesSeq.filterNot(propertyIsStatic)
 
 
         def listKind(seq: Seq[Node.ClassBodyElement], kind: String) = propertiesSeq.collect {
-          case c: Node.MethodDefinition if c.kind == kind =>
+          case c: Node.MethodDefinition if c.key != null && c.kind == kind =>
             methodName(c) -> getMethodMethod(c).fold(0)(_.params.length)
         }
 
@@ -203,7 +203,7 @@ object ClassesByMembers {
 
     // try to identify any symbol not inferred completely
     val classInfo = listDefinedClassMembers(n)
-    val classes = new ClassListHarmony(n)
+    val classes = ClassListHarmony.fromAST(n.top)
     val allTypes = Ref(n.types) // keep immutable reference to a mutating var
 
     implicit val ctx = ExpressionTypeContext(allTypes, classInfo, classes)

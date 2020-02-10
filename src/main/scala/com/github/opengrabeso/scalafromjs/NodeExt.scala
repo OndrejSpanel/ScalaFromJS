@@ -196,20 +196,29 @@ trait NodeExt {
     }
   }
 
+  object AnyFunEx {
+    def unapply(arg: Node.Node): Option[(Seq[Node.FunctionParameter], Option[Node.TypeAnnotation], Node.BlockStatementOrExpression)] = arg match {
+      case f: Node.FunctionExpression =>
+        Some((f.params, Option(f.ret), f.body))
+      case f: Node.ArrowFunctionExpression =>
+        Some((f.params, None, f.body))
+      case f: Node.FunctionDeclaration =>
+        Some((f.params, Option(f.ret), f.body))
+      case f: Node.AsyncFunctionExpression =>
+        Some((f.params, None, f.body))
+      case f: Node.AsyncFunctionDeclaration =>
+        Some((f.params, None, f.body))
+      case f: Node.AsyncArrowFunctionExpression =>
+        Some((f.params, None, f.body))
+      case _ =>
+        None
+    }
+  }
+
   object AnyFun {
     def unapply(arg: Node.Node): Option[(Seq[Node.FunctionParameter], Node.BlockStatementOrExpression)] = arg match {
-      case f: Node.FunctionExpression =>
-        Some(f.params, f.body)
-      case f: Node.ArrowFunctionExpression =>
-        Some(f.params, f.body)
-      case f: Node.FunctionDeclaration =>
-        Some(f.params, f.body)
-      case f: Node.AsyncFunctionExpression =>
-        Some(f.params, f.body)
-      case f: Node.AsyncFunctionDeclaration =>
-        Some(f.params, f.body)
-      case f: Node.AsyncArrowFunctionExpression =>
-        Some(f.params, f.body)
+      case AnyFunEx(pars, tpe, body) =>
+        Some(pars, body)
       case _ =>
         None
     }
@@ -256,7 +265,13 @@ trait NodeExt {
     def unapply(arg: Node.Node): Boolean = arg match {
       case _: Node.ClassBody =>
         true
+      case _: Node.NamespaceBody =>
+        true
+      case _: Node.EnumBody =>
+        true
       case _: Node.Program =>
+        true
+      case _: Node.ObjectExpression =>
         true
       case IsFunctionScope() =>
         true
@@ -264,7 +279,7 @@ trait NodeExt {
         true
       /*
       case _: Node.IfStatement =>
-        // note: each branch statement could be considered a saperate scope, however cases needing this should be very rare
+        // note: each branch statement could be considered a separate scope, however cases needing this should be very rare
         // ... and such cases should (and most likely will) use BlockStatement as a branch body anyway
         true
       */
@@ -306,26 +321,38 @@ trait NodeExt {
     }
   }
 
+  object VarDeclTyped {
+    def unapply(arg: Node.VariableDeclaration): Option[(String, Option[Node.Expression], String, Option[Node.TypeAnnotation])] = arg match {
+      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), MayBeNull(init), MayBeNull(tpe))), kind) =>
+        Some(name, init, kind, tpe)
+      case _ =>
+        None
+    }
+  }
+
   object VarDecl {
     def unapply(arg: Node.VariableDeclaration): Option[(String, Option[Node.Expression], String)] = arg match {
-      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), MayBeNull(init))), kind) =>
+      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), MayBeNull(init), _)), kind) =>
         Some(name, init, kind)
       case _ =>
         None
     }
 
-    def apply(name: String, init: Option[Node.Expression], kind: String, fromTokens: Node.Node): Node.VariableDeclaration = {
-      Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name).withTokens(fromTokens), init.orNull)), kind).withTokens(fromTokens)
+    def apply(name: String, init: Option[Node.Expression], kind: String, tpe: Option[Node.TypeAnnotation] = None)(fromTokens: Node.Node): Node.VariableDeclaration = {
+      Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name).withTokens(fromTokens), init.orNull, tpe.orNull)), kind).withTokens(fromTokens)
     }
   }
 
+  // TODO: DRY with Transform.identifierFromPar
   def parameterName(n: Node.FunctionParameter): (Node.Identifier, Option[Node.Node]) = {
     (n: @unchecked) match {
       case Node.AssignmentPattern(left: Node.Identifier, right) =>
         left -> Some(right)
+      case Node.FunctionParameterWithType(id: Node.Identifier, _, MayBeNull(init), _) =>
+        id -> init
       case id: Node.Identifier =>
         id -> None
-      case Node.RestElement(arg: Node.Identifier) =>
+      case Node.RestElement(arg: Node.Identifier, _) =>
         arg -> None
       //case _: Node.ArrowParameterPlaceHolder =>
       //case _: Node.BindingPattern =>
@@ -410,8 +437,11 @@ trait NodeExt {
     def noTypes = SymbolTypes()
   }
   case class NodeExtended(top: Node.Program, types: SymbolTypes = SymbolTypes(), config: ConvertProject.ConvertConfig = ConvertProject.ConvertConfig()) {
-    def loadConfig: NodeExtended = {
-      val (config,ast) = ConvertProject.loadConfig(top)
+    /**
+      * @param root filename of the file the config is being loaded from
+    */
+    def loadConfig(root: Option[String] = None): NodeExtended = {
+      val (config,ast) = ConvertProject.loadConfig(top, root)
 
       copy(top = ast, config = config)
     }

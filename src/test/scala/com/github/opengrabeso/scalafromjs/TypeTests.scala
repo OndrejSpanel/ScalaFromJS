@@ -167,7 +167,57 @@ class TypeTests extends FunSuite with TestUtils {
   }
 
   test("Static members should be handled as objects") {
-    exec check ConversionCheck(rsc("types/static.js"))
+    exec check ConversionCheck(
+      """
+        function Cls(x, y){
+            this.x = x;
+            this.y = y;
+        }
+
+        Cls.defX = 0;
+        Cls.defY = function() {return 0;};
+        Cls.z = 0
+
+        Cls.prototype.set = function(x, y) {
+            this.x = x || Cls.defX;
+            this.y = y || Cls.defY();
+        };
+
+        var Utils = {
+
+            pi: 3.14,
+
+            x: 10,
+
+            funA: function (a) {
+                return a;
+            },
+
+            funB: function (a, b) {
+                return a + b;
+            },
+
+            funC: function (a, b) {
+                return a + b;
+            }
+        };
+
+        var aPi = Utils.funA(Utils.pi);
+
+        function f() {
+            Utils.x = 11;
+        }
+
+        Cls.z = 1;
+
+        Utils.funC = function(a, b) {return a*b;};
+
+        function localObject() {
+            var local = {
+                a: 0
+            }
+        }
+        """)
       .required(
         "object Cls",
         "var defX",
@@ -303,6 +353,99 @@ class TypeTests extends FunSuite with TestUtils {
         "def d() =",
         "var e: String"
       )
+  }
+
+  test("Object member types should be inferred (basic test)") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+      var utils = {
+          pi: 3.14,
+      };
+
+      var npi;
+      if (true) {
+        npi = utils.pi;
+      }
+      """)
+      .required(
+        "object util",
+        "var npi: Double",
+      ).forbidden("Any")
+  }
+  test("Object member types should be inferred (complex test)") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+      var utils = {
+          pi: 3.14,
+          x: 10,
+          funa: function (a) { return a; },
+          funb: function (a, b) { return a + b; },
+          func: function (x, y) { return x * y; },
+      };
+
+      var npi;
+      var sa;
+      var nb;
+      var nc;
+      if (true) {
+        npi = utils.pi;
+        sa = utils.funa("");
+        nb = utils.funb(1, 2);
+        nc = utils.func(1, 2);
+      }
+      """)
+      .required(
+        "object util",
+        "var npi: Double",
+        "var sa: String",
+        "var nb: Double",
+        "var nc: Double",
+        "def funa(a: String)",
+        "def funb(a: Double, b: Double)",
+        "def func(x: Double, y: Double)",
+      ).forbidden("Any"
+      )
+  }
+
+  test("Union types should be constructed as needed") {
+    exec check ConversionCheck(
+      """
+         var n = 0;
+         var s = "";
+         var b = false;
+         var a = [0, 1];
+         var o = {a: "A", b: "B"};
+         var sn;
+         var bn;
+         var snb;
+         var snbao;
+
+         if (true) {
+          sn = s;
+          sn = n;
+
+          bn = b;
+          bn = n;
+
+          snb = s;
+          snb = n;
+          snb = b;
+
+          snbao = s;
+          snbao = n;
+          snbao = b;
+          snbao = a;
+          snbao = o;
+         }
+      """
+    ).required(
+      "var sn: String | Double",
+      "var bn: Boolean | Double",
+      "var snb: String | Double | Boolean",
+      "var snbao: Any",
+    )
   }
 
 }

@@ -425,5 +425,119 @@ class ClassVarsTests extends FunSuite with TestUtils {
   }
 
 
+  test("Members should be declared in the order of appearance") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      class X {
+        constructor() {
+          this.a0 = 0;
+          this.a1 = 0;
+          this.a2 = 0;
+          this.a3 = 0;
+          this.a4 = 0;
+          this.a5 = 0;
+        }
+      }
+      """).requiredInOrder(
+      "var a0",
+      "var a1",
+      "var a2",
+      "var a3",
+      "var a4",
+      "var a5",
+    )
 
+  }
+
+  test("Members extracted from exported functions should be declared in the order of appearance") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      class X {
+        constructor() {
+          var a0;
+          var a1;
+          var a2;
+          var a3;
+          var a4;
+          this.cf = function() {
+            a0 = 0;
+            a1 = 0;
+            a2 = 0;
+            a3 = 0;
+            a4 = 0;
+          }
+        }
+        f() {
+          this.ff = 0
+        }
+        g() {
+          this.gg = 0
+        }
+        h() {
+          this.hh = 0
+        }
+      }
+      """).requiredInOrder(
+      "var a0",
+      "var a1",
+      "var a2",
+      "var a3",
+      "var a4",
+    )
+
+  }
+
+  test("Members type should inferred from a derived class access") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      class B {
+        f(p){}
+        getM(){return this.m;}
+      }
+      class X extends B {
+        constructor(v) {super();
+          this.m = v;
+        }
+        f(p){}
+      }
+      var x = new X();
+      var b = new B();
+      x.f("a");
+      x.m = false;
+      """).requiredInOrder(
+      "class B",
+      "var m: Boolean",
+      "f(p: String)",
+      "class X",
+      "f(p: String)",
+    )
+
+  }
+
+  test("Member variables should be distinguished from constructor local ones") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      function f(fp) {
+      }
+      function C(xp) {
+        var x = xp;
+        f(x);
+      }
+
+      C.prototype.f = function () {
+        this.x = false;
+      };
+
+      var c = new C("");
+      """).required(
+        "xp: String",
+        "x: Boolean",
+        "f(fp: String)",
+      )
+
+  }
 }

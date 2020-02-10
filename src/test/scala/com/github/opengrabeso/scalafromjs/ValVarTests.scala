@@ -135,10 +135,11 @@ class ValVarTests extends FunSuite with TestUtils {
 
   }
 
-  ignore("Detect nested object") {
-    exec check ConversionCheck(
-      // language=JavaScript
-      """
+  test("Detect nested object") {
+    pendingUntilFixed {
+      exec check ConversionCheck(
+        // language=JavaScript
+        """
       var g = {
           hi: "Hi",
           prop: {
@@ -146,13 +147,13 @@ class ValVarTests extends FunSuite with TestUtils {
           },
       };
       """).required(
-      "object g",
-      "object prop"
-    ).forbidden(
-      "val g","var g",
-      "val prop","var prop"
-    )
-
+        "object g",
+        "object prop"
+      ).forbidden(
+        "val g", "var g",
+        "val prop", "var prop"
+      )
+    }
   }
 
   test("Do not detect object when var is reassigned") {

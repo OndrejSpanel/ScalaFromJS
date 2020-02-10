@@ -30,7 +30,7 @@ package object classes {
   object ClassDefineValue {
     // function C() {return {a: x, b:y}
     def unapply(arg: DefFun) = arg match {
-      case DefFun(sym, args, Node.BlockStatement(body :+ Node.ReturnStatement(OObject(proto))), _) =>
+      case DefFun(sym, args, Node.BlockStatement(body :+ Node.ReturnStatement(OObject(proto))), _, _) =>
         Some(sym, args, body, proto)
       case _ =>
         None
@@ -41,7 +41,7 @@ package object classes {
   object ClassDefine {
     def unapply(arg: Node.Node)(implicit context: ScopeContext): Option[(Node.Identifier, Seq[Node.FunctionParameter], Seq[Node.Statement])] = arg match {
       // function ClassName() {}
-      case DefFun(sym, args, body, _) =>
+      case DefFun(sym, args, body, _, _) =>
         Some(sym, args, Block.statements(body))
 
       // ClassName = function() {}
@@ -364,6 +364,7 @@ package object classes {
           //println(s"newValue $k $v $isStatic")
           Node.MethodDefinition(
             Node.Identifier(k).withTokens(tokensFrom),
+            null,
             false,
             v,
             "value",
@@ -375,8 +376,9 @@ package object classes {
         def newGetterOrSetter(kind: String, k: String, tokensFrom: Node.Node, args: Seq[Node.FunctionParameter], body: Seq[Node.StatementListItem], isStatic: Boolean) = {
           Node.MethodDefinition(
             Node.Identifier(k).withTokens(tokensFrom),
+            null,
             false,
-            Node.FunctionExpression(null, args, Node.BlockStatement(body).withTokens(tokensFrom), false).withTokens(tokensFrom),
+            Node.FunctionExpression(null, args, Node.BlockStatement(body).withTokens(tokensFrom), false, null).withTokens(tokensFrom),
             if (args.isEmpty) "get" else "set",
             isStatic
           ).withTokens(tokensFrom)
@@ -407,7 +409,7 @@ package object classes {
         }
 
         def newClass(sym: Node.Identifier, base: Option[Node.Identifier], props: Seq[Node.ClassBodyElement], tokensFrom: Node.Node): Node.ClassDeclaration = {
-          val cls = new Node.ClassDeclaration(sym, base.orNull, Node.ClassBody(props).withTokens(tokensFrom)).withTokens(tokensFrom)
+          val cls = Node.ClassDeclaration(sym, base.orNull, Nil, Node.ClassBody(props).withTokens(tokensFrom), "class").withTokens(tokensFrom)
           cls.body.range = (
             sym.range._1 min tokensFrom.range._1,
             sym.range._2 max tokensFrom.range._2
@@ -417,14 +419,13 @@ package object classes {
       }
 
       def classProperties(clazz: ClassDef): Seq[Node.ClassBodyElement] = {
-        object helper extends Helper(node)
-        import helper._
+        val helper = new Helper(node)
 
-        val mappedMembers = clazz.members.map { case (k, v) => newMember(k, v) }.toSeq
-        val mappedGetters = clazz.getters.map { case (k, v) => newGetter(k, v.tokensFrom, v.args, v.body) }
-        val mappedSetters = clazz.setters.map { case (k, v) => newSetter(k, v.tokensFrom, v.args, v.body) }
-        val mappedValues = clazz.values.map { case (k, v) => newValue(k, v.value, false) }
-        val mappedStatic = clazz.membersStatic.map { case (k, v) => newMember(k, v, true) }
+        val mappedMembers = clazz.members.map { case (k, v) => helper.newMember(k, v) }.toSeq
+        val mappedGetters = clazz.getters.map { case (k, v) => helper.newGetter(k, v.tokensFrom, v.args, v.body) }
+        val mappedSetters = clazz.setters.map { case (k, v) => helper.newSetter(k, v.tokensFrom, v.args, v.body) }
+        val mappedValues = clazz.values.map { case (k, v) => helper.newValue(k, v.value, false) }
+        val mappedStatic = clazz.membersStatic.map { case (k, v) => helper.newMember(k, v, true) }
 
         (mappedGetters ++ mappedSetters ++ mappedValues ++ mappedMembers ++ mappedStatic).toSeq
       }
@@ -466,20 +467,21 @@ package object classes {
           emptyNode
         case DefineProperty(name, _, _) if classes.contains(name) =>
           emptyNode
-        case classNode@Node.ClassDeclaration(Defined(sym), _, _) if classes contains ClassId(sym) =>
+        case classNode@Node.ClassDeclaration(Defined(sym), _, _, _, _) if classes contains ClassId(sym) =>
           // add any prototype member definitions as needed
 
           val mergeProperties = classProperties(classes(ClassId(sym)))
 
-          classNode.body.body ++= mergeProperties
-          //println(s"Node.ClassDeclaration $classNode - merge members (${mergeProperties.size})")
+          if (mergeProperties.nonEmpty || classNode.body != null) { // classNode.body == null: trait or enum
+            classNode.body.body ++= mergeProperties
+            //println(s"Node.ClassDeclaration $classNode - merge members (${mergeProperties.size})")
+          }
 
           classNode
         //case DefineStaticMember(name, member, _) if verifyStaticMemberOnce(name, member) =>
         //  emptyNode
-        case classNode@Node.ClassDeclaration(_, _, _) =>
-          //println(s"Node.ClassDeclaration $classNode - not in ${classes.keys}")
-
+        case Node.ClassDeclaration(_, _, _, _, _) =>
+          //println(s"Node.ClassDeclaration node - not in ${classes.keys}")
           node
         case _ =>
           node
@@ -603,11 +605,13 @@ package object classes {
           //println(s"convertClassMembers Node.ClassDeclaration ${ClassId(cls.name.get)}")
 
           val newMembers = mutable.ArrayBuffer.empty[Node.VariableDeclaration]
-          cls.body.body.foreach {
+          if (cls.body != null) cls.body.body.foreach {
             //case Node.MethodDefinition(Node.SymbolName(p), _) =>
-            case kv@ObjectKeyVal(p, v) if !propertyIsStatic(kv) =>
+            case node@ObjectKeyVal(p, v) if !propertyIsStatic(node) => // probably relic from Uglify - Node.Property is not ClassBodyElement
               //println(s"newMembers append $cls $p $v")
-              newMembers append VarDecl(p, Option(v).map(_.asInstanceOf[Node.Expression]), "var", kv)
+              newMembers append VarDecl(p, Option(v).map(_.asInstanceOf[Node.Expression]), "var")(node)
+            case Node.MethodDefinition(identNode@Node.Identifier(name), tpe, false, value, "value", false) =>
+              newMembers append VarDecl(name, Option(value).map(_.asInstanceOf[Node.Expression]), "var", Option(tpe))(identNode)
             //case s: Node.ObjectSetter =>
             //case s: Node.ObjectGetter =>
             case _ =>
@@ -640,7 +644,7 @@ package object classes {
     val ret = n.top.transformAfter { (node, transformer) =>
       implicit val ctx = transformer.context
       node match {
-        case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _) if c.forall(_.findFirstIn(cName).isDefined) =>
+        case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _, _, _) if c.forall(_.findFirstIn(cName).isDefined) =>
           p(cls, ctx)
         case _ =>
           node
@@ -815,7 +819,7 @@ package object classes {
             Dot(
               Node.Identifier(clsSymDef.name),
               Node.Identifier("prototype")
-            )
+            ).withTokens(node)
           }
         case _ =>
           node
@@ -864,7 +868,7 @@ package object classes {
         case DefFun(
         Node.Identifier(Id(fun)), args, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier(Id(implementFun)) Dot "apply", Seq(_: Node.ThisExpression, Node.Identifier("arguments"))
-        )))), _
+        )))), _, _
         ) if constructorSymbols contains fun =>
           //println(s"Defined function ${fun.name} using ${implementFun.name}")
           implToConstructor += implementFun -> fun
@@ -872,7 +876,7 @@ package object classes {
         case DefFun(
         Node.Identifier(Id(fun)), pars, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier(Id(implementFun)) Dot "apply", (_: Node.ThisExpression) +: args)
-        ))), _
+        ))), _, _
         ) if (constructorSymbols contains fun) && (args == pars) =>
           // TODO: match args with pars
           //println(s"Defined function ${fun.name} using ${implementFun.name}")
@@ -887,7 +891,7 @@ package object classes {
     n.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
-        case defun@DefFun(Defined(Node.Identifier(Id(fun))), _, _, _) if implToConstructor contains fun =>
+        case defun@DefFun(Defined(Node.Identifier(Id(fun))), _, _, _, _) if implToConstructor contains fun =>
           //println(s"Stored function def ${fun.name}")
           constructorFunctionDefs += fun -> defun
           true
@@ -910,7 +914,7 @@ package object classes {
         // inline XXXXX.apply(this, arguments) - was already rewritten from YYYYY (transformAfter transforms children first)
         case defun@DefFun(_, _, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier(Id(symDef)) Dot "apply", Seq(_: Node.ThisExpression, Node.Identifier("arguments"))
-        )))), _) =>
+        )))), _, _) =>
           //println(s"Detect ${symDef.name}.apply")
           constructorToImpl.get(symDef).flatMap(constructorFunctionDefs.get).fold(node) { funDef =>
             //println(s"Found body of ${funDef.name.map(_.name)} in ${defun.name.map(_.name)}")
@@ -919,7 +923,7 @@ package object classes {
           }
         case defun@DefFun(_, pars, Node.BlockStatement(Seq(Node.ExpressionStatement(Node.CallExpression(
         Node.Identifier(Id(symDef)) Dot "apply", (_: Node.ThisExpression) +: args
-        )))), _) if pars == args =>
+        )))), _, _) if pars == args =>
           //println(s"Detect ${symDef.name}.apply")
           constructorToImpl.get(symDef).flatMap(constructorFunctionDefs.get).fold(node) { funDef =>
             //println(s"Found body of ${funDef.name.map(_.name)} in ${defun.name.map(_.name)}")
@@ -927,7 +931,7 @@ package object classes {
             defun
           }
         // remove the original implementation
-        case defun@DefFun(Defined(Node.Identifier(Id(sym))), _, _, _) if implToConstructor contains sym =>
+        case defun@DefFun(Defined(Node.Identifier(Id(sym))), _, _, _, _) if implToConstructor contains sym =>
           Node.EmptyStatement()
         case _ => node
       }

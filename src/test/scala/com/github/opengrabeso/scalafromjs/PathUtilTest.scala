@@ -7,8 +7,14 @@ class PathUtilTest extends FunSuite with TestUtils {
 
   test("testResolveSibling") {
     assert(resolveSibling("temp/a.js", "x.scala") == "temp/x.scala")
+
     assert(resolveSibling("temp/in/a.js", "../x.scala") == "temp/x.scala")
+
     assert(resolveSibling("temp/in/on/a.js", "../../x.scala") == "temp/x.scala")
+    assert(resolveSibling("temp/in/on/a.js", "./../../x.scala") == "temp/x.scala")
+    assert(resolveSibling("temp/in/on/a.js", "./.././../x.scala") == "temp/x.scala")
+
+    assert(resolveSibling("temp/in/on/at/a.js", "../../../x.scala") == "temp/x.scala")
   }
 
   test("testChangeExtension") {

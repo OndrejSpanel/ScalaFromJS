@@ -16,8 +16,10 @@ resolvers += Resolver.sonatypeRepo("snapshots")
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
 
-libraryDependencies += "com.github.opengrabeso" %% "esprimascala" % "0.1.2-SNAPSHOT"
+libraryDependencies += "com.github.opengrabeso" %% "esprimascala" % "0.1.3-SNAPSHOT"
 
 libraryDependencies += "org.apache.commons" % "commons-text" % "1.2"
 
 libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "2.1.1"
+
+libraryDependencies += "com.fifesoft" % "rsyntaxtextarea" % "3.0.8"
