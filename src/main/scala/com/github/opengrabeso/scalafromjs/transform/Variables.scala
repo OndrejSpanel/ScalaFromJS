@@ -717,7 +717,7 @@ object Variables {
     var globals = mutable.Map.empty[SymId, Option[Option[Node.Expression]]]
 
     def matchName(s: String) = s.length > 1 && s(0) == '_'
-    def nameToUse(s: String, localSymbols: Set[String]) = {
+    def nameToUse(s: String, localSymbols: collection.Set[String]) = {
       val wanted = s.drop(1)
       // in case of a name clash use the original name - that can never clash, as the variable could not be accessed otherwise
       if (!localSymbols.contains(wanted)) wanted
@@ -788,7 +788,7 @@ object Variables {
       }
     }
 
-    val scopes = mutable.Set.empty[(SymId, Node.Node)] // caution: transform will invalidate Node references
+    val scopes = mutable.LinkedHashSet.empty[(SymId, Node.Node)] // caution: transform will invalidate Node references
 
     // identify scopes where the variables should be introduced
     n.walkWithScope { (node, context) =>
@@ -841,7 +841,7 @@ object Variables {
           // scope is some function
           def addDeclarations(block: Node.BlockStatement): Node.BlockStatement = {
             // check if the desired name is free in the block
-            val symbols = SymbolDeclaration.declaredSymbols(block).toSet
+            val symbols = SymbolDeclaration.declaredSymbols(block).to[mutable.LinkedHashSet]
             Node.BlockStatement(
               syms.flatMap { id =>
                 // first level of the globals is whether the variable is erased now (last initialization may be scalar)
