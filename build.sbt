@@ -10,13 +10,11 @@ mainClass in Compile := Some("com.github.opengrabeso.scalafromjs.CommandLine")
 
 scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation")
 
-resolvers += Resolver.sonatypeRepo("releases")
-
-resolvers += Resolver.sonatypeRepo("snapshots")
+resolvers += Resolver.githubPackages("OpenGrabeso", "esprima-scala")
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
 
-libraryDependencies += "com.github.opengrabeso" %% "esprimascala" % "0.1.3-SNAPSHOT"
+libraryDependencies += "com.github.opengrabeso" %% "esprimascala" % "0.1.4"
 
 libraryDependencies += "org.apache.commons" % "commons-text" % "1.2"
 
