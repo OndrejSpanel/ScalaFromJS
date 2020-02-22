@@ -16,7 +16,6 @@ def generateIndexTask(index: String, suffix: String) = Def.task {
 }
 
 lazy val commonSettings = Seq(
-  name := "ScalaFromJS",
   version := "0.4.0",
   scalaVersion := "2.12.10",
   scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation"),
@@ -25,6 +24,12 @@ lazy val commonSettings = Seq(
   libraryDependencies += "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.1.2",
   libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.8" % "test"
 )
+
+lazy val walkers = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure).settings(
+  commonSettings,
+  name := "walkers"
+)
+
 
 lazy val root = project.in(file(".")).
   aggregate(pJVM, pJS).
@@ -37,11 +42,10 @@ lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(new CrossType{
   override def projectDir(crossBase: File, platform: Platform) = CrossType.Full.projectDir(crossBase, platform)
   override def projectDir(crossBase: File, projectType: String) = crossBase / projectType // copied from deprecated CrossType.Full.projectDir
   override def sharedSrcDir(projectBase: File, conf: String) = CrossType.Pure.sharedSrcDir(projectBase, conf)
-}).in(file("."))
+}).in(file(".")).dependsOn(walkers)
   .settings(
-    commonSettings,
-    maxErrors := 1,
-    scalacOptions := Seq("-unchecked", "-deprecation")
+    name := "ScalaFromJS",
+    commonSettings
   )
   .jvmSettings(
     // Add JVM-specific settings here

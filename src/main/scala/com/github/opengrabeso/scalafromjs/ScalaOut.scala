@@ -672,9 +672,9 @@ object ScalaOut {
         case '\f' => "\\f"
         case '\r' => "\\r"
         case '"' => "\\\""
-        case '\'' => "\\\'"
+        //case '\'' => "\\\'" // no need to escape, will be used in quotes
         case '\\' => "\\\\"
-        case _ => if (ch.isControl) "\\0" + Integer.toOctalString(ch.toInt)
+        case _ => if (ch.isControl) "\\u" + f"$ch%04X"
         else String.valueOf(ch)
       }
 
@@ -796,7 +796,7 @@ object ScalaOut {
         //case tn: Node.Atom => "Node.Atom"
         case tn: Node.RegexLiteral => out""""${tn.raw}".r"""
         case StringLiteral(str) =>
-          val escaped = quote(str)
+          val escaped = escape(str)
           out(s""""$escaped"""")
         case Node.Literal(null, _) =>
           out("null")

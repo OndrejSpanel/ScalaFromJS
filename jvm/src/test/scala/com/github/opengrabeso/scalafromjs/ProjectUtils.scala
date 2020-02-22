@@ -31,7 +31,7 @@ trait ProjectUtils extends TestUtils {
 
   def convertProject(controlFile: String): String = {
     withTempDir("ScalaFromJS-test-") { temp =>
-      val out = convertFileToFile("src/test/resources/" + controlFile, temp + "xxx.scala")
+      val out = convertFileToFile(rscPath(controlFile), temp + "xxx.scala")
       val sb = new StringBuilder
       forEachFileWithCleanup(out) { f =>
         // for each file verify the resulting file is a Scala file with a comment
