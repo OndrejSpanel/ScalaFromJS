@@ -86,8 +86,6 @@ object Transform {
       ).copyLoc(node)
     }
 
-    ScalaNode() // force initialization
-
     // walk the tree, check for increment / decrement
     n.transformAfter { (node, transformer) =>
       def nodeResultDiscarded(n: Node.Node, parentLevel: Int): Boolean = {

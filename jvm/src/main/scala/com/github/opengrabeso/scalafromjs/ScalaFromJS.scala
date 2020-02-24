@@ -15,6 +15,7 @@ import scala.swing.event.ValueChanged
 
 //noinspection ForwardReference
 object ScalaFromJS extends SimpleSwingApplication {
+
   def prefs: Preferences = Preferences.userRoot().node(getClass.getPackage.getName.toLowerCase)
 
   override def startup(args: scala.Array[scala.Predef.String]): Unit = {

@@ -5,6 +5,9 @@ import com.github.opengrabeso.esprima.{Esprima, Parser}
 import com.github.opengrabeso.scalafromjs.esprima.symbols.ScopeContext
 
 package object esprima extends NodeExt {
+
+  ScalaNode()
+
   // interface inspired by uglify-js
   trait TreeTransformer {
 

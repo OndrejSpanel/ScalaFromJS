@@ -2,8 +2,7 @@ package com.github.opengrabeso.scalafromjs
 
 import com.github.opengrabeso.esprima.Node
 import esprima.walker
-
-import scala.reflect.runtime.universe.{Literal => _, _}
+import esprima.walker._
 
 object ScalaNode {
   // Scala specific node extensions for the JS AST tree
@@ -16,7 +15,11 @@ object ScalaNode {
     override def clone() = copy()
   }
 
-  walker.addNodeTypes(typeOf[ScalaNode.type])
+  walker.allWalkers ++= walker.specializedWalkers(walker.createWalkers[Node.Node, Node.type])
+  walker.allTransformers ++= walker.specializedTransformers(walker.createTransformers[Node.Node, Node.type])
+
+  walker.allWalkers ++= walker.createWalkers[Node.Node, ScalaNode.type]
+  walker.allTransformers ++= walker.createTransformers[Node.Node, ScalaNode.type]
 
   def apply() = {}
 

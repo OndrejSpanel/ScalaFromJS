@@ -1,11 +1,7 @@
 package com.github.opengrabeso.scalafromjs.esprima
 
-import com.github.opengrabeso.scalafromjs.esprima.walker.addNodeTypes
 import com.github.opengrabeso.esprima.Node
 import org.scalatest.FunSuite
-
-
-import scala.reflect.runtime.universe._
 
 object Extension {
   case class StatementAsExpression(var statement: Node.Statement) extends Node.Node with Node.Expression {
@@ -18,7 +14,8 @@ object Extension {
 class ExtensionsTest extends FunSuite with TestInputs {
   test("Extend AST types with custom nodes") {
 
-    addNodeTypes(typeOf[Extension.type])
+    import walker._
+    walker.addNodeTypes[Node.Node, Extension.type](walker.Walker)
 
     val ast = parse("answer = 42")
 

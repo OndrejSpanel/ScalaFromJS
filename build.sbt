@@ -52,6 +52,7 @@ lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(new CrossType{
     mainClass in Compile := Some("com.github.opengrabeso.scalafromjs.CommandLine"),
     libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "2.1.1",
     libraryDependencies += "com.fifesoft" % "rsyntaxtextarea" % "3.0.8",
+    libraryDependencies += "org.scala-lang" % "scala-compiler" % scalaVersion.value, // for macro debugging
     assemblyJarName in assembly := name.value + ".jar"
   )
   .jsSettings(
