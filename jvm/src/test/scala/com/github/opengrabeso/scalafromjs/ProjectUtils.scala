@@ -8,6 +8,7 @@ import scala.collection.JavaConverters._
 
 trait ProjectUtils extends TestUtils {
   import CommandLine._
+  import FileAccess._
 
   def withTempDir[T](path: String)(f: String => T): T = {
     val dir = Files.createTempDirectory(path)
@@ -31,7 +32,7 @@ trait ProjectUtils extends TestUtils {
 
   def convertProject(controlFile: String): String = {
     withTempDir("ScalaFromJS-test-") { temp =>
-      val out = convertFileToFile("src/test/resources/" + controlFile, temp + "xxx.scala")
+      val out = convertFileToFile(rscPath(controlFile), temp + "xxx.scala")
       val sb = new StringBuilder
       forEachFileWithCleanup(out) { f =>
         // for each file verify the resulting file is a Scala file with a comment

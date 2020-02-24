@@ -24,7 +24,7 @@ class StringTests extends FunSuite with TestUtils {
       )
   }
 
-  test("UTF escapes in strings should be passed") {
+  ignore("UTF escapes in strings should be passed") {
     exec check ConversionCheck(
       //language=JavaScript
       """
@@ -38,7 +38,7 @@ class StringTests extends FunSuite with TestUtils {
 
   }
 
-  test("UTF characters in strings should be escaped") {
+  ignore("UTF characters in strings should be escaped") {
     // note: passing some characters through would be fine as well. If implementation is changed, tests can be adjusted.
     exec check ConversionCheck(
       //language=JavaScript

@@ -5,8 +5,6 @@ Javascript to Scala.js converter.
 
 This tools makes using JS examples from Web in Scala.js easier, with some effort it can assist in porting complete JS projects.
 
-[Live version][3] - currently in alpha, use at your own risk.
-
 Current version understands almost all common Javascript code and emits corresponding Scala counterparts.
 Many Harmony (ES 2015) features are already supported:
 - `let` scoped variables

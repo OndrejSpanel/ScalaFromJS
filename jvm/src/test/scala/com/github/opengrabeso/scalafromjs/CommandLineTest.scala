@@ -4,10 +4,11 @@ import org.scalatest.FunSuite
 
 class CommandLineTest extends FunSuite with TestUtils with ProjectUtils {
   import CommandLine._
+  import FileAccess._
 
   test("Single file conversion") {
     withTempDir("ScalaFromJS-test-") { temp =>
-      val out = convertFileToFile("src/test/resources/files/a.js", temp + "aaa.scala")
+      val out = convertFileToFile(rscPath("files/a.js"), temp + "aaa.scala")
       assert(out.nonEmpty)
       forEachFileWithCleanup(out) { f =>
         val outCode = readFile(f)

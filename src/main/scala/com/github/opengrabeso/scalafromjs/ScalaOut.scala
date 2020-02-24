@@ -664,6 +664,7 @@ object ScalaOut {
         triple + str + triple
       }
 
+      // https://stackoverflow.com/a/40073137/16673
       def escapedChar(ch: Char): String = ch match {
         case '\b' => "\\b"
         case '\t' => "\\t"
@@ -671,9 +672,9 @@ object ScalaOut {
         case '\f' => "\\f"
         case '\r' => "\\r"
         case '"' => "\\\""
-        case '\'' => "\\\'"
+        //case '\'' => "\\\'" // no need to escape, will be used in quotes
         case '\\' => "\\\\"
-        case _ => if (ch.isControl) "\\0" + Integer.toOctalString(ch.toInt)
+        case _ => if (ch.isControl) "\\u" + f"$ch%04X"
         else String.valueOf(ch)
       }
 
@@ -795,7 +796,7 @@ object ScalaOut {
         //case tn: Node.Atom => "Node.Atom"
         case tn: Node.RegexLiteral => out""""${tn.raw}".r"""
         case StringLiteral(str) =>
-          val escaped = org.apache.commons.text.StringEscapeUtils.escapeJava(str)
+          val escaped = escape(str)
           out(s""""$escaped"""")
         case Node.Literal(null, _) =>
           out("null")

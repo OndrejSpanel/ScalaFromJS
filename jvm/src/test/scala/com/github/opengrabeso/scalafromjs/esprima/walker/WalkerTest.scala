@@ -8,6 +8,8 @@ import org.scalatest.FunSuite
 
 class WalkerTest extends FunSuite {
 
+  val walkers = walker.createWalkers[Node.Node, Node.type]
+
   trait Counter {
     var count = 0
   }
@@ -20,8 +22,8 @@ class WalkerTest extends FunSuite {
   def createLValue = new UnaryExpression("", null)
   def createRValue = new Literal("0", "0")
 
-  def testForObject[T <: Node: TypeTag](node: T, expectedCount: Int) = {
-    val walker = createWalkerForNode(implicitly[TypeTag[T]])
+  def testForObject(node: Node, expectedCount: Int) = {
+    val walker = walkers(node.getClass)
     val counter = createCounter
     walker(node, counter)
     assert(counter.count == expectedCount)
@@ -49,7 +51,6 @@ class WalkerTest extends FunSuite {
   }
 
   test("Create all walkers") {
-    val walkers = createAllWalkers
     assert(walkers.size > 75) // as of Dec 2017 there are 77 classes derived from Node. It is unlikely the number will be ever lower.
     // check that walkers for a few randomly picked up classes exists and is reasonable
     assert(walkers contains classOf[AssignmentExpression])

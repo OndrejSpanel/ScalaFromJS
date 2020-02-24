@@ -3,6 +3,7 @@ package com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import CommandLine._
+import FileAccess._
 
 import scala.util.matching.Regex
 //import com.github.opengrabeso.Transform.NodeExtended
@@ -416,7 +417,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
         try {
           readFileAsJs(name)
         } catch {
-          case _: java.io.FileNotFoundException if !name.endsWith(extension) =>
+          case _: Exception if !name.endsWith(extension) =>
             readFileAsJs(name + extension)
         }
       } { item =>

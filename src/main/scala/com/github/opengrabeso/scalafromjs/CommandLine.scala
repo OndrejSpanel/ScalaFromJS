@@ -1,29 +1,11 @@
 package com.github.opengrabeso.scalafromjs
 
-import java.nio.file.{Files, Paths}
-import java.nio.charset.StandardCharsets
-
 import scala.util.Try
 import PathUtils._
 import ConvertProject.AliasPackageRule
+import FileAccess._
 
 object CommandLine {
-
-  def readFile(path: String): String = {
-    val source = scala.io.Source.fromFile(path)(scala.io.Codec.UTF8)
-    val lines = try source.mkString finally source.close()
-    lines
-  }
-  def writeFile(path: String, content: String): Unit = {
-
-    Files.write(Paths.get(path), content.getBytes(StandardCharsets.UTF_8))
-  }
-
-  def mkAllDirs(path: String): Unit = {
-    val dir = new java.io.File(path)
-    dir.getParentFile.mkdirs()
-
-  }
 
   // return filenames of the output files
   def convertFileToFile(in: String, out: String): Seq[String] = {
