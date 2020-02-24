@@ -5,6 +5,9 @@ Javascript to Scala.js converter.
 
 This tools makes using JS examples from Web in Scala.js easier, with some effort it can assist in porting complete JS projects.
 
+[Live version][3] - currently in alpha, use at your own risk.
+
+
 Current version understands almost all common Javascript code and emits corresponding Scala counterparts.
 Many Harmony (ES 2015) features are already supported:
 - `let` scoped variables
@@ -102,10 +105,6 @@ Developer notes
 [Scala port of Esprima][5] is used as a JS parser . The port was assisted by this tool. UglifyJS was used previously, running on Node.js. If you are
 interested in that version, see tag `uglify-scala.js`. 
 
- [3]: https://ondrejspanel.github.io/ScalaFromJS/live/
- [4]: https://en.wikipedia.org/wiki/Immediately-invoked_function_expression
- [5]: https://github.com/OpenGrabeso/esprima-scala
- 
  
 Command line usage
 ==================
@@ -170,3 +169,7 @@ Class member variables
 Class member variables are represented using `MethodDefinition` (see `newValue`) with `kind = "value"`. 
 They are also listed using `VariableDeclaration` / `VariableDeclarator` in the  "inline^" method.
  
+  [3]: https://ondrejspanel.github.io/ScalaFromJS/
+  [4]: https://en.wikipedia.org/wiki/Immediately-invoked_function_expression
+  [5]: https://github.com/OpenGrabeso/esprima-scala
+  
