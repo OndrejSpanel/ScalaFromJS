@@ -4,6 +4,7 @@ import org.scalatest.FunSuite
 
 class CommandLineTest extends FunSuite with TestUtils with ProjectUtils {
   import CommandLine._
+  import FileAccess._
 
   test("Single file conversion") {
     withTempDir("ScalaFromJS-test-") { temp =>

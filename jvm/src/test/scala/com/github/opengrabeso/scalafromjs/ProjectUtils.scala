@@ -8,6 +8,7 @@ import scala.collection.JavaConverters._
 
 trait ProjectUtils extends TestUtils {
   import CommandLine._
+  import FileAccess._
 
   def withTempDir[T](path: String)(f: String => T): T = {
     val dir = Files.createTempDirectory(path)
