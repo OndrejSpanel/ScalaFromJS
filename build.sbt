@@ -15,12 +15,15 @@ def generateIndexTask(index: String, suffix: String) = Def.task {
   log.info(s"Generate $index with suffix: $suffix")
 }
 
+resolvers in ThisBuild += "GitHub OpenGrabeso Apache Maven Packages" at "https://maven.pkg.github.com/OpenGrabeso/packages/"
+
+credentials in ThisBuild += Credentials(Path.userHome / "github.credentials")
+
 lazy val commonSettings = Seq(
   version := "0.4.0",
   scalaVersion := "2.12.10",
   scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation"),
-  resolvers += Resolver.githubPackages("OpenGrabeso", "esprima-scala"),
-  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.1.5",
+  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.1.10",
   libraryDependencies += "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.1.2",
   libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.8" % "test"
 )
