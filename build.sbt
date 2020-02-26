@@ -62,6 +62,7 @@ lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(new CrossType{
     mainClass in Compile := Some("com.github.opengrabeso.scalafromjs.ScalaFromJS"),
     scalaJSUseMainModuleInitializer := true,
     libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.7",
+    libraryDependencies += "com.github.karasiq" %%% "scalajs-bootstrap-v4" % "2.3.5",
     (fastOptJS in Compile) := (fastOptJS in Compile).dependsOn(generateIndexTask("index-fast.html","fastOpt")).value,
     (fullOptJS in Compile) := (fullOptJS in Compile).dependsOn(generateIndexTask("index.html","opt")).value
   )

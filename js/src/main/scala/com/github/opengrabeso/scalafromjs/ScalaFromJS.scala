@@ -5,6 +5,7 @@ import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
 import org.scalajs.dom
 import org.scalajs.dom.Event
+import com.karasiq.bootstrap4.Bootstrap.default._, scalaTags.all._
 
 import scala.util.Try
 
