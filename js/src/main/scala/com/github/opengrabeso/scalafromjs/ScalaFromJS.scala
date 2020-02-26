@@ -5,9 +5,16 @@ import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
 import org.scalajs.dom
 import org.scalajs.dom.Event
-import com.karasiq.bootstrap4.Bootstrap.default._, scalaTags.all._
 
 import scala.util.Try
+
+import org.scalajs.dom.window
+import rx._
+
+import com.karasiq.bootstrap4.Bootstrap.default._
+import scalaTags.all._
+
+import com.karasiq.bootstrap.jquery.BootstrapJQueryContext
 
 @JSExportTopLevel("ScalaFromJS")
 object ScalaFromJS {
@@ -101,7 +108,12 @@ object ScalaFromJS {
 
   @JSExport
   def mainJS() = {
-    dom.window.addEventListener("load", windowLoaded)
+    BootstrapJQueryContext.useNpmImports()
+    jQuery(() ⇒ {
+      val list = TodoList()
+      list.applyTo(dom.document.body)
+      //dom.window.addEventListener("load", windowLoaded)
+    })
   }
 
   @JSExport

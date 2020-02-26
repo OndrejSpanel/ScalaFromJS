@@ -60,14 +60,21 @@ lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(new CrossType{
   )
   .jsSettings(
     mainClass in Compile := Some("com.github.opengrabeso.scalafromjs.ScalaFromJS"),
+
+    scalaJSModuleKind := ModuleKind.CommonJSModule,
     scalaJSUseMainModuleInitializer := true,
+
     libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.7",
     libraryDependencies += "com.github.karasiq" %%% "scalajs-bootstrap-v4" % "2.3.5",
+
+    npmDependencies in Compile += "jquery" -> "3.2.1",
+    npmDependencies in Compile += "bootstrap" -> "4.1.1",
+
     (fastOptJS in Compile) := (fastOptJS in Compile).dependsOn(generateIndexTask("index-fast.html","fastOpt")).value,
     (fullOptJS in Compile) := (fullOptJS in Compile).dependsOn(generateIndexTask("index.html","opt")).value
   )
 
 
 lazy val pJVM = projs.jvm
-lazy val pJS = projs.js.disablePlugins(sbtassembly.AssemblyPlugin)
+lazy val pJS = projs.js.disablePlugins(sbtassembly.AssemblyPlugin).enablePlugins(ScalaJSBundlerPlugin)
 
