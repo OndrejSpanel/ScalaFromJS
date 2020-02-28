@@ -15,11 +15,16 @@ def generateIndexTask(index: String, suffix: String) = Def.task {
   log.info(s"Generate $index with suffix: $suffix")
 }
 
-resolvers in ThisBuild += "GitHub OpenGrabeso Apache Maven Packages" at "https://maven.pkg.github.com/OpenGrabeso/packages/"
+githubOwner in ThisBuild := "OndrejSpanel"
 
-credentials in ThisBuild += Credentials(Path.userHome / "github.credentials")
+githubRepository in ThisBuild := "ScalaFromJS"
 
 githubActor in ThisBuild := "OndrejSpanel"
+
+githubTokenSource in ThisBuild := TokenSource.Environment("GITHUB_USERTOKEN") || TokenSource.Environment("GITHUB_TOKEN") || TokenSource.GitConfig("github.token")
+
+resolvers in ThisBuild += Resolver.githubPackages("OpenGrabeso", "packages")
+
 
 lazy val commonSettings = Seq(
   version := "0.4.0",

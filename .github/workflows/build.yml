@@ -17,4 +17,7 @@ jobs:
     - name: Run tests
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: sbt projsJVM/test projsJS/test
+        GITHUB_USERTOKEN: ${{ secrets.GITHUB_USERTOKEN }}
+      run: |
+        printf "[github]\n  actor=OndrejSpanel\n  token=${{ secrets.GITHUB_TOKEN }}" > ~/.gitconfig
+        sbt projsJVM/test projsJS/test
