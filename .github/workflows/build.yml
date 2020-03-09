@@ -19,5 +19,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         GITHUB_USERTOKEN: ${{ secrets.GITHUB_USERTOKEN }}
       run: |
-        printf "[github]\n  actor=OndrejSpanel\n  token=${{ secrets.GITHUB_TOKEN }}" > ~/.gitconfig
+        git config --add github.actor OndrejSpanel
+        git config --add github.token ${{ secrets.GITHUB_TOKEN }}
         sbt projsJVM/test projsJS/test
