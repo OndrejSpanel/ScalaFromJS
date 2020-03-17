@@ -58,7 +58,9 @@ object ScalaFromJS {
   def doConversion(persist: Boolean = true) = {
     val code = in.asInstanceOf[js.Dynamic].value.asInstanceOf[String]
 
-    //Persist.store("source", code)
+    if (persist) {
+      Persist.store("scalafromjs.source", code)
+    }
 
     Try(convert(code)).fold(
       { err =>
@@ -88,14 +90,11 @@ object ScalaFromJS {
     in.addEventListener("input", onInput)
     in.addEventListener("paste", onPaste)
 
-    /*
-    val previous = Persist.load("source")
+    val previous = Persist.load("scalafromjs.source")
     for (p <- previous) {
       in.asInstanceOf[js.Dynamic].value = p
       doConversion(false)
     }
-    */
-
   }
 
   @JSExport
