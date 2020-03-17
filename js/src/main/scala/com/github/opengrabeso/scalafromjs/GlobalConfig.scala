@@ -4,8 +4,7 @@ import org.scalajs.dom
 
 object GlobalConfig {
   lazy val fingerprint = {
-    val p = Convert.getClass.getName //.reverse.dropWhile(_ == '$').reverse
-    val name = p.split('.').dropRight(1).mkString(".")
+    val name = dom.window.location.host + dom.window.location.pathname
     val version = "Web"
     val timestamp = dom.document.lastModified
     name + ": " + version + " " + timestamp
