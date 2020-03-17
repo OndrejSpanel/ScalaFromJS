@@ -278,4 +278,39 @@ class RuleTests extends FunSuite with TestUtils {
 
 
   }
+
+
+  test("Handle equals substitution correctly (regression test)") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+        var ScalaFromJS_settings = {
+            members: [
+                {
+                    cls: ".*",
+                    name: "equals",
+                    operation: "subst",
+                    template: "$this"
+                }
+            ],
+        };
+
+        function B( x, y ) {
+          this.x = x;
+          this.y = y;
+        }
+
+        Object.assign( B.prototype, {
+          equals: function ( that ) {
+            return that.x === this.x && that.y === this.y;
+          }
+        } );
+      """).required(
+      "that.x == this.x && that.y == this.y",
+    ).forbidden(
+      "return",
+    )
+  }
+
+
 }

@@ -11,7 +11,7 @@ object ScalaNode {
     override def clone() = copy()
   }
 
-  case class MemberTemplate(name: String, original: Node.ClassBodyElement, value: String) extends Node.Node with Node.ClassBodyElement {
+  case class MemberTemplate(var name: String, var original: Node.ClassBodyElement, var value: String) extends Node.Node with Node.ClassBodyElement {
     override def clone() = copy()
   }
 
