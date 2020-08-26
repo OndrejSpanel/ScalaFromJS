@@ -4,9 +4,9 @@ import com.github.opengrabeso.esprima.Node
 import com.github.opengrabeso.esprima.Node._
 import scala.reflect.runtime.universe.{Literal => _,_}
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class WalkerTest extends FunSuite {
+class WalkerTest extends AnyFunSuite {
 
   val walkers = walker.createWalkers[Node.Node, Node.type]
 

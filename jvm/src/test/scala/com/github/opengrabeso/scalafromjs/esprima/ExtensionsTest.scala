@@ -1,7 +1,7 @@
 package com.github.opengrabeso.scalafromjs.esprima
 
 import com.github.opengrabeso.esprima.Node
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 object Extension {
   case class StatementAsExpression(var statement: Node.Statement) extends Node.Node with Node.Expression {
@@ -11,7 +11,7 @@ object Extension {
   }
 }
 
-class ExtensionsTest extends FunSuite with TestInputs {
+class ExtensionsTest extends AnyFunSuite with TestInputs {
   test("Extend AST types with custom nodes") {
 
     import walker._

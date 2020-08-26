@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class NumberTypeTests extends FunSuite with TestUtils {
+class NumberTypeTests extends AnyFunSuite with TestUtils {
   test("Autodetect hex color values") {
     exec check ConversionCheck(
       //language=JavaScript

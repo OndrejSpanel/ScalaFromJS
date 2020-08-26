@@ -1,10 +1,10 @@
 package com.github.opengrabeso.scalafromjs.esprima
 package symbols
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 import com.github.opengrabeso.esprima.Esprima._
 
-class SymbolsTest extends FunSuite with TestInputs {
+class SymbolsTest extends AnyFunSuite with TestInputs {
 
   test("Walk with scope tracking ") {
     val ast = parse(es6)

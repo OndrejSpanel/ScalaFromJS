@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class ExpressionTests extends FunSuite with TestUtils {
+class ExpressionTests extends AnyFunSuite with TestUtils {
 
   test("Handle single unary operator") {
     exec check ConversionCheck("a++").required("a += 1")

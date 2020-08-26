@@ -32,7 +32,7 @@ lazy val commonSettings = Seq(
   scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation"),
   libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.1.12",
   libraryDependencies += "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.1.2",
-  libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.8" % "test"
+  libraryDependencies += "org.scalatest" %%% "scalatest" % "3.2.2" % "test"
 )
 
 lazy val walkers = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure).settings(

@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class ThreeJsTests extends FunSuite with TestUtils {
+class ThreeJsTests extends AnyFunSuite with TestUtils {
 
   test("Convert Three.js Vector3 with reasonable results") {
     exec check ConversionCheck(rsc("threejs/vector3.js"))

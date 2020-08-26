@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class ForLoopTests extends FunSuite with TestUtils {
+class ForLoopTests extends AnyFunSuite with TestUtils {
   test("Detect for loop variable scope") {
     exec check ConversionCheck(
       //language=JavaScript

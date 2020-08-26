@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class PathUtilTest extends FunSuite with TestUtils {
+class PathUtilTest extends AnyFunSuite with TestUtils {
   import PathUtils._
 
   test("testResolveSibling") {

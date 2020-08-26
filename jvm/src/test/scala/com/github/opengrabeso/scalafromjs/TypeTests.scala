@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class TypeTests extends FunSuite with TestUtils {
+class TypeTests extends AnyFunSuite with TestUtils {
   test("Detect vals, infer var type") {
     // note: overlaps expression/variables (ExpressionTests / "Val detection")
     exec check ConversionCheck(rsc("types/inference.js"))

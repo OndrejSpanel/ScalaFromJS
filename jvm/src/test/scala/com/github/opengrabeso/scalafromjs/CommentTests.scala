@@ -1,10 +1,10 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import scala.util.{Failure, Success}
 
-class CommentTests extends FunSuite with TestUtils {
+class CommentTests extends AnyFunSuite with TestUtils {
   test("Complex single line comments should be processed correctly") {
     exec check ConversionCheck(
       //language=JavaScript

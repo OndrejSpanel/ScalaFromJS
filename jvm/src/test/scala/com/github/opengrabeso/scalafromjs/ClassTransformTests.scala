@@ -1,11 +1,11 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import Transform._
 import transform._
 
-class ClassTransformTests extends FunSuite with TestUtils {
+class ClassTransformTests extends AnyFunSuite with TestUtils {
 
   implicit class Check(f: String) {
     def required(str: String*) = {

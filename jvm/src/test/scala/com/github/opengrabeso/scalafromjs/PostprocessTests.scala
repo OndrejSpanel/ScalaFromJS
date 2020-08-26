@@ -1,7 +1,7 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
-class PostprocessTests extends FunSuite with TestUtils {
+import org.scalatest.funsuite.AnyFunSuite
+class PostprocessTests extends AnyFunSuite with TestUtils {
   test("Delete member variables and functions") {
     exec check ConversionCheck(
       //language=JavaScript

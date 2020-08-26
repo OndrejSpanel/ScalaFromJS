@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class ClassVariantsTests extends FunSuite with TestUtils {
+class ClassVariantsTests extends AnyFunSuite with TestUtils {
 
   test("Define class using basic prototype ES5 form") {
     exec check ConversionCheck(
