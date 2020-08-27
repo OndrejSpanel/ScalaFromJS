@@ -499,7 +499,10 @@ object ScalaOut {
       def outputTypeParameters(typeParameters: Node.TypeParameterList) = {
         if (typeParameters != null) {
           out("[")
+          var first = true
           for (t <- typeParameters.types) {
+            if (!first) out", "
+            first = false
             out"${t.name}"
             if (t.constraint != null) {
               out(" <: ")

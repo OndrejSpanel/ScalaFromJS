@@ -167,7 +167,54 @@ class TSTest extends FunSuite with TestUtils with ProjectUtils {
     ).forbidden("Any")
   }
 
-  test("Support generic classes") {
+  test("Convert generic classes") {
+    exec check ConversionCheckTypeScript(
+      //language=TypeScript
+      """
+          class C<T> {
+            fun(): T {
+              return null;
+            };
+          }
+      """
+    ).required(
+      "class C[T]"
+    )
+  }
+
+  test("Convert generic classes with multiple parameters") {
+    exec check ConversionCheckTypeScript(
+      //language=TypeScript
+      """
+          class C<T, X> {
+            fun(): T {
+              return null;
+            };
+          }
+      """
+    ).required(
+      "class C[T, X]"
+    )
+  }
+
+  test("Convert generic classes with multiple parameters with extends clauses") {
+    exec check ConversionCheckTypeScript(
+      //language=TypeScript
+      """
+          interface TB {};
+          interface TX {};
+          class C<T extends TB, X extends TX> {
+            fun(): T {
+              return null;
+            };
+          }
+      """
+    ).required(
+      "class C[T <: TB, X <: TX]"
+    )
+  }
+
+  test("Support generic classes member type inference") {
     pendingUntilFixed {
       exec check ConversionCheckTypeScript(
         //language=TypeScript
