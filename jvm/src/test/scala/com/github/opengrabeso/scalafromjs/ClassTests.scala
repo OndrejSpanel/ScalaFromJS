@@ -343,7 +343,7 @@ class ClassTests extends AnyFunSuite with TestUtils {
         }
       """).required(
       "class Foo",
-      "def isFoo = true"
+      "def isFoo()"
     ).forbidden(
       "defineProperty"
     )
@@ -373,10 +373,10 @@ class ClassTests extends AnyFunSuite with TestUtils {
         };
       """).required(
       "class Foo",
-      "isInstanceOf[Foo](c)"
+      "case c_cast: Foo" // simple if replaced with a match / case
     ).forbidden(
       "defineProperty",
-      "isFoo"
+      ".isFoo"
     )
   }
 }

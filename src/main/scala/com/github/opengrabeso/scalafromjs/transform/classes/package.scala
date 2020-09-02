@@ -656,7 +656,10 @@ package object classes {
                     Seq( _: Node.ThisExpression, p@StringLiteral(prop), v@OObject(Seq(Node.Property("init", Node.Identifier("value"), false, value: Node.Expression, false, false))))
                   )) =>
                     properties += new Node.MethodDefinition(
-                      Node.Identifier(prop).withTokens(p), null, null, false, value, "init", false, false, false
+                      Node.Identifier(prop).withTokens(p),
+                      null, null, false,
+                      Node.FunctionExpression(null, Seq.empty, Node.BlockStatement(Seq(Node.ExpressionStatement(value))), false, null).withTokensDeep(v),
+                      "init", false, false, false
                     ).withTokens(v)
 
                     false
