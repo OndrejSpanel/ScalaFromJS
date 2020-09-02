@@ -941,21 +941,21 @@ package object classes {
   }
 
 
-  val transforms = Seq[(Symbol, NodeExtended => NodeExtended)](
-    'inlinePrototypeVariables -> onTopNode(inlinePrototypeVariables),
-    'inlinePrototypeConstants -> onTopNode(inlinePrototypeConstants),
-    'inlineConstructorFunction -> onTopNode(inlineConstructorFunction),
-    'convertProtoClassesRecursive -> onTopNode(convertProtoClassesRecursive),
-    'convertClassMembers -> onTopNode(convertClassMembers),
+  val transforms = Seq[(String, NodeExtended => NodeExtended)](
+    "inlinePrototypeVariables" -> onTopNode(inlinePrototypeVariables),
+    "inlinePrototypeConstants" -> onTopNode(inlinePrototypeConstants),
+    "inlineConstructorFunction" -> onTopNode(inlineConstructorFunction),
+    "convertProtoClassesRecursive" -> onTopNode(convertProtoClassesRecursive),
+    "convertClassMembers" -> onTopNode(convertClassMembers),
     // privateVariables before FillVarMembers, so that variables are introduced correctly
-    'privateVariables -> onTopNode(transform.classes.InlineConstructors.privateVariables),
+    "privateVariables" -> onTopNode(transform.classes.InlineConstructors.privateVariables),
     // privateFunctions after privateVariables, are already converted to this.member references
     // privateFunctions before FillVarMembers, so that variables for the functions are not created yet
-    'privateFunctions -> onTopNode(transform.classes.InlineConstructors.privateFunctions),
-    'FillVarMembers -> transform.classes.FillVarMembers.apply,
+    "privateFunctions" -> onTopNode(transform.classes.InlineConstructors.privateFunctions),
+    "FillVarMembers" -> transform.classes.FillVarMembers.apply,
     // applyRules after fillVarMembers - we cannot delete members before they are created
     // applyRules before inlineConstructors, so that constructor is a single function
-    'applyRules -> applyRules,
-    'InlineConstructors -> transform.classes.InlineConstructors.apply
+    "applyRules" -> applyRules,
+    "InlineConstructors" -> transform.classes.InlineConstructors.apply
   )
 }
