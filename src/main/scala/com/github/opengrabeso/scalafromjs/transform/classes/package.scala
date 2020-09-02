@@ -639,6 +639,56 @@ package object classes {
     ret
   }
 
+  def convertClassProperties(n: Node.Node): Node.Node = {
+    val ret = n.transformAfter { (node, _) =>
+      node match {
+        case cls: Node.ClassDeclaration =>
+          //println(s"convertClassMembers Node.ClassDeclaration ${ClassId(cls.name.get)}")
+
+          findConstructor(cls).map { constructor =>
+            constructor.value match {
+              case fun: Node.FunctionExpression =>
+                val body = fun.body.body
+                val properties = mutable.ArrayBuffer.empty[Node.MethodDefinition]
+                val bodyLeft = body.filter {
+                  case Node.ExpressionStatement(Node.CallExpression(
+                    Node.Identifier("Object") Dot "defineProperty",
+                    Seq( _: Node.ThisExpression, p@StringLiteral(prop), v@OObject(Seq(Node.Property("init", Node.Identifier("value"), false, value: Node.Expression, false, false))))
+                  )) =>
+                    properties += new Node.MethodDefinition(
+                      Node.Identifier(prop).withTokens(p), null, null, false, value, "init", false, false, false
+                    ).withTokens(v)
+
+                    false
+                  case _ =>
+                    true
+                }
+
+                val newCls = cls.cloneNode()
+                val newClsBody = cls.body.body.map {
+                  case `constructor` =>
+                    val newConstructor = constructor.cloneNode()
+                    val newConstructorValue = fun.cloneNode()
+                    newConstructorValue.body = Node.BlockStatement(bodyLeft).withTokens(fun.body)
+                    newConstructor.value = newConstructorValue
+                    newConstructor
+                  case x =>
+                    x
+
+                }
+                newCls.body.body = newClsBody ++ properties
+                newCls
+              case cls =>
+                cls
+            }
+          }.getOrElse(cls)
+        case _ =>
+          node
+      }
+    }
+    ret
+  }
+
 
   def processAllClasses(n: NodeExtended, c: Option[Regex] = None)(p: (Node.ClassDeclaration, ScopeContext) => Node.ClassDeclaration): NodeExtended = {
     val ret = n.top.transformAfter { (node, transformer) =>
@@ -946,6 +996,7 @@ package object classes {
     "inlinePrototypeConstants" -> onTopNode(inlinePrototypeConstants),
     "inlineConstructorFunction" -> onTopNode(inlineConstructorFunction),
     "convertProtoClassesRecursive" -> onTopNode(convertProtoClassesRecursive),
+    "convertClassProperties" -> onTopNode(convertClassProperties),
     "convertClassMembers" -> onTopNode(convertClassMembers),
     // privateVariables before FillVarMembers, so that variables are introduced correctly
     "privateVariables" -> onTopNode(transform.classes.InlineConstructors.privateVariables),

@@ -343,7 +343,7 @@ class ClassTests extends AnyFunSuite with TestUtils {
         }
       """).required(
       "class Foo",
-      "def isFoo() = true"
+      "def isFoo = true"
     ).forbidden(
       "defineProperty"
     )
