@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class TSTest extends FunSuite with TestUtils with ProjectUtils {
+class TSTest extends AnyFunSuite with TestUtils with ProjectUtils {
   test("TypeScript variable conversion") {
     exec check ConversionCheckTypeScript(
       """

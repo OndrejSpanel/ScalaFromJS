@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class CommandLineTest extends FunSuite with TestUtils with ProjectUtils {
+class CommandLineTest extends AnyFunSuite with TestUtils with ProjectUtils {
   import CommandLine._
   import FileAccess._
 

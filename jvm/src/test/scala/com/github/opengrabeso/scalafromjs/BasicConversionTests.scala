@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class BasicConversionTests extends FunSuite with TestUtils {
+class BasicConversionTests extends AnyFunSuite with TestUtils {
 
 
   test("Simple functions") {

@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class DTSTest extends FunSuite with TestUtils with ProjectUtils {
+class DTSTest extends AnyFunSuite with TestUtils with ProjectUtils {
   test("Types from d.ts should override any inference") {
     val outCode = convertProject("d.ts/input.js")
     exec check ResultCheck(outCode)

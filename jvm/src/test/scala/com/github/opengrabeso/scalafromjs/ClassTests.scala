@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class ClassTests extends FunSuite with TestUtils {
+class ClassTests extends AnyFunSuite with TestUtils {
 
   test("Simple JS 1.8 (ES 5) class") {
     exec check ConversionCheck(rsc("types/simpleClass.js"))

@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class SplitFilesTests extends FunSuite with TestUtils {
+class SplitFilesTests extends AnyFunSuite with TestUtils {
   test("Simulated multiple file conversion") {
     exec check ConversionCheck(
       """

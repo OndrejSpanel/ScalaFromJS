@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class ArrayTests extends FunSuite with TestUtils {
+class ArrayTests extends AnyFunSuite with TestUtils {
   test("Map and Array types should be inferred") {
     exec check ConversionCheck(
       //language=JavaScript

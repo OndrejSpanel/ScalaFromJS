@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class StringTests extends FunSuite with TestUtils {
+class StringTests extends AnyFunSuite with TestUtils {
   test("Normal strings should be converted") {
     exec check ConversionCheck(
       //language=JavaScript

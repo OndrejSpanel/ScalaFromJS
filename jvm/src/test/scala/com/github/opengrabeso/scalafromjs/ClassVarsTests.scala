@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class ClassVarsTests extends FunSuite with TestUtils {
+class ClassVarsTests extends AnyFunSuite with TestUtils {
   test("Handle class variables") {
     exec check ConversionCheck(
       // language=JavaScript

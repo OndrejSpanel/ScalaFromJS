@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class CollectionTests extends FunSuite with TestUtils {
+class CollectionTests extends AnyFunSuite with TestUtils {
   test("Detect Array access") {
     exec check ConversionCheck(
       //language=JavaScript

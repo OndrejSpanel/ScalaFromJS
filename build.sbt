@@ -27,12 +27,12 @@ resolvers in ThisBuild += Resolver.githubPackages("OpenGrabeso", "packages")
 
 
 lazy val commonSettings = Seq(
-  version := "0.4.0",
-  scalaVersion := "2.12.10",
+  version := "0.5.0",
+  scalaVersion := "2.12.12",
   scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation"),
-  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.1.12",
+  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.2.1",
   libraryDependencies += "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.1.2",
-  libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.8" % "test"
+  libraryDependencies += "org.scalatest" %%% "scalatest" % "3.2.2" % "test"
 )
 
 lazy val walkers = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure).settings(
@@ -68,7 +68,7 @@ lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(new CrossType{
   .jsSettings(
     mainClass in Compile := Some("com.github.opengrabeso.scalafromjs.ScalaFromJS"),
     scalaJSUseMainModuleInitializer := true,
-    libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "0.9.7",
+    libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "1.1.0",
     (fastOptJS in Compile) := (fastOptJS in Compile).dependsOn(generateIndexTask("index-fast.html","fastopt")).value,
     (fullOptJS in Compile) := (fullOptJS in Compile).dependsOn(generateIndexTask("index.html","opt")).value
   )

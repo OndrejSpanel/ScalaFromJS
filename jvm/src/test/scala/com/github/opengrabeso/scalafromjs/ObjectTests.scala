@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class ObjectTests extends FunSuite with TestUtils {
+class ObjectTests extends AnyFunSuite with TestUtils {
   test("Object literals should be converted") {
     exec check ConversionCheck(
       //language=JavaScript

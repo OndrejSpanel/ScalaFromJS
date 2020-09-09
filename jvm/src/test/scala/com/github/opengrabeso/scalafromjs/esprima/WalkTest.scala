@@ -2,12 +2,12 @@ package com.github.opengrabeso.scalafromjs.esprima
 
 import com.github.opengrabeso.esprima._
 import com.github.opengrabeso.esprima.Node._
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
 import scala.collection.mutable
 import scala.language.implicitConversions
 
-class WalkTest extends FunSuite with TestInputs {
+class WalkTest extends AnyFunSuite with TestInputs {
 
   def countASTNodes(ast: Node): (Int, mutable.Map[Class[_], Int]) = {
     var count = 0

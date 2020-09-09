@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class ValVarTests extends FunSuite with TestUtils {
+class ValVarTests extends AnyFunSuite with TestUtils {
   test("Val detection") {
     exec check ConversionCheck(rsc("expressions/variables.js"))
       .required(

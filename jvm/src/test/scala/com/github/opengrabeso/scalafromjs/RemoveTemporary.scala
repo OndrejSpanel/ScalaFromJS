@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class RemoveTemporary extends FunSuite with TestUtils {
+class RemoveTemporary extends AnyFunSuite with TestUtils {
   test("Temporary variable (local) removal from Three.js Vector2 clampScalar") {
     // see c69128cb670b144f09df9b7697bfbecfc5ef66f7 - Helper.AsFunction / onlyVariables
     exec check ConversionCheck(

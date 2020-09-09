@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
-import org.scalatest.FunSuite
+import org.scalatest.funsuite.AnyFunSuite
 
-class MultipleGlobals extends FunSuite with TestUtils {
+class MultipleGlobals extends AnyFunSuite with TestUtils {
   test("Make multiple global variables unique") { // detectDoubleVars
     exec check ConversionCheck(
       // language=JavaScript
