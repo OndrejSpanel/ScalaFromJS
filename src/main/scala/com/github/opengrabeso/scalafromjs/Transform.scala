@@ -882,47 +882,47 @@ object Transform {
 
     import transform._
 
-    val transforms = Seq[(Symbol, NodeExtended => NodeExtended)](
-      'cleanupExports -> onTopNode(Modules.cleanupExports),
-      'inlineImports -> onTopNode(Modules.inlineImports),
-      'handleIncrement -> onTopNode(handleIncrement),
-      'splitMultipleDefinitions -> onTopNode(Variables.splitMultipleDefinitions),
-      'varInitialization -> onTopNode(Variables.varInitialization),
-      'readJSDoc -> readJSDoc,
-      'iife -> onTopNode(iife), // removes also trailing return within the IIFE construct
-      'removeDoubleScope -> onTopNode(removeDoubleScope), // after iife (often introduced by it)
-      'processCall -> onTopNode(processCall),
-      'detectForVars -> onTopNode(Variables.detectForVars),
-      'detectGlobalTemporaries -> onTopNode(Variables.detectGlobalTemporaries),
-      'detectDoubleVars -> onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
-      'detectVals -> onTopNode(Variables.detectVals), // before convertConstToFunction
-      'detectMethods -> onTopNode(Variables.detectMethods),
-      'convertConstToFunction -> onTopNode(Variables.convertConstToFunction)
+    val transforms = Seq[(String, NodeExtended => NodeExtended)](
+      "cleanupExports" -> onTopNode(Modules.cleanupExports),
+      "inlineImports" -> onTopNode(Modules.inlineImports),
+      "handleIncrement" -> onTopNode(handleIncrement),
+      "splitMultipleDefinitions" -> onTopNode(Variables.splitMultipleDefinitions),
+      "varInitialization" -> onTopNode(Variables.varInitialization),
+      "readJSDoc" -> readJSDoc,
+      "iife" -> onTopNode(iife), // removes also trailing return within the IIFE construct
+      "removeDoubleScope" -> onTopNode(removeDoubleScope), // after iife (often introduced by it)
+      "processCall" -> onTopNode(processCall),
+      "detectForVars" -> onTopNode(Variables.detectForVars),
+      "detectGlobalTemporaries" -> onTopNode(Variables.detectGlobalTemporaries),
+      "detectDoubleVars" -> onTopNode(Variables.detectDoubleVars), // before detectVals, so that first access is not turned into val
+      "detectVals" -> onTopNode(Variables.detectVals), // before convertConstToFunction
+      "detectMethods" -> onTopNode(Variables.detectMethods),
+      "convertConstToFunction" -> onTopNode(Variables.convertConstToFunction)
     ) ++ transform.classes.transforms ++ Seq(
-      'removeDeprecated -> onTopNode(Parameters.removeDeprecated),
-      'defaultValues -> onTopNode(Parameters.defaultValues), // if possible, do before type inference, as it is much simpler after it
-      'modifications -> onTopNode(Parameters.modifications),
-      'simpleParameters -> Parameters.simpleParameters _,
-      'varInitialization -> onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
-      'instanceofImpliedCast -> Variables.instanceofImpliedCast _,
-      'objectAssign -> objectAssign _,
-      'removeVarClassScope -> onTopNode(removeVarClassScope),
-      'types -> TypesRule.transform _,
-      'readTypes -> ReadTypes.apply _,
-      'multipass -> InferTypes.multipass _,
-      'enums -> TypesRule.transformEnums _,
-      'removeTrailingBreak -> onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
-      'removeTrailingReturn -> onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
-      'inlineConstructorVars -> Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
-      'defaultValues -> onTopNode(Parameters.defaultValues), // do again after inlineConstructorVars, might handle private variables
-      'detectVals -> onTopNode(Variables.detectVals),
-      'BoolComparison -> onTopNode(BoolComparison.apply), // after inferTypes (boolean comparisons may help to infer type as bool)
-      'Collections -> onTopNode(Collections.apply),
-      'relations -> onTopNode(relations)
+      "removeDeprecated" -> onTopNode(Parameters.removeDeprecated),
+      "defaultValues" -> onTopNode(Parameters.defaultValues), // if possible, do before type inference, as it is much simpler after it
+      "modifications" -> onTopNode(Parameters.modifications),
+      "simpleParameters" -> Parameters.simpleParameters _,
+      "varInitialization" -> onTopNode(Variables.varInitialization), // already done, but another pass is needed after TransformClasses
+      "instanceofImpliedCast" -> Variables.instanceofImpliedCast _,
+      "objectAssign" -> objectAssign _,
+      "removeVarClassScope" -> onTopNode(removeVarClassScope),
+      "types" -> TypesRule.transform _,
+      "readTypes" -> ReadTypes.apply _,
+      "multipass" -> InferTypes.multipass _,
+      "enums" -> TypesRule.transformEnums _,
+      "removeTrailingBreak" -> onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
+      "removeTrailingReturn" -> onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
+      "inlineConstructorVars" -> Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred
+      "defaultValues" -> onTopNode(Parameters.defaultValues), // do again after inlineConstructorVars, might handle private variables
+      "detectVals" -> onTopNode(Variables.detectVals),
+      "BoolComparison" -> onTopNode(BoolComparison.apply), // after inferTypes (boolean comparisons may help to infer type as bool)
+      "Collections" -> onTopNode(Collections.apply),
+      "relations" -> onTopNode(relations)
     )
 
     transforms.foldLeft(n) { case (t, (opName, op)) =>
-      Time(s"step ${opName.name}") {
+      Time(s"step $opName") {
         // TODO: check: is this ever needed? We do not need to keep the old AST around
         val tClone = t.copy(top = t.top.cloneDeep())
         //t.top.figure_out_scope()
@@ -930,7 +930,7 @@ object Transform {
         val debug = false
         if (debug) {
           val retString = ScalaOut.output(ret, "").mkString
-          println(s"step ${opName.name}")
+          println(s"step $opName")
           println(retString)
           println()
         }

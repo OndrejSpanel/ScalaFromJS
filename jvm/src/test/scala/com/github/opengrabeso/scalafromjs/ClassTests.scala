@@ -331,4 +331,52 @@ class ClassTests extends AnyFunSuite with TestUtils {
 
   }
 
+  test("Handle properties defined for classes") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+        class Foo {
+          constructor() {
+            Object.defineProperty( this, 'isFoo', { value: true } );
+            this.value = "";
+          }
+        }
+      """).required(
+      "class Foo",
+      "def isFoo()"
+    ).forbidden(
+      "defineProperty"
+    )
+  }
+
+  test("Handle instanceof properties defined for classes") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+        class Foo {
+          constructor() {
+            Object.defineProperty( this, 'isFoo', { value: true } );
+            this.value = "";
+          }
+        }
+        function f() {
+            var c = new Foo();
+            if (c.isFoo) {}
+        }
+        var ScalaFromJS_settings = {
+            members: [
+                {
+                    cls: ".*",
+                    name: "is(.*)",
+                    operation: "instanceof"
+                }]
+        };
+      """).required(
+      "class Foo",
+      "case c_cast: Foo" // simple if replaced with a match / case
+    ).forbidden(
+      "defineProperty",
+      ".isFoo"
+    )
+  }
 }
