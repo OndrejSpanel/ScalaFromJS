@@ -45,6 +45,7 @@ lazy val walkers = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pur
 lazy val root = project.in(file(".")).
   aggregate(pJVM, pJS).
   settings(
+    name := "ScalaFromJS",
     publish := {},
     publishLocal := {}
   )
