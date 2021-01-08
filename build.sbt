@@ -42,7 +42,7 @@ lazy val walkers = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pur
 )
 
 
-lazy val root = project.in(file(".")).
+lazy val root = project.in(file("root")).
   aggregate(pJVM, pJS).
   settings(
     name := "ScalaFromJS",
@@ -50,11 +50,7 @@ lazy val root = project.in(file(".")).
     publishLocal := {}
   )
 
-lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(new CrossType{
-  override def projectDir(crossBase: File, platform: Platform) = CrossType.Full.projectDir(crossBase, platform)
-  override def projectDir(crossBase: File, projectType: String) = crossBase / projectType // copied from deprecated CrossType.Full.projectDir
-  override def sharedSrcDir(projectBase: File, conf: String) = CrossType.Pure.sharedSrcDir(projectBase, conf)
-}).in(file(".")).dependsOn(walkers)
+lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Full).in(file(".")).dependsOn(walkers)
   .settings(
     name := "ScalaFromJS",
     commonSettings
