@@ -250,4 +250,49 @@ class TSTest extends AnyFunSuite with TestUtils with ProjectUtils {
       ).forbidden("Any")
     }
   }
+
+  test("declare type") {
+    exec check ConversionCheckTypeScript(
+      //language=TypeScript
+      """
+        declare type Constructor<T = object> = {
+          new ( ...args: any[] ): T,
+          prototype: T
+        };
+      """
+    ).required(
+      "type Constructor"
+    )
+
+  }
+
+  test("export declare class") {
+    exec check ConversionCheckTypeScript(
+      //language=TypeScript
+      """
+        export declare class AoS extends Array<string> {
+
+          readonly length: number;
+
+          static readonly prop = 0;
+        }
+      """
+    ).required(
+      "class AoS"
+    )
+  }
+
+  test("export declare type (string enum)") {
+    exec check ConversionCheckTypeScript(
+      //language=TypeScript
+      """
+         export declare type Side = 'none' | 'left' | 'right';
+      """
+    ).required(
+      "type Side"
+    )
+
+  }
+
+
 }
