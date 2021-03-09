@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ScalaFromJS</title>
+	<style>
+		div * {
+			vertical-align: middle;
+		}
+
+		body {
+			margin: 0;
+			height: 100vh;
+			display: grid;
+			grid-template-rows: minmax(0, 1fr) 20px auto;
+			grid-template-areas:
+							"input output"
+							"divide divide"
+							"footer footer";
+		}
+
+		label {
+			float: left
+		}
+
+		.twrap {
+			overflow: hidden;
+			padding: 0 4px 0 4px
+		}
+
+		.divide {
+			grid-area: divide;
+		}
+
+		textarea {
+			width: 98%;
+			height: 98%;
+			white-space: pre;
+			overflow-wrap: normal;
+			overflow-x: scroll;
+			overflow-y: scroll;
+			resize: none;
+			margin: 4px;
+		}
+
+		textarea#in {
+			grid-area: input;
+		}
+		textarea#out {
+			grid-area: output;
+		}
+
+		#footer {
+			grid-area: footer;
+			color:#fff;
+			background-color:#aaf;
+		}
+
+	</style>
+</head>
+
+<body>
+<script type="text/javascript" src="scalafromjs-opt.js"></script>
+
+<div class="twrap"><textarea id="in" name="in" cols="20" rows="40"></textarea></div>
+<div class="twrap"><textarea id="out" name="out" cols="20" rows="40" readonly="readonly"></textarea></div>
+
+<div class="divide"></div>
+<div id="footer">
+	<p>
+		© 2017 - 2020 <a href="https://github.com/OndrejSpanel" style="color:inherit">Ondřej Španěl</a>
+	</p>
+	<p>
+		Written in Scala,
+		uses a Scala port of <a href="https://esprima.org/" style="color:inherit">Esprima</a> for Javascript parsing,
+		online version compiled with <a href="https://www.scala-js.org/">Scala.js</a>
+	</p>
+</div>
+
+<p id="result"></p>
+
+<script type="text/javascript">ScalaFromJS.mainJS()</script>
+
+</body>
+</html>
