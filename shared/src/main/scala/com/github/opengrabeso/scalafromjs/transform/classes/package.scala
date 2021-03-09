@@ -998,6 +998,7 @@ package object classes {
     "inlinePrototypeVariables" -> onTopNode(inlinePrototypeVariables),
     "inlinePrototypeConstants" -> onTopNode(inlinePrototypeConstants),
     "inlineConstructorFunction" -> onTopNode(inlineConstructorFunction),
+    "inheritConstructors" -> transform.classes.InheritConstructors.apply,
     "convertProtoClassesRecursive" -> onTopNode(convertProtoClassesRecursive),
     "convertClassProperties" -> onTopNode(convertClassProperties),
     "convertClassMembers" -> onTopNode(convertClassMembers),
