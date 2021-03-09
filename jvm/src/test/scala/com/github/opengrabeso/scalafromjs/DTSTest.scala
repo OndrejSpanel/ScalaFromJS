@@ -94,4 +94,15 @@ class DTSTest extends AnyFunSuite with TestUtils with ProjectUtils {
         "p0: Double", "p2: Boolean",
       )
   }
+
+  test("d.ts derived class complex constructor") {
+    val outCode = convertProject("complex-constructor.d.ts/input.js")
+    exec check ResultCheck(outCode)
+      .required(
+        "class Base(",
+        "class Derived", "extends Base("
+      )
+  }
+
+
 }

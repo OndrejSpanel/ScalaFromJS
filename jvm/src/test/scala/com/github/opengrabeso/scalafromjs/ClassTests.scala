@@ -243,6 +243,30 @@ class ClassTests extends AnyFunSuite with TestUtils {
   }
 
 
+  test("Inherit constructor") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      class Person {
+          constructor(name) {
+              this.name = name;
+          }
+      }
+
+      class Man extends Person {
+      }
+
+      let bob = new Man('Bob');
+      """).required(
+      "class Person(",
+        "class Man(", "extends Person("
+      ).forbidden(
+        "class Man extends"
+      )
+
+
+  }
+
   test("Handle override for member functions") {
     exec check ConversionCheck(
       // language=JavaScript
@@ -284,14 +308,16 @@ class ClassTests extends AnyFunSuite with TestUtils {
       let bob = new Employee('Bob', 1000);
       """).required(
       "def set(",
-        "override def clone()",
-        "override def myClone()"
-      ).forbidden(
-        "override def set("
-      )
+      "override def clone()",
+      "override def myClone()"
+    ).forbidden(
+      "override def set("
+    )
 
 
   }
+
+
 
   test("Handle unknown classes and classes in a package") {
     exec check ConversionCheck(
