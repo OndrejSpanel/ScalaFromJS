@@ -9,6 +9,7 @@ import com.github.opengrabeso.esprima._
 import Symbols._
 import com.github.opengrabeso.scalafromjs.Expressions.SingleExpression
 import com.github.opengrabeso.scalafromjs.esprima.symbols.ScopeContext
+import scala.collection.Seq
 
 
 object Rules {

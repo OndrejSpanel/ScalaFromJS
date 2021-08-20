@@ -7,6 +7,7 @@ import Transform._
 import Symbols._
 import Expressions._
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId, symId}
+import scala.collection.Seq
 
 object Parameters {
 
@@ -185,7 +186,7 @@ object Parameters {
               case Node.ExpressionStatement(Node.AssignmentExpression("=", Node.Identifier(Id(`parName`)), IsParDefaultHandling(_, init))) =>
                 Some(init)
 
-              case Node.IfStatement(CheckParIsUndefined(), SingleExpression(Node.AssignmentExpression("=", Node.Identifier(Id(`parName`)), init)), IsNull()) =>
+              case Node.IfStatement(CheckParIsUndefined(), SingleExpression(Node.AssignmentExpression("=", Node.Identifier(Id(`parName`)), init)), null) =>
                 Some(init)
 
               case _ => None
@@ -370,7 +371,7 @@ object Parameters {
         object CompareParWithUndefined extends CompareWithUndefined(parName)
 
         def unapply(arg: Node.Node) = arg match {
-          case Node.IfStatement(CompareParWithUndefined("!=" | "!=="), Statements(body), IsNull()) if containsDeprecation(body) =>
+          case Node.IfStatement(CompareParWithUndefined("!=" | "!=="), Statements(body), null) if containsDeprecation(body) =>
             //println("IsParDeprecated")
             true
           case _ =>

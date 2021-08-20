@@ -10,6 +10,7 @@ import com.github.opengrabeso.scalafromjs.esprima.symbols._
 
 import scala.collection.mutable
 import scala.language.implicitConversions
+import scala.collection.Seq
 
 /**
   * Transform AST to perform optimizations or adjustments
@@ -30,8 +31,8 @@ object Transform {
   def identifierFromPar(p: Node.Node): Option[(Node.Identifier, Node.TypeAnnotation, Option[Node.Expression])] = p match {
     case x: Node.Identifier =>
       Some(x, null, None)
-    case Node.FunctionParameterWithType(x: Node.Identifier, tpe, MayBeNull(defValue), _) =>
-      Some(x, tpe, defValue)
+    case Node.FunctionParameterWithType(x: Node.Identifier, tpe, defValue, _) =>
+      Some(x, tpe, Option(defValue))
     case Node.AssignmentPattern(x: Node.Identifier, init) =>
       Some(x, null, Some(init))
     case Node.RestElement(x: Node.Identifier, tpe) =>
@@ -248,7 +249,7 @@ object Transform {
                   case (Node.SwitchCase(Defined(test1), body1), Node.SwitchCase(Defined(test2), body2)) =>
                     c2.test = Node.BinaryExpression("|", test1, test2).withTokens(c2)
                     c2
-                  case (Node.SwitchCase(IsNull(), body1), Node.SwitchCase(Defined(_), body2)) =>
+                  case (Node.SwitchCase(null, body1), Node.SwitchCase(Defined(_), body2)) =>
                     c1.consequent = body2
                     c1
                   case (_, case2) =>
@@ -687,9 +688,9 @@ object Transform {
     ast.top.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
-        case cls@Node.ClassDeclaration(Node.Identifier(Id(clsSym)), MayBeNull(parentNode), moreParents, _, _) =>
+        case cls@Node.ClassDeclaration(Node.Identifier(Id(clsSym)), parentNode, moreParents, _, _) =>
           for (clsId <- id(clsSym)) {
-            for (Node.Identifier(Id(parentId)) <- parentNode) {
+            for (Node.Identifier(Id(parentId)) <- Option(parentNode)) {
               //println(s"Add parent $parent for $clsSym")
               listMembers = listMembers.copy(parents = listMembers.parents + (clsId -> parentId))
             }

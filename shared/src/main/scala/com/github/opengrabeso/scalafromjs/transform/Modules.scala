@@ -4,6 +4,7 @@ package transform
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import JsUtils._
+import scala.collection.Seq
 
 object Modules {
   /*

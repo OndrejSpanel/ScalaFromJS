@@ -7,6 +7,7 @@ import com.github.opengrabeso.esprima._
 import Classes._
 import Transform._
 import com.github.opengrabeso.scalafromjs.esprima.symbols.Id
+import scala.collection.Seq
 
 /*
 Create member variables

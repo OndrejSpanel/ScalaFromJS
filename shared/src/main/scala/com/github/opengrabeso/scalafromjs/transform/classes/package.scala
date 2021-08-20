@@ -13,6 +13,7 @@ import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.util.matching.Regex
+import scala.collection.Seq
 
 package object classes {
 
@@ -42,11 +43,11 @@ package object classes {
     def unapply(arg: Node.Node)(implicit context: ScopeContext): Option[(Node.Identifier, Seq[Node.FunctionParameter], Seq[Node.Statement])] = arg match {
       // function ClassName() {}
       case DefFun(sym, args, body, _, _) =>
-        Some(sym, args, Block.statements(body))
+        Some((sym, args, Block.statements(body)))
 
       // ClassName = function() {}
       case Assign(sym: Node.Identifier, "=", AnyFun(args, body)) =>
-        Some(sym, args, Block.statements(body))
+        Some((sym, args, Block.statements(body)))
 
       // var ClassName = function() {}
       case VarDecl(sym, AnyFun(args, body), _) =>

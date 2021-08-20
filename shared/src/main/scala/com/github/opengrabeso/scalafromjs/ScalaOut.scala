@@ -6,6 +6,7 @@ import Classes._
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, SymId}
 
 import scala.util.Try
+import scala.collection.Seq
 
 object ScalaOut {
   import Symbols._
@@ -156,7 +157,7 @@ object ScalaOut {
 
   implicit class OutStringContext(val sc: StringContext)(implicit outConfig: Config, input: InputContext, output: Output, context: ScopeContext) {
 
-    def outEx(ex: Any) {
+    def outEx(ex: Any): Unit = {
       ex match {
         case s: String =>
           //println("symbol")
@@ -185,12 +186,12 @@ object ScalaOut {
       val strings = sc.parts.iterator
       val expressions = args.iterator
 
-      import StringContext.{treatEscapes=>escape}
-      output(escape(strings.next))
+      import StringContext.{processEscapes=>escape}
+      output(escape(strings.next()))
       while(strings.hasNext) {
-        val ex = expressions.next
+        val ex = expressions.next()
         outEx(ex)
-        output(escape(strings.next))
+        output(escape(strings.next()))
       }
       assert(!strings.hasNext)
       assert(!expressions.hasNext)
@@ -324,13 +325,13 @@ object ScalaOut {
   }
 
   def nodeToOut(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
-
+    assert(n != null)
     context.withScope(n) {
 
       def source = nodeSource(n, input.input)
       // http://lisperator.net/uglifyjs/ast
       for (s <- n.start) {
-        out.submitLocation(s, source.linesIterator.next)
+        out.submitLocation(s, source.linesIterator.next())
       }
 
       def outputVarDef(name: Node.Identifier, initInput: Option[Node.Node], sType: Option[SymbolTypes.TypeDesc], types: Boolean) = {
@@ -378,7 +379,7 @@ object ScalaOut {
           context.scanSymbols(node)
           node match {
 
-            case Node.VariableDeclarator(name: Node.Identifier, oe@OObject(props), MayBeNull(tpe)) if props.nonEmpty && isVal =>
+            case Node.VariableDeclarator(name: Node.Identifier, oe@OObject(props), tpe) if props.nonEmpty && isVal =>
               val propNames = props.map(propertyName)
               //println(s"propNames $propNames")
               val markerKey = "isResource"
@@ -389,9 +390,9 @@ object ScalaOut {
                   for (elem <- props if propertyName(elem) != markerKey) nodeToOut(elem)
                   out.unindent()
                   out("}\n")
-                } else if (tpe.isDefined) { // special handling for enums
+                } else if (tpe != null) { // special handling for enums
                   out"object $name"
-                  val parent = astType(tpe)
+                  val parent = astType(Option(tpe))
                   parent.foreach(p => out" extends $p")
                   out" {\n"
                   out.indent()
@@ -406,10 +407,10 @@ object ScalaOut {
                   out("}\n")
                 }
               }
-            case Node.VariableDeclarator(s: Node.Identifier, OObject(Seq()), MayBeNull(vType)) =>
+            case Node.VariableDeclarator(s: Node.Identifier, OObject(Seq()), vType) =>
               // empty object - might be a map instead
               val sid = symId(s)
-              val tpe = input.types.get(sid).map(_.declType).orElse(astType(vType))
+              val tpe = input.types.get(sid).map(_.declType).orElse(astType(Option(vType)))
               //println(s"Var $name ($sid) type $tpe empty object")
               tpe match {
                 case Some(mType: SymbolTypes.MapType) =>
@@ -423,14 +424,14 @@ object ScalaOut {
                   outputVarDef(s, None, tpe, false)
               }
 
-            case VarDef(s@Node.Identifier(Id(name)), MayBeNull(init), MayBeNull(vType)) =>
-              outValVar(init.isDefined)
+            case VarDef(s@Node.Identifier(Id(name)), init, vType) =>
+              outValVar(init != null)
               //out("/*outputDefinitions 1*/")
-              val sType = getSymbolType(name).orElse(astType(vType).map(_ -> true))
+              val sType = getSymbolType(name).orElse(astType(Option(vType)).map(_ -> true))
               //out"/*Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType*/"
               //println(s"Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType")
               //println(getType(sym))
-              outputVarDef(s, init, sType.map(_._1), types || sType.exists(_._2))
+              outputVarDef(s, Option(init), sType.map(_._1), types || sType.exists(_._2))
             case _ =>
               out"/* Unsupported var */ var ${node.id}"
               if (node.init != null) {
@@ -529,7 +530,14 @@ object ScalaOut {
         out("(")
         outputNodes(argnames) { n =>
           dumpLeadingComments(n)
-          val (sym, MayBeNull(tpe), init) = Transform.funArg(n)
+          val fa = Transform.funArg(n)
+          //val (sym, MayBeNull(tpe), init) = fa
+          // ^^^ 2.12 version no longer works in 2.13, Extractor pattern is null safe
+          // see https://scala-lang.org/files/archive/spec/2.13/08-pattern-matching.html
+          // and https://github.com/scala/scala/pull/6485
+          val sym = fa._1
+          val tpe = Option(fa._2)
+          val init = fa._3
           out"$sym"
           if (types) {
             outputArgType(sym, init, tpe)(scopeNode)
@@ -571,7 +579,7 @@ object ScalaOut {
           }
           out("\n")
         } else value match {
-          case f@Node.FunctionExpression(_, params, body, generator, MayBeNull(dType)) =>
+          case f@Node.FunctionExpression(_, params, body, generator, dType) =>
             context.withScope(f) {
               val postfix = if (kind == "set") "_=" else ""
               out"def $key$postfix"
@@ -595,7 +603,7 @@ object ScalaOut {
                         None
                     }
                   } else {
-                    astType(dType)
+                    astType(Option(dType))
                   }
                 }
               }
@@ -632,9 +640,9 @@ object ScalaOut {
       def outputMethodNode(pm: Node.ClassBodyElement, decl: String = "def", eol: Boolean = true) = {
         if (eol) out.eol()
         pm match {
-          case Node.MethodDefinition(null, MayBeNull(tpe), _, null, _, _) =>
+          case Node.MethodDefinition(null, tpe, _, null, _, _) =>
             // probably IndexSignature - we cannot output that in Scala
-            out"/* IndexSignature ${astType(tpe).getOrElse(SymbolTypes.AnyType).toOut} */\n"
+            out"/* IndexSignature ${astType(Option(tpe)).getOrElse(SymbolTypes.AnyType).toOut} */\n"
           case p: Node.MethodDefinition =>
             outputMethod(p.key, p.value, p.kind, Option(p.`type`), decl)
           case _ =>
@@ -985,9 +993,9 @@ object ScalaOut {
           outputCall(tn.callee, tn.typeArgs, tn.arguments)
         case tn: Node.CallExpression =>
           outputCall(tn.callee, null, tn.arguments)
-        case Node.VariableDeclarator(s@Node.Identifier(Id(name)), MayBeNull(init), MayBeNull(vType)) =>
-          val sType = getSymbolType(name).orElse(astType(vType).map(_ -> true))
-          outputVarDef(s, init, sType.map(_._1), sType.exists(_._2))
+        case Node.VariableDeclarator(s@Node.Identifier(Id(name)), init, vType) =>
+          val sType = getSymbolType(name).orElse(astType(Option(vType)).map(_ -> true))
+          outputVarDef(s, Option(init), sType.map(_._1), sType.exists(_._2))
 
         case tn@Node.VariableDeclaration(decl, kind) =>
           outputDefinitions(kind == "const", tn)
@@ -1004,9 +1012,9 @@ object ScalaOut {
           out(" ")
           nodeToOut(tn.argument)
           out.eol()
-        case Node.ReturnStatement(MayBeNull(argument)) =>
+        case Node.ReturnStatement(argument) =>
           out("return")
-          argument.foreach { v =>
+          Option(argument).foreach { v =>
             out(" ")
             nodeToOut(v)
             out.eol()
@@ -1149,7 +1157,7 @@ object ScalaOut {
             out(" finally ")
             blockBracedToOut(fin)
           }
-        case Node.SwitchCase(IsNull(), body) =>
+        case Node.SwitchCase(null, body) =>
           out("case _ =>\n")
           out.indent()
           blockToOut(body)
@@ -1584,7 +1592,7 @@ object ScalaOut {
       blockToOut(ast.top.body)(outConfig, inputContext, ret, scopeContext)
       ret.flush()
     }
-    sb.map(_.result)
+    sb.map(_.result())
   }
 
   def nodeSource(n: Node.Node, input: String): String = {
@@ -1604,6 +1612,6 @@ object ScalaOut {
     val scopeContext = new ScopeContext
     nodeToOut(ast)(outConfig, inputContext, ret, scopeContext)
     ret.flush()
-    sb.result
+    sb.result()
   }
 }

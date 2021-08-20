@@ -8,6 +8,7 @@ import com.github.opengrabeso.scalafromjs.Transform.ExpressionTypeContext
 import com.github.opengrabeso.scalafromjs.esprima.symbols._
 
 import scala.util.matching.Regex
+import scala.collection.Seq
 
 object Classes {
 

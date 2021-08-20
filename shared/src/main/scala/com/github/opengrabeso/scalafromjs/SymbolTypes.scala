@@ -3,6 +3,7 @@ package com.github.opengrabeso.scalafromjs
 import scala.language.implicitConversions
 
 import SymbolTypes._
+import scala.collection.Seq
 
 object SymbolTypes {
 
@@ -391,7 +392,7 @@ object SymbolTypes {
 
   case class ClassInfo(members: Map[SymbolMapId, Seq[String]] = Map.empty, parents: Map[SymbolMapId, SymbolMapId] = Map.empty) {
 
-    lazy val children = parents.groupBy(_._2).mapValues(_.keys.toSet)
+    lazy val children = parents.groupBy(_._2).view.mapValues(_.keys.toSet).toMap
 
     //println(s"parents $parents")
     //println(s"children $children")
@@ -484,7 +485,7 @@ object SymbolTypes {
     member <- members
   } yield {
     MemberId(cls, member) -> TypeInfo.target(numberFunction) // TODO: type data driven
-  })(collection.breakOut)
+  }).toMap
 
 
   // unique ID for std lib classes

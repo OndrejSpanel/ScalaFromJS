@@ -2,6 +2,7 @@ package com.github.opengrabeso.scalafromjs.esprima
 package symbols
 
 import com.github.opengrabeso.esprima.Node._
+import scala.collection.Seq
 
 object SymbolDeclaration {
   // some symbols should be declared in the parent scope (function name)

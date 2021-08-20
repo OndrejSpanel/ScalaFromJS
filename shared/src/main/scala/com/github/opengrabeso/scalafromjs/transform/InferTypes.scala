@@ -10,6 +10,7 @@ import com.github.opengrabeso.scalafromjs.ScalaOut.SymbolDef
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
 
 import scala.language.implicitConversions
+import scala.collection.Seq
 
 object InferTypes {
 

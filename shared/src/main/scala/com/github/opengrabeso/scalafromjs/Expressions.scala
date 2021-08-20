@@ -3,6 +3,7 @@ package com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.esprima.Node.EmptyStatement
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
+import scala.collection.Seq
 
 object Expressions {
   object IsConstant {

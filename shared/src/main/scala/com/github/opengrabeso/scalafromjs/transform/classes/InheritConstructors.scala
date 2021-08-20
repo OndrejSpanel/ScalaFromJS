@@ -14,6 +14,7 @@ import com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
 
 import scala.collection.mutable
+import scala.collection.Seq
 
 /*
 Inherit a class constructor when it is missing

@@ -13,6 +13,7 @@ import com.github.opengrabeso.scalafromjs.esprima.symbols.Id
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.Try
+import scala.collection.Seq
 
 /**
   * Code responsible for parsing d.ts files and matching them to the main project AST
@@ -548,7 +549,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     }
     // merge all definitions of the same enum into one
     val grouped = values.groupBy(_._1).map(x => x._1 -> x._2.map(_._2))
-    val firstValues = grouped.mapValues(_.head).map(_.swap)
+    val firstValues = grouped.view.mapValues(_.head).map(_.swap).toMap
     val allValues = values.map(_.swap).toMap
 
     val newBody = n.top.body.flatMap {
