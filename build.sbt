@@ -26,8 +26,8 @@ ThisBuild / resolvers += Resolver.githubPackages("OpenGrabeso", "packages")
 
 
 lazy val commonSettings = Seq(
-  version := "0.5.1",
-  scalaVersion := "2.12.12",
+  version := "0.6.0",
+  scalaVersion := "2.13.6",
   scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation"),
   libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.2.4",
   libraryDependencies += "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.1.2",
