@@ -1,10 +1,9 @@
 import sbtassembly.AssemblyPlugin.autoImport.assemblyJarName
 import sbtcrossproject.CrossPlugin.autoImport.{crossProject, CrossType}
-import sbtcrossproject.Platform
 
 def generateIndexTask(index: String, suffix: String) = Def.task {
   val source = baseDirectory.value / "index.html"
-  val target = (crossTarget in Compile).value / index
+  val target = (Compile / crossTarget).value / index
   val log = streams.value.log
   IO.writeLines(target,
     IO.readLines(source).map {
@@ -15,15 +14,15 @@ def generateIndexTask(index: String, suffix: String) = Def.task {
   log.info(s"Generate $index with suffix: $suffix")
 }
 
-githubOwner in ThisBuild := "OndrejSpanel"
+ThisBuild / githubOwner := "OndrejSpanel"
 
-githubRepository in ThisBuild := "ScalaFromJS"
+ThisBuild / githubRepository := "ScalaFromJS"
 
-githubActor in ThisBuild := "OndrejSpanel"
+ThisBuild / githubActor := "OndrejSpanel"
 
-githubTokenSource in ThisBuild := TokenSource.Environment("GITHUB_USERTOKEN") || TokenSource.Environment("GITHUB_TOKEN") || TokenSource.GitConfig("github.token")
+ThisBuild / githubTokenSource := TokenSource.Environment("GITHUB_USERTOKEN") || TokenSource.Environment("GITHUB_TOKEN") || TokenSource.GitConfig("github.token")
 
-resolvers in ThisBuild += Resolver.githubPackages("OpenGrabeso", "packages")
+ThisBuild / resolvers += Resolver.githubPackages("OpenGrabeso", "packages")
 
 
 lazy val commonSettings = Seq(
@@ -57,17 +56,17 @@ lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Full)
   )
   .jvmSettings(
     // Add JVM-specific settings here
-    mainClass in Compile := Some("com.github.opengrabeso.scalafromjs.CommandLine"),
+    Compile / mainClass  := Some("com.github.opengrabeso.scalafromjs.CommandLine"),
     libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "2.1.1",
     libraryDependencies += "com.fifesoft" % "rsyntaxtextarea" % "3.0.8",
-    assemblyJarName in assembly := name.value + ".jar"
+    assembly / assemblyJarName := name.value + ".jar"
   )
   .jsSettings(
-    mainClass in Compile := Some("com.github.opengrabeso.scalafromjs.ScalaFromJS"),
+    Compile / mainClass := Some("com.github.opengrabeso.scalafromjs.ScalaFromJS"),
     scalaJSUseMainModuleInitializer := true,
     libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "1.1.0",
-    (fastOptJS in Compile) := (fastOptJS in Compile).dependsOn(generateIndexTask("index-fast.html","fastopt")).value,
-    (fullOptJS in Compile) := (fullOptJS in Compile).dependsOn(generateIndexTask("index.html","opt")).value
+    (Compile / fastOptJS) := (Compile / fastOptJS).dependsOn(generateIndexTask("index-fast.html","fastopt")).value,
+    (Compile / fullOptJS) := (Compile / fullOptJS).dependsOn(generateIndexTask("index.html","opt")).value
   )
 
 
