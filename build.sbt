@@ -29,7 +29,7 @@ lazy val commonSettings = Seq(
   version := "0.6.0",
   scalaVersion := "2.13.6",
   scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation"),
-  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.2.5",
+  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.2.6",
   libraryDependencies += "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.1.2",
   libraryDependencies += "org.scalatest" %%% "scalatest" % "3.2.2" % "test"
 )

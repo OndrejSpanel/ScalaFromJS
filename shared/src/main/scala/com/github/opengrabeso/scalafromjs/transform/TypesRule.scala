@@ -84,6 +84,8 @@ object TypesRule {
           handleDeclaration(node, name)
         case EnumDeclaration(Identifier(name), body) =>
           handleDeclaration(node, name)
+        case TypeAliasDeclaration(Identifier(name), tpe) =>
+          handleDeclaration(node, name)
 
         case `ast` => // enter the top level
           false
@@ -188,9 +190,82 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     val classList = Classes.ClassListHarmony.fromAST(n.top, false)
 
     var types = n.types.types
-    val ast = n.top
 
-    ast.walkWithScope { (node, context) =>
+    // scan classes present in the JS
+    val classes = Classes.ClassListHarmony.fromAST(n.top, innerClasses = false).classes.map { case (k, v) =>
+      k.name
+    }.toSet
+
+    // scan objects (variables) present in the JS
+    val objects = {
+      val objectBuilder = Set.newBuilder[String]
+      n.top.walkWithScope { (node, ctx) =>
+        node match {
+          case Node.VariableDeclarator(Identifier(name), oe: ObjectExpression, _) =>
+            objectBuilder += name
+            false
+          case _ =>
+            false
+        }
+      }
+      objectBuilder.result()
+    }
+
+    // now have the symbols which are not present in JS, like interfaces, enums or type aliases
+
+    // gather symbols from each DTS which need to be added (have no JS counterpart)
+    val symbolsToInclude = project.items.values.zipWithIndex.map {case (item, itemIndex) =>
+      if (item.included) {
+        val itemRange = (project.offsets(itemIndex), project.offsets(itemIndex + 1))
+        // find code corresponding to the offset
+        val itemSymbols = dtsSymbols.filter { case (s, node) =>
+          // check if node is in the proper range
+          node.range._1 >= itemRange._1 && node.range._2 <= itemRange._2
+        }
+        // any class which does not have a corresponding js definition should be included
+        // we have toplevel symbols only, match only by name, sym id not available for d.ts symbols
+        item.fullName -> itemSymbols.values.collect {
+          case cls@Node.ClassDeclaration(Identifier(name), _, _, _, kind) if !classes.contains(name) && kind != "namespace" =>
+            // namespace should always be represented as an object
+            cls
+          case e@Node.EnumDeclaration(Identifier(name), _) if !objects.contains(name) =>
+            e
+          case e@Node.TypeAliasDeclaration(Identifier(name), _) if !objects.contains(name) =>
+            e
+        }
+      } else {
+        item.fullName -> Nil
+      }
+    }.toMap
+
+
+    val beginMarker = ConvertProject.prefixName + "begin"
+
+    // scan the top-level body for the markers, and insert the new content as needed
+    // do this before adding types for the symbols, as that should handle the newly added ones as well
+    // markers may have uniqye postfix - see declaredGlobal
+    val newBody = n.top.body.flatMap {
+      case node@Node.ExportNamedDeclaration(VarDecl(name, Some(Node.Literal(value, raw)), "const"), Seq(), null) if name.startsWith(beginMarker) =>
+        // we want to insert declarations somewhere after the "begin" markers
+        // TODO: insert after imports (if there are any)
+        val dtsFromJS = value.replaceAll(".js$", ".d.ts")
+        symbolsToInclude.get(dtsFromJS) match {
+          case Some(injectSymbols) =>
+            val symbolsInJS = injectSymbols.toSeq.map(_.withTokensDeep(node))
+            node +: symbolsInJS
+          case None =>
+            Seq(node)
+        }
+
+      case node =>
+        Seq(node)
+
+    }
+
+    val newTop = n.top.cloneNode()
+    newTop.body = newBody
+
+    newTop.walkWithScope { (node, context) =>
       def getParameterTypes(dtsPars: Seq[FunctionParameter]) = {
         // match parameters by position, their names may differ
         dtsPars.map {
@@ -416,81 +491,16 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           handleFunction(node, params, name)
         case c@ClassDeclaration(Identifier(name), superClass, moreParents, body, _) =>
           handleClass(c, name)
-        case `ast` =>
+        case _: Node.Program =>
           false
         case _ =>
           true
 
       }
     }
-    n.copy(types = n.types.copy(types = types))
-  }
 
-  def addDeclarations(ast: Node.Program, files: Seq[(String, String)]) = {
-    val classes = Classes.ClassListHarmony.fromAST(ast, innerClasses = false).classes.map { case (k, v) =>
-      k.name -> v._2
-    }
-    val objects = {
-      val objectBuilder = Map.newBuilder[String, ObjectExpression]
-      ast.walkWithScope { (node, ctx) =>
-        node match {
-          case Node.VariableDeclarator(Identifier(name), oe: ObjectExpression, _) =>
-            objectBuilder += name -> oe
-            false
-          case _ =>
-            false
-        }
-      }
-      objectBuilder.result()
-    }
 
-    val symbolsToInclude = project.items.values.zipWithIndex.map {case (item, itemIndex) =>
-      if (item.included) {
-        val itemRange = (project.offsets(itemIndex), project.offsets(itemIndex + 1))
-        // find code corresponding to the offset
-        val itemSymbols = dtsSymbols.filter { case (s, node) =>
-          // check if node is in the proper range
-          node.range._1 >= itemRange._1 && node.range._2 <= itemRange._2
-        }
-        // any class which does not have a corresponding js definition should be included
-        // we have toplevel symbols only, match only by name, sym id not available for d.ts symbols
-        item.fullName -> itemSymbols.values.collect {
-          case cls@Node.ClassDeclaration(Identifier(name), _, _, _, kind) if !classes.contains(name) && kind != "namespace" =>
-            // namespace should always be represented as an object
-            cls
-          case e@Node.EnumDeclaration(Identifier(name), _) if !objects.contains(name) =>
-            e
-        }
-      } else {
-        item.fullName -> Nil
-      }
-    }.toMap
-
-    // now output those symbols as a prefix for the file
-    files.map { case (name, code) =>
-      // match js to d.ts
-      val dtsFromJS = name.replaceAll(".js$", ".d.ts")
-      val symbolsOut = for {
-        symbols <- symbolsToInclude.get(dtsFromJS).toSeq // some d.ts files may contain no symbols at all
-        c <- symbols
-      } yield {
-        ScalaOut.outputNode(c) // simple output, no context, no config, no types
-      }
-
-      if (symbolsOut.nonEmpty) {
-        val symbolsCode = "\n\n" + symbolsOut.mkString("\n") + "\n"
-
-        val (prefix, body) = code.linesIterator.span { line =>
-          // this is just heuristics shown to work well with three.js
-          line.isEmpty || line.startsWith("//") || line.startsWith("/* ") || line.startsWith("import") || line.startsWith("package ")
-        }
-
-        name -> (prefix.mkString("\n") + symbolsCode + body.mkString("\n"))
-      } else {
-        name -> code
-      }
-    }
-
+    n.copy(top = newTop, types = n.types.copy(types = types))
   }
 
   /*

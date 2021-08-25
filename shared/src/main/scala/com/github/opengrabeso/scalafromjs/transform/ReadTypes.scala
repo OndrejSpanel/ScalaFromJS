@@ -12,9 +12,10 @@ object ReadTypes {
   def apply(n: NodeExtended): NodeExtended = {
     var types = n.types.types
 
+    // handle d.ts processing in two phases - first copy AST types from TS to JS (done in [[TypesRule]])
+    // then process JS here
     n.top.walkWithScope { (node, context) =>
       implicit val ctx = context
-      // TODO: handle d.ts processing in two phases - first copy AST types from TS to JS, then process here
 
       def addType(name: String, t: Node.TypeAnnotation) = {
         for (tt <- typeInfoFromAST(t)(context)) {

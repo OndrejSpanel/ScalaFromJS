@@ -364,6 +364,11 @@ object Transform {
         //println("commonBase")
         classInfo.commonBase(c1.name, c2.name).fold[TypeDesc](any)(ClassType.apply)
       }
+
+      def resolveClass(c: ClassType) = {
+        // if the type alias is present, use it, otherwise pass unchanged
+        types.t.types.get(c.name).map(_.declType).getOrElse(c)
+      }
     }
 
     implicit val classPos: (SymbolMapId) => (Int, Int) = classes.classPos

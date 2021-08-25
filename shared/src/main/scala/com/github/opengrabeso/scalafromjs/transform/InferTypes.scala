@@ -251,52 +251,6 @@ object InferTypes {
       FunctionType(AnyType, parTypes.map(_.fold[TypeDesc](NoType)(_.target)).toIndexedSeq)
     }
 
-    def inferFunctionReturn(value: Node.Node, r: TypeInfo)(implicit context: ScopeContext) = {
-      r.declType match {
-        case fType: FunctionType =>
-          walkLastNode(value) {
-            // find any direct returns, when returning a function, infer argument symbol types
-            case Node.FunctionExpression(_, args, body, _, _) =>
-              //println(s"fun ${args.map(_.name).mkString(",")} -- ${fType.args}")
-              //println(s"  $allTypes")
-
-              for {
-                (a, tp) <- args zip fType.args
-                //_ = println(s"${a.thedef.map(_.name)} $tp")
-                sym <- symbolFromPar(a)
-              } {
-                val sid = id(sym)
-                if (n.types.get(sid).isEmpty) {
-                  //println(s"  Infer arg ${a.name} as $tp")
-                  addInferredType(sid, Some(TypeInfo.source(tp)))(()=>s"inferFunctionReturn $value")
-                }
-              }
-
-              true
-            case _ =>
-              false
-
-          }
-        case _ =>
-      }
-    }
-
-
-
-    /*
-      def unknownType(types: SymbolTypes): Boolean = {
-        symbol.fold{
-          dot.fold(false) { d =>
-            val p = findInParents(d.cls, d.name)(ctx)
-            //println(s"Check $d => $p = ${n.types.getMember(dot)}")
-            n.types.getMember(p.map(pp => d.copy(cls = pp))).isEmpty
-          }
-        } { s =>
-          //println(s"Check $s => ${n.types.get(s)}")
-          n.types.get(s).isEmpty
-        }
-      }
-    * */
     trait SymbolAccessInfo {
       // workaround for https://issues.scala-lang.org/browse/SI-5252
       def addSymbolInferredType(tpe: Option[TypeInfo], kind: TypeInferenceKind)(debug: (()=>String)*): Unit
@@ -463,27 +417,6 @@ object InferTypes {
       }
     }
 
-    object KnownType {
-      def unapply(arg: Node.Node)(implicit ctx: ExpressionTypeContext, context: ScopeContext): Option[TypeInfo] = {
-        val tpe = expressionType(arg)
-        //println(s"  check type of ${ScalaOut.outputNode(arg)} as $tpe")
-        tpe
-      }
-    }
-    object GetArrayType {
-      def unapply(arg: Node.Node)(implicit ctx: ExpressionTypeContext, context: ScopeContext): Option[TypeInfo] = {
-        val exprType = expressionType(arg).map(_.declType)
-        exprType match {
-          case Some(ArrayType(tpe)) =>
-            Some(TypeInfo.source(tpe))
-          case _ =>
-            None
-        }
-
-      }
-    }
-
-
     n.top.walkWithScopeAfter { (node, walker) =>
       //println(s"${nodeClassName(node)} ${node.toLocaleString()}")
       //descend(node, walker)
@@ -547,6 +480,9 @@ object InferTypes {
             addInferredType(symDef, tpe)(s"Node.FunctionParameter ${symDef.name}")
           }
         */
+
+        case Node.TypeAliasDeclaration(Node.Identifier(Id(symDef)), tpe) =>
+          addInferredType(symDef, TypesRule.typeInfoFromAST(tpe)(scopeCtx))()
 
         // a few special forms of assignment should infer no type - cyclic dependencies
         case Assign(SymbolInfo(symLeft), _, SymbolInfo(symRight)) if symLeft == symRight =>

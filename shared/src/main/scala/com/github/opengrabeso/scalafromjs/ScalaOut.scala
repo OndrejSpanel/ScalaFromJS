@@ -172,7 +172,8 @@ object ScalaOut {
             //out"/*${input.types.get(sid)}*/"
           }
         case t: SymbolTypes.TypeDesc =>
-          output(t.toOut)
+          val resolved = input.types.resolveType(t)
+          output(resolved.toOut)
         case n: Node.Node =>
           nodeToOut(n)
         case null =>
@@ -325,6 +326,11 @@ object ScalaOut {
   }
 
   def nodeToOut(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
+
+    implicit class OutResolved(t: SymbolTypes.TypeDesc) {
+      def toOutResolved: String = input.types.resolveType(t).toOut
+    }
+
     assert(n != null)
     context.withScope(n) {
 
@@ -343,7 +349,7 @@ object ScalaOut {
         //out(s"/*outputVarDef ${name.name} type: $sType init: ${init.map(_.toString)}*/")
         if (types || init.isEmpty) {
           for (tp <- sType) {
-            if (tp.typeOnInit) out": ${tp.toOut}"
+            if (tp.typeOnInit) out": $tp"
           }
         }
 
@@ -423,7 +429,6 @@ object ScalaOut {
                   // such variables can be created by extracting class private variables when their initialization cannot be extracted
                   outputVarDef(s, None, tpe, false)
               }
-
             case VarDef(s@Node.Identifier(Id(name)), init, vType) =>
               outValVar(init != null)
               //out("/*outputDefinitions 1*/")
@@ -432,6 +437,12 @@ object ScalaOut {
               //println(s"Node.VariableDeclarator sym ${SymbolTypes.id(sym)} $sType")
               //println(getType(sym))
               outputVarDef(s, Option(init), sType.map(_._1), types || sType.exists(_._2))
+            case VarDef(Node.ArrayPattern(names), init, vType) =>
+              out"val (${names.head}"
+              for (n <- names.tail) out", $n"
+              if (node.init != null) {
+                out" = ${node.init}"
+              }
             case _ =>
               out"/* Unsupported var */ var ${node.id}"
               if (node.init != null) {
@@ -472,7 +483,7 @@ object ScalaOut {
           out"/*$sid*/"
         }
         //println(s"Arg type ${SymbolTypes.id(n.thedef.get)} $typeDecl")
-        out": ${typeDecl.toOut}"
+        out": $typeDecl"
         for (init <- init) {
           out" = $init"
         }
@@ -507,7 +518,7 @@ object ScalaOut {
             out"${t.name}"
             if (t.constraint != null) {
               out(" <: ")
-              out(transform.TypesRule.typeFromAST(t.constraint)(context).getOrElse(SymbolTypes.AnyType).toOut)
+              out(transform.TypesRule.typeFromAST(t.constraint)(context).getOrElse(SymbolTypes.AnyType).toOutResolved)
             }
           }
           out("]")
@@ -545,7 +556,7 @@ object ScalaOut {
             val scope = ScopeContext.getNodeId(scopeNode)
             val sid = SymId(sym.name, scope)
             for (t <- input.types.get(Some(sid))) {
-              out": ${t.declType.toOut}"
+              out": ${t.declType}"
             }
           }
           dumpTrailingComments(n)
@@ -573,7 +584,7 @@ object ScalaOut {
         if (kind == "value") {
           val sType = input.types.get(memberSymId)
           out"var $key"
-          sType.map(_.declType).orElse(astType(tpe)).foreach(t => out(": " + t.toOut))
+          sType.map(_.declType).orElse(astType(tpe)).foreach(t => out": ${t.toOut}")
           if (value != null) {
             out" = $value"
           }
@@ -611,7 +622,7 @@ object ScalaOut {
                 id <- memberSymId
                 fType <- certainType(id)
               } {
-                out": ${fType.toOut}"
+                out": $fType"
               }
               if (body != null) {
                 out(" = ")
@@ -642,7 +653,7 @@ object ScalaOut {
         pm match {
           case Node.MethodDefinition(null, tpe, _, null, _, _) =>
             // probably IndexSignature - we cannot output that in Scala
-            out"/* IndexSignature ${astType(Option(tpe)).getOrElse(SymbolTypes.AnyType).toOut} */\n"
+            out"/* IndexSignature ${astType(Option(tpe)).getOrElse(SymbolTypes.AnyType).toOutResolved} */\n"
           case p: Node.MethodDefinition =>
             outputMethod(p.key, p.value, p.kind, Option(p.`type`), decl)
           case _ =>
@@ -844,6 +855,17 @@ object ScalaOut {
           }.mkString
           out(tripleQuote(value))
 
+        case Node.ExportNamedDeclaration(VarDecl(name, Some(Node.Literal(value, raw)), "const"), Seq(), null) if name.startsWith(ConvertProject.prefixName) =>
+          // markers are syntetic, we do not want them in the output, unless debugging
+          if (false) {
+            val content = name.drop(ConvertProject.prefixName.length)
+            // we might have create synthetic names to stay unique in each module (see declaredGlobal)
+            out(s"// ${content.takeWhile(_ != '$')} - $value")
+          }
+
+        case VarDecl(name, Some(Node.Literal(value, raw)), "const") if name.startsWith(ConvertProject.prefixName) =>
+          // this should not happen, but when it does, we ignore it
+
         //case tn: Node.Constant => "Node.Constant"
         case tn: Node.ThisExpression => out("this") // TODO: handle differences between Scala and JS this
         case tn: Node.Super => out("super")
@@ -863,7 +885,7 @@ object ScalaOut {
           out"$tn"
         case Node.TypeAliasDeclaration(name, tpe) =>
           val tt = astType(Some(tpe)).getOrElse(SymbolTypes.AnyType)
-          out"type $name = $tt"
+          out"type $name = $tt\n"
         //identifierToOut(out, tn.name)
         case tn@ScalaNode.MemberTemplate(name, original, template) =>
 
@@ -926,7 +948,7 @@ object ScalaOut {
           def typeNameFromExpression(ex: Node.Expression) = {
             val tpe = right match {
               case Node.Identifier(rTypeName) =>
-                transform.TypesRule.typeFromIdentifierName(rTypeName)(context).map(_.toOut)
+                transform.TypesRule.typeFromIdentifierName(rTypeName)(context).map(_.toOutResolved)
               case _ =>
                 None
             }
@@ -993,6 +1015,7 @@ object ScalaOut {
           outputCall(tn.callee, tn.typeArgs, tn.arguments)
         case tn: Node.CallExpression =>
           outputCall(tn.callee, null, tn.arguments)
+
         case Node.VariableDeclarator(s@Node.Identifier(Id(name)), init, vType) =>
           val sType = getSymbolType(name).orElse(astType(Option(vType)).map(_ -> true))
           outputVarDef(s, Option(init), sType.map(_._1), sType.exists(_._2))
@@ -1218,7 +1241,7 @@ object ScalaOut {
           out"def ${tn.id}"
           outputArgNames(tn.params, true)(tn)
           for (fType <- input.types.types.get(Id(tn.id.name)) if fType.certain) {
-            out": ${fType.declType.toOut}"
+            out": ${fType.declType}"
           }
           out(" = ")
           blockBracedToOut(tn.body)

@@ -104,5 +104,16 @@ class DTSTest extends AnyFunSuite with TestUtils with ProjectUtils {
       )
   }
 
+  test("d.ts resolve type aliases") {
+    val outCode = convertProject("type-alias.d.ts/input.js")
+    exec check ResultCheck(outCode)
+      .required(
+        "def getAB(): String",
+        "var dab: String",
+        "var dabEx: String"
+      ).forbidden(
+      ": AB"
+    )
+  }
 
 }

@@ -25,6 +25,9 @@ object Modules {
     }
 
     n.transformAfterSimple {
+      // we want to keep the "marker" exports intact
+      case node@Node.ExportNamedDeclaration(VarDecl(name, Some(Node.Literal(value, raw)), "const"), Seq(), null) if name.startsWith(ConvertProject.prefixName) =>
+        node
       case Node.ExportDefaultDeclaration(Defined(value)) =>
         exportNode(value)
       case Node.ExportNamedDeclaration(Defined(value), _, _) =>

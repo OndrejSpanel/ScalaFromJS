@@ -143,7 +143,8 @@ object ConvertProject {
     def transformText(src: String): String = src.replaceAll(find, replace)
   }
 
-  val configName = "ScalaFromJS_settings"
+  val prefixName = "ScalaFromJS_"
+  val configName = prefixName + "settings"
 
   case class ConvertConfig(rules: Seq[Rule] = Seq.empty) {
     def collectRules[T: ClassTag]: Seq[T] = rules.collect {case x: T => x}
@@ -273,9 +274,18 @@ object ConvertProject {
     val terminatedCode = if (code.lastOption.contains('\n')) code else code + "\n"
     terminatedCode
   }
-  case class Item(code: String, included: Boolean, fullName: String) {
+  case class Item(originalCode: String, included: Boolean, fullName: String) {
     assert(!fullName.contains("../")) // must not contain .., because resolveSibling cannot handle it
     override def toString = s"($fullName:$included)"
+
+    def code: String = {
+      // carefully crafted export is used as a file begin / end marker
+      // exports are AST nodes, therefore they survive most transformation
+      // yet they are mostly ignored, and therefore harmfull
+      // we just make sure to avoid a name collision by using a "vendor" prefixed identifier
+      def mark(t: String) = s"export const ScalaFromJS_$t='$fullName';\n"
+      mark("begin") + originalCode + mark("end")
+    }
   }
 
   def loadControlFile(in: String): ConvertProject = {
@@ -558,21 +568,6 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       inFile -> outCode
     }
 
-    // (filename, code)
-    // add d.ts only declarations esp. traits (interface)
-    def addDeclarations(n: NodeExtended, outFiles: Seq[(String, String)]): Seq[(String, String)] = {
-      // for each file find declarations which belong to an accompanying d.ts and and add them
-      val rules = n.config.collectRules[transform.TypesRule]
-      rules.foldLeft(outFiles) { (files, r) =>
-        r.addDeclarations(n.top, files)
-      }
-
-    }
-
-    val addedDecls = addDeclarations(astOptimized, outFiles)
-
-
-
-    Converted(addedDecls, ext.config)
+    Converted(outFiles, ext.config)
   }
 }

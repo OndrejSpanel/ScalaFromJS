@@ -611,6 +611,8 @@ object Variables {
         //println("commonBase")
         classInfo.commonBase(c1.name, c2.name).fold[TypeDesc](any)(ClassType.apply)
       }
+
+      def resolveClass(c: ClassType) = n.types.resolveClass(c)
     }
 
     def consolidateCasts(casts: Seq[(SymId, SymId)]): Seq[(SymId, String)] = {

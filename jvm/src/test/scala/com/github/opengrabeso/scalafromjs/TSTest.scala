@@ -350,4 +350,25 @@ class TSTest extends AnyFunSuite with TestUtils with ProjectUtils {
       "b: String |"
     )
   }
+
+  test("Type aliases") {
+    exec check ConversionCheckTypeScript(
+      """
+      export type X = 'a' | 'b';
+      export type Y = string;
+
+      class C {
+        getX(x: X);
+        getY(y: Y);
+      }
+      """
+    ).required(
+      "class C",
+      "def getX(x: String)",
+      "def getY(y: String)"
+    ).forbidden(
+      "x: X",
+      "y: Y"
+    )
+  }
 }

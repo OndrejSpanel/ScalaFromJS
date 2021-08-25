@@ -39,6 +39,27 @@ object SymbolTypes {
     def isWatched: Boolean = watchedMember(id.cls.name, id.name)
   }
 
+  trait TypeResolver {
+    def resolveClass(t: ClassType): TypeDesc
+
+    def resolveType(t: TypeDesc): TypeDesc = {
+      t match {
+        case c: ClassType =>
+          resolveClass(c)
+        case ArrayType(a) =>
+          ArrayType(resolveType(a))
+        case MapType(a) =>
+          MapType(resolveType(a))
+        case UnionType(a) =>
+          UnionType(a.map(resolveType))
+        case FunctionType(ret, args) =>
+          FunctionType(resolveType(ret), args.map(resolveType))
+        case x =>
+          x
+      }
+    }
+  }
+
   sealed trait TypeDesc {
 
     def scalaConstruct: String = "_"
@@ -257,7 +278,7 @@ object SymbolTypes {
     }
   }
 
-  trait ClassOps {
+  trait ClassOps extends TypeResolver {
     def mostDerived(c1: ClassType, c2: ClassType): TypeDesc
     def commonBase(c1: ClassType, c2: ClassType): TypeDesc
   }
@@ -265,11 +286,13 @@ object SymbolTypes {
   object ClassOpsDummy extends ClassOps {
     def mostDerived(c1: ClassType, c2: ClassType): TypeDesc = c1
     def commonBase(c1: ClassType, c2: ClassType): TypeDesc = c2
+    def resolveClass(c: ClassType): TypeDesc = c
   }
 
   object ClassOpsUnion extends ClassOps {
     def mostDerived(c1: ClassType, c2: ClassType) = AnyType
     def commonBase(c1: ClassType, c2: ClassType) = UnionType(Seq(c1, c2))
+    def resolveClass(c: ClassType): TypeDesc = c
   }
 
   object IsObject {
@@ -284,8 +307,11 @@ object SymbolTypes {
       }
     }
   }
+
   // intersect: assignment source
-  def typeIntersect(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+  def typeIntersect(tpe1Input: TypeDesc, tpe2Input: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+    val tpe1 = classOps.resolveType(tpe1Input)
+    val tpe2 = classOps.resolveType(tpe2Input)
     val r = (tpe1, tpe2) match {
       case _ if tpe1 == tpe2 =>
         tpe1
@@ -325,10 +351,14 @@ object SymbolTypes {
   def mapFromArray(a: ArrayType): MapType = MapType(a.elem)
 
   // union: assignment target
-  def typeUnion(tpe1: TypeDesc, tpe2: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+  def typeUnion(tpe1Input: TypeDesc, tpe2Input: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+    val tpe1 = classOps.resolveType(tpe1Input)
+    val tpe2 = classOps.resolveType(tpe2Input)
     (tpe1, tpe2) match {
       case _ if tpe1 == tpe2 =>
         tpe1
+      case (ClassType(id), t) if id.name == "undefined" || id.name == "null" => t
+      case (t, ClassType(id)) if id.name == "undefined" || id.name == "null" => t
       case (_, AnyType) => AnyType
       case (AnyType, _) => AnyType
       case (t, NoType) => t
@@ -589,10 +619,19 @@ case object IsConstructorParameter extends Hint
   Once locked, perform only "desperate" inference: i.e. from Unit to some type, never change a variable type
 */
 
-case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo], hints: Map[SymbolMapId, Hint] = Map.empty, locked: Boolean = false) {
+case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo], hints: Map[SymbolMapId, Hint] = Map.empty, locked: Boolean = false)
+  extends SymbolTypes.TypeResolver {
 
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
   def getHint(id: Option[SymbolMapId]): Option[Hint] = id.flatMap(hints.get)
+
+  override def resolveClass(t: ClassType) = types.get(t.name).map(_.declType).getOrElse(t)
+
+  def getResolved(id: Option[SymbolMapId]): Option[TypeInfo] = {
+    id.flatMap(types.get).map { ti =>
+      TypeInfo(resolveType(ti.source), resolveType(ti.target), ti.certain)
+    }
+  }
 
   def renameHint(oldId: SymbolMapId, newId: SymbolMapId): SymbolTypes = {
     val mod = for (hint <- hints.get(oldId)) yield {
