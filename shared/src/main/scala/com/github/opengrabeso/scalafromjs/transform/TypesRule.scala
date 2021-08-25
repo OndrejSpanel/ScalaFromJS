@@ -476,8 +476,19 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       } yield {
         ScalaOut.outputNode(c) // simple output, no context, no config, no types
       }
-      val symbolsCode = symbolsOut.mkString("\n")
-      name -> (symbolsCode + code)
+
+      if (symbolsOut.nonEmpty) {
+        val symbolsCode = "\n\n" + symbolsOut.mkString("\n") + "\n"
+
+        val (prefix, body) = code.linesIterator.span { line =>
+          // this is just heuristics shown to work well with three.js
+          line.isEmpty || line.startsWith("//") || line.startsWith("/* ") || line.startsWith("import") || line.startsWith("package ")
+        }
+
+        name -> (prefix.mkString("\n") + symbolsCode + body.mkString("\n"))
+      } else {
+        name -> code
+      }
     }
 
   }
