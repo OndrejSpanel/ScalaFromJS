@@ -649,7 +649,7 @@ package object classes {
           findConstructor(cls).map { constructor =>
             constructor.value match {
               case fun: Node.FunctionExpression =>
-                val body = fun.body.body
+                val body = Option(fun.body).map(_.body).getOrElse(Seq.empty)
                 val properties = mutable.ArrayBuffer.empty[Node.MethodDefinition]
                 val bodyLeft = body.filter {
                   case Node.ExpressionStatement(Node.CallExpression(
@@ -673,7 +673,7 @@ package object classes {
                   case `constructor` =>
                     val newConstructor = constructor.cloneNode()
                     val newConstructorValue = fun.cloneNode()
-                    newConstructorValue.body = Node.BlockStatement(bodyLeft).withTokens(fun.body)
+                    newConstructorValue.body = Node.BlockStatement(bodyLeft).withTokens(Option(fun.body).getOrElse(fun))
                     newConstructor.value = newConstructorValue
                     newConstructor
                   case x =>
