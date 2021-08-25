@@ -310,4 +310,44 @@ class TSTest extends AnyFunSuite with TestUtils with ProjectUtils {
 
   }
 
+  test("Union and intersection types") {
+    exec check ConversionCheckTypeScript(
+      """
+          class A {};
+          class B {};
+          class C {
+            a: string | number;
+            b: string & {};
+            c: A & B;
+            d: A | (string & {});
+          }
+      """
+    ).required(
+      "class C",
+      "a: String | Double",
+      "b: String",
+      "c: Any",
+      "d: A | String",
+    ).forbidden(
+      "b: String |"
+    )
+  }
+
+  test("Conditional types") {
+    exec check ConversionCheckTypeScript(
+      """
+      class X {
+          constructor(r: Y);
+
+          get<T>(t: T): T extends Text ? Text : T;
+          dispose(): void;
+      }
+      """
+    ).required(
+      "class X",
+      "def get"
+    ).forbidden(
+      "b: String |"
+    )
+  }
 }

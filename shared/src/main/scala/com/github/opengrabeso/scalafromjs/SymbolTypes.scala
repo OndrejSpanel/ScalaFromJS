@@ -193,7 +193,8 @@ object SymbolTypes {
 
     def union(that: UnionType): TypeDesc = {
       val tpe = (types ++ that.types).distinct
-      if (tpe.size > 4) AnyType // when the union type is very long, represent it as AnyType instead
+      if (tpe.contains(AnyType)) AnyType
+      else if (tpe.size > 4) AnyType // when the union type is very long, represent it as AnyType instead
       else UnionType(tpe)
     }
     def intersect(that: UnionType): TypeDesc = {
@@ -204,6 +205,7 @@ object SymbolTypes {
       else UnionType(tpe)
     }
   }
+
   case object AnyType extends TypeDesc { // supertype of all
     override def toString = "Any"
     override def toOut = "Any"
@@ -266,7 +268,7 @@ object SymbolTypes {
   }
 
   object ClassOpsUnion extends ClassOps {
-    def mostDerived(c1: ClassType, c2: ClassType) = NoType
+    def mostDerived(c1: ClassType, c2: ClassType) = AnyType
     def commonBase(c1: ClassType, c2: ClassType) = UnionType(Seq(c1, c2))
   }
 

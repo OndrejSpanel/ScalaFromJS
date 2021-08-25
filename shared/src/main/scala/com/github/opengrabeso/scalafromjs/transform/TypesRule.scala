@@ -146,11 +146,17 @@ object TypesRule {
       case Node.UnionType(left, right) =>
         val l = typeFromAST(left).getOrElse(AnyType)
         val r = typeFromAST(right).getOrElse(AnyType)
-        def makeUnion(t: TypeDesc) = t match {
-          case u: SymbolTypes.UnionType => u
-          case _ => SymbolTypes.UnionType(Seq(t))
-        }
-        Some(SymbolTypes.UnionType(makeUnion(l).types ++ makeUnion(r).types))
+        Some(typeUnion(l, r)(ClassOpsUnion))
+      case Node.ConditionalType(t, cond, left, right) =>
+        // we do not want to parse the parameters, we rather create a union of the types in question
+        // note: one of them will frequently be a generic - we currently do not know them
+        val l = typeFromAST(left).getOrElse(AnyType)
+        val r = typeFromAST(right).getOrElse(AnyType)
+        Some(typeUnion(l, r)(ClassOpsUnion))
+      case Node.IntersectionType(left, right) =>
+        val l = typeFromAST(left).getOrElse(AnyType)
+        val r = typeFromAST(right).getOrElse(AnyType)
+        Some(typeIntersect(l, r)(ClassOpsUnion))
       case _ =>
         None
     }
