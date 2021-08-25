@@ -405,4 +405,23 @@ class ClassTests extends AnyFunSuite with TestUtils {
       ".isFoo"
     )
   }
+
+  test("Handle constructor call on a class") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+        class A {
+        }
+
+        var a = new A();
+        var b;
+        if (true) {
+          b = new a.constructor();
+        }
+      """).required(
+      "var b: A",
+    )
+  }
+
+
 }

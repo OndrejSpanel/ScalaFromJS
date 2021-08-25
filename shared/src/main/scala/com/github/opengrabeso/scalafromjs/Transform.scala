@@ -564,10 +564,22 @@ object Transform {
         }
       case Node.NewExpression(Node.Identifier(Id(call)), _) =>
         typeInfoFromClassSym(call, true)
-      case Node.NewExpression(Node.Identifier(pack) Dot call, _) =>
-        // TODO: check if call is a known symbol and use it
-        // TODO: handle package names properly
-        Some(TypeInfo.both(ClassType(SymbolMapId(call, 0 -> 0))))
+
+      case Node.NewExpression(Node.Identifier(name1) Dot "array" Dot "constructor", _) =>
+        Some(TypeInfo(ArrayType(AnyType), ArrayType(NoType)))
+
+      case Node.NewExpression(Node.Identifier("array") Dot "constructor", _) =>
+        Some(TypeInfo(ArrayType(AnyType), ArrayType(NoType)))
+
+      case Node.NewExpression(expr Dot "constructor", _) =>
+        expressionType(expr)
+
+      case Node.NewExpression(Node.Identifier(name) Dot call, _) =>
+        if (call != "constructor") {
+          Some(TypeInfo.both(ClassType(SymbolMapId(call, 0 -> 0))))
+        } else {
+          None
+        }
 
       case Node.CallExpression(Node.Identifier(Id(call)), _) =>
         val tid = id(call)
