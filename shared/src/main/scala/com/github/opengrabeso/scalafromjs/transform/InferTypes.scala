@@ -759,18 +759,46 @@ object InferTypes {
         case SymbolInfo(symbol) Sub property =>
           val tpe = symbol.tpe(ctx.types)
           //println(s"$symbol Node.Sub $property `$tpe` -> `${tpe.map(_.declType)}`")
+
+          object CanBeArray {
+            def unapply(tpe: TypeDesc): Option[ArrayType] = {
+              tpe match {
+                case a: ArrayType => Some(a)
+                case u: UnionType => u.types.collectFirst {
+                  case a: ArrayType =>
+                    a
+                }
+                case _ =>
+                  None
+              }
+            }
+          }
+          object CanBeMap {
+            def unapply(tpe: TypeDesc): Option[MapType] = {
+              tpe match {
+                case a: MapType => Some(a)
+                case u: UnionType => u.types.collectFirst {
+                  case a: MapType =>
+                    a
+                }
+                case _ =>
+                  None
+              }
+            }
+          }
+
           tpe.map(_.declType) match {
             case Some(ObjectOrMap) =>
               // initialized as {}, cannot be an Array, must be a map
 
               symbol.addSymbolInferredType(Some(TypeInfo.target(MapType(NoType))), target)(()=>s"ObjectOrMap $symbol")
-            case Some(_: MapType) =>
+            case Some(CanBeMap(_)) =>
               // addressing map, we know index must be a string
               for (SymbolInfo(symbol) <- Some(property)) {
                 val indexType = Some(TypeInfo.target(string))
                 symbol.addSymbolInferredType(indexType, target)(()=>s"Map $symbol.$property")
               }
-            case Some(_: ArrayType) =>
+            case Some(CanBeArray(_)) =>
               // addressing array, we know index must be a number
               for (SymbolInfo(symbol) <- Some(property)) {
                 val indexType = Some(TypeInfo.target(number))

@@ -139,4 +139,95 @@ class ArrayTests extends AnyFunSuite with TestUtils {
         "array = Array.empty[Any]"
       )
   }
+
+  test("new array.constructor should be handled") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+      var a, b, c;
+
+      if (true) {
+        a= new array.constructor( array.subarray( from, to !== undefined ? to : array.length ) );
+        b = new source.array.constructor( source.array );
+        c = new array.constructor(indices.length * itemSize);
+      }
+      """)
+      .required(
+        "var a = Array.empty",
+        "var b = Array.empty",
+        "var c = Array.empty"
+      )
+
+  }
+
+  test("Various forms of array constructions should be handled") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+
+        var fb = new Float32Array(10);
+
+        var a = new Array(10);
+
+        var pa = [0, 1, 2];
+
+        var c, d, e;
+
+        if (true) {
+          c = fb;
+          d = b;
+          e = pa;
+        }
+      """)
+      .required(
+        "var ca = Array.empty",
+        "var b = Array.empty",
+        "var c = Array.empty"
+      )
+
+  }
+
+  test("Array access with mixed types should be handled fine") {
+
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+        var f = new Float32Array(10);
+
+        var a = new Array(10);
+
+        var p = [0, 1, 2];
+
+        var vf, va, vp;
+
+        var ef, ea, ep;
+
+        var bb;
+
+        if (true) {
+          vf = f;
+          va = a;
+          vp = p;
+
+          ef = f[0];
+          ea = a[0];
+          ep = p[0];
+
+          bb = new Array(10);
+          bb = new Float32Array(10);
+
+          bb[0];
+
+          bb[0] = bb[0]
+        }
+      """)
+      .required(
+        "var ef: Double",
+        "var ep: Double",
+      ).forbidden(
+        "Array[Array"
+      )
+
+
+  }
 }

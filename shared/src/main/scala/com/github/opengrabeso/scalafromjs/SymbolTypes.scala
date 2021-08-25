@@ -12,7 +12,7 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("unrollLoops", "string", "vertexShader", "fragmentShader", "shader", "xp", "x")
+    val watched = Set[String]("bb")
     name.startsWith("watch_") || watched.contains(name)
   }
 
@@ -204,21 +204,7 @@ object SymbolTypes {
     def intersect(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeIntersect, typeUnion)
   }
 
-  object UnionType {
-    /**
-      * @note even when you request a UnionType to be created, you may get a plain type
-      * if it is considered a better representation
-      * */
-    def apply(types: Seq[TypeDesc]): TypeDesc = {
-      val tpe = types.distinct
-      if (tpe.contains(AnyType)) AnyType
-      else if (tpe.size > 4) AnyType // when the union type is very long, represent it as AnyType instead
-      else {
-        new UnionType(tpe)
-      }
-    }
-  }
-  case class UnionType private (types: Seq[TypeDesc]) extends TypeDesc {
+  case class UnionType(types: Seq[TypeDesc]) extends TypeDesc {
     override def knownItems = 1
     // distinct because there may be e.g. several anonymous classes which are output as AnyRef
     override def toOut = types.map(_.toOut).distinct.mkString(" | ")
@@ -361,8 +347,35 @@ object SymbolTypes {
 
   def mapFromArray(a: ArrayType): MapType = MapType(a.elem)
 
+  def unionManyTypes(uTypesInput: Seq[TypeDesc])(implicit classOps: ClassOps): TypeDesc = {
+    val uTypes = uTypesInput.filterNot(_ == NoType).distinct
+    if (uTypes.isEmpty) NoType
+    else if (uTypes.contains(AnyType)) AnyType
+    else if (uTypes.size == 1) uTypes.head
+    else {
+      val arrayTypes = uTypes.collect {
+        case ArrayType(elem) => elem
+      }
+      val otherTypes = uTypes diff arrayTypes.map(ArrayType)
+
+      if (arrayTypes.size > 1) { // WIP: merge Array, ArrayLike, Iterable together
+        val aType = arrayTypes.reduce(typeUnion(_, _))
+        UnionType(ArrayType(aType) +: otherTypes)
+      } else {
+        if (uTypes.size > 4) {
+          // WIP: use commonBase for all class types
+          AnyType
+        } else {
+          UnionType(uTypes)
+        }
+      }
+    }
+  }
+
   // union: assignment target
   def typeUnion(tpe1Input: TypeDesc, tpe2Input: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+    // special case optimization for a very common case
+    if (tpe1Input == tpe2Input) return tpe1Input
     object UndefinedOrNullType {
       def unapply(t: TypeDesc): Boolean = {
         t match {
@@ -408,26 +421,13 @@ object SymbolTypes {
       case (ObjectOrMap, a: ArrayType) => a
       case (a: ArrayType, ObjectOrMap) => a
       case (u1: UnionType, u2: UnionType) =>
-        val uTypes = u1.types ++ u2.types
-        val arrayTypes = uTypes.collect {
-          case ArrayType(a) =>
-            a
-        }
-        if (arrayTypes.size > 1) {
-          val aType = arrayTypes.reduce(typeUnion(_, _))
-          val restType = (uTypes diff arrayTypes).reduce(typeUnion(_, _))
-          // recursion never infinite - we always reduce number of array types
-          typeUnion(ArrayType(aType), restType)
-        } else {
-          UnionType(uTypes)
-        }
-
+        unionManyTypes(u1.types ++ u2.types)
       case (u: UnionType, t: TypeDesc) =>
-        UnionType(u.types :+ t)
+        unionManyTypes(u.types :+ t)
       case (t: TypeDesc, u: UnionType) =>
-        UnionType(t +: u.types)
+        unionManyTypes(t +: u.types)
       case (a: TypeDesc, b: TypeDesc) =>
-        UnionType(Seq(a, b))
+        unionManyTypes(Seq(a, b))
       case _ =>
         AnyType
     }
