@@ -204,7 +204,21 @@ object SymbolTypes {
     def intersect(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeIntersect, typeUnion)
   }
 
-  case class UnionType(types: Seq[TypeDesc]) extends TypeDesc {
+  object UnionType {
+    /**
+      * @note even when you request a UnionType to be created, you may get a plain type
+      * if it is considered a better representation
+      * */
+    def apply(types: Seq[TypeDesc]): TypeDesc = {
+      val tpe = types.distinct
+      if (tpe.contains(AnyType)) AnyType
+      else if (tpe.size > 4) AnyType // when the union type is very long, represent it as AnyType instead
+      else {
+        new UnionType(tpe)
+      }
+    }
+  }
+  case class UnionType private (types: Seq[TypeDesc]) extends TypeDesc {
     override def knownItems = 1
     // distinct because there may be e.g. several anonymous classes which are output as AnyRef
     override def toOut = types.map(_.toOut).distinct.mkString(" | ")
@@ -213,10 +227,7 @@ object SymbolTypes {
     override def depthComplexity = types.map(_.depthComplexity).max
 
     def union(that: UnionType): TypeDesc = {
-      val tpe = (types ++ that.types).distinct
-      if (tpe.contains(AnyType)) AnyType
-      else if (tpe.size > 4) AnyType // when the union type is very long, represent it as AnyType instead
-      else UnionType(tpe)
+      UnionType(types ++ that.types)
     }
     def intersect(that: UnionType): TypeDesc = {
       // TODO: try smart class intersection using common base
@@ -332,9 +343,9 @@ object SymbolTypes {
       case (u1: UnionType, u2: UnionType) =>
         u1 intersect u2
       case (u: UnionType, t: TypeDesc) =>
-        u intersect UnionType(Seq(t))
+        typeIntersect(u, UnionType(Seq(t)))
       case (t: TypeDesc, u: UnionType) =>
-        UnionType(Seq(t)) intersect u
+        typeIntersect(UnionType(Seq(t)), u)
       case (a: MapType, IsObject()) => a
       case (IsObject(), a: MapType) => a
       case (c1: ClassType, _) => // while technically incorrect, we always prefer a class type against a non-class one
@@ -352,13 +363,25 @@ object SymbolTypes {
 
   // union: assignment target
   def typeUnion(tpe1Input: TypeDesc, tpe2Input: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+    object UndefinedOrNullType {
+      def unapply(t: TypeDesc): Boolean = {
+        t match {
+          case ClassType(id) if id.name == "undefined" || id.name == "null" =>
+            true
+          case NullType =>
+            true
+          case _ =>
+            false
+        }
+      }
+    }
     val tpe1 = classOps.resolveType(tpe1Input)
     val tpe2 = classOps.resolveType(tpe2Input)
     (tpe1, tpe2) match {
       case _ if tpe1 == tpe2 =>
         tpe1
-      case (ClassType(id), t) if id.name == "undefined" || id.name == "null" => t
-      case (t, ClassType(id)) if id.name == "undefined" || id.name == "null" => t
+      case (UndefinedOrNullType(), t) => t
+      case (t, UndefinedOrNullType()) => t
       case (_, AnyType) => AnyType
       case (AnyType, _) => AnyType
       case (t, NoType) => t
@@ -385,11 +408,24 @@ object SymbolTypes {
       case (ObjectOrMap, a: ArrayType) => a
       case (a: ArrayType, ObjectOrMap) => a
       case (u1: UnionType, u2: UnionType) =>
-        u1 union u2
+        val uTypes = u1.types ++ u2.types
+        val arrayTypes = uTypes.collect {
+          case ArrayType(a) =>
+            a
+        }
+        if (arrayTypes.size > 1) {
+          val aType = arrayTypes.reduce(typeUnion(_, _))
+          val restType = (uTypes diff arrayTypes).reduce(typeUnion(_, _))
+          // recursion never infinite - we always reduce number of array types
+          typeUnion(ArrayType(aType), restType)
+        } else {
+          UnionType(uTypes)
+        }
+
       case (u: UnionType, t: TypeDesc) =>
-        u union UnionType(Seq(t))
+        UnionType(u.types :+ t)
       case (t: TypeDesc, u: UnionType) =>
-        UnionType(Seq(t)) union u
+        UnionType(t +: u.types)
       case (a: TypeDesc, b: TypeDesc) =>
         UnionType(Seq(a, b))
       case _ =>
