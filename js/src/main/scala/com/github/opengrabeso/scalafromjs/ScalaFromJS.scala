@@ -21,9 +21,9 @@ object ScalaFromJS {
     def action(pars: T): Unit
 
     // when multiple conversions are pending, execute only the one triggered last
-    var lastTriggered = Option.empty[Double]
+    var lastTriggered = Option.empty[Long]
 
-    def trigger(timestamp: Double, delayMs: Int, pars: T) = {
+    def trigger(timestamp: Long, delayMs: Int, pars: T) = {
       if (lastTriggered.isEmpty || lastTriggered.get < timestamp) {
         lastTriggered = Some(timestamp)
       }
@@ -33,7 +33,7 @@ object ScalaFromJS {
       }
     }
 
-    def callback(timestamp: Double, pars: T): Unit = {
+    def callback(timestamp: Long, pars: T): Unit = {
       if (lastTriggered.contains(timestamp)) {
         action(pars)
       }
@@ -77,12 +77,12 @@ object ScalaFromJS {
     val code = in.asInstanceOf[js.Dynamic].value.asInstanceOf[String]
     // longer delay on a long code
     val delayMs = 10 max code.length / 100 min 1000
-    DelayedConversion.trigger(e.timeStamp, delayMs, ())
+    DelayedConversion.trigger(e.timeStamp.toLong, delayMs, ())
   }
 
   private def onPaste(e: Event) = {
     // no delay needed after paste
-    DelayedConversion.trigger(e.timeStamp, 10, ())
+    DelayedConversion.trigger(e.timeStamp.toLong, 10, ())
   }
 
 

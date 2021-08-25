@@ -3,7 +3,8 @@ package com.github.opengrabeso.scalafromjs
 import java.nio.file.{Files, Paths}
 import PathUtils._
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
+import scala.collection.Seq
 
 
 trait ProjectUtils extends TestUtils {
@@ -41,7 +42,7 @@ trait ProjectUtils extends TestUtils {
         sb append outCode
         exec check ResultCheck(outCode).required("/*", "*/")
       }
-      sb.result
+      sb.result()
     }
   }
 

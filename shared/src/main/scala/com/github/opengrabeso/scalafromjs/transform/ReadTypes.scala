@@ -22,8 +22,8 @@ object ReadTypes {
         }
       }
       node match {
-        case Node.MethodDefinition(Node.Identifier(funName), MayBeNull(tpe), _, AnyFunEx(pars, retFun, body), _, _) => // member function
-          for (t <- tpe.orElse(retFun)) {
+        case Node.MethodDefinition(Node.Identifier(funName), tpe, _, AnyFunEx(pars, retFun, body), _, _) => // member function
+          for (t <- Option(tpe).orElse(retFun)) {
             addType(funName, t)
           }
           false

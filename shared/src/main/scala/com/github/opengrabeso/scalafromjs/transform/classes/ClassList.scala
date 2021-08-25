@@ -10,6 +10,7 @@ import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext}
 
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
+import scala.collection.Seq
 
 object ClassList {
 

@@ -7,6 +7,7 @@ import Classes._
 import Transform._
 import SymbolTypes._
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, SymId}
+import scala.collection.Seq
 
 import scala.language.implicitConversions
 
@@ -52,7 +53,7 @@ object ClassesByMembers {
         val propertiesNonStatic = propertiesSeq.filterNot(propertyIsStatic)
 
 
-        def listKind(seq: Seq[Node.ClassBodyElement], kind: String) = propertiesSeq.collect {
+        def listKind(seq: Seq[Node.ClassBodyElement], kind: String) = seq.collect {
           case c: Node.MethodDefinition if c.key != null && c.kind == kind =>
             methodName(c) -> getMethodMethod(c).fold(0)(_.params.length)
         }

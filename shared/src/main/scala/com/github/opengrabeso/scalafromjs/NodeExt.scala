@@ -4,6 +4,7 @@ import com.github.opengrabeso.esprima.Node
 import com.github.opengrabeso.esprima._
 import com.github.opengrabeso.scalafromjs.esprima.symbols.ScopeContext
 import esprima._
+import scala.collection.Seq
 
 import scala.reflect.ClassTag
 
@@ -114,20 +115,6 @@ trait NodeExt {
     }
   }
 
-  object IsNull {
-    // check if a potential null is a null
-    def unapply[T](some: T): Boolean = {
-      some == null
-    }
-  }
-
-  object MayBeNull {
-    // extract value from a potential null as an option
-    def unapply[T](some: T): Option[Option[T]] = {
-      Some(Option(some))
-    }
-  }
-
   class LiteralExtractor[T: ClassTag] {
     def unapply(arg: Node.Literal): Option[T] = {
       if (arg.value == null) None
@@ -188,9 +175,9 @@ trait NodeExt {
   object AnyFunctionExpression {
     def unapply(arg: Node.Node): Option[(Seq[Node.FunctionParameter], Node.BlockStatementOrExpression)] = arg match {
       case f: Node.FunctionExpression =>
-        Some(f.params, f.body)
+        Some((f.params, f.body))
       case f: Node.ArrowFunctionExpression =>
-        Some(f.params, f.body)
+        Some((f.params, f.body))
       case _ =>
         None
     }
@@ -323,8 +310,8 @@ trait NodeExt {
 
   object VarDeclTyped {
     def unapply(arg: Node.VariableDeclaration): Option[(String, Option[Node.Expression], String, Option[Node.TypeAnnotation])] = arg match {
-      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), MayBeNull(init), MayBeNull(tpe))), kind) =>
-        Some(name, init, kind, tpe)
+      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), init, tpe)), kind) =>
+        Some(name, Option(init), kind, Option(tpe))
       case _ =>
         None
     }
@@ -332,8 +319,8 @@ trait NodeExt {
 
   object VarDecl {
     def unapply(arg: Node.VariableDeclaration): Option[(String, Option[Node.Expression], String)] = arg match {
-      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), MayBeNull(init), _)), kind) =>
-        Some(name, init, kind)
+      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), init, _)), kind) =>
+        Some(name, Option(init), kind)
       case _ =>
         None
     }
@@ -348,8 +335,8 @@ trait NodeExt {
     (n: @unchecked) match {
       case Node.AssignmentPattern(left: Node.Identifier, right) =>
         left -> Some(right)
-      case Node.FunctionParameterWithType(id: Node.Identifier, _, MayBeNull(init), _) =>
-        id -> init
+      case Node.FunctionParameterWithType(id: Node.Identifier, _, init, _) =>
+        id -> Option(init)
       case id: Node.Identifier =>
         id -> None
       case Node.RestElement(arg: Node.Identifier, _) =>

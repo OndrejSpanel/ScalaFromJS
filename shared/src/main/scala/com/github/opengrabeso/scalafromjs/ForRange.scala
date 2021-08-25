@@ -4,6 +4,7 @@ import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import JsUtils._
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId}
+import scala.collection.Seq
 
 // extractor for special cases of the for loop
 object ForRange {

@@ -4,6 +4,7 @@ import scala.util.Try
 import PathUtils._
 import ConvertProject.AliasPackageRule
 import FileAccess._
+import scala.collection.Seq
 
 object CommandLine {
 

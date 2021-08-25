@@ -294,5 +294,20 @@ class TSTest extends AnyFunSuite with TestUtils with ProjectUtils {
 
   }
 
+  test("Empty constructor body") {
+    exec check ConversionCheckTypeScript(
+      //language=TypeScript
+      """
+      export class Cls {
+          constructor();
+      }
+      """
+    ).required(
+      "class Cls"
+    ).forbidden(
+      "constructor()"
+    )
+
+  }
 
 }

@@ -13,6 +13,7 @@ import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.util.matching.Regex
+import scala.collection.Seq
 
 package object classes {
 
@@ -42,11 +43,11 @@ package object classes {
     def unapply(arg: Node.Node)(implicit context: ScopeContext): Option[(Node.Identifier, Seq[Node.FunctionParameter], Seq[Node.Statement])] = arg match {
       // function ClassName() {}
       case DefFun(sym, args, body, _, _) =>
-        Some(sym, args, Block.statements(body))
+        Some((sym, args, Block.statements(body)))
 
       // ClassName = function() {}
       case Assign(sym: Node.Identifier, "=", AnyFun(args, body)) =>
-        Some(sym, args, Block.statements(body))
+        Some((sym, args, Block.statements(body)))
 
       // var ClassName = function() {}
       case VarDecl(sym, AnyFun(args, body), _) =>
@@ -648,7 +649,7 @@ package object classes {
           findConstructor(cls).map { constructor =>
             constructor.value match {
               case fun: Node.FunctionExpression =>
-                val body = fun.body.body
+                val body = Option(fun.body).map(_.body).getOrElse(Seq.empty)
                 val properties = mutable.ArrayBuffer.empty[Node.MethodDefinition]
                 val bodyLeft = body.filter {
                   case Node.ExpressionStatement(Node.CallExpression(
@@ -672,7 +673,7 @@ package object classes {
                   case `constructor` =>
                     val newConstructor = constructor.cloneNode()
                     val newConstructorValue = fun.cloneNode()
-                    newConstructorValue.body = Node.BlockStatement(bodyLeft).withTokens(fun.body)
+                    newConstructorValue.body = Node.BlockStatement(bodyLeft).withTokens(Option(fun.body).getOrElse(fun))
                     newConstructor.value = newConstructorValue
                     newConstructor
                   case x =>

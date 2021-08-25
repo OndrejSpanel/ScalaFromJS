@@ -34,14 +34,14 @@ class ClassTransformTests extends AnyFunSuite with TestUtils {
       var bob = new Person("Bob")
       """
 
-    case class Step(name: Symbol, op: esprima.NodeExtended => esprima.NodeExtended, required: Seq[String], forbidden: Seq[String] = Seq.empty)
+    case class Step(name: String, op: esprima.NodeExtended => esprima.NodeExtended, required: List[String], forbidden: List[String] = Nil)
 
     val steps = Seq(
-      Step('FillVarMembers, classes.FillVarMembers.apply, Seq("var name = _", "this.name = name", "name:") ),
-      Step('InlineConstructors , classes.InlineConstructors.apply, Seq("class Person(name_par:", "this.constructor(name_par)", "name = name_par") ),
-      Step('simpleParameters , Parameters.simpleParameters, Seq("class Person(name_par:", "this.constructor(name_par)", "name = name_par") ),
-      Step('varInitialization, onTopNode(Variables.varInitialization), Seq("class Person(name_par:", "this.constructor(name_par)", "var name = name_par") ),
-      Step('inlineConstructorVars, Parameters.inlineConstructorVars, Seq("class Person(var name:", "this.constructor(name)"), Seq("name_par"))
+      Step("FillVarMembers", classes.FillVarMembers.apply, List("var name = _", "this.name = name", "name:") ),
+      Step("InlineConstructors" , classes.InlineConstructors.apply, List("class Person(name_par:", "this.constructor(name_par)", "name = name_par") ),
+      Step("simpleParameters" , Parameters.simpleParameters, List("class Person(name_par:", "this.constructor(name_par)", "name = name_par") ),
+      Step("varInitialization", onTopNode(Variables.varInitialization), List("class Person(name_par:", "this.constructor(name_par)", "var name = name_par") ),
+      Step("inlineConstructorVars", Parameters.inlineConstructorVars, List("class Person(var name:", "this.constructor(name)"), List("name_par"))
     )
 
     val ast = esprima.parse(input)

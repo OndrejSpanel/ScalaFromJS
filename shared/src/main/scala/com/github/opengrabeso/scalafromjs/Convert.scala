@@ -1,7 +1,7 @@
 package com.github.opengrabeso.scalafromjs
 
 import com.github.opengrabeso.scalafromjs.esprima._
-import com.github.opengrabeso.esprima._
+import com.github.opengrabeso.esprima.{GlobalConfig=>_, _}
 
 object Convert {
 

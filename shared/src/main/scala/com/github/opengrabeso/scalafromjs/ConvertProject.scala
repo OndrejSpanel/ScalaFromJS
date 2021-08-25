@@ -14,10 +14,11 @@ import ConvertProject._
 import PathUtils._
 
 import scala.reflect.ClassTag
+import scala.collection.Seq
 
 object ConvertProject {
 
-  val predefinedHeadersTS = Seq(
+  val predefinedHeadersTS = collection.immutable.Seq(
     "ArrayLike.d.ts" ->
       """
       export interface ArrayLike<T> {
@@ -304,6 +305,9 @@ object ConvertProject {
       def unapply(arg: Node.Node) = arg match {
         case VarDecl(`configName`, Some(OObject(props)), _) =>
           Some(props)
+        case VarDecl(`configName`, x, _) =>
+          println(s"Warning: config detected, but not matched ($x)")
+          None
         case _ =>
           None
       }
@@ -357,7 +361,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
 
   assert(checkIntegrity)
 
-  def indexOfItem(offset: Int): Int = offsets.prefixLength(_ <= offset) - 1
+  def indexOfItem(offset: Int): Int = offsets.segmentLength(_ <= offset) - 1
   def rangeOfPath(path: String): (Int, Int) = {
     val index = values.indexWhere(_.fullName == path)
     (offsets(index), offsets(index + 1))
@@ -492,7 +496,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
         path -> Item(code, exported, path)
       }
 
-      val old = items.mapValues(i => i.copy(included = i.included || markAsIncludes.exists(_._2 == i.fullName)))
+      val old = items.view.mapValues(i => i.copy(included = i.included || markAsIncludes.exists(_._2 == i.fullName))).toMap
       val examples = toExample.map(nb => mapFile(nb, false))
       val includes = toInclude.map(nb => mapFile(nb, true))
 

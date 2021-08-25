@@ -12,6 +12,7 @@ import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, Sym
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
+import scala.collection.Seq
 
 object Variables {
   import VariableUtils._
@@ -255,13 +256,13 @@ object Variables {
         case Node.IfStatement(
           Binary(sr@Node.Identifier(Id(thedef)), "==" | "===", Node.Identifier("undefined")),
           SingleExpression(Assign(Node.Identifier(Id(thedef2)), "=", right)),
-          IsNull()
+          null
         ) if thedef == thedef2 =>
           Some(thedef, right)
         case Node.IfStatement(
           Binary(Node.Identifier(Id(thedef)), "==" | "===", Node.Identifier("undefined")),
           SingleExpression(Assign(Node.Identifier(Id(thedef2)), "=", right)),
-          IsNull()
+          null
         )  =>
           None
         case _ =>
@@ -543,8 +544,8 @@ object Variables {
       def unapply(arg: Node.IfStatement)(implicit context: ScopeContext): Option[(SymId, Seq[Node.Identifier], Node.Statement, Option[Node.Statement])] = arg match {
         // if (symDef instanceof cs)
         // if (symDef instanceof cs || symDef instanceof ds)
-        case Node.IfStatement(InstanceOfCondition(symDef, cs), ifStatement, MayBeNull(elseStatement)) =>
-          Some(symDef, cs, ifStatement, elseStatement)
+        case Node.IfStatement(InstanceOfCondition(symDef, cs), ifStatement, elseStatement) =>
+          Some(symDef, cs, ifStatement, Option(elseStatement))
 
         case _ =>
           None
@@ -661,7 +662,7 @@ object Variables {
               }.getOrElse(Seq())
             ).withTokens(s)
           ).withTokens(s)
-        case ifs@Node.IfStatement(ex@ExpressionWithCasts(extractedCasts@_*), ifStatement, MayBeNull(elseStatement)) =>
+        case ifs@Node.IfStatement(ex@ExpressionWithCasts(extractedCasts@_*), ifStatement, elseStatement) =>
           // check which cast variables are used in the ifStatement
           val used = listSymbols(ifStatement)
           val usedCasts = extractedCasts.filter { case (sym, _) =>
@@ -681,7 +682,7 @@ object Variables {
                 }
               }
             ).withTokens(ifs),
-            elseStatement.orNull
+            elseStatement
           ).withTokens(ifs)
           descend(n, transformer)
           n
@@ -841,7 +842,7 @@ object Variables {
           // scope is some function
           def addDeclarations(block: Node.BlockStatement): Node.BlockStatement = {
             // check if the desired name is free in the block
-            val symbols = SymbolDeclaration.declaredSymbols(block).to[mutable.LinkedHashSet]
+            val symbols = SymbolDeclaration.declaredSymbols(block).to(mutable.LinkedHashSet)
             Node.BlockStatement(
               syms.flatMap { id =>
                 // first level of the globals is whether the variable is erased now (last initialization may be scalar)
