@@ -167,22 +167,22 @@ class ArrayTests extends AnyFunSuite with TestUtils {
 
         var fb = new Float32Array(10);
 
-        var a = new Array(10);
+        var aa = new Array(10);
 
         var pa = [0, 1, 2];
 
-        var c, d, e;
+        var vf, va, vp;
 
         if (true) {
-          c = fb;
-          d = b;
-          e = pa;
+          vf = fa;
+          va = aa;
+          vp = pa;
         }
       """)
       .required(
-        "var ca = Array.empty",
-        "var b = Array.empty",
-        "var c = Array.empty"
+        "var vf = Array.empty",
+        "var va = Array.empty",
+        "var vp = Array.empty"
       )
 
   }
@@ -222,7 +222,6 @@ class ArrayTests extends AnyFunSuite with TestUtils {
         }
       """)
       .required(
-        "var ef: Double",
         "var ep: Double",
       ).forbidden(
         "Array[Array"
