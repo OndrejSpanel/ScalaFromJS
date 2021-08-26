@@ -33,6 +33,16 @@ trait TestUtils extends Assertions {
     def forbidden(add: String*) = copy(setup = setup.copy(mustNotHave = setup.mustNotHave ++ add))
     def custom(fun: String => Seq[String]) = copy(setup = setup.copy(custom = fun))
 
+    def checkOccurences(string: String, expectedCount: Int = 1) = {
+      def fun(result: String) = {
+        val count = string.r.findAllMatchIn(result).size
+        if (count != expectedCount) Seq(s"Expected $expectedCount occurences of '$string', found $count")
+        else Seq.empty
+      }
+      copy(setup = setup.copy(custom = fun))
+    }
+
+
     def checkResult(result: String): Try[Unit] = {
       val customResult = setup.custom(result)
       val missing = setup.mustHave.filter(s => !result.contains(normalizeEol(s)))

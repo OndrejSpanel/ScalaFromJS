@@ -27,7 +27,8 @@ class DTSTest extends AnyFunSuite with TestUtils with ProjectUtils {
         "val A0: A = A.A0",
         "val A1: A = A.A1",
         "val A2: A = A.A2",
-        "object E",
+        "object A extends Enumeration",
+        "object E extends Enumeration",
         "val E0 = Value(0)",
         "val E1 = Value(1)",
         "val E2 = Value(2)",
@@ -40,6 +41,8 @@ class DTSTest extends AnyFunSuite with TestUtils with ProjectUtils {
       "F0:", "F1:", "F2:",
       "E0 = 0", "E1 = 1", "E2 = 2",
       )
+      .checkOccurences("object E")
+      .checkOccurences("object A")
   }
 
   test("d.ts base class inference") {

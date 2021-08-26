@@ -197,12 +197,15 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       k.name
     }.toSet
 
-    // scan objects (variables) present in the JS
+    // scan objects (variables) or native enums (created by transformEnumValues)  present in the JS
     val objects = {
       val objectBuilder = Set.newBuilder[String]
       n.top.walkWithScope { (node, ctx) =>
         node match {
           case Node.VariableDeclarator(Identifier(name), oe: ObjectExpression, _) =>
+            objectBuilder += name
+            false
+          case Node.EnumDeclaration(Identifier(name), _ ) =>
             objectBuilder += name
             false
           case _ =>
@@ -229,8 +232,10 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           case cls@Node.ClassDeclaration(Identifier(name), _, _, _, kind) if !classes.contains(name) && kind != "namespace" =>
             // namespace should always be represented as an object
             cls
-          case e@Node.EnumDeclaration(Identifier(name), _) if !objects.contains(name) =>
+          /* // do not include enums, they will be added by transformEnumValues
+          case e@Node.EnumDeclaration(Identifier(name), body) if !objects.contains(name) && body.body.isEmpty =>
             e
+           */
           case e@Node.TypeAliasDeclaration(Identifier(name), _) if !objects.contains(name) =>
             e
         }
@@ -497,8 +502,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
   }
 
   /*
-  Transform enums represented in JS as values:
-  d.ts enum X {}; const X0: X; const X1: X + js var X0 = 0; var X1 = 1 => object X {val X0 = Value(0); val X1=Value(1)};val X0 = X.X0;val X1 = X.X1
+  Transform enums represented in JS as variables to TypeScript enums with type aliases
   */
   def transformEnumValues(n: NodeExtended): NodeExtended = {
     // gather all enum values declared in d.ts
@@ -539,14 +543,11 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           val tEnumValues = grouped(t)
           val wrappedValues = tEnumValues.map {
             case vd@VarDeclTyped(name, Some(value@Literal(OrType(_: Double), _)), _, _) =>
-              val wrapValue = CallExpression(Identifier("Value"), Seq(value)).withTokens(value)
-              PropertyEx("init", Identifier(name).withTokens(vd), false, wrapValue, false, false, true).withTokens(vd)
+              EnumBodyElement(Identifier(name).withTokens(value), value).withTokens(value)
           }
           Seq(
-            VarDecl(
-              t, Some(ObjectExpression(wrappedValues).withTokens(vd)), "const", Some(Node.TypeName(Seq(Identifier("Enumeration").withTokens(vd))))
-            )(node),
-            TypeAliasDeclaration(Identifier(t).withTokens(vd), TypeName(Seq(Identifier(t).withTokens(vd), Identifier("Value").withTokens(vd)))).withTokens(vd)
+            EnumDeclaration(Identifier(t), EnumBody(wrappedValues)).withTokensDeep(vd),
+            TypeAliasDeclaration(Identifier(t), TypeName(Seq(Identifier(t), Identifier("Value")))).withTokensDeep(vd)
           )
         }
 
