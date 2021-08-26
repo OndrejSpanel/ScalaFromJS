@@ -101,7 +101,7 @@ object SymbolTypes {
     override def knownItems = 0
   }
 
-  // when any of the following types is used as a global class, it probably means a failing to convert a TS type
+  // when any of the following types is used as a global class, it probably means we have failed to convert a TS type
   val forbiddenGlobalTypes = Set("Array", "number", "boolean", "string", "void", "any", "this")
 
   case class SimpleType(name: String) extends TypeDesc {

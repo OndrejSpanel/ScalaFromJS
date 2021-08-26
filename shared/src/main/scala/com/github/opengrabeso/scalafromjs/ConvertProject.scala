@@ -18,6 +18,11 @@ import scala.collection.Seq
 
 object ConvertProject {
 
+  implicit class StripSource(s: String) {
+    // TODO: consider custom stripMargin acting like Java 13 instead
+    def stripSource: String = s.split('\n').map(_.trim).mkString("\n")
+  }
+
   val predefinedHeadersTS = collection.immutable.Seq(
     "ArrayLike.d.ts" ->
       """
@@ -25,7 +30,7 @@ object ConvertProject {
         [n: number]: T;
         length: number;
       }
-      """.split('\n').map(_.trim).mkString("\n") // TODO: consider custom stripMargin acting like Java 13 instead
+      """.stripSource
   )
   val predefinedHeadersJS = Nil
 
