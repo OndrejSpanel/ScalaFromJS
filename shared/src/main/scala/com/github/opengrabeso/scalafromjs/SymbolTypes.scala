@@ -701,6 +701,8 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
   def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types, hints ++ that.hints, locked || that.locked)
 
   def add(kv: (SymbolMapId, TypeInfo)): SymbolTypes = {
+    //assert(!kv._1.isGlobal)
+
     val id = kv._1
     if (id.name.startsWith("watchJS_")) {
       if (types.get(id).exists(_.equivalent(kv._2))) {
@@ -713,6 +715,9 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
   }
 
   def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
+    // not generally true, but can be useful during debugging to catch symbols without a proper scope
+    //assert(kv._1.forall(!_.isGlobal))
+
     kv._1.fold(this)(k => copy(types = types + (k -> kv._2)))
   }
 
@@ -721,7 +726,8 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
   }
 
 
-  def addMember (kv: (Option[MemberId], TypeInfo))(implicit classId: SymbolMapId => (Int, Int)): SymbolTypes = {
+  def addMember(kv: (Option[MemberId], TypeInfo))(implicit classId: SymbolMapId => (Int, Int)): SymbolTypes = {
+    //assert(kv._1.forall(!_.cls.isGlobal))
     this + (kv._1.map(symbolFromMember) -> kv._2)
   }
 
@@ -802,11 +808,5 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
 
     this.copy(types = types)
   }
-
-
-
-
-
-
 
 }

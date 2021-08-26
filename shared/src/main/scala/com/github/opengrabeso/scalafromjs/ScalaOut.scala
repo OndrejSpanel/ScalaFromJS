@@ -177,11 +177,14 @@ object ScalaOut {
           output(s)
         case s: Node.Identifier =>
           // caution: using symId does not work for class member call access, as that requires a special symId - memberFunId
-          val detectMemberCalls = true
+          val detectMemberCalls = false
           if (detectMemberCalls) {
             val plainScope = context.findScope(s.name, false)
             val classScope = context.findScope(s.name, true)
             if (plainScope != classScope) {
+              // this most often happens when a property is declared in a d.ts interface
+              // and used as a plain member later
+              // perhaps we could handle such properties in some special way at the declaration?
               println(s"Warning: class scope detected but not used for ${s.name}")
             }
           }

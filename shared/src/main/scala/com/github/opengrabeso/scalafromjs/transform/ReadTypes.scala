@@ -27,17 +27,22 @@ object ReadTypes {
           types = types add Id(name) -> tt
         }
       }
+      def addMemberType(name: String, t: Node.TypeAnnotation) = {
+        for (tt <- typeInfoFromAST(t)(context)) {
+          types = types add MemberFunId(name) -> tt
+        }
+      }
       node match {
         case Node.MethodDefinition(Node.Identifier(funName), tpe, _, funex@AnyFunEx(pars, retFun, body), _, _) => // member function
           val symId = memberFunId(funName).get
           val tt = retFun.flatMap(typeFromAST)
           types = types.handleParameterTypes(symId, tt, pars, pars, symbols.ScopeContext.getNodeId(funex))
           for (t <- Option(tpe).orElse(retFun)) {
-            addType(funName, t)
+            addMemberType(funName, t)
           }
           false
         case Node.MethodDefinition(Node.Identifier(funName), Defined(t), _, _, "value", _) => // member
-          addType(funName, t)
+          addMemberType(funName, t)
           false
         case Node.FunctionParameterWithType(Node.Identifier(name), Defined(t), defValue, optional) =>
           addType(name, t)

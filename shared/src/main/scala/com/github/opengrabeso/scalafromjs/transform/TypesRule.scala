@@ -267,7 +267,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     newTop.body = newBody
 
     newTop.walkWithScope { (node, context) =>
-
+      implicit val ctx = context
 
       /**
         *
@@ -371,13 +371,11 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         }
         true
       }
-      def handleFunction(node: Node, params: Seq[FunctionParameter], name: String) = {
-        for (funEx@AnyFunEx(pars, tpe, body) <- dtsSymbols.get(name)) {
+      def handleFunction(funSymId: SymId, params: Seq[FunctionParameter], paramScopeId: ScopeId) = {
+        for (funEx@AnyFunEx(pars, tpe, body) <- dtsSymbols.get(funSymId.name)) {
           // we have already entered the function scope, parameters can be found in localSymbols
-          val funScopeId = symbols.ScopeContext.getNodeId(funEx)
           val tt = tpe.flatMap(typeFromAST(_)(context))
-          val symId = SymbolMapId(name, funScopeId)
-          types = types.handleParameterTypes(symId, tt, params, pars, funScopeId)(context)
+          types = types.handleParameterTypes(funSymId, tt, params, pars, paramScopeId)(context)
         }
         true
       }
@@ -440,10 +438,10 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
       node match {
         case VarDecl(name, _, _) =>
           handleVar(node, name)
-        case FunctionDeclaration(Identifier(name), params, body, generator, ret) =>
-          handleFunction(node, params, name)
-        case FunctionExpression(Identifier(name), params, body, generator, ret) =>
-          handleFunction(node, params, name)
+        case FunctionDeclaration(Identifier(Id(name)), params, body, generator, ret) =>
+          handleFunction(name, params, context.scopeId)
+        case FunctionExpression(Identifier(Id(name)), params, body, generator, ret) =>
+          handleFunction(name, params, context.scopeId)
         case c@ClassDeclaration(Identifier(name), superClass, moreParents, body, _) =>
           handleClass(c, name)
         case _: Node.Program =>
