@@ -475,7 +475,7 @@ object ScalaOut {
         val firstLine = root.orElse(ns.headOption).flatMap(h => Option(h.loc)).map(_.start.line).getOrElse(0)
         val lastLine = root.orElse(ns.headOption).flatMap(h => Option(h.loc)).map(_.end.line).getOrElse(0)
         var currentLine = firstLine
-        for ((arg, delim) <- markEnd(ns)) {
+        for ((arg, delim) <- markEnd(ns) if arg != null) {
           val argLine = Option(arg.loc).map(_.start.line).getOrElse(currentLine)
           if (root.isDefined && argLine > currentLine) {
             out.eol()
