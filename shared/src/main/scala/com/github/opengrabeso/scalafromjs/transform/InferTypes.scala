@@ -273,6 +273,7 @@ object InferTypes {
 
     }
 
+
     class SymbolAccessDot(symbol: MemberId) extends SymbolAccessInfo {
       override def toString = s"Member(${symbol.cls}.${symbol.name})"
 
@@ -759,33 +760,6 @@ object InferTypes {
         case SymbolInfo(symbol) Sub property =>
           val tpe = symbol.tpe(ctx.types)
           //println(s"$symbol Node.Sub $property `$tpe` -> `${tpe.map(_.declType)}`")
-
-          object CanBeArray {
-            def unapply(tpe: TypeDesc): Option[ArrayType] = {
-              tpe match {
-                case a: ArrayType => Some(a)
-                case u: UnionType => u.types.collectFirst {
-                  case a: ArrayType =>
-                    a
-                }
-                case _ =>
-                  None
-              }
-            }
-          }
-          object CanBeMap {
-            def unapply(tpe: TypeDesc): Option[MapType] = {
-              tpe match {
-                case a: MapType => Some(a)
-                case u: UnionType => u.types.collectFirst {
-                  case a: MapType =>
-                    a
-                }
-                case _ =>
-                  None
-              }
-            }
-          }
 
           tpe.map(_.declType) match {
             case Some(ObjectOrMap) =>

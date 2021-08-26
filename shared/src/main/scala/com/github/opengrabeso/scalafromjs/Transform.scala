@@ -394,6 +394,33 @@ object Transform {
     }
   }
 
+  object CanBeArray {
+    def unapply(tpe: TypeDesc): Option[ArrayType] = {
+      tpe match {
+        case a: ArrayType => Some(a)
+        case u: UnionType => u.types.collectFirst {
+          case a: ArrayType =>
+            a
+        }
+        case _ =>
+          None
+      }
+    }
+  }
+  object CanBeMap {
+    def unapply(tpe: TypeDesc): Option[MapType] = {
+      tpe match {
+        case a: MapType => Some(a)
+        case u: UnionType => u.types.collectFirst {
+          case a: MapType =>
+            a
+        }
+        case _ =>
+          None
+      }
+    }
+  }
+
   def expressionType(n: Node.Node, log: Boolean = false)(implicit ctx: ExpressionTypeContext, context: ScopeContext): Option[TypeInfo] = {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
@@ -475,11 +502,11 @@ object Transform {
       case expr Sub name =>
         //println(s"Infer type of array item $name, et ${expressionType(expr)(ctx)}")
         expressionType(expr, log) match {
-          case Some(TypeDecl(ArrayType(item))) =>
+          case Some(TypeDecl(CanBeArray(ArrayType(item)))) =>
             val r = TypeInfo.target(item)
             if (log) println(s"type of array $expr.$name as $r")
             Some(r)
-          case Some(TypeDecl(MapType(item))) =>
+          case Some(TypeDecl(CanBeMap(MapType(item)))) =>
             val r = Some(TypeInfo.target(item))
             if (log) println(s"type of map $expr.$name as $r")
             r
