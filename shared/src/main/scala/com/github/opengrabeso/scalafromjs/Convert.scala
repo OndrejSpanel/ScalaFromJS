@@ -15,18 +15,19 @@ object Convert {
     val files = code.split("\\/\\/file\\:")
     if (files.lengthCompare(1) <= 0) {
 
+      val script = ScriptExtractor(code)
       // note: here we parse only to load the preprocess config
-      val preparse = parse(code, typescript)
+      val preparse = parse(script, typescript)
       val cfg = NodeExtended(preparse).loadConfig().config
 
-      val preprocessed = cfg.preprocess(code)
+      val preprocessed = cfg.preprocess(script)
 
       val ast = parse(preprocessed, typescript)
 
       val ext = NodeExtended(ast).loadConfig()
 
       val astOptimized = Transform(ext)
-      val ret = prefix(header) + ScalaOut.output(astOptimized, code).mkString
+      val ret = prefix(header) + ScalaOut.output(astOptimized, script).mkString
 
       ext.config.postprocess(ret)
     } else {
