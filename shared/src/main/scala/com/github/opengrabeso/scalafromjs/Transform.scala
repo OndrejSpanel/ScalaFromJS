@@ -553,10 +553,10 @@ object Transform {
         ret
 
       case Binary(expr, "as", Node.Identifier(cls)) => // typescript operator
-        transform.TypesRule.typeFromIdentifierName(cls)(context).map(TypeInfo.both)
+        transform.TypesRule.typeFromIdentifierName(cls, false)(context).map(TypeInfo.both)
 
       case Binary(expr, `asinstanceof`, Node.Identifier(cls)) =>
-        transform.TypesRule.typeFromIdentifierName(cls)(context).map(TypeInfo.both)
+        transform.TypesRule.typeFromIdentifierName(cls, false)(context).map(TypeInfo.both)
 
       case Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type

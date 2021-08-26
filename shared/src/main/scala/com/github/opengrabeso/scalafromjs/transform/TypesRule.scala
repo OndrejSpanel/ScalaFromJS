@@ -97,7 +97,7 @@ object TypesRule {
     symbols
   }
 
-  def typeFromIdentifierName(name: String)(context: symbols.ScopeContext): Option[TypeDesc] = {
+  def typeFromIdentifierName(name: String, memberFun: Boolean)(context: symbols.ScopeContext): Option[TypeDesc] = {
     val t = name match {
       case "number" => Some(SimpleType("Double"))
       case "string" => Some(SimpleType("String"))
@@ -105,7 +105,7 @@ object TypesRule {
       case "any" => None // any is usually a placeholder for missing information
       case "void" => Some(NoType)
       case "this" => None // TODO: some better support for this type
-      case _ => Some(ClassType(context.findSymId(name)))
+      case _ => Some(ClassType(context.findSymId(name, memberFun)))
     }
     t
   }
@@ -123,14 +123,14 @@ object TypesRule {
       case LiteralType(Literal(_, raw)) =>
         typeFromLiteral(raw)
       case TypeName(Seq(Identifier(name))) =>
-        typeFromIdentifierName(name)(context)
+        typeFromIdentifierName(name, false)(context)
       case TypeName(names) =>
         Some(ClassTypeEx(names.init.map(_.name), Id(names.last)))
       case TypeReference(TypeName(Seq(Identifier("Array"))), Seq(genType)) =>
         val typePar = typeFromAST(genType)(context).getOrElse(AnyType)
         Some(ArrayType(typePar))
       case TypeReference(TypeName(names), genType) =>
-        val typeNameId = context.findSymId(names.last.name)
+        val typeNameId = context.findSymId(names.last.name, false)
         val typePar = genType.map(typeFromAST(_)(context).getOrElse(AnyType))
         Some(ClassTypeEx(names.init.map(_.name), typeNameId, typePar))
       case Node.ArrayType(item) =>
@@ -182,6 +182,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     }
   }.toMap
 
+  // WIP: avoid any type manipulation here, should be done later, while scanning the AST
   // we cannot use normal apply, as we need to be called at a specific stage
   def provideTypes(n: NodeExtended): NodeExtended = {
     // walk the AST, search for types for any global symbols
@@ -189,7 +190,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     // list top-level classes only
     val classList = Classes.ClassListHarmony.fromAST(n.top, false)
 
-    var types = n.types.types
+    var types = n.types
 
     // scan classes present in the JS
     val classes = Classes.ClassListHarmony.fromAST(n.top, innerClasses = false).classes.map { case (k, v) =>
@@ -266,48 +267,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     newTop.body = newBody
 
     newTop.walkWithScope { (node, context) =>
-      def getParameterTypes(dtsPars: Seq[FunctionParameter]) = {
-        // match parameters by position, their names may differ
-        dtsPars.map {
-          case FunctionParameterWithType(_, Defined(t), defValue, optional) =>
-            typeInfoFromAST(t)(context)
-          case _ =>
-            None
-        }
-      }
 
-      def handleParameterTypes(astPars: Seq[FunctionParameter], dtsPars: Seq[FunctionParameter])(scopeId: symbols.ScopeContext.ScopeId) = {
-        val parNames = astPars.map(Transform.nameFromPar)
-        def inferParType(pjs: String, tt: TypeInfo) = {
-          val id = symbols.SymId(pjs, scopeId)
-          val log = watched(pjs)
-          if (log) println(s"Set from d.ts $id $tt")
-          types += id -> tt
-          tt
-        }
-        if (astPars.size == dtsPars.size) {
-          // match parameters by position, their names may differ
-          val parTypes = getParameterTypes(dtsPars)
-          for {
-            (pjs, tt) <- parNames zip parTypes
-          } yield {
-            pjs.flatMap(p => tt.map(t => inferParType(p, t)))
-          }
-        } else { // the signature is wrong, we need to guess
-          for {
-            pn <- parNames
-          } yield {
-            for {
-              pjs <- pn
-              pd <- dtsPars.find(p => Transform.nameFromPar(p).contains(pjs))
-              t <- Transform.typeFromPar(pd)
-              tt <- typeInfoFromAST(t)(context)
-            } yield {
-              inferParType(pjs, tt)
-            }
-          }
-        }
-      }
 
       /**
         *
@@ -336,20 +296,19 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
           context.withScope(node.body) {
             for (ExtractExport(member) <- node.body.body) {
               member match {
-                case FunctionDeclaration(Identifier(funName), dtsPars, _, _, ret) => // member function
+                case FunctionDeclaration(Identifier(funName), dtsPars, body, _, ret) => // member function
                   for {
                     Seq(VariableDeclarator(_, oe: ObjectExpression, _)) <- Option(astVarNode.declarations)
                     fun@AnyFun(astPars, astBody) <- Classes.findObjectMethod(oe, funName)
                     tt <- typeFromAST(ret)(context)
                   } {
-                    val parTypes = handleParameterTypes(astPars, dtsPars)(symbols.ScopeContext.getNodeId(fun))
-                    val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toIndexedSeq
-                    types += SymbolMapId(funName, astClsId) -> TypeInfo.both(FunctionType(tt, parTypesDesc)).copy(certain = true)
+                    val symId = SymbolMapId(funName, astClsId)
+                    types = types.handleParameterTypes(symId, tt, astPars, dtsPars, symbols.ScopeContext.getNodeId(member))(context)
                   }
 
                 case VarDeclTyped(name, _, _, Some(tpe)) => // plain member with known type
                   for (tt <- typeInfoFromAST(tpe)(context)) {
-                    types += SymbolMapId(name, astClsId) -> tt
+                    types = types add SymbolMapId(name, astClsId) -> tt
                   }
                 case _ =>
 
@@ -367,7 +326,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                   case VariableDeclarator(Identifier(name), _, Defined(TypeName(Seq(Identifier(tpe))))) if enums.contains(tpe) =>
                     // TODO: proper scoped type (source global, not JS global)
                     val enumType = ClassType(SymbolMapId(tpe, (-1, -1)))
-                    types += context.findSymId(name) -> TypeInfo.both(enumType).copy(certain = true)
+                    types = types add context.findSymId(name, false) -> TypeInfo.both(enumType).copy(certain = true)
                     true
                   case _ =>
                     false
@@ -377,7 +336,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
             } || enumValues.get(name).exists { e =>
               // TODO: proper scoped type (source global, not JS global)
               val enumType = ClassType(SymbolMapId(e.name.name, (-1, -1)))
-              types += context.findSymId(name) -> TypeInfo.both(enumType).copy(certain = true)
+              types = types add context.findSymId(name, false) -> TypeInfo.both(enumType).copy(certain = true)
               true
             }
           case _ =>
@@ -400,11 +359,11 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                 t <- Option(v.declarations.head.`type`)
                 tt <- typeInfoFromAST(t)(context)
               } {
-                types += context.findSymId(name) -> tt
-                if (watched(name)) println(s"Set from d.ts ${context.findSymId(name)} $tt")
+                types = types add context.findSymId(name, false) -> tt
+                if (watched(name)) println(s"Set from d.ts ${context.findSymId(name, false)} $tt")
               }
             case (n: NamespaceDeclaration, vd@VarDeclTyped(varName, _, _, _)) =>
-              val astVarId = context.findSymId(varName)
+              val astVarId = context.findSymId(varName, false)
               handleNamespace(n, n.id.name, astVarId, vd)
             case _ =>
           }
@@ -412,16 +371,12 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         true
       }
       def handleFunction(node: Node, params: Seq[FunctionParameter], name: String) = {
-        for (AnyFunEx(pars, tpe, body) <- dtsSymbols.get(name)) {
+        for (funEx@AnyFunEx(pars, tpe, body) <- dtsSymbols.get(name)) {
           // we have already entered the function scope, parameters can be found in localSymbols
-          handleParameterTypes(params, pars)(symbols.ScopeContext.getNodeId(node))
-          for {
-            t <- tpe
-            tt <- typeInfoFromAST(t)(context)
-          } {
-            types += context.findSymId(name) -> tt
-            if (watched(name)) println(s"Set from d.ts ${context.findSymId(name)} $tt")
-          }
+          val funScopeId = symbols.ScopeContext.getNodeId(funEx)
+          val tt = tpe.flatMap(typeInfoFromAST(_)(context)).map(_.declType).getOrElse(AnyType)
+          val symId = SymbolMapId(name, funScopeId)
+          types = types.handleParameterTypes(symId, tt, params, pars, funScopeId)(context)
         }
         true
       }
@@ -429,7 +384,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         // process parent
         for {
           ClassDeclarationEx(_, typePars, superClass, moreParents, Defined(b), kind) <- dtsSymbols.get(name)
-          clsSym = context.findSymId(name)
+          clsSym = context.findSymId(name, false)
           if !clsSym.isGlobal // global means not defined in the AST we are traversing
           clsNode <- classList.get(clsSym)
           clsId = symbols.ScopeContext.getNodeId(clsNode.body)
@@ -462,19 +417,18 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                 }
                 for {
                   astMethod <- findMethod()
-                  methodId = symbols.ScopeContext.getNodeId(astMethod.value)
-                  MethodDefinition(_, _, _, AnyFun(astPars, _), _, _) = astMethod
+                  MethodDefinition(_, _, _, funEx@AnyFun(astPars, body), _, _) = astMethod
+                  methodId = symbols.ScopeContext.getNodeId(funEx)
                   t = Option(ret).orElse(retFun)
                   tt = t.flatMap(typeFromAST(_)(context)).getOrElse(AnyType)
                 } {
-                  val parTypes = handleParameterTypes(astPars, dtsPars)(methodId)
-                  val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toIndexedSeq
-                  types += SymbolMapId(funName, clsId) -> TypeInfo.both(FunctionType(tt, parTypesDesc)).copy(certain = true)
+                  val symId = SymbolMapId(funName, clsId)
+                  types = types.handleParameterTypes(symId, tt, astPars, dtsPars, methodId)(context)
                 }
 
               case MethodDefinition(Identifier(funName), Defined(ret), _, value, _, _) => // plain member with known type
                 for (tt <- typeInfoFromAST(ret)(context)) {
-                  types += SymbolMapId(funName, clsId) -> tt
+                  types = types add SymbolMapId(funName, clsId) -> tt
                 }
               case _ =>
             }
@@ -500,7 +454,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     }
 
 
-    n.copy(top = newTop, types = n.types.copy(types = types))
+    n.copy(top = newTop, types = types)
   }
 
   /*

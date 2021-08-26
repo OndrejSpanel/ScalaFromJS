@@ -10,11 +10,21 @@ import scala.reflect.ClassTag
 package object symbols {
   // create symbol lists for all relevant scopes
   class ScopeInfo(val scopeId: ScopeContext.ScopeId) {
-    var symbols = Set.empty[String] // all symbols defined in the scope
+    /**
+      *  all symbols defined in the scope
+      *  member functions are marked with true, as their name resolution is different (dot not needed from within a class)
+      *
+      *  TODO: is this necessary? what other symbols could be defined in a class scope other than member functions?
+      *  Value members are not defined as identifiers at all, they are always accessed using Dot
+      *  What about properties?
+      *  */
+    var symbols = Map.empty[String, Boolean]
   }
 
   object SymId {
     implicit val ord = Ordering.by(unapply)
+
+    def global(name: String): SymId = SymId(name, (-1, -1))
   }
 
   case class SymId(name: String, sourcePos: (Int, Int)) {
@@ -32,8 +42,11 @@ package object symbols {
   }
 
   // TODO: refactor: simplify - SymId is always known
-  def symId(name: String)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name))
-  def symId(name: Node.Identifier)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name.name))
+  def symId(name: String)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name, false))
+  def symId(name: Node.Identifier)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name.name, false))
+
+  def memberFunId(name: String)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name, true))
+  def memberFunId(name: Node.Identifier)(implicit context: ScopeContext): Option[SymId] = Some(context.findSymId(name.name, true))
 
   object Id {
     def unapply(name: String)(implicit context: ScopeContext): Option[SymId] = {
@@ -43,10 +56,21 @@ package object symbols {
       symId(name)
     }
 
-    def apply(name: String)(implicit context: ScopeContext): SymId = context.findSymId(name)
-    def apply(name: Node.Identifier)(implicit context: ScopeContext): SymId = context.findSymId(name.name)
+    def apply(name: String)(implicit context: ScopeContext): SymId = context.findSymId(name, false)
+    def apply(name: Node.Identifier)(implicit context: ScopeContext): SymId = context.findSymId(name.name, false)
   }
 
+  object MemberFunId {
+    def unapply(name: String)(implicit context: ScopeContext): Option[SymId] = {
+      memberFunId(name)
+    }
+    def unapply(name: Node.Identifier)(implicit context: ScopeContext): Option[SymId] = {
+      memberFunId(name)
+    }
+
+    def apply(name: String)(implicit context: ScopeContext): SymId = context.findSymId(name, true)
+    def apply(name: Node.Identifier)(implicit context: ScopeContext): SymId = context.findSymId(name.name, true)
+  }
 
   object ScopeContext {
     type ScopeId = (Int, Int)
@@ -114,18 +138,28 @@ package object symbols {
     val parents = ArrayBuffer.empty[Node.Node]
     val scopes =  ArrayBuffer.empty[(Node.Node, ScopeInfo)]
 
-    def findScope(sym: String): Option[(Node.Node, ScopeInfo)] = {
-      for {
-        i <- scopes.indices.reverse
-        scope = scopes(i)
-        // class symbols are accessible only using this.xxx notation - never use them to match a plain identifier
-        if !scope._1.isInstanceOf[Node.ClassBody]
-      } {
-        if (scope._2.symbols.contains(sym)) return Some(scope)
+    /**
+      * When searching for a member call, we use the class scopes as well. Otherwise we do not,
+      * as data members can only be access using dot notation, never as a plain identifier
+      * */
+    def findScope(sym: String, memberCall: Boolean): Option[(Node.Node, ScopeInfo)] = {
+      scopes.findLast { case (node, scope) =>
+        scope.symbols.get(sym) match {
+          case Some(memberFun) =>
+            if (!node.isInstanceOf[Node.ClassBody]) {
+              // when it is a normal scope, it matches everything, call or not
+              true
+            } else {
+              // class scope matching only when the symbol is a member function and is used as such
+              memberCall && memberFun
+            }
+          case None =>
+            false
+        }
       }
-      None
     }
-    def localSymbols: Set[String] = scopes.last._2.symbols
+
+    def localSymbols: Set[String] = scopes.last._2.symbols.keySet
 
     def findTypedParent[T<: Node: ClassTag]: Option[T] = {
       parents.reverse.collectFirst {
@@ -165,8 +199,8 @@ package object symbols {
       None
     }
 
-    def findSymId(sym: String): SymId = {
-      val scope = findScope(sym)
+    def findSymId(sym: String, memberCall: Boolean): SymId = {
+      val scope = findScope(sym, memberCall)
       // when symbol not found in any scope, consider it a global one
       scope.fold(SymId(sym, -1 -> -1))(info => SymId(sym, getNodeId(info._1)))
     }
@@ -216,7 +250,7 @@ package object symbols {
     walk(node) { (node, context) =>
       node match {
         case Identifier(name) =>
-          val symId = context.findSymId(name)
+          val symId = context.findSymId(name, false)
           builder += symId
           false
         case _ =>

@@ -3,7 +3,7 @@ package com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import Classes._
-import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, SymId}
+import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, SymId, memberFunId}
 
 import scala.util.Try
 import scala.collection.Seq
@@ -155,6 +155,19 @@ object ScalaOut {
     var commentsDumped = Set.empty[IdentityBox[CommentHandler.Comment]]
   }
 
+  object OutStringContext {
+    def outIdentifier(s: String, sid: =>SymId)(implicit input: InputContext, output: Output) = {
+      identifierToOut(output, s)
+
+      if (false || SymbolTypes.watched(s)) { // output symbol ids and types
+        val s = sid
+        output.out(s"/*${s.sourcePos}*/")
+        output.out(s"/*${input.types.get(s)}*/")
+      }
+
+    }
+
+  }
   implicit class OutStringContext(val sc: StringContext)(implicit outConfig: Config, input: InputContext, output: Output, context: ScopeContext) {
 
     def outEx(ex: Any): Unit = {
@@ -163,14 +176,16 @@ object ScalaOut {
           //println("symbol")
           output(s)
         case s: Node.Identifier =>
-          //println("symbol")
-          identifierToOut(output, s.name)
-
-          if (false || SymbolTypes.watched(s.name)) { // output symbol ids and types
-            val sid = symId(s.name)
-            out"/*${sid.fold((-1,-1))(_.sourcePos)}*/"
-            //out"/*${input.types.get(sid)}*/"
+          // caution: using symId does not work for class member call access, as that requires a special symId - memberFunId
+          val detectMemberCalls = true
+          if (detectMemberCalls) {
+            val plainScope = context.findScope(s.name, false)
+            val classScope = context.findScope(s.name, true)
+            if (plainScope != classScope) {
+              println(s"Warning: class scope detected but not used for ${s.name}")
+            }
           }
+          OutStringContext.outIdentifier(s.name, symId(s.name).get)
         case t: SymbolTypes.TypeDesc =>
           val resolved = input.types.resolveType(t)
           output(resolved.toOut)
@@ -579,7 +594,7 @@ object ScalaOut {
             SymId(name, ScopeContext.getNodeId(cls.body))
           case oe: Node.ObjectExpression =>
             SymId(name, ScopeContext.getNodeId(oe))
-        }
+        }.getOrElse(SymId.global(name))
 
         if (kind == "value") {
           val sType = input.types.get(memberSymId)
@@ -593,7 +608,10 @@ object ScalaOut {
           case f@Node.FunctionExpression(_, params, body, generator, dType) =>
             context.withScope(f) {
               val postfix = if (kind == "set") "_=" else ""
-              out"def $key$postfix"
+              //val memberFunId(propertyKeyName(key))
+              out("def ")
+              OutStringContext.outIdentifier(name, memberSymId)
+              out(postfix)
               if (kind != "get" || params.nonEmpty) {
                 outputArgNames(params, true)(value)
               }
@@ -619,8 +637,7 @@ object ScalaOut {
                 }
               }
               for {
-                id <- memberSymId
-                fType <- certainType(id)
+                fType <- certainType(memberSymId)
               } {
                 out": $fType"
               }
@@ -948,7 +965,7 @@ object ScalaOut {
           def typeNameFromExpression(ex: Node.Expression) = {
             val tpe = right match {
               case Node.Identifier(rTypeName) =>
-                transform.TypesRule.typeFromIdentifierName(rTypeName)(context).map(_.toOutResolved)
+                transform.TypesRule.typeFromIdentifierName(rTypeName, false)(context).map(_.toOutResolved)
               case _ =>
                 None
             }

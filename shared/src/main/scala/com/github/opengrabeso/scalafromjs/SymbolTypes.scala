@@ -1,8 +1,12 @@
 package com.github.opengrabeso.scalafromjs
 
 import scala.language.implicitConversions
-
 import SymbolTypes._
+import com.github.opengrabeso.esprima.Node.{FunctionParameter, FunctionParameterWithType}
+import com.github.opengrabeso.scalafromjs.esprima.symbols
+import com.github.opengrabeso.scalafromjs.esprima.Defined
+import com.github.opengrabeso.scalafromjs.transform.TypesRule.typeInfoFromAST
+
 import scala.collection.Seq
 
 object SymbolTypes {
@@ -12,17 +16,16 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("bb")
+    val watched = Set[String]("getAB", "dac", "setAB", "C")
     name.startsWith("watch_") || watched.contains(name)
   }
 
   def watchedMember(cls: String, name: String): Boolean = watchCondition {
     val watched = Set[(String, String)](
-      ("WebGLProgram", "constructor"), ("WebGLProgram", "shader"),
-      ("WebGLProgram", "vertexShader"),("WebGLProgram", "fragmentShader")
+      ("C", "getAB"), ("C", "setAB")
     )
     val watchedAllClasses = Set[String](
-      "shader", "vertexShader", "fragmentShader", "gl", "xp", "x"
+      "getAB"
     )
     name.startsWith("watch_") || watched.contains(cls, name) || watchedAllClasses.contains(name)
   }
@@ -658,6 +661,9 @@ case object IsConstructorParameter extends Hint
 case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo], hints: Map[SymbolMapId, Hint] = Map.empty, locked: Boolean = false)
   extends SymbolTypes.TypeResolver {
 
+  def get(id: SymbolMapId): Option[TypeInfo] = types.get(id)
+  def getHint(id: SymbolMapId): Option[Hint] = hints.get(id)
+
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
   def getHint(id: Option[SymbolMapId]): Option[Hint] = id.flatMap(hints.get)
 
@@ -694,26 +700,24 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
 
   def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types, hints ++ that.hints, locked || that.locked)
 
-  def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
-    kv._1.fold(this) { id =>
-      /*
-      if (id.name.startsWith("watchJS_")) {
-        if (types.get(id).exists(_.equivalent(kv._2))) {
-          println(s"++ Watched $id type == ${kv._2}")
-        } else {
-          println(s"++ Watched $id type ${kv._2}")
-        }
+  def add(kv: (SymbolMapId, TypeInfo)): SymbolTypes = {
+    val id = kv._1
+    if (id.name.startsWith("watchJS_")) {
+      if (types.get(id).exists(_.equivalent(kv._2))) {
+        println(s"++ Watched $id type == ${kv._2}")
+      } else {
+        println(s"++ Watched $id type ${kv._2}")
       }
-      */
-      copy(types = types + (id -> kv._2))
     }
+    copy(types = types + kv)
+  }
+
+  def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
+    kv._1.fold(this)(k => copy(types = types + (k -> kv._2)))
   }
 
   def addHint(kv: (Option[SymbolMapId], Hint)): SymbolTypes = {
-    kv._1.fold(this) { id =>
-      copy(hints = hints + (id -> kv._2))
-    }
-
+    kv._1.fold(this)(id => copy(hints = hints + (id -> kv._2)))
   }
 
 
@@ -730,5 +734,74 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
   override def toString = {
     types.mkString("{","\n", "}")
   }
+
+  def getParameterTypes(dtsPars: Seq[FunctionParameter])(implicit context: symbols.ScopeContext) = {
+    // match parameters by position, their names may differ
+    dtsPars.map {
+      case FunctionParameterWithType(_, Defined(t), defValue, optional) =>
+        typeInfoFromAST(t)(context)
+      case _ =>
+        None
+    }
+  }
+
+  /**
+    * Read parameter types from AST
+    * */
+
+  def handleParameterTypes
+    (symId: SymbolMapId, tt: TypeDesc, astPars: Seq[FunctionParameter], dtsPars: Seq[FunctionParameter], scopeId: symbols.ScopeContext.ScopeId)
+    (implicit context: symbols.ScopeContext): SymbolTypes = {
+    var types = this.types
+
+    val funName = symId.name
+    // scopeId is a scope of the function node used for the parameters
+    // this is different from the scope in which the function identifier is defined (in symId)
+    // in some cases it may be the same, though, like for synthetic functions
+
+    val parNames = astPars.map(Transform.nameFromPar)
+    def inferParType(pjs: String, tt: TypeInfo) = {
+      val id = symbols.SymId(pjs, scopeId)
+      val log = watched(pjs)
+      if (log) println(s"Set from d.ts $id $tt")
+      types += id -> tt
+      tt
+    }
+    val parTypes = if (astPars.size == dtsPars.size) {
+      // match parameters by position, their names may differ
+      val parTypes = getParameterTypes(dtsPars)
+      for {
+        (pjs, tt) <- parNames zip parTypes
+      } yield {
+        pjs.flatMap(p => tt.map(t => inferParType(p, t)))
+      }
+    } else { // the signature is wrong, we need to guess
+      for {
+        pn <- parNames
+      } yield {
+        for {
+          pjs <- pn
+          pd <- dtsPars.find(p => Transform.nameFromPar(p).contains(pjs))
+          t <- Transform.typeFromPar(pd)
+          tt <- typeInfoFromAST(t)(context)
+        } yield {
+          inferParType(pjs, tt)
+        }
+      }
+    }
+
+    if (watched(funName)) println(s"Set from d.ts $symId $tt")
+
+    val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toIndexedSeq
+    types += (symId -> TypeInfo.both(FunctionType(tt, parTypesDesc)).copy(certain = true))
+
+    this.copy(types = types)
+  }
+
+
+
+
+
+
 
 }

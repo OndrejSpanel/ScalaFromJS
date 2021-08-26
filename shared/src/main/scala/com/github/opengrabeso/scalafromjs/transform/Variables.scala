@@ -844,7 +844,7 @@ object Variables {
           // scope is some function
           def addDeclarations(block: Node.BlockStatement): Node.BlockStatement = {
             // check if the desired name is free in the block
-            val symbols = SymbolDeclaration.declaredSymbols(block).to(mutable.LinkedHashSet)
+            val symbols = SymbolDeclaration.declaredSymbols(block).map(_._1).to(mutable.LinkedHashSet)
             Node.BlockStatement(
               syms.flatMap { id =>
                 // first level of the globals is whether the variable is erased now (last initialization may be scalar)
