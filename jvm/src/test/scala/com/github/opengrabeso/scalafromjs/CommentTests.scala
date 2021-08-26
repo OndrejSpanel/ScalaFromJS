@@ -25,20 +25,9 @@ class CommentTests extends AnyFunSuite with TestUtils {
 
       }
       """)
-      .custom { result =>
-        def checkOccurences(string: String, expectedCount: Int = 1) = {
-          val count = string.r.findAllMatchIn(result).size
-          if (count != expectedCount) Seq(s"Expected $expectedCount occurences of '$string', found $count")
-          else Seq.empty
-        }
+      .checkOccurences("line 1").checkOccurences("line 2")
+      .checkOccurences("line A").checkOccurences("line B")
 
-        checkOccurences("line 1") ++
-          checkOccurences("line 2") ++
-          checkOccurences("line A") ++
-          checkOccurences("line B")
-
-
-      }
   }
 
   test("Trailing single line comments in a block") {

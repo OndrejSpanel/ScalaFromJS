@@ -3,7 +3,7 @@ package com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import Classes._
-import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, SymId}
+import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, SymId, memberFunId}
 
 import scala.util.Try
 import scala.collection.Seq
@@ -155,6 +155,19 @@ object ScalaOut {
     var commentsDumped = Set.empty[IdentityBox[CommentHandler.Comment]]
   }
 
+  object OutStringContext {
+    def outIdentifier(s: String, sid: =>SymId)(implicit input: InputContext, output: Output) = {
+      identifierToOut(output, s)
+
+      if (false || SymbolTypes.watched(s)) { // output symbol ids and types
+        val s = sid
+        output.out(s"/*${s.sourcePos}*/")
+        output.out(s"/*${input.types.get(s)}*/")
+      }
+
+    }
+
+  }
   implicit class OutStringContext(val sc: StringContext)(implicit outConfig: Config, input: InputContext, output: Output, context: ScopeContext) {
 
     def outEx(ex: Any): Unit = {
@@ -163,14 +176,19 @@ object ScalaOut {
           //println("symbol")
           output(s)
         case s: Node.Identifier =>
-          //println("symbol")
-          identifierToOut(output, s.name)
-
-          if (false || SymbolTypes.watched(s.name)) { // output symbol ids and types
-            val sid = symId(s.name)
-            out"/*${sid.fold((-1,-1))(_.sourcePos)}*/"
-            //out"/*${input.types.get(sid)}*/"
+          // caution: using symId does not work for class member call access, as that requires a special symId - memberFunId
+          val detectMemberCalls = false
+          if (detectMemberCalls) {
+            val plainScope = context.findScope(s.name, false)
+            val classScope = context.findScope(s.name, true)
+            if (plainScope != classScope) {
+              // this most often happens when a property is declared in a d.ts interface
+              // and used as a plain member later
+              // perhaps we could handle such properties in some special way at the declaration?
+              println(s"Warning: class scope detected but not used for ${s.name}")
+            }
           }
+          OutStringContext.outIdentifier(s.name, symId(s.name).get)
         case t: SymbolTypes.TypeDesc =>
           val resolved = input.types.resolveType(t)
           output(resolved.toOut)
@@ -457,7 +475,7 @@ object ScalaOut {
         val firstLine = root.orElse(ns.headOption).flatMap(h => Option(h.loc)).map(_.start.line).getOrElse(0)
         val lastLine = root.orElse(ns.headOption).flatMap(h => Option(h.loc)).map(_.end.line).getOrElse(0)
         var currentLine = firstLine
-        for ((arg, delim) <- markEnd(ns)) {
+        for ((arg, delim) <- markEnd(ns) if arg != null) {
           val argLine = Option(arg.loc).map(_.start.line).getOrElse(currentLine)
           if (root.isDefined && argLine > currentLine) {
             out.eol()
@@ -579,7 +597,7 @@ object ScalaOut {
             SymId(name, ScopeContext.getNodeId(cls.body))
           case oe: Node.ObjectExpression =>
             SymId(name, ScopeContext.getNodeId(oe))
-        }
+        }.getOrElse(SymId.global(name))
 
         if (kind == "value") {
           val sType = input.types.get(memberSymId)
@@ -593,7 +611,10 @@ object ScalaOut {
           case f@Node.FunctionExpression(_, params, body, generator, dType) =>
             context.withScope(f) {
               val postfix = if (kind == "set") "_=" else ""
-              out"def $key$postfix"
+              //val memberFunId(propertyKeyName(key))
+              out("def ")
+              OutStringContext.outIdentifier(name, memberSymId)
+              out(postfix)
               if (kind != "get" || params.nonEmpty) {
                 outputArgNames(params, true)(value)
               }
@@ -610,8 +631,12 @@ object ScalaOut {
                         // Any is most often result of "this" type
                         if (ret == SymbolTypes.AnyType) None // rather than outputing Any do not output anything
                         else Some(ret)
-                      case _ =>
-                        None
+                      case (_, t) =>
+                        // there is some confusion regarding if member function type is a function type or not
+                        // the code above expects a function type, but when a function type was added in handleParameterTypes
+                        // type inference was all broken (function types were assumed as a result type whenever the function was used)
+                        // to stay on the safe side, when it is not a function type, we just print it
+                        t
                     }
                   } else {
                     astType(Option(dType))
@@ -619,8 +644,7 @@ object ScalaOut {
                 }
               }
               for {
-                id <- memberSymId
-                fType <- certainType(id)
+                fType <- certainType(memberSymId)
               } {
                 out": $fType"
               }
@@ -948,7 +972,7 @@ object ScalaOut {
           def typeNameFromExpression(ex: Node.Expression) = {
             val tpe = right match {
               case Node.Identifier(rTypeName) =>
-                transform.TypesRule.typeFromIdentifierName(rTypeName)(context).map(_.toOutResolved)
+                transform.TypesRule.typeFromIdentifierName(rTypeName, false)(context).map(_.toOutResolved)
               case _ =>
                 None
             }
@@ -1243,9 +1267,12 @@ object ScalaOut {
           for (fType <- input.types.types.get(Id(tn.id.name)) if fType.certain) {
             out": ${fType.declType}"
           }
-          out(" = ")
-          blockBracedToOut(tn.body)
+          if (tn.body != null) {
+            out(" = ")
+            blockBracedToOut(tn.body)
+          }
           out.eol()
+
 
         /*
       case tn: Node.Accessor =>

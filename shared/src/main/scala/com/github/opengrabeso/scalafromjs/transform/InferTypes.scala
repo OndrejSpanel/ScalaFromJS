@@ -273,6 +273,7 @@ object InferTypes {
 
     }
 
+
     class SymbolAccessDot(symbol: MemberId) extends SymbolAccessInfo {
       override def toString = s"Member(${symbol.cls}.${symbol.name})"
 
@@ -759,18 +760,19 @@ object InferTypes {
         case SymbolInfo(symbol) Sub property =>
           val tpe = symbol.tpe(ctx.types)
           //println(s"$symbol Node.Sub $property `$tpe` -> `${tpe.map(_.declType)}`")
+
           tpe.map(_.declType) match {
             case Some(ObjectOrMap) =>
               // initialized as {}, cannot be an Array, must be a map
 
               symbol.addSymbolInferredType(Some(TypeInfo.target(MapType(NoType))), target)(()=>s"ObjectOrMap $symbol")
-            case Some(_: MapType) =>
+            case Some(CanBeMap(_)) =>
               // addressing map, we know index must be a string
               for (SymbolInfo(symbol) <- Some(property)) {
                 val indexType = Some(TypeInfo.target(string))
                 symbol.addSymbolInferredType(indexType, target)(()=>s"Map $symbol.$property")
               }
-            case Some(_: ArrayType) =>
+            case Some(CanBeArray(_)) =>
               // addressing array, we know index must be a number
               for (SymbolInfo(symbol) <- Some(property)) {
                 val indexType = Some(TypeInfo.target(number))

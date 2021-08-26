@@ -1,8 +1,12 @@
 package com.github.opengrabeso.scalafromjs
 
 import scala.language.implicitConversions
-
 import SymbolTypes._
+import com.github.opengrabeso.esprima.Node.{FunctionParameter, FunctionParameterWithType}
+import com.github.opengrabeso.scalafromjs.esprima.symbols
+import com.github.opengrabeso.scalafromjs.esprima.Defined
+import com.github.opengrabeso.scalafromjs.transform.TypesRule.typeInfoFromAST
+
 import scala.collection.Seq
 
 object SymbolTypes {
@@ -12,17 +16,16 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("unrollLoops", "string", "vertexShader", "fragmentShader", "shader", "xp", "x")
+    val watched = Set[String]("eVar")
     name.startsWith("watch_") || watched.contains(name)
   }
 
   def watchedMember(cls: String, name: String): Boolean = watchCondition {
     val watched = Set[(String, String)](
-      ("WebGLProgram", "constructor"), ("WebGLProgram", "shader"),
-      ("WebGLProgram", "vertexShader"),("WebGLProgram", "fragmentShader")
+      ("C", "getAB"), ("C", "setAB")
     )
     val watchedAllClasses = Set[String](
-      "shader", "vertexShader", "fragmentShader", "gl", "xp", "x"
+      "getAB"
     )
     name.startsWith("watch_") || watched.contains(cls, name) || watchedAllClasses.contains(name)
   }
@@ -98,7 +101,7 @@ object SymbolTypes {
     override def knownItems = 0
   }
 
-  // when any of the following types is used as a global class, it probably means a failing to convert a TS type
+  // when any of the following types is used as a global class, it probably means we have failed to convert a TS type
   val forbiddenGlobalTypes = Set("Array", "number", "boolean", "string", "void", "any", "this")
 
   case class SimpleType(name: String) extends TypeDesc {
@@ -213,10 +216,7 @@ object SymbolTypes {
     override def depthComplexity = types.map(_.depthComplexity).max
 
     def union(that: UnionType): TypeDesc = {
-      val tpe = (types ++ that.types).distinct
-      if (tpe.contains(AnyType)) AnyType
-      else if (tpe.size > 4) AnyType // when the union type is very long, represent it as AnyType instead
-      else UnionType(tpe)
+      UnionType(types ++ that.types)
     }
     def intersect(that: UnionType): TypeDesc = {
       // TODO: try smart class intersection using common base
@@ -332,9 +332,9 @@ object SymbolTypes {
       case (u1: UnionType, u2: UnionType) =>
         u1 intersect u2
       case (u: UnionType, t: TypeDesc) =>
-        u intersect UnionType(Seq(t))
+        typeIntersect(u, UnionType(Seq(t)))
       case (t: TypeDesc, u: UnionType) =>
-        UnionType(Seq(t)) intersect u
+        typeIntersect(UnionType(Seq(t)), u)
       case (a: MapType, IsObject()) => a
       case (IsObject(), a: MapType) => a
       case (c1: ClassType, _) => // while technically incorrect, we always prefer a class type against a non-class one
@@ -350,15 +350,70 @@ object SymbolTypes {
 
   def mapFromArray(a: ArrayType): MapType = MapType(a.elem)
 
+  def findArrayTypes(t: Seq[TypeDesc]) = {
+    val arrayTypes = t.collect {
+      case ArrayType(elem) => elem
+    }
+    val otherTypes = t diff arrayTypes.map(ArrayType)
+    (arrayTypes, otherTypes)
+  }
+
+  def unionManyTypes(uTypesInput: Seq[TypeDesc])(implicit classOps: ClassOps): TypeDesc = {
+    val uTypes = uTypesInput.filterNot(_ == NoType).distinct
+    if (uTypes.isEmpty) NoType
+    else if (uTypes.contains(AnyType)) AnyType
+    else if (uTypes.size == 1) uTypes.head
+    else {
+      val (arrayTypes, otherTypes) = findArrayTypes(uTypes)
+
+      if (arrayTypes.size > 1) { // WIP: merge Array, ArrayLike, Iterable together
+        // handle a special case: Array[S]|S or Array[Unit]|S, which is most likely a result of false recursion
+        // use just S instead
+        val nonRecursive = arrayTypes.map {
+          case UnionType(Seq(ArrayType(a), b)) if a == b || a == NoType =>
+            a
+          case UnionType(Seq(b, ArrayType(a))) if a == b || a == NoType =>
+            a
+          case x =>
+            x
+        }
+
+        val aType = nonRecursive.reduce(typeUnion(_, _))
+        UnionType(ArrayType(aType) +: otherTypes)
+      } else {
+        if (uTypes.size > 4) {
+          // WIP: use commonBase for all class types
+          AnyType
+        } else {
+          UnionType(uTypes)
+        }
+      }
+    }
+  }
+
   // union: assignment target
   def typeUnion(tpe1Input: TypeDesc, tpe2Input: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+    // special case optimization for a very common case
+    if (tpe1Input == tpe2Input) return tpe1Input
+    object UndefinedOrNullType {
+      def unapply(t: TypeDesc): Boolean = {
+        t match {
+          case ClassType(id) if id.name == "undefined" || id.name == "null" =>
+            true
+          case NullType =>
+            true
+          case _ =>
+            false
+        }
+      }
+    }
     val tpe1 = classOps.resolveType(tpe1Input)
     val tpe2 = classOps.resolveType(tpe2Input)
     (tpe1, tpe2) match {
       case _ if tpe1 == tpe2 =>
         tpe1
-      case (ClassType(id), t) if id.name == "undefined" || id.name == "null" => t
-      case (t, ClassType(id)) if id.name == "undefined" || id.name == "null" => t
+      case (UndefinedOrNullType(), t) => t
+      case (t, UndefinedOrNullType()) => t
       case (_, AnyType) => AnyType
       case (AnyType, _) => AnyType
       case (t, NoType) => t
@@ -385,13 +440,13 @@ object SymbolTypes {
       case (ObjectOrMap, a: ArrayType) => a
       case (a: ArrayType, ObjectOrMap) => a
       case (u1: UnionType, u2: UnionType) =>
-        u1 union u2
+        unionManyTypes(u1.types ++ u2.types)
       case (u: UnionType, t: TypeDesc) =>
-        u union UnionType(Seq(t))
+        unionManyTypes(u.types :+ t)
       case (t: TypeDesc, u: UnionType) =>
-        UnionType(Seq(t)) union u
+        unionManyTypes(t +: u.types)
       case (a: TypeDesc, b: TypeDesc) =>
-        UnionType(Seq(a, b))
+        unionManyTypes(Seq(a, b))
       case _ =>
         AnyType
     }
@@ -622,10 +677,17 @@ case object IsConstructorParameter extends Hint
 case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo], hints: Map[SymbolMapId, Hint] = Map.empty, locked: Boolean = false)
   extends SymbolTypes.TypeResolver {
 
+  def get(id: SymbolMapId): Option[TypeInfo] = types.get(id)
+  def getHint(id: SymbolMapId): Option[Hint] = hints.get(id)
+
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
   def getHint(id: Option[SymbolMapId]): Option[Hint] = id.flatMap(hints.get)
 
-  override def resolveClass(t: ClassType) = types.get(t.name).map(_.declType).getOrElse(t)
+  override def resolveClass(t: ClassType) = {
+    // never resolve to an anonymous class - prefer unresolved named class instead
+    // (resolving to an anonymous class caused a test failure for "d.ts enum conversion"
+    types.get(t.name).map(_.declType).filterNot(_.isInstanceOf[AnonymousClassType]).getOrElse(t)
+  }
 
   def getResolved(id: Option[SymbolMapId]): Option[TypeInfo] = {
     id.flatMap(types.get).map { ti =>
@@ -658,30 +720,34 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
 
   def ++ (that: SymbolTypes): SymbolTypes = SymbolTypes(stdLibs, types ++ that.types, hints ++ that.hints, locked || that.locked)
 
-  def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
-    kv._1.fold(this) { id =>
-      /*
-      if (id.name.startsWith("watchJS_")) {
-        if (types.get(id).exists(_.equivalent(kv._2))) {
-          println(s"++ Watched $id type == ${kv._2}")
-        } else {
-          println(s"++ Watched $id type ${kv._2}")
-        }
+  def add(kv: (SymbolMapId, TypeInfo)): SymbolTypes = {
+    //assert(!kv._1.isGlobal)
+
+    val id = kv._1
+    if (id.name.startsWith("watchJS_")) {
+      if (types.get(id).exists(_.equivalent(kv._2))) {
+        println(s"++ Watched $id type == ${kv._2}")
+      } else {
+        println(s"++ Watched $id type ${kv._2}")
       }
-      */
-      copy(types = types + (id -> kv._2))
     }
+    copy(types = types + kv)
+  }
+
+  def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
+    // not generally true, but can be useful during debugging to catch symbols without a proper scope
+    //assert(kv._1.forall(!_.isGlobal))
+
+    kv._1.fold(this)(k => copy(types = types + (k -> kv._2)))
   }
 
   def addHint(kv: (Option[SymbolMapId], Hint)): SymbolTypes = {
-    kv._1.fold(this) { id =>
-      copy(hints = hints + (id -> kv._2))
-    }
-
+    kv._1.fold(this)(id => copy(hints = hints + (id -> kv._2)))
   }
 
 
-  def addMember (kv: (Option[MemberId], TypeInfo))(implicit classId: SymbolMapId => (Int, Int)): SymbolTypes = {
+  def addMember(kv: (Option[MemberId], TypeInfo))(implicit classId: SymbolMapId => (Int, Int)): SymbolTypes = {
+    //assert(kv._1.forall(!_.cls.isGlobal))
     this + (kv._1.map(symbolFromMember) -> kv._2)
   }
 
@@ -693,6 +759,74 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
 
   override def toString = {
     types.mkString("{","\n", "}")
+  }
+
+  def getParameterTypes(dtsPars: Seq[FunctionParameter])(implicit context: symbols.ScopeContext) = {
+    // match parameters by position, their names may differ
+    dtsPars.map {
+      case FunctionParameterWithType(_, Defined(t), defValue, optional) =>
+        typeInfoFromAST(t)(context)
+      case _ =>
+        None
+    }
+  }
+
+  /**
+    * Read parameter types from AST
+    * */
+
+  def handleParameterTypes
+    (symId: SymbolMapId, tt: Option[TypeDesc], astPars: Seq[FunctionParameter], dtsPars: Seq[FunctionParameter], scopeId: symbols.ScopeContext.ScopeId)
+    (implicit context: symbols.ScopeContext): SymbolTypes = {
+    var types = this.types
+
+    val funName = symId.name
+    // scopeId is a scope of the function node used for the parameters
+    // this is different from the scope in which the function identifier is defined (in symId)
+    // in some cases it may be the same, though, like for synthetic functions
+
+    val parNames = astPars.map(Transform.nameFromPar)
+    def inferParType(pjs: String, tt: TypeInfo) = {
+      val id = symbols.SymId(pjs, scopeId)
+      val log = watched(pjs)
+      if (log) println(s"Set from d.ts $id $tt")
+      types += id -> tt
+      tt
+    }
+    val parTypes = if (astPars.size == dtsPars.size) {
+      // match parameters by position, their names may differ
+      val parTypes = getParameterTypes(dtsPars)
+      for {
+        (pjs, tt) <- parNames zip parTypes
+      } yield {
+        pjs.flatMap(p => tt.map(t => inferParType(p, t)))
+      }
+    } else { // the signature is wrong, we need to guess
+      for {
+        pn <- parNames
+      } yield {
+        for {
+          pjs <- pn
+          pd <- dtsPars.find(p => Transform.nameFromPar(p).contains(pjs))
+          t <- Transform.typeFromPar(pd)
+          tt <- typeInfoFromAST(t)(context)
+        } yield {
+          inferParType(pjs, tt)
+        }
+      }
+    }
+
+    if (watched(funName)) println(s"Set from d.ts $symId $tt")
+
+    // an alternative implementation could store a function type as a type of the member
+    // in current implementation we store the result type. Parameter types are stored for the parameter identifiers
+    //FunctionType(tt, parTypes.map(_.map(_.declType).getOrElse(AnyType)).toIndexedSeq)
+
+    for (t <- tt) {
+      types += (symId -> TypeInfo.both(t).copy(certain = true))
+    }
+
+    this.copy(types = types)
   }
 
 }

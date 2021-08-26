@@ -80,6 +80,7 @@ class TSTest extends AnyFunSuite with TestUtils with ProjectUtils {
       "val E100 = Value(100)",
       "val E101 = Value()",
     ).forbidden("_par", " elements = elements")
+      .checkOccurences("object E extends Enumeration")
   }
 
   test("Object type members") {

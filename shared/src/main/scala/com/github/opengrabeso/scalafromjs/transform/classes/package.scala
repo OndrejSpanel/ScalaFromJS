@@ -43,7 +43,11 @@ package object classes {
     def unapply(arg: Node.Node)(implicit context: ScopeContext): Option[(Node.Identifier, Seq[Node.FunctionParameter], Seq[Node.Statement])] = arg match {
       // function ClassName() {}
       case DefFun(sym, args, body, _, _) =>
-        Some((sym, args, Block.statements(body)))
+        if (body == null) {
+          Some((sym, args, Seq.empty))
+        } else {
+          Some((sym, args, Block.statements(body)))
+        }
 
       // ClassName = function() {}
       case Assign(sym: Node.Identifier, "=", AnyFun(args, body)) =>

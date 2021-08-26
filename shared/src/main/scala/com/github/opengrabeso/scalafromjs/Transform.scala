@@ -54,6 +54,23 @@ object Transform {
     s.flatMap(symId)
   }
 
+
+  val builtinArrayTypes = Map(
+    "Array" -> TypeInfo.target(ArrayType(AnyType)),
+    // TypedArray https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray
+    "Int8Array" -> TypeInfo.both(ArrayType(number)),
+    "Uint8Array" -> TypeInfo.both(ArrayType(number)),
+    "Uint8ClampedArray" -> TypeInfo.both(ArrayType(number)),
+    "Int16Array" -> TypeInfo.both(ArrayType(number)),
+    "Uint16Array" -> TypeInfo.both(ArrayType(number)),
+    "Int32Array" -> TypeInfo.both(ArrayType(number)),
+    "Uint32Array" -> TypeInfo.both(ArrayType(number)),
+    "Float32Array" -> TypeInfo.both(ArrayType(number)),
+    "Float64Array" -> TypeInfo.both(ArrayType(number)),
+    "BigInt64Array" -> TypeInfo.both(ArrayType(number)),
+    "BigUint64Array" -> TypeInfo.both(ArrayType(number)),
+  )
+
   // individual sensible transformations
 
   // convert === to ==
@@ -394,6 +411,33 @@ object Transform {
     }
   }
 
+  object CanBeArray {
+    def unapply(tpe: TypeDesc): Option[ArrayType] = {
+      tpe match {
+        case a: ArrayType => Some(a)
+        case u: UnionType => u.types.collectFirst {
+          case a: ArrayType =>
+            a
+        }
+        case _ =>
+          None
+      }
+    }
+  }
+  object CanBeMap {
+    def unapply(tpe: TypeDesc): Option[MapType] = {
+      tpe match {
+        case a: MapType => Some(a)
+        case u: UnionType => u.types.collectFirst {
+          case a: MapType =>
+            a
+        }
+        case _ =>
+          None
+      }
+    }
+  }
+
   def expressionType(n: Node.Node, log: Boolean = false)(implicit ctx: ExpressionTypeContext, context: ScopeContext): Option[TypeInfo] = {
     import ctx._
     //println(s"  type ${nodeClassName(n)}: ${ScalaOut.outputNode(n)}")
@@ -402,11 +446,12 @@ object Transform {
     * @param certain when context indicates it is a class name (in new or instanceof)
     * */
     def typeInfoFromClassSym(classSym: SymbolDef, certain: Boolean = false): Option[TypeInfo] = {
+
       // is the symbol a class?
       classSym.filter(_.name == "<anonymous>").map { c =>
         TypeInfo.target(AnonymousClassType(c.sourcePos))
       }.orElse {
-        classSym.filter(_ == SymId("Array", (-1, -1))).map(_ => TypeInfo.target(ArrayType(AnyType)))
+        classSym.filter(_.isGlobal).flatMap(c => builtinArrayTypes.get(c.name))
       }.orElse {
         for {
           cls <- classSym
@@ -475,11 +520,11 @@ object Transform {
       case expr Sub name =>
         //println(s"Infer type of array item $name, et ${expressionType(expr)(ctx)}")
         expressionType(expr, log) match {
-          case Some(TypeDecl(ArrayType(item))) =>
+          case Some(TypeDecl(CanBeArray(ArrayType(item)))) =>
             val r = TypeInfo.target(item)
             if (log) println(s"type of array $expr.$name as $r")
             Some(r)
-          case Some(TypeDecl(MapType(item))) =>
+          case Some(TypeDecl(CanBeMap(MapType(item)))) =>
             val r = Some(TypeInfo.target(item))
             if (log) println(s"type of map $expr.$name as $r")
             r
@@ -526,10 +571,10 @@ object Transform {
         ret
 
       case Binary(expr, "as", Node.Identifier(cls)) => // typescript operator
-        transform.TypesRule.typeFromIdentifierName(cls)(context).map(TypeInfo.both)
+        transform.TypesRule.typeFromIdentifierName(cls, false)(context).map(TypeInfo.both)
 
       case Binary(expr, `asinstanceof`, Node.Identifier(cls)) =>
-        transform.TypesRule.typeFromIdentifierName(cls)(context).map(TypeInfo.both)
+        transform.TypesRule.typeFromIdentifierName(cls, false)(context).map(TypeInfo.both)
 
       case Binary(left, op, right) =>
         // sometimes operation is enough to guess an expression type
@@ -564,10 +609,22 @@ object Transform {
         }
       case Node.NewExpression(Node.Identifier(Id(call)), _) =>
         typeInfoFromClassSym(call, true)
-      case Node.NewExpression(Node.Identifier(pack) Dot call, _) =>
-        // TODO: check if call is a known symbol and use it
-        // TODO: handle package names properly
-        Some(TypeInfo.both(ClassType(SymbolMapId(call, 0 -> 0))))
+
+      case Node.NewExpression(Node.Identifier(name1) Dot "array" Dot "constructor", _) =>
+        Some(TypeInfo(ArrayType(AnyType), ArrayType(NoType)))
+
+      case Node.NewExpression(Node.Identifier("array") Dot "constructor", _) =>
+        Some(TypeInfo(ArrayType(AnyType), ArrayType(NoType)))
+
+      case Node.NewExpression(expr Dot "constructor", _) =>
+        expressionType(expr)
+
+      case Node.NewExpression(Node.Identifier(name) Dot call, _) =>
+        if (call != "constructor") {
+          Some(TypeInfo.both(ClassType(SymbolMapId(call, 0 -> 0))))
+        } else {
+          None
+        }
 
       case Node.CallExpression(Node.Identifier(Id(call)), _) =>
         val tid = id(call)
