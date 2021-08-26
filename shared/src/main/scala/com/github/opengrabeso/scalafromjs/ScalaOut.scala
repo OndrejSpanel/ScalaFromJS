@@ -628,8 +628,12 @@ object ScalaOut {
                         // Any is most often result of "this" type
                         if (ret == SymbolTypes.AnyType) None // rather than outputing Any do not output anything
                         else Some(ret)
-                      case _ =>
-                        None
+                      case (_, t) =>
+                        // there is some confusion regarding if member function type is a function type or not
+                        // the code above expects a function type, but when a function type was added in handleParameterTypes
+                        // type inference was all broken (function types were assumed as a result type whenever the function was used)
+                        // to stay on the safe side, when it is not a function type, we just print it
+                        t
                     }
                   } else {
                     astType(Option(dType))

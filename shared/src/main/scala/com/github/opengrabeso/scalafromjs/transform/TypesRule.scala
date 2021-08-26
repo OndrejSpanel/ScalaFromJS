@@ -300,10 +300,11 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                   for {
                     Seq(VariableDeclarator(_, oe: ObjectExpression, _)) <- Option(astVarNode.declarations)
                     fun@AnyFun(astPars, astBody) <- Classes.findObjectMethod(oe, funName)
-                    tt <- typeFromAST(ret)(context)
+                    tt = typeFromAST(ret)(context)
                   } {
                     val symId = SymbolMapId(funName, astClsId)
-                    types = types.handleParameterTypes(symId, tt, astPars, dtsPars, symbols.ScopeContext.getNodeId(member))(context)
+                    // cannot use member, may be in D.TS AST, not in the JS one
+                    types = types.handleParameterTypes(symId, tt, astPars, dtsPars, symbols.ScopeContext.getNodeId(fun))(context)
                   }
 
                 case VarDeclTyped(name, _, _, Some(tpe)) => // plain member with known type
@@ -374,7 +375,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         for (funEx@AnyFunEx(pars, tpe, body) <- dtsSymbols.get(name)) {
           // we have already entered the function scope, parameters can be found in localSymbols
           val funScopeId = symbols.ScopeContext.getNodeId(funEx)
-          val tt = tpe.flatMap(typeInfoFromAST(_)(context)).map(_.declType).getOrElse(AnyType)
+          val tt = tpe.flatMap(typeFromAST(_)(context))
           val symId = SymbolMapId(name, funScopeId)
           types = types.handleParameterTypes(symId, tt, params, pars, funScopeId)(context)
         }
@@ -420,7 +421,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                   MethodDefinition(_, _, _, funEx@AnyFun(astPars, body), _, _) = astMethod
                   methodId = symbols.ScopeContext.getNodeId(funEx)
                   t = Option(ret).orElse(retFun)
-                  tt = t.flatMap(typeFromAST(_)(context)).getOrElse(AnyType)
+                  tt = t.flatMap(typeFromAST(_)(context))
                 } {
                   val symId = SymbolMapId(funName, clsId)
                   types = types.handleParameterTypes(symId, tt, astPars, dtsPars, methodId)(context)

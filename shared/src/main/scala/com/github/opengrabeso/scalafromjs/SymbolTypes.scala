@@ -750,7 +750,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
     * */
 
   def handleParameterTypes
-    (symId: SymbolMapId, tt: TypeDesc, astPars: Seq[FunctionParameter], dtsPars: Seq[FunctionParameter], scopeId: symbols.ScopeContext.ScopeId)
+    (symId: SymbolMapId, tt: Option[TypeDesc], astPars: Seq[FunctionParameter], dtsPars: Seq[FunctionParameter], scopeId: symbols.ScopeContext.ScopeId)
     (implicit context: symbols.ScopeContext): SymbolTypes = {
     var types = this.types
 
@@ -792,8 +792,13 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
 
     if (watched(funName)) println(s"Set from d.ts $symId $tt")
 
-    val parTypesDesc = parTypes.map(_.map(_.declType).getOrElse(AnyType)).toIndexedSeq
-    types += (symId -> TypeInfo.both(FunctionType(tt, parTypesDesc)).copy(certain = true))
+    // an alternative implementation could store a function type as a type of the member
+    // in current implementation we store the result type. Parameter types are stored for the parameter identifiers
+    //FunctionType(tt, parTypes.map(_.map(_.declType).getOrElse(AnyType)).toIndexedSeq)
+
+    for (t <- tt) {
+      types += (symId -> TypeInfo.both(t).copy(certain = true))
+    }
 
     this.copy(types = types)
   }
