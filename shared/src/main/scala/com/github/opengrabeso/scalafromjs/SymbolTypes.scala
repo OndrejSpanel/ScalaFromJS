@@ -350,19 +350,35 @@ object SymbolTypes {
 
   def mapFromArray(a: ArrayType): MapType = MapType(a.elem)
 
+  def findArrayTypes(t: Seq[TypeDesc]) = {
+    val arrayTypes = t.collect {
+      case ArrayType(elem) => elem
+    }
+    val otherTypes = t diff arrayTypes.map(ArrayType)
+    (arrayTypes, otherTypes)
+  }
+
   def unionManyTypes(uTypesInput: Seq[TypeDesc])(implicit classOps: ClassOps): TypeDesc = {
     val uTypes = uTypesInput.filterNot(_ == NoType).distinct
     if (uTypes.isEmpty) NoType
     else if (uTypes.contains(AnyType)) AnyType
     else if (uTypes.size == 1) uTypes.head
     else {
-      val arrayTypes = uTypes.collect {
-        case ArrayType(elem) => elem
-      }
-      val otherTypes = uTypes diff arrayTypes.map(ArrayType)
+      val (arrayTypes, otherTypes) = findArrayTypes(uTypes)
 
       if (arrayTypes.size > 1) { // WIP: merge Array, ArrayLike, Iterable together
-        val aType = arrayTypes.reduce(typeUnion(_, _))
+        // handle a special case: Array[S]|S or Array[Unit]|S, which is most likely a result of false recursion
+        // use just S instead
+        val nonRecursive = arrayTypes.map {
+          case UnionType(Seq(ArrayType(a), b)) if a == b || a == NoType =>
+            a
+          case UnionType(Seq(b, ArrayType(a))) if a == b || a == NoType =>
+            a
+          case x =>
+            x
+        }
+
+        val aType = nonRecursive.reduce(typeUnion(_, _))
         UnionType(ArrayType(aType) +: otherTypes)
       } else {
         if (uTypes.size > 4) {

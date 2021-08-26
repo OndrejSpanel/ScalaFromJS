@@ -226,7 +226,39 @@ class ArrayTests extends AnyFunSuite with TestUtils {
       ).forbidden(
         "Array[Array"
       )
+  }
 
+  test("Avoid recursive array nesting when mixing array and non-array access") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+        class G {
+          constructor( s ) {
+            s = Array.isArray( s ) ? s : [ s ];
+          }
+        }
+
+        class S {}
+
+        var s = new S()
+
+        var e1 = new G(s)
+
+        var e2 = new G([s, s])
+
+        var e3, e4, e5;
+
+        e3 = e4;
+
+        e3 = e5;
+
+        e5 = e1;
+      """)
+      .required(
+        "Array[S]"
+      ).forbidden("Array[Array[")
 
   }
+
+
 }
