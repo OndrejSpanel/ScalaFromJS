@@ -16,7 +16,7 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("getAB", "dac", "setAB", "C")
+    val watched = Set[String]("eVar")
     name.startsWith("watch_") || watched.contains(name)
   }
 
@@ -667,7 +667,11 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
   def get(id: Option[SymbolMapId]): Option[TypeInfo] = id.flatMap(types.get)
   def getHint(id: Option[SymbolMapId]): Option[Hint] = id.flatMap(hints.get)
 
-  override def resolveClass(t: ClassType) = types.get(t.name).map(_.declType).getOrElse(t)
+  override def resolveClass(t: ClassType) = {
+    // never resolve to an anonymous class - prefer unresolved named class instead
+    // (resolving to an anonymous class caused a test failure for "d.ts enum conversion"
+    types.get(t.name).map(_.declType).filterNot(_.isInstanceOf[AnonymousClassType]).getOrElse(t)
+  }
 
   def getResolved(id: Option[SymbolMapId]): Option[TypeInfo] = {
     id.flatMap(types.get).map { ti =>
