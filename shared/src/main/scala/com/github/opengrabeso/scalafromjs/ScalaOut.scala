@@ -1264,9 +1264,12 @@ object ScalaOut {
           for (fType <- input.types.types.get(Id(tn.id.name)) if fType.certain) {
             out": ${fType.declType}"
           }
-          out(" = ")
-          blockBracedToOut(tn.body)
+          if (tn.body != null) {
+            out(" = ")
+            blockBracedToOut(tn.body)
+          }
           out.eol()
+
 
         /*
       case tn: Node.Accessor =>
