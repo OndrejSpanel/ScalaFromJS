@@ -165,7 +165,7 @@ class ArrayTests extends AnyFunSuite with TestUtils {
       //language=JavaScript
       """
 
-        var fb = new Float32Array(10);
+        var fa = new Float32Array(10);
 
         var aa = new Array(10);
 

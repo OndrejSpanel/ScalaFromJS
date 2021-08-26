@@ -54,6 +54,23 @@ object Transform {
     s.flatMap(symId)
   }
 
+
+  val builtinArrayTypes = Map(
+    "Array" -> TypeInfo.target(ArrayType(AnyType)),
+    // TypedArray https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypedArray
+    "Int8Array" -> TypeInfo.both(ArrayType(number)),
+    "Uint8Array" -> TypeInfo.both(ArrayType(number)),
+    "Uint8ClampedArray" -> TypeInfo.both(ArrayType(number)),
+    "Int16Array" -> TypeInfo.both(ArrayType(number)),
+    "Uint16Array" -> TypeInfo.both(ArrayType(number)),
+    "Int32Array" -> TypeInfo.both(ArrayType(number)),
+    "Uint32Array" -> TypeInfo.both(ArrayType(number)),
+    "Float32Array" -> TypeInfo.both(ArrayType(number)),
+    "Float64Array" -> TypeInfo.both(ArrayType(number)),
+    "BigInt64Array" -> TypeInfo.both(ArrayType(number)),
+    "BigUint64Array" -> TypeInfo.both(ArrayType(number)),
+  )
+
   // individual sensible transformations
 
   // convert === to ==
@@ -429,11 +446,12 @@ object Transform {
     * @param certain when context indicates it is a class name (in new or instanceof)
     * */
     def typeInfoFromClassSym(classSym: SymbolDef, certain: Boolean = false): Option[TypeInfo] = {
+
       // is the symbol a class?
       classSym.filter(_.name == "<anonymous>").map { c =>
         TypeInfo.target(AnonymousClassType(c.sourcePos))
       }.orElse {
-        classSym.filter(_ == SymId("Array", (-1, -1))).map(_ => TypeInfo.target(ArrayType(AnyType)))
+        classSym.filter(_.isGlobal).flatMap(c => builtinArrayTypes.get(c.name))
       }.orElse {
         for {
           cls <- classSym
