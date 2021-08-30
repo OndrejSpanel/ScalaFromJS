@@ -448,7 +448,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       val html = readSourceFile(name)
       ScriptExtractor.fromHTML(html) match {
         case Some(js) =>
-          js -> name
+          preprocess(js) -> name
         case None =>
           throw new NoSuchElementException(s"No script found in HTML file $name")
       }
