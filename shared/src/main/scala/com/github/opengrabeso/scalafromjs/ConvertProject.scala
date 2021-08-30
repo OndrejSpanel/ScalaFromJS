@@ -395,6 +395,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       // try parsing, if unable, return a comment file instead
       try {
         parse(code, detectTypescript(path))
+        //println(s"Input file $path")
         code -> path
       } catch {
         case ex: Exception =>
@@ -432,7 +433,6 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       val extension = if (rootExtension.nonEmpty) rootExtension else ".js"
       // first try if it is already loaded
       items.get(name).orElse(items.get(name + extension)).fold {
-        //println(s"Read file $name as $singlePath (in $base)")
         try {
           readFileAsJs(name)
         } catch {
@@ -441,6 +441,16 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
         }
       } { item =>
         item.code -> item.fullName
+      }
+    }
+
+    def readJsFromHtmlFile(name: String): (String, String) = {
+      val html = readSourceFile(name)
+      ScriptExtractor.fromHTML(html) match {
+        case Some(js) =>
+          js -> name
+        case None =>
+          throw new NoSuchElementException(s"No script found in HTML file $name")
       }
     }
 
@@ -462,16 +472,39 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
     // check export / import statements
     val exampleBuffer = new mutable.ArrayBuffer[(String, String)]
     val includeBuffer = new mutable.ArrayBuffer[(String, String)]
+    val notFound = mutable.Set.empty[String]
+    def checkForComment(node: Node.Node, comment: String): Boolean = {
+      Option(node.leadingComments).toSeq.flatten.exists { commentToken =>
+        commentToken.value contains comment
+      }
+    }
+
+    val rootExtension = PathUtils.shortName(root).dropWhile(_ != '.')
+    val defaultExtension = if (rootExtension.nonEmpty) rootExtension else ".js"
+
+    def alreadyPresent(target: Seq[(String, String)], path: String) = {
+      target.exists(i => i._2 == path || i._2 == path + defaultExtension)
+    }
+
     ast.walk {
       case i: Node.ImportDeclaration =>
-        val example = Option(i.leadingComments).toSeq.flatten.exists { commentToken =>
-          val comment = commentToken.value
-          comment contains "@example"
-        }
+        val example = checkForComment(i, "@example")
         val target = if (example) exampleBuffer else includeBuffer
         val inFile = pathForOffset(i.range._1)
         val importPath = i.source.value
-        target append readJsFile(resolveSibling(inFile, importPath))
+        val path = resolveSibling(inFile, importPath)
+        try {
+          if (!alreadyPresent(target, path)) {
+            target append readJsFile(path)
+          }
+        } catch {
+          case _: Exception =>
+            // print a message, but try to continue
+            if (!notFound.contains(path)) {
+              println(s"warning: file $path ($importPath) not found (from $inFile)")
+              notFound += path
+            }
+        }
         false
       case e@ExportFromSource(Defined(StringLiteral(source))) =>
         // ignore exports in imported files
@@ -480,7 +513,21 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
           //println(s"index of ${s.pos} = $index in $offsets")
           if (values.isDefinedAt(index) && values(index).included) {
             val inFile = pathForOffset(s)
-            includeBuffer append readJsFile(resolveSibling(pathForOffset(s), source))
+            val path = resolveSibling(inFile, source)
+            if (!alreadyPresent(includeBuffer, path)) {
+              val htmlScript = checkForComment(e, "@html-script")
+              try {
+                if (htmlScript) includeBuffer append readJsFromHtmlFile(path)
+                else includeBuffer append readJsFile(path)
+              } catch {
+                case _: Exception =>
+                  // print a message, but try to continue
+                  if (!notFound.contains(path)) {
+                    println(s"warning: file $path ($source) not found (from $inFile)")
+                    notFound += path
+                  }
+              }
+            }
           }
         }
 
@@ -519,6 +566,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       assert((old.keySet intersect includes.map(_._1).toSet).isEmpty)
       //println(s"  old ${old.map(_.name).mkString(",")}")
 
+      //println("Inputs read")
       ConvertProject(root, preprocess, old ++ examples ++ includes).resolveImportsExports
     }
   }
