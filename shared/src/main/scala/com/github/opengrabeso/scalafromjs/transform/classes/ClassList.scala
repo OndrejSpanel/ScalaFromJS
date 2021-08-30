@@ -134,13 +134,13 @@ object ClassList {
                   addMember(ClassVarMember(value, m))
                 case _ =>
                   val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m, Some(m))
-                  addMember(ClassVarMember(ScalaNode.StatementExpression(member), m))
+                  addMember(ClassVarMember(ScalaNode.StatementExpression(member).withTokens(m), m))
               }
 
             case _ =>
               // prototype contains something other than a key: val pair - what to do with it?
               val member = unsupported(s"Unsupported property type ${nodeClassName(m)}", m, Some(m))
-              addMember(ClassVarMember(ScalaNode.StatementExpression(member), m))
+              addMember(ClassVarMember(ScalaNode.StatementExpression(member).withTokens(m), m))
           }
         }
       }
@@ -239,7 +239,7 @@ object ClassList {
                       res.clazz = res.clazz.addValue(vName, member)
                     case vd@Node.VariableDeclarator(Node.Identifier(vName), _, _) =>
                       //println(s"value member $vName as undefined")
-                      val member = ClassVarMember(ScalaNode.StatementExpression(Node.EmptyStatement()), vd)
+                      val member = ClassVarMember(ScalaNode.StatementExpression(Node.EmptyStatement()).withTokens(vd), vd)
                       res.clazz = res.clazz.addValue(vName, member)
                   }
                 case s =>

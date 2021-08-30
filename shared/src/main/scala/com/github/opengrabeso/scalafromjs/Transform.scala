@@ -858,7 +858,7 @@ object Transform {
             Node.BlockStatement {
               removeReturnFromBody(Block.statements(funcBody))
             }.withTokens(node)
-          }
+          }.withTokens(node)
         case _ =>
           node
       }
