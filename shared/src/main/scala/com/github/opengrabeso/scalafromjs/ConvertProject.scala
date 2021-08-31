@@ -485,10 +485,16 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
             target append readJsFile(path)
           }
         } catch {
-          case _: Exception =>
+          case ex: java.io.FileNotFoundException =>
             // print a message, but try to continue
             if (!notFound.contains(path)) {
               println(s"warning: file $path ($importPath) not found (from $inFile)")
+              notFound += path
+            }
+          case ex: Exception =>
+            // print a message, but try to continue
+            if (!notFound.contains(path)) {
+              println(s"warning: file $path ($importPath) not parsed (from $inFile) $ex")
               notFound += path
             }
         }
@@ -518,7 +524,9 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
                     includeBuffer appendAll readJsFromHtmlFile(path)
                   }
                 }
-                else includeBuffer append readJsFile(path)
+                else {
+                  includeBuffer append readJsFile(path)
+                }
               } catch {
                 case ex: Exception =>
                   // print a message, but try to continue
