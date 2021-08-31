@@ -236,6 +236,10 @@ object SymbolTypes {
     override def toString = "Unit"
     override def toOut = "Unit"
   }
+  case object NothingType extends TypeDesc { // subtype of all
+    override def toString = "Nothing"
+    override def toOut = "Nothing"
+  }
   case object NullType extends TypeDesc {
     override def toString = "Null"
     override def toOut = "Null"
