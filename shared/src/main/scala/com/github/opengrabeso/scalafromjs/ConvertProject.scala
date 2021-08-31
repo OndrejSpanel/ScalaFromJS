@@ -436,7 +436,8 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       }
     }
 
-    def readJsFromHtmlFile(name: String): Option[(String, String)] = {
+    def readJsFromHtmlFile(namePar: String): Option[(String, String)] = {
+      val name = namePar.replace('\\', '/')
       val html = readSourceFile(name)
       ScriptExtractor.fromHTML(name, html).map(js => preprocess(js) -> name)
     }
