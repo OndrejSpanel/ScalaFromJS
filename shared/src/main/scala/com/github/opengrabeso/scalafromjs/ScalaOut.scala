@@ -969,10 +969,12 @@ object ScalaOut {
           out" $op "
           nodeToOut(right)
         case Node.BinaryExpression(op, left, right) =>
-          def typeNameFromExpression(ex: Node.Expression) = {
-            val tpe = right match {
+          def typeNameFromExpression(ex: Node.Expression): String = {
+            val tpe = ex match {
               case Node.Identifier(rTypeName) =>
                 transform.TypesRule.typeFromIdentifierName(rTypeName, false)(context).map(_.toOutResolved)
+              case Node.StaticMemberExpression(obj, property) =>
+                Some(typeNameFromExpression(obj) + "." + nodeToString(property))
               case _ =>
                 None
             }
