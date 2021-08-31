@@ -1375,7 +1375,7 @@ object ScalaOut {
 
               for {
                 inlineBody <- inlineBodyOpt
-                method <- getMethodMethod(inlineBody)
+                method <- getMethodMethod(inlineBody) if method.params.nonEmpty
               } {
                 outputClassArgNames(method.params)(method)
               }
@@ -1392,9 +1392,11 @@ object ScalaOut {
                   // find the super constructor call and use its parameters
                   method.body.body.foreach {
                     case Node.ExpressionStatement(call@Node.CallExpression(_: Node.Super, pars)) =>
-                      out("(")
-                      outputNodes(pars)(nodeToOut)
-                      out(")")
+                      if (pars.nonEmpty) {
+                        out("(")
+                        outputNodes(pars)(nodeToOut)
+                        out(")")
+                      }
                     case _ =>
                   }
                 }
