@@ -473,6 +473,21 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       target.exists(i => i._2 == path || i._2 == path + defaultExtension)
     }
 
+    def reportParseError(ex: Exception, path: String, importPath: String, inFile: String) = ex match {
+      case ex: java.io.FileNotFoundException =>
+        // print a message, but try to continue
+        if (!notFound.contains(path)) {
+          println(s"warning: file $path ($importPath) not found (from $inFile)")
+          notFound += path
+        }
+      case ex: Exception =>
+        // print a message, but try to continue
+        if (!notFound.contains(path)) {
+          println(s"warning: file $path ($importPath) not parsed (from $inFile) $ex")
+          notFound += path
+        }
+
+    }
     ast.walk {
       case i: Node.ImportDeclaration =>
         val example = checkForComment(i, "@example")
@@ -485,18 +500,8 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
             target append readJsFile(path)
           }
         } catch {
-          case ex: java.io.FileNotFoundException =>
-            // print a message, but try to continue
-            if (!notFound.contains(path)) {
-              println(s"warning: file $path ($importPath) not found (from $inFile)")
-              notFound += path
-            }
           case ex: Exception =>
-            // print a message, but try to continue
-            if (!notFound.contains(path)) {
-              println(s"warning: file $path ($importPath) not parsed (from $inFile) $ex")
-              notFound += path
-            }
+            reportParseError(ex, path, importPath, inFile)
         }
         false
       case e@ExportFromSource(Defined(StringLiteral(source))) =>
@@ -529,11 +534,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
                 }
               } catch {
                 case ex: Exception =>
-                  // print a message, but try to continue
-                  if (!notFound.contains(path)) {
-                    println(s"warning: file $path ($source) not found (from $inFile): $ex")
-                    notFound += path
-                  }
+                  reportParseError(ex, path, source, inFile)
               }
             }
           }
