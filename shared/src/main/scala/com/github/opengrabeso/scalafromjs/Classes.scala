@@ -21,7 +21,15 @@ object Classes {
   def findThisClass(walker: ScopeContext): Option[Node.ClassDeclaration] = findThisClassInWalker(walker)
 
   def superClassSymbolDef(cls: Node.ClassDeclaration)(implicit context: ScopeContext): Option[SymId] = {
-    Option(cls.superClass).flatMap(symId)
+    cls.superClass match {
+      case Node.Identifier(Id(symId)) =>
+        Some(symId)
+      case expr Dot name =>
+        // TODO: respect name qualification
+        symId(name)
+      case _ =>
+        None
+    }
   }
 
   def superClass(cls: Node.ClassDeclaration)(implicit context: ScopeContext): Option[SymbolMapId] = {
@@ -267,7 +275,7 @@ object Classes {
             for {
               id <- symId(d.id)
             } {
-              val parentId = Option(d.superClass).flatMap(symId)
+              val parentId = superClassSymbolDef(d)
               classes += id -> (parentId, d)
             }
             !innerClasses // classes may contain inner classes - when the caller wants them, continue the traversal
