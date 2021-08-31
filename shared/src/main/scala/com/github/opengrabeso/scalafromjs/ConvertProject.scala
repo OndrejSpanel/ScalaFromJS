@@ -410,15 +410,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
           if (dot >= 0 && neverWrap.contains(short.drop(dot))) {
             throw ex
           } else {
-            // embed wrapped code as a variable using ES6 template string
-            // use isResource so that Scala output can check it and handle it as a special case
-            val wrap =
-            s"""
-               |const $simpleName = {
-               |  value: `$code`,
-               |  isResource: true
-               |}
-               |""".stripMargin
+            val wrap = ScriptExtractor.wrapAsJS(simpleName, code)
             wrap -> path
           }
       }
@@ -444,14 +436,9 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       }
     }
 
-    def readJsFromHtmlFile(name: String): (String, String) = {
+    def readJsFromHtmlFile(name: String): Option[(String, String)] = {
       val html = readSourceFile(name)
-      ScriptExtractor.fromHTML(html) match {
-        case Some(js) =>
-          preprocess(js) -> name
-        case None =>
-          throw new NoSuchElementException(s"No script found in HTML file $name")
-      }
+      ScriptExtractor.fromHTML(name, html).map(js => preprocess(js) -> name)
     }
 
     val ast = try {
@@ -517,13 +504,26 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
             if (!alreadyPresent(includeBuffer, path)) {
               val htmlScript = checkForComment(e, "@html-script")
               try {
-                if (htmlScript) includeBuffer append readJsFromHtmlFile(path)
+                if (htmlScript) {
+                  // TODO: support wildcards for other file types as well
+                  val htmlRelativeWildcard = "/*.html"
+                  if (path.endsWith(htmlRelativeWildcard)) {
+                    // TODO: allow exclusion
+                    val dir = new java.io.File(path.dropRight(htmlRelativeWildcard.length))
+                    val allHtmlFiles = dir.list((_, name) => name.endsWith(".html"))
+                    for (f <- allHtmlFiles) {
+                      includeBuffer appendAll readJsFromHtmlFile(dir.toPath.resolve(f).toString)
+                    }
+                  } else {
+                    includeBuffer appendAll readJsFromHtmlFile(path)
+                  }
+                }
                 else includeBuffer append readJsFile(path)
               } catch {
-                case _: Exception =>
+                case ex: Exception =>
                   // print a message, but try to continue
                   if (!notFound.contains(path)) {
-                    println(s"warning: file $path ($source) not found (from $inFile)")
+                    println(s"warning: file $path ($source) not found (from $inFile): $ex")
                     notFound += path
                   }
               }
