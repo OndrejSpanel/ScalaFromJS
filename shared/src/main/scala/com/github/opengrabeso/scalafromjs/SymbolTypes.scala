@@ -685,8 +685,12 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
 
   override def resolveClass(t: ClassType) = {
     // never resolve to an anonymous class - prefer unresolved named class instead
-    // (resolving to an anonymous class caused a test failure for "d.ts enum conversion"
-    types.get(t.name).map(_.declType).filterNot(_.isInstanceOf[AnonymousClassType]).getOrElse(t)
+    types.get(t.name).map(_.declType).filterNot { t =>
+      // (resolving to an anonymous class caused a test failure for "d.ts enum conversion"
+      t.isInstanceOf[AnonymousClassType] ||
+      // resolving to Any or Unit is almost never what we want
+      t == AnyType || t == NoType
+    }.getOrElse(t)
   }
 
   def getResolved(id: Option[SymbolMapId]): Option[TypeInfo] = {
