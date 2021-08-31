@@ -109,7 +109,7 @@ interested in that version, see tag `uglify-scala.js`.
 Command line usage
 ==================
 
-`java -jar ScalaFromJS.jar temp/esprima/esprima-convert.js temp/esprima/scala/esprima-convert.scala`
+`java -jar ScalaFromJS.jar temp/esprima/esprima-convert.ts temp/esprima/scala/esprima-convert.scala`
  
 Conversion overview
 ===================
