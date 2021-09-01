@@ -42,14 +42,15 @@ object CommandLine {
             return (named.get, alias.applyTemplate(shortFileName, content))
           }
         }
-        (filePath, content)
+        val filePathParent = filePath.reverse.dropWhile(_ != '/').drop(1).reverse
+        (filePathParent, content)
       }
 
       val processed = converted.config.postprocess(outCode)
 
       val (aliasedName, wrappedOutCode) = handleAlias(inRelative, processed)
 
-      val inFilePackage = aliasedName.split('/')
+      val inFilePackage = aliasedName.split('/').filterNot(_.isEmpty)
 
 
       val packageDirectives = inFilePackage.map(item => s"package $item").toSeq
