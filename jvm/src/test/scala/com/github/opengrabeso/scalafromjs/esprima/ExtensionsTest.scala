@@ -2,6 +2,7 @@ package com.github.opengrabeso.scalafromjs.esprima
 
 import com.github.opengrabeso.esprima.Node
 import org.scalatest.funsuite.AnyFunSuite
+import com.github.opengrabeso.esprima.walker
 
 object Extension {
   case class StatementAsExpression(var statement: Node.Statement) extends Node.Node with Node.Expression {

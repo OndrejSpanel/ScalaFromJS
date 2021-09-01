@@ -6,7 +6,10 @@ import scala.reflect.runtime.universe.{Literal => _,_}
 
 import org.scalatest.funsuite.AnyFunSuite
 
+import com.github.opengrabeso.esprima.walker
+
 class WalkerTest extends AnyFunSuite {
+  import walker._
 
   val walkers = walker.createWalkers[Node.Node, Node.type]
 

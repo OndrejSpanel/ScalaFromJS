@@ -75,7 +75,7 @@ class ClassVariantsTests extends AnyFunSuite with TestUtils {
 
       """).required(
       "class C",
-      "class D() extends C",
+      "class D extends C",
       "def f()",
       "def fd()"
     ).forbidden(

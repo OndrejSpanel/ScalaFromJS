@@ -1,8 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
 import com.github.opengrabeso.esprima.Node
-import esprima.walker
-import esprima.walker._
+import com.github.opengrabeso.esprima.walker
+import com.github.opengrabeso.esprima.walker._
 
 object ScalaNode {
   // Scala specific node extensions for the JS AST tree
