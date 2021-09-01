@@ -106,6 +106,7 @@ object TypesRule {
       case "never" => Some(NothingType)
       case "void" => Some(NoType)
       case "this" => None // TODO: some better support for this type
+      case "Array" => Some(ArrayType(AnyType))
       case _ => Some(ClassType(context.findSymId(name, memberFun)))
     }
     t
