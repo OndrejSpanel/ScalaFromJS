@@ -112,7 +112,11 @@ object ConvertProject {
     }
   }
 
-  case class AliasPackageRule(folder: String, name: String, template: Option[String]) extends ExternalRule {
+  /**
+    * @param template substitution template applied on the Scala result (after conversion)
+    * @param jsTemplate substitution template applied on the JS source (before conversion)
+    * */
+  case class AliasPackageRule(folder: String, name: String, template: Option[String], jsTemplate: Option[String]) extends ExternalRule {
     def namePackage(path: String): Option[String] = {
       if (path startsWith folder) {
         val aliased = name ++ path.drop(folder.length)
@@ -129,6 +133,14 @@ object ConvertProject {
         t.substitute("class", className).substitute("this", content)
       }
     }
+    def applyJsTemplate(shortName: String, content: String): String = {
+      jsTemplate.fold(content){ t =>
+        import TextTemplates._
+        val dotIndex = shortName.indexOf('.')
+        val className = if (dotIndex < 0) shortName else shortName.take(dotIndex)
+        t.substitute("class", className).substitute("this", content)
+      }
+    }
   }
 
   object AliasPackageRule {
@@ -136,7 +148,8 @@ object ConvertProject {
       val folder = loadRequiredStringValue(o, "folder")
       val name = loadRequiredStringValue(o, "name")
       val template = loadStringValue(o, "template")
-      AliasPackageRule(terminatedPath(folder), terminatedPath(name), template)
+      val jsTemplate = loadStringValue(o, "jsTemplate")
+      AliasPackageRule(terminatedPath(folder), terminatedPath(name), template, jsTemplate)
     }
   }
 
@@ -151,7 +164,7 @@ object ConvertProject {
   val prefixName = "ScalaFromJS_"
   val configName = prefixName + "settings"
 
-  case class ConvertConfig(rules: Seq[Rule] = Seq.empty) {
+  case class ConvertConfig(root: String = "", rules: Seq[Rule] = Seq.empty) {
     def collectRules[T: ClassTag]: Seq[T] = rules.collect {case x: T => x}
 
     def postprocess(src: String): String = {
@@ -162,6 +175,37 @@ object ConvertProject {
       val processRules = collectRules[RegexPreprocessRule]
       processRules.foldLeft(src)((processed, rule) => rule.transformText(processed))
     }
+
+    def findAlias(filePath: String): (String, Option[AliasPackageRule]) = {
+      val inRelativePathIndex = filePath.lastIndexOf('/')
+      val inRelativePath = if (inRelativePathIndex < 0) "" else filePath.take(inRelativePathIndex)
+      val terminated = terminatedPath(inRelativePath)
+      for (alias <- collectRules[AliasPackageRule]) {
+        val named = alias.namePackage(terminated)
+        if (named.isDefined) {
+          return (named.get, Some(alias))
+        }
+      }
+      (filePath.reverse.dropWhile(_ != '/').drop(1).reverse, None)
+    }
+
+    def handleAliasPreprocess(absPath: String)(content: String): String = {
+      val filePath = relativePath(root, absPath)
+
+      val shortFileName = shortName(filePath)
+      val (name, alias) = findAlias(filePath)
+      // package name does not matter here, return the content only
+      alias.map(_.applyJsTemplate(shortFileName, content)).getOrElse(content)
+    }
+
+    def handleAlias(filePath: String)(content: String): (String, String) = {
+      val shortFileName = shortName(filePath)
+      val (name, alias) = findAlias(filePath)
+      val newContent = alias.map(_.applyTemplate(shortFileName, content)).getOrElse(content)
+      // return the package name
+      (name, newContent)
+    }
+
   }
 
   object ConvertConfig {
@@ -268,7 +312,7 @@ object ConvertProject {
           throw new UnsupportedOperationException(s"Unexpected config entry of type ${nodeClassName(n)}")
       }
       //println("Rules " + rules)
-      ConvertConfig(rules)
+      ConvertConfig(root.getOrElse(""), rules)
     }
   }
 
@@ -296,18 +340,19 @@ object ConvertProject {
   def loadControlFile(in: String): ConvertProject = {
 
     // parse only the control file to read the preprocess rules
-    val inSource = readSourceFile(in)
+    val code = readSourceFile(in)
     val typescript = detectTypescript(in)
-    val ext = NodeExtended(parse(inSource, typescript)).loadConfig(Some(in)).config
+    val ext = NodeExtended(parse(code, typescript)).loadConfig(Some(in)).config
 
     Time("loadControlFile") {
-      val code = ext.preprocess(inSource)
+      // do not preprocess the control file - it makes no sense
+      // and it is easy for regex rules to match themselves, which breaks the control file
       val predef = if (typescript) predefinedHeadersTS else predefinedHeadersJS
       val predefinedItems = ListMap(predef.map { case (name, code) =>
         name -> Item(code, false, name)
       }:_*)
 
-      val project = ConvertProject(in, ext.preprocess, predefinedItems ++ ListMap(in -> Item(code, true, in)))
+      val project = ConvertProject(in, ext, predefinedItems ++ ListMap(in -> Item(code, true, in)))
 
       project.resolveImportsExports
     }
@@ -341,7 +386,7 @@ object ConvertProject {
 
     }
 
-    val removedConfig = readConfig.fold(ast) { rc =>
+    val astWithoutConfig = readConfig.fold(ast) { rc =>
       ast.transformAfter { (node, _) =>
         node match {
           case GetConfig(_) =>
@@ -353,14 +398,15 @@ object ConvertProject {
       }
     }
 
-    readConfig.getOrElse(ConvertConfig()) -> removedConfig
+    val config = readConfig.getOrElse(ConvertConfig())
+    root.map(r => config.copy(root = r)).getOrElse(config) -> astWithoutConfig
   }
 
 
 }
 
 
-case class ConvertProject(root: String, preprocess: String => String, items: Map[String, Item]) {
+case class ConvertProject(root: String, config: ConvertConfig, items: Map[String, Item]) {
   val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
   // offset boundaries for all items, including before the first one (zero), and after the last one (total input lenght)
@@ -391,7 +437,8 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
   @scala.annotation.tailrec
   final def resolveImportsExports: ConvertProject = {
     def readFileAsJs(path: String): (String, String) = {
-      val code = preprocess(readSourceFile(path))
+      val aliasedCode = config.handleAliasPreprocess(path)(readSourceFile(path))
+      val code = config.preprocess(aliasedCode)
       // try parsing, if unable, return a comment file instead
       try {
         parse(code, detectTypescript(path))
@@ -439,7 +486,8 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
     def readJsFromHtmlFile(namePar: String): Option[(String, String)] = {
       val name = namePar.replace('\\', '/')
       val html = readSourceFile(name)
-      ScriptExtractor.fromHTML(name, html).map(js => preprocess(js) -> name)
+
+      ScriptExtractor.fromHTML(name, html).map(js => config.preprocess(config.handleAliasPreprocess(name)(js)) -> name)
     }
 
     val ast = try {
@@ -577,7 +625,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       //println(s"  old ${old.map(_.name).mkString(",")}")
 
       //println("Inputs read")
-      ConvertProject(root, preprocess, old ++ examples ++ includes).resolveImportsExports
+      ConvertProject(root, config, old ++ examples ++ includes).resolveImportsExports
     }
   }
 

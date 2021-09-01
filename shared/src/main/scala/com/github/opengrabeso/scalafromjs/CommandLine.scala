@@ -29,26 +29,11 @@ object CommandLine {
 
       if (log) println(s"out: $out, in: $in, inFile: $inFile -> $outFileCombined")
 
-      val inRelativePathIndex = inRelative.lastIndexOf('/')
-      val inRelativePath = if (inRelativePathIndex < 0) "" else inRelative.take(inRelativePathIndex)
       val shortFileName = shortName(inFile)
-
-      def handleAlias(filePath: String, content: String): (String, String) = {
-        // check if we match any alias key
-        val terminated = terminatedPath(inRelativePath)
-        for (alias <- converted.config.collectRules[AliasPackageRule]) {
-          val named = alias.namePackage(terminated)
-          if (named.isDefined) {
-            return (named.get, alias.applyTemplate(shortFileName, content))
-          }
-        }
-        val filePathParent = filePath.reverse.dropWhile(_ != '/').drop(1).reverse
-        (filePathParent, content)
-      }
 
       val processed = converted.config.postprocess(outCode)
 
-      val (aliasedName, wrappedOutCode) = handleAlias(inRelative, processed)
+      val (aliasedName, wrappedOutCode) = converted.config.handleAlias(inRelative)(processed)
 
       val inFilePackage = aliasedName.split('/').filterNot(_.isEmpty)
 

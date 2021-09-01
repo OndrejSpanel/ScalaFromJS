@@ -1,7 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
 import com.github.opengrabeso.scalafromjs.esprima._
-import com.github.opengrabeso.esprima.{GlobalConfig=>_, _}
+import com.github.opengrabeso.esprima.{GlobalConfig => _, _}
+import com.github.opengrabeso.scalafromjs.ConvertProject.ConvertConfig
 
 object Convert {
 
@@ -43,7 +44,7 @@ object Convert {
         fileName -> ConvertProject.Item(terminatedCode, true, fileName)
 
       }
-      val convertResult = ConvertProject("", identity, fileParts.toMap).convert
+      val convertResult = ConvertProject("", ConvertConfig(), fileParts.toMap).convert
 
       val converted = convertResult.files.map { case (name, content) =>
         s"\n//file:$name\n\n" + convertResult.config.postprocess(content)
