@@ -824,6 +824,8 @@ object ScalaOut {
             name
           case VarDecl(name, _, _) =>
             name
+          case Node.EmptyStatement() =>
+            "_"
         }
         out(identifier(variable))
         out(" <- ")
