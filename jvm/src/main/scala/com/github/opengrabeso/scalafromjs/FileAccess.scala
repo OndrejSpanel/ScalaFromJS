@@ -19,5 +19,11 @@ object FileAccess {
 
   }
 
+  def matchFileNotFound(ex: Exception): Boolean = ex.isInstanceOf[java.io.FileNotFoundException]
+
+  def listFiles(path: String): Seq[String] = {
+    val dir = new java.io.File(path)
+    dir.list().map(dir.toPath.resolve(_).toString)
+  }
 
 }

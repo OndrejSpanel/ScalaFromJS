@@ -522,21 +522,22 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
       target.exists(i => i._2 == path || i._2 == path + defaultExtension)
     }
 
-    def reportParseError(ex: Exception, path: String, importPath: String, inFile: String) = ex match {
-      case ex: java.io.FileNotFoundException =>
+    def reportParseError(ex: Exception, path: String, importPath: String, inFile: String) = {
+      if (FileAccess.matchFileNotFound(ex)) {
         // print a message, but try to continue
         if (!notFound.contains(path)) {
           println(s"warning: file $path ($importPath) not found (from $inFile)")
           notFound += path
         }
-      case ex: Exception =>
+      } else {
         // print a message, but try to continue
         if (!notFound.contains(path)) {
           println(s"warning: file $path ($importPath) not parsed (from $inFile) $ex")
           notFound += path
         }
-
+      }
     }
+
     ast.walk {
       case i: Node.ImportDeclaration =>
         val example = checkForComment(i, "@example")
@@ -569,10 +570,9 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
                   val htmlRelativeWildcard = "/*.html"
                   if (path.endsWith(htmlRelativeWildcard)) {
                     // TODO: allow exclusion
-                    val dir = new java.io.File(path.dropRight(htmlRelativeWildcard.length))
-                    val allHtmlFiles = dir.list((_, name) => name.endsWith(".html"))
-                    for (f <- allHtmlFiles) {
-                      includeBuffer appendAll readJsFromHtmlFile(dir.toPath.resolve(f).toString)
+                    val allHtmlFiles: Seq[String] = FileAccess.listFiles(path.dropRight(htmlRelativeWildcard.length))
+                    for (f <- allHtmlFiles if f.endsWith(".html")) {
+                      includeBuffer appendAll readJsFromHtmlFile(f)
                     }
                   } else {
                     includeBuffer appendAll readJsFromHtmlFile(path)
