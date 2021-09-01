@@ -30,25 +30,28 @@ object ScriptExtractor {
         matches.flatMap { m =>
           val src = m.group(2)
           val attributes = m.group(1)
+          def tryParse(src: String) = {
+            val parsed = Try {
+              esprima.parse(src)
+            }
+
+            parsed.failed.foreach { ex =>
+              println(s"warning: script from $name not parsed, error $ex")
+            }
+
+            parsed.toOption.map { _ =>
+              src
+            }
+          }
           attributes match {
             case ExtractType("module" | "javascript") =>
-
-              val parsed = Try {
-                esprima.parse(src)
-              }
-
-              parsed.failed.foreach { ex =>
-                println(s"warning: script from $name not parsed, error $ex")
-              }
-
-              parsed.toOption.map { _ =>
-                src
-              }
+              tryParse(src)
             case ExtractType(_) =>
+              // explicit type, but not JS - some non-js resource (vertex shader...)
               val id = ExtractId.findFirstMatchIn(attributes).map(_.group(1)).getOrElse("htmlcontent")
               Some(wrapAsJS(id, src))
             case _ =>
-              Some(src)
+              tryParse(src)
           }
 
         }.mkString("\n")
