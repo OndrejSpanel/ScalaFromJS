@@ -112,7 +112,9 @@ object SymbolTypes {
     override def knownItems = 1
   }
   case class ClassTypeEx(parents: Seq[String], name: SymbolMapId, typePars: Seq[TypeDesc] = Seq.empty) extends TypeDesc {
-    assert(parents.nonEmpty || name.sourcePos != (-1, -1) || !forbiddenGlobalTypes.contains(name.name))
+    if(forbiddenGlobalTypes.contains(name.name)) {
+      throw new UnsupportedOperationException(s"Forbidden type name ${name.name}")
+    }
     private def toSomething(x: TypeDesc => String) = {
       val baseName = (parents :+ name.name).mkString(".")
       if (typePars.isEmpty) {
