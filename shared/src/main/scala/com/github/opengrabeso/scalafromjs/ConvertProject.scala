@@ -153,13 +153,20 @@ object ConvertProject {
     }
   }
 
-  case class RegexPostprocessRule(find: String, replace: String) extends ExternalRule {
-    def transformText(src: String): String = src.replaceAll(find, replace)
-  }
+  trait RegExTransformRule extends ExternalRule {
+    def files: Option[String]
+    def find: String
+    def replace: String
 
-  case class RegexPreprocessRule(find: String, replace: String) extends ExternalRule {
-    def transformText(src: String): String = src.replaceAll(find, replace)
+    def transformText(path: String, src: String): String = {
+      if (files.forall(path.matches)) {
+        src.replaceAll(find, replace)
+      } else src
+    }
   }
+  case class RegexPostprocessRule(find: String, replace: String, files: Option[String]) extends RegExTransformRule
+
+  case class RegexPreprocessRule(find: String, replace: String, files: Option[String]) extends RegExTransformRule
 
   val prefixName = "ScalaFromJS_"
   val configName = prefixName + "settings"
@@ -167,13 +174,14 @@ object ConvertProject {
   case class ConvertConfig(root: String = "", rules: Seq[Rule] = Seq.empty) {
     def collectRules[T: ClassTag]: Seq[T] = rules.collect {case x: T => x}
 
-    def postprocess(src: String): String = {
+    def postprocess(path: String, src: String): String = {
       val processRules = collectRules[RegexPostprocessRule]
-      processRules.foldLeft(src)((processed, rule) => rule.transformText(processed))
+      processRules.foldLeft(src)((processed, rule) => rule.transformText(path, processed))
     }
-    def preprocess(src: String): String = {
+    def preprocess(path: String, src: String): String = {
       val processRules = collectRules[RegexPreprocessRule]
-      processRules.foldLeft(src)((processed, rule) => rule.transformText(processed))
+      val ret = processRules.foldLeft(src)((processed, rule) => rule.transformText(path, processed))
+      ret
     }
 
     def findAlias(filePath: String): (String, Option[AliasPackageRule]) = {
@@ -195,7 +203,8 @@ object ConvertProject {
       val shortFileName = shortName(filePath)
       val (name, alias) = findAlias(filePath)
       // package name does not matter here, return the content only
-      alias.map(_.applyJsTemplate(shortFileName, content)).getOrElse(content)
+      val ret = alias.map(_.applyJsTemplate(shortFileName, content)).getOrElse(content)
+      ret
     }
 
     def handleAlias(filePath: String)(content: String): (String, String) = {
@@ -282,7 +291,8 @@ object ConvertProject {
                 case Some("replace") =>
                   val find = loadRequiredStringValue(o, "pattern")
                   val replace = loadRequiredStringValue(o, "replace")
-                  Some(RegexPostprocessRule(find, replace))
+                  val files = loadStringValue(o, "files")
+                  Some(RegexPostprocessRule(find, replace, files))
                 case _ =>
                   None
               }
@@ -297,7 +307,8 @@ object ConvertProject {
                 case Some("replace") =>
                   val find = loadRequiredStringValue(o, "pattern")
                   val replace = loadRequiredStringValue(o, "replace")
-                  Some(RegexPreprocessRule(find, replace))
+                  val files = loadStringValue(o, "files")
+                  Some(RegexPreprocessRule(find, replace, files))
                 case _ =>
                   None
               }
@@ -438,7 +449,7 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
   final def resolveImportsExports: ConvertProject = {
     def readFileAsJs(path: String): (String, String) = {
       val aliasedCode = config.handleAliasPreprocess(path)(readSourceFile(path))
-      val code = config.preprocess(aliasedCode)
+      val code = config.preprocess(path, aliasedCode)
       // try parsing, if unable, return a comment file instead
       try {
         parse(code, detectTypescript(path))
@@ -487,7 +498,7 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
       val name = namePar.replace('\\', '/')
       val html = readSourceFile(name)
 
-      ScriptExtractor.fromHTML(name, html).map(js => config.preprocess(config.handleAliasPreprocess(name)(js)) -> name)
+      ScriptExtractor.fromHTML(name, html).map(js => config.preprocess(name, config.handleAliasPreprocess(name)(js)) -> name)
     }
 
     val ast = try {

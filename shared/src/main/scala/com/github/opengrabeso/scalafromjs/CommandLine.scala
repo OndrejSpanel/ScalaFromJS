@@ -31,7 +31,7 @@ object CommandLine {
 
       val shortFileName = shortName(inFile)
 
-      val processed = converted.config.postprocess(outCode)
+      val processed = converted.config.postprocess(inFile, outCode)
 
       val (aliasedName, wrappedOutCode) = converted.config.handleAlias(inRelative)(processed)
 

@@ -21,7 +21,7 @@ object Convert {
       val preparse = parse(script, typescript)
       val cfg = NodeExtended(preparse).loadConfig().config
 
-      val preprocessed = cfg.preprocess(script)
+      val preprocessed = cfg.preprocess("", script)
 
       val ast = parse(preprocessed, typescript)
 
@@ -30,7 +30,7 @@ object Convert {
       val astOptimized = Transform(ext)
       val ret = prefix(header) + ScalaOut.output(astOptimized, script).mkString
 
-      ext.config.postprocess(ret)
+      ext.config.postprocess("", ret)
     } else {
       def isEmptyFile(s: String) = {
         s.count(_.isWhitespace) == s.length
@@ -47,7 +47,7 @@ object Convert {
       val convertResult = ConvertProject("", ConvertConfig(), fileParts.toMap).convert
 
       val converted = convertResult.files.map { case (name, content) =>
-        s"\n//file:$name\n\n" + convertResult.config.postprocess(content)
+        s"\n//file:$name\n\n" + convertResult.config.postprocess(name, content)
       }.mkString
       prefix(header) + converted
     }
