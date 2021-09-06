@@ -87,8 +87,10 @@ object Variables {
 
     def isMethodIdentifier(name: Node.Identifier)(implicit ctx: ScopeContext) = {
       ctx.parent() match {
-        case Some(Node.MethodDefinition(nameNode, _, _, _, _, _)) =>
-          nameNode eq name
+        case Some(md: Node.MethodDefinition) =>
+          md.key eq name
+        case Some(prop: Node.PropertyEx) =>
+          prop.key eq name
         case _ =>
           false
       }

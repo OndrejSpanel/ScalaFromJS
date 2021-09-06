@@ -103,8 +103,10 @@ object TypesRule {
       case "string" => Some(SimpleType("String"))
       case "boolean" => Some(SimpleType("Boolean"))
       case "any" => None // any is usually a placeholder for missing information
+      case "never" => Some(NothingType)
       case "void" => Some(NoType)
       case "this" => None // TODO: some better support for this type
+      case "Array" => Some(ArrayType(AnyType))
       case _ => Some(ClassType(context.findSymId(name, memberFun)))
     }
     t

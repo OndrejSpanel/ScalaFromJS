@@ -112,7 +112,11 @@ object ConvertProject {
     }
   }
 
-  case class AliasPackageRule(folder: String, name: String, template: Option[String]) extends ExternalRule {
+  /**
+    * @param template substitution template applied on the Scala result (after conversion)
+    * @param jsTemplate substitution template applied on the JS source (before conversion)
+    * */
+  case class AliasPackageRule(folder: String, name: String, template: Option[String], jsTemplate: Option[String]) extends ExternalRule {
     def namePackage(path: String): Option[String] = {
       if (path startsWith folder) {
         val aliased = name ++ path.drop(folder.length)
@@ -129,6 +133,14 @@ object ConvertProject {
         t.substitute("class", className).substitute("this", content)
       }
     }
+    def applyJsTemplate(shortName: String, content: String): String = {
+      jsTemplate.fold(content){ t =>
+        import TextTemplates._
+        val dotIndex = shortName.indexOf('.')
+        val className = if (dotIndex < 0) shortName else shortName.take(dotIndex)
+        t.substitute("class", className).substitute("this", content)
+      }
+    }
   }
 
   object AliasPackageRule {
@@ -136,32 +148,73 @@ object ConvertProject {
       val folder = loadRequiredStringValue(o, "folder")
       val name = loadRequiredStringValue(o, "name")
       val template = loadStringValue(o, "template")
-      AliasPackageRule(terminatedPath(folder), terminatedPath(name), template)
+      val jsTemplate = loadStringValue(o, "jsTemplate")
+      AliasPackageRule(terminatedPath(folder), terminatedPath(name), template, jsTemplate)
     }
   }
 
-  case class RegexPostprocessRule(find: String, replace: String) extends ExternalRule {
-    def transformText(src: String): String = src.replaceAll(find, replace)
-  }
+  trait RegExTransformRule extends ExternalRule {
+    def files: Option[String]
+    def find: String
+    def replace: String
 
-  case class RegexPreprocessRule(find: String, replace: String) extends ExternalRule {
-    def transformText(src: String): String = src.replaceAll(find, replace)
+    def transformText(path: String, src: String): String = {
+      if (files.forall(path.matches)) {
+        src.replaceAll(find, replace)
+      } else src
+    }
   }
+  case class RegexPostprocessRule(find: String, replace: String, files: Option[String]) extends RegExTransformRule
+
+  case class RegexPreprocessRule(find: String, replace: String, files: Option[String]) extends RegExTransformRule
 
   val prefixName = "ScalaFromJS_"
   val configName = prefixName + "settings"
 
-  case class ConvertConfig(rules: Seq[Rule] = Seq.empty) {
+  case class ConvertConfig(root: String = "", rules: Seq[Rule] = Seq.empty) {
     def collectRules[T: ClassTag]: Seq[T] = rules.collect {case x: T => x}
 
-    def postprocess(src: String): String = {
+    def postprocess(path: String, src: String): String = {
       val processRules = collectRules[RegexPostprocessRule]
-      processRules.foldLeft(src)((processed, rule) => rule.transformText(processed))
+      processRules.foldLeft(src)((processed, rule) => rule.transformText(path, processed))
     }
-    def preprocess(src: String): String = {
+    def preprocess(path: String, src: String): String = {
       val processRules = collectRules[RegexPreprocessRule]
-      processRules.foldLeft(src)((processed, rule) => rule.transformText(processed))
+      val ret = processRules.foldLeft(src)((processed, rule) => rule.transformText(path, processed))
+      ret
     }
+
+    def findAlias(filePath: String): (String, Option[AliasPackageRule]) = {
+      val inRelativePathIndex = filePath.lastIndexOf('/')
+      val inRelativePath = if (inRelativePathIndex < 0) "" else filePath.take(inRelativePathIndex)
+      val terminated = terminatedPath(inRelativePath)
+      for (alias <- collectRules[AliasPackageRule]) {
+        val named = alias.namePackage(terminated)
+        if (named.isDefined) {
+          return (named.get, Some(alias))
+        }
+      }
+      (filePath.reverse.dropWhile(_ != '/').drop(1).reverse, None)
+    }
+
+    def handleAliasPreprocess(absPath: String)(content: String): String = {
+      val filePath = relativePath(root, absPath)
+
+      val shortFileName = shortName(filePath)
+      val (name, alias) = findAlias(filePath)
+      // package name does not matter here, return the content only
+      val ret = alias.map(_.applyJsTemplate(shortFileName, content)).getOrElse(content)
+      ret
+    }
+
+    def handleAlias(filePath: String)(content: String): (String, String) = {
+      val shortFileName = shortName(filePath)
+      val (name, alias) = findAlias(filePath)
+      val newContent = alias.map(_.applyTemplate(shortFileName, content)).getOrElse(content)
+      // return the package name
+      (name, newContent)
+    }
+
   }
 
   object ConvertConfig {
@@ -238,7 +291,8 @@ object ConvertProject {
                 case Some("replace") =>
                   val find = loadRequiredStringValue(o, "pattern")
                   val replace = loadRequiredStringValue(o, "replace")
-                  Some(RegexPostprocessRule(find, replace))
+                  val files = loadStringValue(o, "files")
+                  Some(RegexPostprocessRule(find, replace, files))
                 case _ =>
                   None
               }
@@ -253,7 +307,8 @@ object ConvertProject {
                 case Some("replace") =>
                   val find = loadRequiredStringValue(o, "pattern")
                   val replace = loadRequiredStringValue(o, "replace")
-                  Some(RegexPreprocessRule(find, replace))
+                  val files = loadStringValue(o, "files")
+                  Some(RegexPreprocessRule(find, replace, files))
                 case _ =>
                   None
               }
@@ -268,7 +323,7 @@ object ConvertProject {
           throw new UnsupportedOperationException(s"Unexpected config entry of type ${nodeClassName(n)}")
       }
       //println("Rules " + rules)
-      ConvertConfig(rules)
+      ConvertConfig(root.getOrElse(""), rules)
     }
   }
 
@@ -296,18 +351,19 @@ object ConvertProject {
   def loadControlFile(in: String): ConvertProject = {
 
     // parse only the control file to read the preprocess rules
-    val inSource = readSourceFile(in)
+    val code = readSourceFile(in)
     val typescript = detectTypescript(in)
-    val ext = NodeExtended(parse(inSource, typescript)).loadConfig(Some(in)).config
+    val ext = NodeExtended(parse(code, typescript)).loadConfig(Some(in)).config
 
     Time("loadControlFile") {
-      val code = ext.preprocess(inSource)
+      // do not preprocess the control file - it makes no sense
+      // and it is easy for regex rules to match themselves, which breaks the control file
       val predef = if (typescript) predefinedHeadersTS else predefinedHeadersJS
       val predefinedItems = ListMap(predef.map { case (name, code) =>
         name -> Item(code, false, name)
       }:_*)
 
-      val project = ConvertProject(in, ext.preprocess, predefinedItems ++ ListMap(in -> Item(code, true, in)))
+      val project = ConvertProject(in, ext, predefinedItems ++ ListMap(in -> Item(code, true, in)))
 
       project.resolveImportsExports
     }
@@ -341,7 +397,7 @@ object ConvertProject {
 
     }
 
-    val removedConfig = readConfig.fold(ast) { rc =>
+    val astWithoutConfig = readConfig.fold(ast) { rc =>
       ast.transformAfter { (node, _) =>
         node match {
           case GetConfig(_) =>
@@ -353,14 +409,15 @@ object ConvertProject {
       }
     }
 
-    readConfig.getOrElse(ConvertConfig()) -> removedConfig
+    val config = readConfig.getOrElse(ConvertConfig())
+    root.map(r => config.copy(root = r)).getOrElse(config) -> astWithoutConfig
   }
 
 
 }
 
 
-case class ConvertProject(root: String, preprocess: String => String, items: Map[String, Item]) {
+case class ConvertProject(root: String, config: ConvertConfig, items: Map[String, Item]) {
   val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
   // offset boundaries for all items, including before the first one (zero), and after the last one (total input lenght)
@@ -391,10 +448,12 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
   @scala.annotation.tailrec
   final def resolveImportsExports: ConvertProject = {
     def readFileAsJs(path: String): (String, String) = {
-      val code = preprocess(readSourceFile(path))
+      val aliasedCode = config.handleAliasPreprocess(path)(readSourceFile(path))
+      val code = config.preprocess(path, aliasedCode)
       // try parsing, if unable, return a comment file instead
       try {
         parse(code, detectTypescript(path))
+        //println(s"Input file $path")
         code -> path
       } catch {
         case ex: Exception =>
@@ -409,15 +468,7 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
           if (dot >= 0 && neverWrap.contains(short.drop(dot))) {
             throw ex
           } else {
-            // embed wrapped code as a variable using ES6 template string
-            // use isResource so that Scala output can check it and handle it as a special case
-            val wrap =
-            s"""
-               |const $simpleName = {
-               |  value: `$code`,
-               |  isResource: true
-               |}
-               |""".stripMargin
+            val wrap = ScriptExtractor.wrapAsJS(simpleName, code)
             wrap -> path
           }
       }
@@ -432,7 +483,6 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       val extension = if (rootExtension.nonEmpty) rootExtension else ".js"
       // first try if it is already loaded
       items.get(name).orElse(items.get(name + extension)).fold {
-        //println(s"Read file $name as $singlePath (in $base)")
         try {
           readFileAsJs(name)
         } catch {
@@ -442,6 +492,13 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       } { item =>
         item.code -> item.fullName
       }
+    }
+
+    def readJsFromHtmlFile(namePar: String): Option[(String, String)] = {
+      val name = namePar.replace('\\', '/')
+      val html = readSourceFile(name)
+
+      ScriptExtractor.fromHTML(name, html).map(js => config.preprocess(name, config.handleAliasPreprocess(name)(js)) -> name)
     }
 
     val ast = try {
@@ -462,16 +519,51 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
     // check export / import statements
     val exampleBuffer = new mutable.ArrayBuffer[(String, String)]
     val includeBuffer = new mutable.ArrayBuffer[(String, String)]
+    val notFound = mutable.Set.empty[String]
+    def checkForComment(node: Node.Node, comment: String): Boolean = {
+      Option(node.leadingComments).toSeq.flatten.exists { commentToken =>
+        commentToken.value contains comment
+      }
+    }
+
+    val rootExtension = PathUtils.shortName(root).dropWhile(_ != '.')
+    val defaultExtension = if (rootExtension.nonEmpty) rootExtension else ".js"
+
+    def alreadyPresent(target: Seq[(String, String)], path: String) = {
+      target.exists(i => i._2 == path || i._2 == path + defaultExtension)
+    }
+
+    def reportParseError(ex: Exception, path: String, importPath: String, inFile: String) = {
+      if (FileAccess.matchFileNotFound(ex)) {
+        // print a message, but try to continue
+        if (!notFound.contains(path)) {
+          println(s"warning: file $path ($importPath) not found (from $inFile)")
+          notFound += path
+        }
+      } else {
+        // print a message, but try to continue
+        if (!notFound.contains(path)) {
+          println(s"warning: file $path ($importPath) not parsed (from $inFile) $ex")
+          notFound += path
+        }
+      }
+    }
+
     ast.walk {
       case i: Node.ImportDeclaration =>
-        val example = Option(i.leadingComments).toSeq.flatten.exists { commentToken =>
-          val comment = commentToken.value
-          comment contains "@example"
-        }
+        val example = checkForComment(i, "@example")
         val target = if (example) exampleBuffer else includeBuffer
         val inFile = pathForOffset(i.range._1)
         val importPath = i.source.value
-        target append readJsFile(resolveSibling(inFile, importPath))
+        val path = resolveSibling(inFile, importPath)
+        try {
+          if (!alreadyPresent(target, path)) {
+            target append readJsFile(path)
+          }
+        } catch {
+          case ex: Exception =>
+            reportParseError(ex, path, importPath, inFile)
+        }
         false
       case e@ExportFromSource(Defined(StringLiteral(source))) =>
         // ignore exports in imported files
@@ -480,7 +572,31 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
           //println(s"index of ${s.pos} = $index in $offsets")
           if (values.isDefinedAt(index) && values(index).included) {
             val inFile = pathForOffset(s)
-            includeBuffer append readJsFile(resolveSibling(pathForOffset(s), source))
+            val path = resolveSibling(inFile, source)
+            if (!alreadyPresent(includeBuffer, path)) {
+              val htmlScript = checkForComment(e, "@html-script")
+              try {
+                if (htmlScript) {
+                  // TODO: support wildcards for other file types as well
+                  val htmlRelativeWildcard = "/*.html"
+                  if (path.endsWith(htmlRelativeWildcard)) {
+                    // TODO: allow exclusion
+                    val allHtmlFiles: Seq[String] = FileAccess.listFiles(path.dropRight(htmlRelativeWildcard.length))
+                    for (f <- allHtmlFiles if f.endsWith(".html")) {
+                      includeBuffer appendAll readJsFromHtmlFile(f)
+                    }
+                  } else {
+                    includeBuffer appendAll readJsFromHtmlFile(path)
+                  }
+                }
+                else {
+                  includeBuffer append readJsFile(path)
+                }
+              } catch {
+                case ex: Exception =>
+                  reportParseError(ex, path, source, inFile)
+              }
+            }
           }
         }
 
@@ -519,7 +635,8 @@ case class ConvertProject(root: String, preprocess: String => String, items: Map
       assert((old.keySet intersect includes.map(_._1).toSet).isEmpty)
       //println(s"  old ${old.map(_.name).mkString(",")}")
 
-      ConvertProject(root, preprocess, old ++ examples ++ includes).resolveImportsExports
+      //println("Inputs read")
+      ConvertProject(root, config, old ++ examples ++ includes).resolveImportsExports
     }
   }
 

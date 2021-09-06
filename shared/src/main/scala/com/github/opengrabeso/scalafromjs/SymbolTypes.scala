@@ -112,7 +112,9 @@ object SymbolTypes {
     override def knownItems = 1
   }
   case class ClassTypeEx(parents: Seq[String], name: SymbolMapId, typePars: Seq[TypeDesc] = Seq.empty) extends TypeDesc {
-    assert(parents.nonEmpty || name.sourcePos != (-1, -1) || !forbiddenGlobalTypes.contains(name.name))
+    if(forbiddenGlobalTypes.contains(name.name)) {
+      throw new UnsupportedOperationException(s"Forbidden type name ${name.name}")
+    }
     private def toSomething(x: TypeDesc => String) = {
       val baseName = (parents :+ name.name).mkString(".")
       if (typePars.isEmpty) {
@@ -235,6 +237,10 @@ object SymbolTypes {
   case object NoType extends TypeDesc { // subtype of all
     override def toString = "Unit"
     override def toOut = "Unit"
+  }
+  case object NothingType extends TypeDesc { // subtype of all
+    override def toString = "Nothing"
+    override def toOut = "Nothing"
   }
   case object NullType extends TypeDesc {
     override def toString = "Null"
@@ -685,8 +691,12 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
 
   override def resolveClass(t: ClassType) = {
     // never resolve to an anonymous class - prefer unresolved named class instead
-    // (resolving to an anonymous class caused a test failure for "d.ts enum conversion"
-    types.get(t.name).map(_.declType).filterNot(_.isInstanceOf[AnonymousClassType]).getOrElse(t)
+    types.get(t.name).map(_.declType).filterNot { t =>
+      // (resolving to an anonymous class caused a test failure for "d.ts enum conversion"
+      t.isInstanceOf[AnonymousClassType] ||
+      // resolving to Any or Unit is almost never what we want
+      t == AnyType || t == NoType
+    }.getOrElse(t)
   }
 
   def getResolved(id: Option[SymbolMapId]): Option[TypeInfo] = {

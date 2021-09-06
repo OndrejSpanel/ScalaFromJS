@@ -412,6 +412,9 @@ trait NodeExt {
     def unapply(arg: Node.ExportDeclaration) = arg match {
       case Node.ExportAllDeclaration(source) =>
         Some(source)
+      // ignore marker exports
+      case Node.ExportNamedDeclaration(VarDecl(name, Some(Node.Literal(value, raw)), "const"), Seq(), null) if name.startsWith(ConvertProject.prefixName) =>
+        None
       case Node.ExportNamedDeclaration(declaration, specifiers, source) =>
         Some(source)
       case _ =>

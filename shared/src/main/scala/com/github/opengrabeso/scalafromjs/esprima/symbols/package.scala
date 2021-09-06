@@ -1,6 +1,7 @@
 package com.github.opengrabeso.scalafromjs.esprima
 
 import com.github.opengrabeso.esprima.Node
+import com.github.opengrabeso.esprima.walker
 import Node._
 import com.github.opengrabeso.scalafromjs.Classes
 

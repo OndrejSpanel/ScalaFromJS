@@ -29,17 +29,10 @@ lazy val commonSettings = Seq(
   version := "0.6.0",
   scalaVersion := "2.13.6",
   scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation"),
-  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.2.6",
+  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.2.11",
   libraryDependencies += "org.scala-lang.modules" %%% "scala-parser-combinators" % "1.1.2",
   libraryDependencies += "org.scalatest" %%% "scalatest" % "3.2.2" % "test"
 )
-
-lazy val walkers = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Pure).settings(
-  libraryDependencies += "org.scala-lang" % "scala-reflect" % scalaVersion.value, // needed for macros
-  commonSettings,
-  name := "walkers"
-)
-
 
 lazy val root = project.in(file("root")).
   aggregate(pJVM, pJS).
@@ -49,7 +42,7 @@ lazy val root = project.in(file("root")).
     publishLocal := {}
   )
 
-lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Full).in(file(".")).dependsOn(walkers)
+lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Full).in(file("."))
   .settings(
     name := "ScalaFromJS",
     commonSettings

@@ -1,6 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
 import com.github.opengrabeso.esprima.Node._
+import com.github.opengrabeso.esprima.walker
+import com.github.opengrabeso.esprima.walker._
 import com.github.opengrabeso.esprima.{Esprima, Parser}
 import com.github.opengrabeso.scalafromjs.esprima.symbols.ScopeContext
 

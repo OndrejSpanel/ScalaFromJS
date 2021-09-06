@@ -1,7 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 
 import com.github.opengrabeso.scalafromjs.esprima._
-import com.github.opengrabeso.esprima.{GlobalConfig=>_, _}
+import com.github.opengrabeso.esprima.{GlobalConfig => _, _}
+import com.github.opengrabeso.scalafromjs.ConvertProject.ConvertConfig
 
 object Convert {
 
@@ -15,20 +16,21 @@ object Convert {
     val files = code.split("\\/\\/file\\:")
     if (files.lengthCompare(1) <= 0) {
 
+      val script = ScriptExtractor(code)
       // note: here we parse only to load the preprocess config
-      val preparse = parse(code, typescript)
+      val preparse = parse(script, typescript)
       val cfg = NodeExtended(preparse).loadConfig().config
 
-      val preprocessed = cfg.preprocess(code)
+      val preprocessed = cfg.preprocess("", script)
 
       val ast = parse(preprocessed, typescript)
 
       val ext = NodeExtended(ast).loadConfig()
 
       val astOptimized = Transform(ext)
-      val ret = prefix(header) + ScalaOut.output(astOptimized, code).mkString
+      val ret = prefix(header) + ScalaOut.output(astOptimized, script).mkString
 
-      ext.config.postprocess(ret)
+      ext.config.postprocess("", ret)
     } else {
       def isEmptyFile(s: String) = {
         s.count(_.isWhitespace) == s.length
@@ -42,10 +44,10 @@ object Convert {
         fileName -> ConvertProject.Item(terminatedCode, true, fileName)
 
       }
-      val convertResult = ConvertProject("", identity, fileParts.toMap).convert
+      val convertResult = ConvertProject("", ConvertConfig(), fileParts.toMap).convert
 
       val converted = convertResult.files.map { case (name, content) =>
-        s"\n//file:$name\n\n" + convertResult.config.postprocess(content)
+        s"\n//file:$name\n\n" + convertResult.config.postprocess(name, content)
       }.mkString
       prefix(header) + converted
     }

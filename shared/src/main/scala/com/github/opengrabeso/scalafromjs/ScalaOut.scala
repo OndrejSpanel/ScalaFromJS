@@ -824,6 +824,8 @@ object ScalaOut {
             name
           case VarDecl(name, _, _) =>
             name
+          case Node.EmptyStatement() =>
+            "_"
         }
         out(identifier(variable))
         out(" <- ")
@@ -969,10 +971,12 @@ object ScalaOut {
           out" $op "
           nodeToOut(right)
         case Node.BinaryExpression(op, left, right) =>
-          def typeNameFromExpression(ex: Node.Expression) = {
-            val tpe = right match {
+          def typeNameFromExpression(ex: Node.Expression): String = {
+            val tpe = ex match {
               case Node.Identifier(rTypeName) =>
                 transform.TypesRule.typeFromIdentifierName(rTypeName, false)(context).map(_.toOutResolved)
+              case Node.StaticMemberExpression(obj, property) =>
+                Some(typeNameFromExpression(obj) + "." + nodeToString(property))
               case _ =>
                 None
             }
@@ -1375,7 +1379,7 @@ object ScalaOut {
 
               for {
                 inlineBody <- inlineBodyOpt
-                method <- getMethodMethod(inlineBody)
+                method <- getMethodMethod(inlineBody) if method.params.nonEmpty
               } {
                 outputClassArgNames(method.params)(method)
               }
@@ -1392,9 +1396,11 @@ object ScalaOut {
                   // find the super constructor call and use its parameters
                   method.body.body.foreach {
                     case Node.ExpressionStatement(call@Node.CallExpression(_: Node.Super, pars)) =>
-                      out("(")
-                      outputNodes(pars)(nodeToOut)
-                      out(")")
+                      if (pars.nonEmpty) {
+                        out("(")
+                        outputNodes(pars)(nodeToOut)
+                        out(")")
+                      }
                     case _ =>
                   }
                 }

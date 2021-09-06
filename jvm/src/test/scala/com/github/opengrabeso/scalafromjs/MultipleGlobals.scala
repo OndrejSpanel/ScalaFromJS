@@ -19,12 +19,17 @@ class MultipleGlobals extends AnyFunSuite with TestUtils {
       function c() {
         return x;
       }
+
+      var cc;
+      if (true) cc = c();
       """).required(
       "x = 0",
       "x$1 = \"\"",
       "x$2 = false",
+      "x$1 = bp",
       "ap: Double",
-      "bp: String"
+      "bp: String",
+      "cc: Boolean"
     )
   }
 
@@ -66,6 +71,23 @@ class MultipleGlobals extends AnyFunSuite with TestUtils {
       "def x_=(",
       "val x = bp"
     ).forbidden("def x$")
+  }
+
+  test("Renaming a global must not rename object properties") { // detectDoubleVars
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      var a;
+
+      var a;
+
+      var n = {
+        a: ""
+      }
+      """).required(
+      "var a$1",
+      "var a = \"\""
+    )
   }
 }
 
