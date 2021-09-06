@@ -92,7 +92,7 @@ object ScalaOut {
     private var eolPending = 0
     private var indentLevel = 0
 
-    protected def currentIndentLevel = indentLevel
+    def isIndented: Boolean = indentLevel > 0
 
     override def changeIndent(ch: Int): Unit = indentLevel += ch
 
@@ -672,6 +672,41 @@ object ScalaOut {
         }
       }
 
+      def outputObjectLiteral(tn: OObject): Unit = {
+        val delimiter = ", "
+        // TODO: DRY with outputNodes
+        out("Map(")
+        // try to respect line boundaries as specified in the input
+        val firstLine = Option(tn.loc).map(_.start.line).getOrElse(0)
+        val lastLine = Option(tn.loc).map(_.end.line).getOrElse(0)
+        var currentLine = firstLine
+        out.indent()
+        if (lastLine > firstLine) out.eol()
+        for ((arg, delim) <- markEnd(tn.properties) if arg != null) {
+          val argLine = Option(arg.loc).map(_.start.line).getOrElse(currentLine)
+          arg match {
+            case Node.SpreadElement(argument) =>
+              out"/* spread */ "
+              nodeToOut(argument)
+            case Node.PropertyEx(kind, key, computed, value, method, shorthand, readonly) =>
+              // what about method and other properties?
+              val name = propertyKeyName(key)
+              out""""$name" -> """
+              nodeToOut(value)
+          }
+          if (delim) {
+            out(delimiter)
+            if (argLine > currentLine) {
+              out.eol()
+              currentLine = argLine
+            }
+          }
+        }
+        if (lastLine > currentLine) out.eol()
+        out.unindent()
+        out(")")
+      }
+
       def outputMethodNode(pm: Node.ClassBodyElement, decl: String = "def", eol: Boolean = true) = {
         if (eol) out.eol()
         pm match {
@@ -944,19 +979,7 @@ object ScalaOut {
           out.eol()
           outputMethod(tn.key, tn.value, tn.kind, Option(tn.`type`))
         case tn: OObject =>
-          if (tn.properties.isEmpty) {
-            out("new {}")
-          } else {
-            out("new {\n") // prefer anonymous class over js.Dynamic.literal
-            out.indent()
-            tn.properties.foreach { n =>
-              nodeToOut(n)
-              out.eol()
-            }
-            out.unindent()
-            out.eol()
-            out("}")
-          }
+          outputObjectLiteral(tn)
         case tn: AArray =>
           out("Array(")
           out.indent()
@@ -1630,7 +1653,7 @@ object ScalaOut {
 
       override def submitLocation(loc: Int, debug: =>String) = {
         // start new files only when there is no indenting (top-level)
-        if (currentIndentLevel == 0) {
+        if (!isIndented) {
           // check if we have crossed a file boundary, start a new output file if needed
           //println(s"loc $loc of ${outConfig.parts}")
           while (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb)) {
