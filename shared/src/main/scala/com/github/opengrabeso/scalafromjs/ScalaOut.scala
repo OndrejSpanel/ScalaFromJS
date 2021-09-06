@@ -999,20 +999,15 @@ object ScalaOut {
         case tn: OObject =>
           // None means "I do not know", true is use Map, false is use new
           def useMap(node: Node.Node): Option[Boolean] = node match {
-            case _: Node.VariableDeclaration =>
-              Some(true)
-            case _: Node.AssignmentExpression =>
-              Some(false)
-            case _: Node.CallExpression =>
-              Some(false)
-            case _: Node.ArrayExpression =>
-              Some(false)
-            case _: Node.NewExpression =>
-              Some(false)
-            case _: Node.FunctionDeclaration =>
-              Some(false) // esp. intended to catch return values
-            case _: Node.FunctionExpression =>
-              Some(false) // esp. intended to catch return values
+            case _: Node.VariableDeclaration => Some(true)
+            // assignment into a member variable is the same as a variable declaration
+            case Node.AssignmentExpression("=", a Dot b, _) => Some(true)
+            case _: Node.AssignmentExpression => Some(false)
+            //case _: Node.CallExpression => Some(false)
+            //case _: Node.ArrayExpression => Some(false)
+            //case _: Node.NewExpression => Some(false)
+            case _: Node.FunctionDeclaration => Some(false) // esp. intended to catch return values
+            case _: Node.FunctionExpression => Some(false) // esp. intended to catch return values
             case _ =>
               None
           }

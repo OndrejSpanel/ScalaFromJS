@@ -677,9 +677,6 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
 
-    // find any declaration in the DTS which has no matching counterpart
-
-
     if (false) {
       (fileOffsets zip exports).foreach { case (offset, filename) =>
         println(s"  Offset $offset filename ${filename.fullName}")
