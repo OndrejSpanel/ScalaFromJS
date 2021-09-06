@@ -280,6 +280,7 @@ object SymbolTypes {
   def classFromType(tpe: Option[TypeInfo]): Option[SymbolMapId] = {
     tpe.map(_.declType) match {
       case Some(ClassType(name)) => Some(name)
+      case Some(AnonymousClassType(sourcePos)) => Some(SymbolMapId("anonymous", sourcePos))
       case _ => None
     }
   }

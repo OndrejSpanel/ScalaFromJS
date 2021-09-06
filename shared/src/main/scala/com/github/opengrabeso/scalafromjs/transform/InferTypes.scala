@@ -392,7 +392,9 @@ object InferTypes {
 
 
         case expr Dot name =>
-          val clsId = memberId(classFromType(expressionType(expr)), name)
+          // dot access - most likely an object
+          val exprType = expressionType(expr)
+          val clsId = memberId(classFromType(exprType), name)
           clsId.map(new SymbolAccessDot(_))
 
         case _ =>
