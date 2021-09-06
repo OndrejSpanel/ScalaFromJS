@@ -50,6 +50,19 @@ object SymbolDeclaration {
         processBlock(block.body)
       case block: ClassBody =>
         processBlock(block.body)
+      case obj: OObject =>
+        obj.properties.flatMap {
+          case prop: PropertyEx =>
+            val named = prop.key match {
+              case LiteralAsName(name) => true
+              case Identifier(name) => true
+              case _ => false
+            }
+            if (named) Some(prop.key -> true) // object properties should not be resolved using normal variable access
+            else None
+          case _ => // spread
+            None
+        }
       case cls: ClassDeclaration =>
         Seq((cls.id, false))
       // scan VariableDeclaration so that the declaration is already available when pattern matching against it
