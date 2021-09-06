@@ -3,6 +3,7 @@ package com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import Classes._
+import com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, SymId, memberFunId}
 
 import scala.util.Try
@@ -22,9 +23,14 @@ object ScalaOut {
 
   def trimSource(s: String): String = s.replaceAll(";+$", "")
 
-  // @param unknowns annotate unknown constructs with a comment (source is always passed through)
+  case class Part(from: Int, to: Int, name: String = "", hints: ConvertProject.Hints = ConvertProject.Hints())
 
-  case class Config(unknowns: Boolean = true, parts: Seq[Int] = Seq(Int.MaxValue), root: String = "") {
+  object Part {
+    def whole: Part = new Part(0, Int.MaxValue)
+  }
+
+  // @param unknowns annotate unknown constructs with a comment (source is always passed through)
+  case class Config(unknowns: Boolean = true, parts: Seq[Part] = Seq(Part.whole), root: String = "") {
 
     def pathToPackage(path: String): String = {
       val parentPrefix = "../"
@@ -38,7 +44,7 @@ object ScalaOut {
 
     def withRoot(root: String) = copy(root = root)
 
-    def withParts(parts: Seq[Int]) = copy(parts = parts)
+    def withParts(parts: Seq[Part]) = copy(parts = parts)
 
     def formatImport(imported_names: Seq[String], module_name: String, source: String) = {
       // Trim leading or trailing characters from a string? - https://stackoverflow.com/a/25691614/16673
@@ -82,6 +88,8 @@ object ScalaOut {
     def unindent(): Unit = changeIndent(-1)
 
     def submitLocation(loc: Int, debug: =>String): Unit = {}
+
+    def currentHints: ConvertProject.Hints = ConvertProject.Hints()
   }
 
   abstract class NiceOutput extends Output {
@@ -997,27 +1005,10 @@ object ScalaOut {
 
 
         case tn: OObject =>
-          // None means "I do not know", true is use Map, false is use new
-          def useMap(node: Node.Node): Option[Boolean] = node match {
-            case _: Node.VariableDeclaration => Some(true)
-            // assignment into a member variable is the same as a variable declaration
-            case Node.AssignmentExpression("=", a Dot b, _) => Some(true)
-            case _: Node.AssignmentExpression => Some(false)
-            //case _: Node.CallExpression => Some(false)
-            //case _: Node.ArrayExpression => Some(false)
-            //case _: Node.NewExpression => Some(false)
-            case _: Node.FunctionDeclaration => Some(false) // esp. intended to catch return values
-            case _: Node.FunctionExpression => Some(false) // esp. intended to catch return values
-            case _ =>
-              None
-          }
-          context.parents.reverseIterator.flatMap(useMap).nextOption() match {
-            case Some(true) =>
-              outputObjectLiteral(tn)
-            case Some(false) =>
-              outputObjectLiteralUsingNew(tn)
-            case None => // default
-              outputObjectLiteralUsingNew(tn)
+          if (out.currentHints.literals.contains("map")) {
+            outputObjectLiteral(tn)
+          } else {
+            outputObjectLiteralUsingNew(tn)
           }
 
         case tn: AArray =>
@@ -1685,6 +1676,7 @@ object ScalaOut {
     val sb = Array.fill(outConfig.parts.size max 1)(new StringBuilder)
     var currentSb = 0
     val ret = new NiceOutput {
+
       override def out(x: String) = {
         if (currentSb < sb.length) {
           sb(currentSb) append x
@@ -1696,12 +1688,15 @@ object ScalaOut {
         if (!isIndented) {
           // check if we have crossed a file boundary, start a new output file if needed
           //println(s"loc $loc of ${outConfig.parts}")
-          while (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb)) {
+          while (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb).to) {
             currentSb += 1
             //println(s"Advance to $currentSb at $loc - debug $debug")
           }
         }
       }
+
+      override def currentHints: ConvertProject.Hints = outConfig.parts(currentSb).hints
+
     }
 
     val classListHarmony = ClassListHarmony.fromAST(ast.top)

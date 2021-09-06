@@ -106,6 +106,19 @@ object ConvertProject {
 
   }
 
+  case class Hints(
+    literals: Option[String] = None
+  ) {
+    def ++ (that: Hints): Hints = {
+      Hints(
+        literals.orElse(that.literals)
+      )
+    }
+  }
+  case class HintsRule(files: String, hints: Hints) extends Rule {
+    override def apply(n: NodeExtended) = n
+  }
+
   case class RemoveScopeRule(scope: List[String]) extends Rule {
     override def apply(n: NodeExtended) = {
       transform.classes.Rules.removeScope(n, scope)
@@ -171,6 +184,7 @@ object ConvertProject {
   val prefixName = "ScalaFromJS_"
   val configName = prefixName + "settings"
 
+
   case class ConvertConfig(root: String = "", rules: Seq[Rule] = Seq.empty) {
     def collectRules[T: ClassTag]: Seq[T] = rules.collect {case x: T => x}
 
@@ -182,6 +196,17 @@ object ConvertProject {
       val processRules = collectRules[RegexPreprocessRule]
       val ret = processRules.foldLeft(src)((processed, rule) => rule.transformText(path, processed))
       ret
+    }
+
+    def hintsForFile(path: String): Hints = {
+      val hintsRules = collectRules[HintsRule]
+      val allHints = hintsRules.foldLeft(Hints()) { (hints, rule) =>
+        // first match applies - ++ overwrites, meaning hints takes precedence over rule.hints
+        if (path.matches(rule.files)) {
+          rule.hints ++ hints
+        } else hints
+      }
+      allHints
     }
 
     def findAlias(filePath: String): (String, Option[AliasPackageRule]) = {
@@ -312,6 +337,16 @@ object ConvertProject {
                 case _ =>
                   None
               }
+            case _ =>
+              None
+          }
+        case ObjectKeyVal("hints", a: AArray) =>
+          a.elements.flatMap {
+            case o: OObject =>
+              val files = loadRequiredStringValue(o, "files")
+              Some(HintsRule(files, Hints(
+                literals = loadStringValue(o, "literals")
+              )))
             case _ =>
               None
           }
@@ -671,9 +706,13 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
 
     val ext = NodeExtended(ast).loadConfig(Some(root))
 
+    val parts = (fileOffsets lazyZip fileOffsets.drop(1) lazyZip exports).map { case (from, to, item) =>
+      ScalaOut.Part(from, to, name = item.fullName, hints = config.hintsForFile(item.fullName))
+    }
+
     val astOptimized = if (true) Transform(ext) else ext
 
-    val outConfig = ScalaOut.Config().withParts(fileOffsets drop 1).withRoot(root)
+    val outConfig = ScalaOut.Config().withParts(parts).withRoot(root)
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
 
