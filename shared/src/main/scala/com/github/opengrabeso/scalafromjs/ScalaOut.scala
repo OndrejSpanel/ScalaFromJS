@@ -707,6 +707,22 @@ object ScalaOut {
         out(")")
       }
 
+      def outputObjectLiteralUsingNew(tn: OObject): Unit = {
+        if (tn.properties.isEmpty) {
+          out("new {}")
+        } else {
+          out("new {\n") // prefer anonymous class over js.Dynamic.literal
+          out.indent()
+          tn.properties.foreach { n =>
+            nodeToOut(n)
+            out.eol()
+          }
+          out.unindent()
+          out.eol()
+          out("}")
+        }
+      }
+
       def outputMethodNode(pm: Node.ClassBodyElement, decl: String = "def", eol: Boolean = true) = {
         if (eol) out.eol()
         pm match {
@@ -978,8 +994,37 @@ object ScalaOut {
           //out"/*${nodeClassName(n)}*/"
           out.eol()
           outputMethod(tn.key, tn.value, tn.kind, Option(tn.`type`))
+
+
         case tn: OObject =>
-          outputObjectLiteral(tn)
+          // None means "I do not know", true is use Map, false is use new
+          def useMap(node: Node.Node): Option[Boolean] = node match {
+            case _: Node.VariableDeclaration =>
+              Some(true)
+            case _: Node.AssignmentExpression =>
+              Some(false)
+            case _: Node.CallExpression =>
+              Some(false)
+            case _: Node.ArrayExpression =>
+              Some(false)
+            case _: Node.NewExpression =>
+              Some(false)
+            case _: Node.FunctionDeclaration =>
+              Some(false) // esp. intended to catch return values
+            case _: Node.FunctionExpression =>
+              Some(false) // esp. intended to catch return values
+            case _ =>
+              None
+          }
+          context.parents.reverseIterator.flatMap(useMap).nextOption() match {
+            case Some(true) =>
+              outputObjectLiteral(tn)
+            case Some(false) =>
+              outputObjectLiteralUsingNew(tn)
+            case None => // default
+              outputObjectLiteralUsingNew(tn)
+          }
+
         case tn: AArray =>
           out("Array(")
           out.indent()

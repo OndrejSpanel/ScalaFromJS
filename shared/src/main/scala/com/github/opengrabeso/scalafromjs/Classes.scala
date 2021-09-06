@@ -258,7 +258,11 @@ object Classes {
     def getAnonymous(name: SymbolMapId): Option[Node.ObjectExpression] = anonymous.get(name)
 
     def classPos(name: SymbolMapId): (Int, Int) = {
-      classes.get(name).map(_._2.body.range).map(symbols.ScopeContext.markAsClass).getOrElse((-1, -1))
+      if (name.name == ":anonymous") {
+        name.sourcePos
+      } else {
+        classes.get(name).map(_._2.body.range).map(symbols.ScopeContext.markAsClass).getOrElse((-1, -1))
+      }
     }
 
   }
