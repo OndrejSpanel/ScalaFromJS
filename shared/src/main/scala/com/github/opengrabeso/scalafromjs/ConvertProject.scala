@@ -109,13 +109,13 @@ object ConvertProject {
   case class Hints(
     literals: Option[String] = None
   ) {
-    def ++ (that: Hints): Hints = {
+    def append(that: Hints): Hints = {
       Hints(
         literals.orElse(that.literals)
       )
     }
   }
-  case class HintsRule(files: String, hints: Hints) extends Rule {
+  case class HintsRule(path: String, hints: Hints) extends Rule {
     override def apply(n: NodeExtended) = n
   }
 
@@ -198,12 +198,12 @@ object ConvertProject {
       ret
     }
 
-    def hintsForFile(path: String): Hints = {
+    def hintsForPath(path: String): Hints = {
       val hintsRules = collectRules[HintsRule]
       val allHints = hintsRules.foldLeft(Hints()) { (hints, rule) =>
-        // first match applies - ++ overwrites, meaning hints takes precedence over rule.hints
-        if (path.matches(rule.files)) {
-          rule.hints ++ hints
+        // first match applies
+        if (path.matches(rule.path)) {
+          hints append rule.hints
         } else hints
       }
       allHints
@@ -343,7 +343,7 @@ object ConvertProject {
         case ObjectKeyVal("hints", a: AArray) =>
           a.elements.flatMap {
             case o: OObject =>
-              val files = loadRequiredStringValue(o, "files")
+              val files = loadRequiredStringValue(o, "path")
               Some(HintsRule(files, Hints(
                 literals = loadStringValue(o, "literals")
               )))
@@ -707,12 +707,17 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
     val ext = NodeExtended(ast).loadConfig(Some(root))
 
     val parts = (fileOffsets lazyZip fileOffsets.drop(1) lazyZip exports).map { case (from, to, item) =>
-      ScalaOut.Part(from, to, name = item.fullName, hints = config.hintsForFile(item.fullName))
+      val filePath = relativePath(root, item.fullName)
+      ScalaOut.Part(from, to, name = filePath)
     }
 
     val astOptimized = if (true) Transform(ext) else ext
 
-    val outConfig = ScalaOut.Config().withParts(parts).withRoot(root)
+    val outConfig = ScalaOut.Config(
+      parts = parts,
+      root = root,
+      cfg = ext.config
+    )
     //println(s"$outConfig")
     val output = ScalaOut.output(astOptimized, compositeFile, outConfig)
 

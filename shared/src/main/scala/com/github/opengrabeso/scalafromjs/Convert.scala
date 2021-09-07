@@ -28,7 +28,8 @@ object Convert {
       val ext = NodeExtended(ast).loadConfig()
 
       val astOptimized = Transform(ext)
-      val ret = prefix(header) + ScalaOut.output(astOptimized, script).mkString
+      val outConfig = ScalaOut.Config(cfg = cfg)
+      val ret = prefix(header) + ScalaOut.output(astOptimized, script, outConfig).mkString
 
       ext.config.postprocess("", ret)
     } else {

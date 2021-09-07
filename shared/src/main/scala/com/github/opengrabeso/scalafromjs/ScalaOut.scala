@@ -23,14 +23,17 @@ object ScalaOut {
 
   def trimSource(s: String): String = s.replaceAll(";+$", "")
 
-  case class Part(from: Int, to: Int, name: String = "", hints: ConvertProject.Hints = ConvertProject.Hints())
+  case class Part(from: Int, to: Int, name: String = "")
 
   object Part {
     def whole: Part = new Part(0, Int.MaxValue)
   }
 
   // @param unknowns annotate unknown constructs with a comment (source is always passed through)
-  case class Config(unknowns: Boolean = true, parts: Seq[Part] = Seq(Part.whole), root: String = "") {
+  case class Config(
+    unknowns: Boolean = true, parts: Seq[Part] = Seq(Part.whole), root: String = "",
+    cfg: ConvertProject.ConvertConfig = ConvertProject.ConvertConfig()
+  ) {
 
     def pathToPackage(path: String): String = {
       val parentPrefix = "../"
@@ -41,10 +44,6 @@ object ScalaOut {
         path.replace('/', '.')
       }
     }
-
-    def withRoot(root: String) = copy(root = root)
-
-    def withParts(parts: Seq[Part]) = copy(parts = parts)
 
     def formatImport(imported_names: Seq[String], module_name: String, source: String) = {
       // Trim leading or trailing characters from a string? - https://stackoverflow.com/a/25691614/16673
@@ -89,7 +88,7 @@ object ScalaOut {
 
     def submitLocation(loc: Int, debug: =>String): Unit = {}
 
-    def currentHints: ConvertProject.Hints = ConvertProject.Hints()
+    def currentFile: String = ""
   }
 
   abstract class NiceOutput extends Output {
@@ -680,10 +679,10 @@ object ScalaOut {
         }
       }
 
-      def outputObjectLiteral(tn: OObject): Unit = {
+      def outputObjectLiteral(tn: OObject, identifier: String): Unit = {
         val delimiter = ", "
         // TODO: DRY with outputNodes
-        out("Map(")
+        out"$identifier("
         // try to respect line boundaries as specified in the input
         val firstLine = Option(tn.loc).map(_.start.line).getOrElse(0)
         val lastLine = Option(tn.loc).map(_.end.line).getOrElse(0)
@@ -692,15 +691,17 @@ object ScalaOut {
         if (lastLine > firstLine) out.eol()
         for ((arg, delim) <- markEnd(tn.properties) if arg != null) {
           val argLine = Option(arg.loc).map(_.start.line).getOrElse(currentLine)
-          arg match {
-            case Node.SpreadElement(argument) =>
-              out"/* spread */ "
-              nodeToOut(argument)
-            case Node.PropertyEx(kind, key, computed, value, method, shorthand, readonly) =>
-              // what about method and other properties?
-              val name = propertyKeyName(key)
-              out""""$name" -> """
-              nodeToOut(value)
+          context.withScope(arg) {
+            arg match {
+              case Node.SpreadElement(argument) =>
+                out"/* spread */ "
+                nodeToOut(argument)
+              case Node.PropertyEx(kind, key, computed, value, method, shorthand, readonly) =>
+                // what about method and other properties?
+                val name = propertyKeyName(key)
+                out""""$name" -> """
+                nodeToOut(value)
+            }
           }
           if (delim) {
             out(delimiter)
@@ -715,32 +716,33 @@ object ScalaOut {
         out(")")
       }
 
-      def outputObjectLiteralUsingNew(tn: OObject): Unit = {
+      def outputObjectLiteralUsingNew(tn: OObject, prefix: String): Unit = {
         if (tn.properties.isEmpty) {
-          out("new {}")
+          out"$prefix {}"
         } else {
-          out("new {\n") // prefer anonymous class over js.Dynamic.literal
+          out"$prefix {\n"
           out.indent()
           tn.properties.foreach { n =>
             nodeToOut(n)
             out.eol()
           }
           out.unindent()
-          out.eol()
           out("}")
         }
       }
 
       def outputMethodNode(pm: Node.ClassBodyElement, decl: String = "def", eol: Boolean = true) = {
-        if (eol) out.eol()
-        pm match {
-          case Node.MethodDefinition(null, tpe, _, null, _, _) =>
-            // probably IndexSignature - we cannot output that in Scala
-            out"/* IndexSignature ${astType(Option(tpe)).getOrElse(SymbolTypes.AnyType).toOutResolved} */\n"
-          case p: Node.MethodDefinition =>
-            outputMethod(p.key, p.value, p.kind, Option(p.`type`), decl)
-          case _ =>
-            nodeToOut(pm)
+        context.withScope(pm) {
+          if (eol) out.eol()
+          pm match {
+            case Node.MethodDefinition(null, tpe, _, null, _, _) =>
+              // probably IndexSignature - we cannot output that in Scala
+              out"/* IndexSignature ${astType(Option(tpe)).getOrElse(SymbolTypes.AnyType).toOutResolved} */\n"
+            case p: Node.MethodDefinition =>
+              outputMethod(p.key, p.value, p.kind, Option(p.`type`), decl)
+            case _ =>
+              nodeToOut(pm)
+          }
         }
       }
 
@@ -1005,10 +1007,17 @@ object ScalaOut {
 
 
         case tn: OObject =>
-          if (out.currentHints.literals.contains("map")) {
-            outputObjectLiteral(tn)
-          } else {
-            outputObjectLiteralUsingNew(tn)
+          val path = out.currentFile + "//" + context.scopePath
+          val hints = outConfig.cfg.hintsForPath(path)
+          hints.literals match {
+            case Some(prefix) if prefix.startsWith("new ") || prefix == "new" =>
+              outputObjectLiteralUsingNew(tn, prefix)
+            case None =>
+              // when there is no hint, dump the path, so that the hint can be configured
+              val comment = " /*" + path.replaceAll(".*//", "") + "*/"
+              outputObjectLiteralUsingNew(tn, "new" + comment)
+            case Some(identifier) =>
+              outputObjectLiteral(tn, identifier)
           }
 
         case tn: AArray =>
@@ -1490,7 +1499,9 @@ object ScalaOut {
                   // class body should be a list of variable declarations, constructor statements may follow
                   method.body.body.foreach {
                     case df: Node.VariableDeclaration =>
-                      outputDefinitions(df.kind == "const", df, true)
+                      context.withScope(df) {
+                        outputDefinitions(df.kind == "const", df, true)
+                      }
                     case Node.ExpressionStatement(Node.CallExpression(_: Node.Super, _)) =>
                     case ss =>
                       //out(nodeTreeToString(ss))
@@ -1695,7 +1706,7 @@ object ScalaOut {
         }
       }
 
-      override def currentHints: ConvertProject.Hints = outConfig.parts(currentSb).hints
+      override def currentFile: String = outConfig.parts(currentSb).name
 
     }
 
