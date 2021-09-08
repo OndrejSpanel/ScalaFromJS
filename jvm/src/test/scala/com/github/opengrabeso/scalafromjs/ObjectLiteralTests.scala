@@ -28,7 +28,7 @@ class ObjectLiteralTests extends AnyFunSuite with TestUtils {
           ]
       };
       """)
-      .required("var a = new", "var b = new X")
+      .required("var a = new", "var b = new X", "var x", "var y")
   }
 
   test("Object literals should respect scope based hints - Map") {
@@ -56,6 +56,31 @@ class ObjectLiteralTests extends AnyFunSuite with TestUtils {
           ]
       };
       """)
-      .required("var a = Map", "var b = List")
+      .required(
+        "var a = Map", """"x" -> "X"""",
+        "var b = List"
+      ).forbidden("var x", "var y")
+  }
+
+  test("Object literals should respect scope based hints - assign") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+        class F {
+          constructor() {
+            this.a = {x: "X", y: "Y"};
+          }
+        }
+
+        var ScalaFromJS_settings = {
+
+            hints: [
+                {
+                    path: ".*//.*a",
+                    literals: "mod="
+                }
+            ]
+        };
+      """).required("var a = {mod =>", "mod.x = ").forbidden("var x", "var y")
   }
 }

@@ -716,6 +716,29 @@ object ScalaOut {
         out(")")
       }
 
+      def outputObjectLiteralUsingAssignment(tn: OObject, identifier: String): Unit = {
+        out"{$identifier =>\n"
+        // try to respect line boundaries as specified in the input
+        out.indent()
+        for (arg <- tn.properties if arg != null) {
+          context.withScope(arg) {
+            arg match {
+              case Node.SpreadElement(argument) =>
+                out"/* spread */ "
+                nodeToOut(argument)
+              case Node.PropertyEx(kind, key, computed, value, method, shorthand, readonly) =>
+                // what about method and other properties?
+                val name = propertyKeyName(key)
+                out"$identifier.$name = "
+                nodeToOut(value)
+            }
+          }
+          out.eol()
+        }
+        out.unindent()
+        out(")")
+      }
+
       def outputObjectLiteralUsingNew(tn: OObject, prefix: String): Unit = {
         if (tn.properties.isEmpty) {
           out"$prefix {}"
@@ -1009,15 +1032,19 @@ object ScalaOut {
         case tn: OObject =>
           val path = out.currentFile + "//" + context.scopePath
           val hints = outConfig.cfg.hintsForPath(path)
+
+          val ExtractAssignment = "([^ ]+) *= *".r
           hints.literals match {
             case Some(prefix) if prefix.startsWith("new ") || prefix == "new" =>
               outputObjectLiteralUsingNew(tn, prefix)
+            case Some(ExtractAssignment(identifier)) =>
+              outputObjectLiteralUsingAssignment(tn, identifier)
+            case Some(identifier) =>
+              outputObjectLiteral(tn, identifier)
             case None =>
               // when there is no hint, dump the path, so that the hint can be configured
               val comment = " /*" + path.replaceAll(".*//", "") + "*/"
               outputObjectLiteralUsingNew(tn, "new" + comment)
-            case Some(identifier) =>
-              outputObjectLiteral(tn, identifier)
           }
 
         case tn: AArray =>
