@@ -227,7 +227,7 @@ class TypeTests extends AnyFunSuite with TestUtils {
         "var pi =",
         "def funA(",
         "def funB(",
-        "var funC = (",
+        "var funC",
         "Cls.z = 1",
         "object local {",
         "a = 0",

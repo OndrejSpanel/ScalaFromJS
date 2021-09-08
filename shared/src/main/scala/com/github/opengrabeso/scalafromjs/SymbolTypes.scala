@@ -280,6 +280,7 @@ object SymbolTypes {
   def classFromType(tpe: Option[TypeInfo]): Option[SymbolMapId] = {
     tpe.map(_.declType) match {
       case Some(ClassType(name)) => Some(name)
+      case Some(AnonymousClassType(sourcePos)) => Some(SymbolMapId(":anonymous", sourcePos))
       case _ => None
     }
   }
@@ -758,7 +759,8 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
 
   def addMember(kv: (Option[MemberId], TypeInfo))(implicit classId: SymbolMapId => (Int, Int)): SymbolTypes = {
     //assert(kv._1.forall(!_.cls.isGlobal))
-    this + (kv._1.map(symbolFromMember) -> kv._2)
+    val symId = kv._1.map(symbolFromMember)
+    this + (symId -> kv._2)
   }
 
 

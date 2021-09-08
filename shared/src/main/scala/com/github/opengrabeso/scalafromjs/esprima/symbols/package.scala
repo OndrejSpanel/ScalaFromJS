@@ -177,13 +177,13 @@ package object symbols {
 
     // find the first parent scope which is a function (member, explicit, implicit, arrow ..._)
     def findFuncScope: Option[(Node.Node, ScopeInfo)] = {
-      scopes.reverse.find(s => IsFunctionScope.unapply(s._1))
+      scopes.findLast(s => IsFunctionScope.unapply(s._1))
     }
 
 
     def contextUntil(node: Node.Node): ScopeContext = {
-      val parentsUntil = parents.take(parents.prefixLength(_ != node) + 1)
-      val scopesUntil = scopes.take(scopes.prefixLength(_._1 != node) + 1)
+      val parentsUntil = parents.take(parents.segmentLength(_ != node) + 1)
+      val scopesUntil = scopes.take(scopes.segmentLength(_._1 != node) + 1)
 
       val ret = new ScopeContext
       ret.parents ++= parentsUntil
@@ -211,6 +211,48 @@ package object symbols {
     def stack = parents
 
     def scopeId: ScopeId = getNodeId(scopes.last._1)
+
+    def scopeDelimiter = "/" // we do not want to use dot as dot is hard to match with regex
+
+    def scopeFromExpression(node: Node.Node): Option[String] = {
+      node match {
+        case ThisExpression() =>
+          None
+        case Node.Identifier(name) =>
+          Some(name)
+        case expr Dot name =>
+          scopeFromExpression(expr) match {
+            case Some(scope) =>
+              Some(scope + scopeDelimiter + name)
+            case None =>
+              Some(name)
+          }
+        case _ =>
+          None
+      }
+    }
+    def scopePath: String = parents.flatMap {
+      case cls: Node.ClassDeclaration =>
+        Some(cls.id.name)
+      case prop: Node.Property =>
+        val name = propertyName(prop)
+        Some(name)
+      // handle assignment in mostly the same way as you would handle variable declaration
+      case Node.AssignmentExpression("=", expr, _) =>
+        scopeFromExpression(expr)
+      case Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name), _, _)), _) =>
+        Some(name)
+      case Node.FunctionDeclaration(Node.Identifier(id), _, _, _, _) =>
+        Some(id)
+      /* it would be possible to not consider methods as a scope, this would makes identifying member variables easier
+      Having the method scope would helps for local variables, though, and you can skip it using .*
+       */
+      case Node.MethodDefinition(Node.Identifier(id), _, _, _, _, _) =>
+        Some(id)
+      case _ =>
+        None
+    }.mkString(scopeDelimiter)
+
   }
 
   /**

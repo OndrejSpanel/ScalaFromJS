@@ -3,6 +3,7 @@ package com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
 import Classes._
+import com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, SymId, memberFunId}
 
 import scala.util.Try
@@ -22,9 +23,17 @@ object ScalaOut {
 
   def trimSource(s: String): String = s.replaceAll(";+$", "")
 
-  // @param unknowns annotate unknown constructs with a comment (source is always passed through)
+  case class Part(from: Int, to: Int, name: String = "")
 
-  case class Config(unknowns: Boolean = true, parts: Seq[Int] = Seq(Int.MaxValue), root: String = "") {
+  object Part {
+    def whole: Part = new Part(0, Int.MaxValue)
+  }
+
+  // @param unknowns annotate unknown constructs with a comment (source is always passed through)
+  case class Config(
+    unknowns: Boolean = true, parts: Seq[Part] = Seq(Part.whole), root: String = "",
+    cfg: ConvertProject.ConvertConfig = ConvertProject.ConvertConfig()
+  ) {
 
     def pathToPackage(path: String): String = {
       val parentPrefix = "../"
@@ -35,10 +44,6 @@ object ScalaOut {
         path.replace('/', '.')
       }
     }
-
-    def withRoot(root: String) = copy(root = root)
-
-    def withParts(parts: Seq[Int]) = copy(parts = parts)
 
     def formatImport(imported_names: Seq[String], module_name: String, source: String) = {
       // Trim leading or trailing characters from a string? - https://stackoverflow.com/a/25691614/16673
@@ -82,6 +87,8 @@ object ScalaOut {
     def unindent(): Unit = changeIndent(-1)
 
     def submitLocation(loc: Int, debug: =>String): Unit = {}
+
+    def currentFile: String = ""
   }
 
   abstract class NiceOutput extends Output {
@@ -92,7 +99,7 @@ object ScalaOut {
     private var eolPending = 0
     private var indentLevel = 0
 
-    protected def currentIndentLevel = indentLevel
+    def isIndented: Boolean = indentLevel > 0
 
     override def changeIndent(ch: Int): Unit = indentLevel += ch
 
@@ -672,16 +679,93 @@ object ScalaOut {
         }
       }
 
+      def outputObjectLiteral(tn: OObject, identifier: String): Unit = {
+        val delimiter = ", "
+        // TODO: DRY with outputNodes
+        out"$identifier("
+        // try to respect line boundaries as specified in the input
+        val firstLine = Option(tn.loc).map(_.start.line).getOrElse(0)
+        val lastLine = Option(tn.loc).map(_.end.line).getOrElse(0)
+        var currentLine = firstLine
+        out.indent()
+        if (lastLine > firstLine) out.eol()
+        for ((arg, delim) <- markEnd(tn.properties) if arg != null) {
+          val argLine = Option(arg.loc).map(_.start.line).getOrElse(currentLine)
+          context.withScope(arg) {
+            arg match {
+              case Node.SpreadElement(argument) =>
+                out"/* spread */ "
+                nodeToOut(argument)
+              case Node.PropertyEx(kind, key, computed, value, method, shorthand, readonly) =>
+                // what about method and other properties?
+                val name = propertyKeyName(key)
+                out""""$name" -> """
+                nodeToOut(value)
+            }
+          }
+          if (delim) {
+            out(delimiter)
+            if (argLine > currentLine) {
+              out.eol()
+              currentLine = argLine
+            }
+          }
+        }
+        if (lastLine > currentLine) out.eol()
+        out.unindent()
+        out(")")
+      }
+
+      def outputObjectLiteralUsingAssignment(tn: OObject, identifier: String): Unit = {
+        out"{$identifier =>\n"
+        // try to respect line boundaries as specified in the input
+        out.indent()
+        for (arg <- tn.properties if arg != null) {
+          context.withScope(arg) {
+            arg match {
+              case Node.SpreadElement(argument) =>
+                out"/* spread */ "
+                nodeToOut(argument)
+              case Node.PropertyEx(kind, key, computed, value, method, shorthand, readonly) =>
+                // what about method and other properties?
+                val name = propertyKeyName(key)
+                out"$identifier.$name = "
+                nodeToOut(value)
+            }
+          }
+          out.eol()
+        }
+        out.unindent()
+        out(")")
+      }
+
+      def outputObjectLiteralUsingNew(tn: OObject, prefix: String): Unit = {
+        if (tn.properties.isEmpty) {
+          out"$prefix {}"
+        } else {
+          out"$prefix {\n"
+          out.indent()
+          tn.properties.foreach { n =>
+            nodeToOut(n)
+            out.eol()
+          }
+          out.unindent()
+          out("}")
+        }
+      }
+
       def outputMethodNode(pm: Node.ClassBodyElement, decl: String = "def", eol: Boolean = true) = {
-        if (eol) out.eol()
-        pm match {
-          case Node.MethodDefinition(null, tpe, _, null, _, _) =>
-            // probably IndexSignature - we cannot output that in Scala
-            out"/* IndexSignature ${astType(Option(tpe)).getOrElse(SymbolTypes.AnyType).toOutResolved} */\n"
-          case p: Node.MethodDefinition =>
-            outputMethod(p.key, p.value, p.kind, Option(p.`type`), decl)
-          case _ =>
-            nodeToOut(pm)
+        context.withScope(pm) {
+          if (eol) out.eol()
+          pm match {
+            case Node.MethodDefinition(null, tpe, _, null, _, _) =>
+              // probably IndexSignature - we cannot output that in Scala
+              out"/* IndexSignature ${astType(Option(tpe)).getOrElse(SymbolTypes.AnyType).toOutResolved} */\n"
+            case p: Node.MethodDefinition =>
+              outputMethod(p.key, p.value, p.kind, Option(p.`type`), decl)
+            case _ =>
+              nodeToOut(pm)
+          }
         }
       }
 
@@ -943,20 +1027,26 @@ object ScalaOut {
           //out"/*${nodeClassName(n)}*/"
           out.eol()
           outputMethod(tn.key, tn.value, tn.kind, Option(tn.`type`))
+
+
         case tn: OObject =>
-          if (tn.properties.isEmpty) {
-            out("new {}")
-          } else {
-            out("new {\n") // prefer anonymous class over js.Dynamic.literal
-            out.indent()
-            tn.properties.foreach { n =>
-              nodeToOut(n)
-              out.eol()
-            }
-            out.unindent()
-            out.eol()
-            out("}")
+          val path = out.currentFile + "//" + context.scopePath
+          val hints = outConfig.cfg.hintsForPath(path)
+
+          val ExtractAssignment = "([^ ]+) *= *".r
+          hints.literals match {
+            case Some(prefix) if prefix.startsWith("new ") || prefix == "new" =>
+              outputObjectLiteralUsingNew(tn, prefix)
+            case Some(ExtractAssignment(identifier)) =>
+              outputObjectLiteralUsingAssignment(tn, identifier)
+            case Some(identifier) =>
+              outputObjectLiteral(tn, identifier)
+            case None =>
+              // when there is no hint, dump the path, so that the hint can be configured
+              val comment = " /*" + path.replaceAll(".*//", "") + "*/"
+              outputObjectLiteralUsingNew(tn, "new" + comment)
           }
+
         case tn: AArray =>
           out("Array(")
           out.indent()
@@ -1436,7 +1526,9 @@ object ScalaOut {
                   // class body should be a list of variable declarations, constructor statements may follow
                   method.body.body.foreach {
                     case df: Node.VariableDeclaration =>
-                      outputDefinitions(df.kind == "const", df, true)
+                      context.withScope(df) {
+                        outputDefinitions(df.kind == "const", df, true)
+                      }
                     case Node.ExpressionStatement(Node.CallExpression(_: Node.Super, _)) =>
                     case ss =>
                       //out(nodeTreeToString(ss))
@@ -1622,6 +1714,7 @@ object ScalaOut {
     val sb = Array.fill(outConfig.parts.size max 1)(new StringBuilder)
     var currentSb = 0
     val ret = new NiceOutput {
+
       override def out(x: String) = {
         if (currentSb < sb.length) {
           sb(currentSb) append x
@@ -1630,15 +1723,18 @@ object ScalaOut {
 
       override def submitLocation(loc: Int, debug: =>String) = {
         // start new files only when there is no indenting (top-level)
-        if (currentIndentLevel == 0) {
+        if (!isIndented) {
           // check if we have crossed a file boundary, start a new output file if needed
           //println(s"loc $loc of ${outConfig.parts}")
-          while (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb)) {
+          while (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb).to) {
             currentSb += 1
             //println(s"Advance to $currentSb at $loc - debug $debug")
           }
         }
       }
+
+      override def currentFile: String = outConfig.parts(currentSb).name
+
     }
 
     val classListHarmony = ClassListHarmony.fromAST(ast.top)
