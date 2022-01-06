@@ -756,7 +756,7 @@ object ScalaOut {
           out.eol()
         }
         out.unindent()
-        out(")")
+        out("}")
       }
 
       def outputObjectLiteralUsingNew(tn: OObject, prefix: String): Unit = {
