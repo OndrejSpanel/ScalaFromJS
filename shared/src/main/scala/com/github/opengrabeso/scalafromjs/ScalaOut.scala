@@ -324,7 +324,7 @@ object ScalaOut {
     dumpComments(n.trailingComments)
   }
 
-  def termToOut(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
+  def termToOut(n: Node.Node, forceParens: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
 
     def outNode(n: Node.Node) = nodeToOut(n)(outConfig, input, out, context)
     def outInParens(n: Node.Node) = {
@@ -346,7 +346,7 @@ object ScalaOut {
       case _: Conditional =>
         outInParens(n)
       case _ =>
-        outNode(n)
+        if (forceParens) outInParens(n) else outNode(n)
     }
   }
 
@@ -1115,8 +1115,21 @@ object ScalaOut {
                     out"$sym -= $prop"
                   case _ =>
                     out(tn.operator)
-                    if (tn.operator.last.isLetterOrDigit) out(" ")
-                    termToOut(tn.argument)
+
+                    if (tn.operator.last.isLetterOrDigit) {
+                      out(" ")
+                      termToOut(tn.argument)
+                    } else {
+                      tn.argument match {
+                        // when two unary operators follow each other, use parens to separate them
+                        case Node.UnaryExpression(op, _) if !op.head.isLetterOrDigit =>
+                          termToOut(tn.argument, true)
+                        case _ =>
+                          termToOut(tn.argument)
+                      }
+
+
+                    }
                 }
               } else {
                 termToOut(tn.argument)
