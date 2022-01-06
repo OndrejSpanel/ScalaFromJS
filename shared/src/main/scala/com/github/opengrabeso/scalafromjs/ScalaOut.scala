@@ -350,6 +350,8 @@ object ScalaOut {
     }
   }
 
+  private val ExtractAssignment = "([^ ]+) *= *".r
+
   def nodeToOut(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
 
     implicit class OutResolved(t: SymbolTypes.TypeDesc) {
@@ -431,11 +433,29 @@ object ScalaOut {
                   out.unindent()
                   out("}\n")
                 } else {
-                  out"object $name {\n"
-                  out.indent()
-                  for (elem <- props) nodeToOut(elem)
-                  out.unindent()
-                  out("}\n")
+                  // check hints - perhaps a different format is desired?
+                  val path = out.currentFile + "//" + context.scopePath
+                  val hints = outConfig.cfg.hintsForPath(path)
+                  hints.literals match {
+                    // different to other object literals - when the prefix is new, we use object syntax instead
+                    case None | Some("new") =>
+                      // when there is no hint, use a plain object
+                      out"object $name {\n"
+                      out.indent()
+                      for (elem <- props) nodeToOut(elem)
+                      out.unindent()
+                      out("}\n")
+                    case Some(prefix) if prefix.startsWith("new ") =>
+                      out"var $name = "
+                      outputObjectLiteralUsingNew(oe, prefix)
+                    case Some(ExtractAssignment(identifier)) =>
+                      out"var $name = "
+                      outputObjectLiteralUsingAssignment(oe, identifier)
+                      // some manual effort expected (assigned into a function)
+                    case Some(identifier) =>
+                      outputObjectLiteralAsMap(oe, identifier)
+                  }
+
                 }
               }
             case Node.VariableDeclarator(s: Node.Identifier, OObject(Seq()), vType) =>
@@ -679,7 +699,7 @@ object ScalaOut {
         }
       }
 
-      def outputObjectLiteral(tn: OObject, identifier: String): Unit = {
+      def outputObjectLiteralAsMap(tn: OObject, identifier: String): Unit = {
         val delimiter = ", "
         // TODO: DRY with outputNodes
         out"$identifier("
@@ -1033,14 +1053,13 @@ object ScalaOut {
           val path = out.currentFile + "//" + context.scopePath
           val hints = outConfig.cfg.hintsForPath(path)
 
-          val ExtractAssignment = "([^ ]+) *= *".r
           hints.literals match {
             case Some(prefix) if prefix.startsWith("new ") || prefix == "new" =>
               outputObjectLiteralUsingNew(tn, prefix)
             case Some(ExtractAssignment(identifier)) =>
               outputObjectLiteralUsingAssignment(tn, identifier)
             case Some(identifier) =>
-              outputObjectLiteral(tn, identifier)
+              outputObjectLiteralAsMap(tn, identifier)
             case None =>
               // when there is no hint, dump the path, so that the hint can be configured
               val comment = " /*" + path.replaceAll(".*//", "") + "*/"
