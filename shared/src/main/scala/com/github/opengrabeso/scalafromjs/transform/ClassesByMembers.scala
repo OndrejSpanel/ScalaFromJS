@@ -54,7 +54,7 @@ object ClassesByMembers {
 
 
         def listKind(seq: Seq[Node.ClassBodyElement], kind: String) = seq.collect {
-          case c: Node.MethodDefinition if c.key != null && c.kind == kind =>
+          case c: Node.MethodDefinition if hasName(c) && c.kind == kind =>
             methodName(c) -> getMethodMethod(c).fold(0)(_.params.length)
         }
 

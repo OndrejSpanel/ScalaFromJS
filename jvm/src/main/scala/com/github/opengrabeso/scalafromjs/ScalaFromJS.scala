@@ -44,7 +44,7 @@ object ScalaFromJS extends SimpleSwingApplication {
         peer.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_SCALA)
       }
       peer.setHighlightSecondaryLanguages(false)
-      //peer.setCodeFoldingEnabled(true)
+      peer.setCodeFoldingEnabled(true)
     }
 
     class MyScrollPane(panel: TextComponent) extends ScrollPane(panel) {

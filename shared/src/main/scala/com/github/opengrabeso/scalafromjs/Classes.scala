@@ -76,7 +76,7 @@ object Classes {
   }
 
   val isConstructorProperty: PartialFunction[Node.ClassBodyElement, Node.MethodDefinition] = {
-    case m: Node.MethodDefinition if m.key != null && propertyKeyName(m.key) == "constructor" =>
+    case m: Node.MethodDefinition if hasName(m) && propertyKeyName(m.key) == "constructor" =>
       m
   }
 
@@ -148,7 +148,7 @@ object Classes {
 
   def findMethod(c: Node.ClassDeclaration, name: String, static: Boolean = false): Option[Node.MethodDefinition] = {
     Option(c.body).flatMap(_.body.collectFirst {
-      case m: Node.MethodDefinition if m.key != null && propertyKeyName(m.key) == name && m.static == static =>
+      case m: Node.MethodDefinition if hasName(m) && propertyKeyName(m.key) == name && m.static == static =>
         m
     })
   }
@@ -162,7 +162,7 @@ object Classes {
 
   def findProperty(c: Node.ClassDeclaration, name: String): Option[Node.MethodDefinition] = {
     Option(c.body).flatMap(_.body.collectFirst {
-      case m: Node.MethodDefinition if m.key != null && propertyKeyName(m.key) == name => m
+      case m: Node.MethodDefinition if hasName(m) && propertyKeyName(m.key) == name => m
     })
   }
 

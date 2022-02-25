@@ -17,7 +17,7 @@ object Rules {
     processAllClasses(n, Some(member.cls)) { (c, ctx) =>
       val ret = c.cloneNode()
       // filter member functions and properties
-      ret.body.body = c.body.body.filterNot(p => member.name.findFirstIn(methodName(p)).isDefined)
+      ret.body.body = c.body.body.filterNot(p => hasName(p) && member.name.findFirstIn(methodName(p)).isDefined)
 
       findInlineBody(ret).foreach { inlineBody =>
         val body = getMethodBody(inlineBody)
@@ -96,7 +96,7 @@ object Rules {
     processAllClasses(n, Some(member.cls)) { (c, ctx) =>
       val cc = c.cloneNode()
       val clsName = cc.id.name
-      val mappedProps = cc.body.body.map { p =>
+      val mappedProps = cc.body.body.filter(hasName).map { p =>
         val name = methodName(p)
         if (member.name.findFirstIn(name).isDefined) {
           val value = applyTemplate(clsName, name)

@@ -27,7 +27,7 @@ object Variables {
       implicit val ctx = transformer.context
       node match {
         case cm: Node.MethodDefinition =>
-          if (cm.key != null && propertyKeyName(cm.key) != inlineBodyName) {
+          if (cm.key != null && !cm.computed && propertyKeyName(cm.key) != inlineBodyName) {
             // no var detection inside of inline class body (its variables are actually class members)
             descend(cm, transformer)
             cm

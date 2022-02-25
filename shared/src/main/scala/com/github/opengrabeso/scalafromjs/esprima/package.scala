@@ -233,6 +233,7 @@ package object esprima extends NodeExt {
     attachComment = true
     sourceType = "module" // to avoid "Unexpected token" with import statements - see https://github.com/jquery/esprima/issues/1273
     tolerant = true
+    async = true
   }
   object ParseOptionsTS extends Parser.Options {
     range = true
@@ -241,6 +242,7 @@ package object esprima extends NodeExt {
     sourceType = "module" // to avoid "Unexpected token" with import statements - see https://github.com/jquery/esprima/issues/1273
     typescript = true
     tolerant = true
+    async = true
   }
   def parse(code: String, typescript: Boolean = false): Program = {
     Esprima.parse(code, if (typescript) ParseOptionsTS else ParseOptions)

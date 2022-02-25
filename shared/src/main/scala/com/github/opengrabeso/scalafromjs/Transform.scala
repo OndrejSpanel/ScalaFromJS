@@ -28,7 +28,7 @@ object Transform {
     symId(symbol)
   }
 
-  def identifierFromPar(p: Node.Node): Option[(Node.Identifier, Node.TypeAnnotation, Option[Node.Expression])] = p match {
+  def identifierFromPar(p: Node.FunctionParameter): Option[(Node.Identifier, Node.TypeAnnotation, Option[Node.Expression])] = p match {
     case x: Node.Identifier =>
       Some(x, null, None)
     case Node.FunctionParameterWithType(x: Node.Identifier, tpe, defValue, _) =>
@@ -37,6 +37,10 @@ object Transform {
       Some(x, null, Some(init))
     case Node.RestElement(x: Node.Identifier, tpe) =>
       Some(x, tpe, None)
+    case _: Node.ArrayPattern =>
+      Some((parameterName(p)._1, null, None))
+    case _: Node.ObjectPattern =>
+      Some((parameterName(p)._1, null, None))
     case _ =>
       None
   }
@@ -686,7 +690,7 @@ object Transform {
   def isReadOnlyProperty(cls: Node.ClassDeclaration, name: String): Option[Node.Expression] = {
     var getter = Option.empty[Node.Expression]
     var setter = false
-    cls.body.body.filter(p => methodName(p) == name).foreach {
+    cls.body.body.filter(p => hasName(p) && methodName(p) == name).foreach {
       case Node.MethodDefinition(Node.Identifier(p), null, _, AnyFun(Seq(), value), "get", _) =>
         value match {
           case ex: Node.Expression =>
@@ -730,7 +734,7 @@ object Transform {
     */
 
     Option(cls.body).foreach(_.body.foreach {
-      case md: Node.MethodDefinition if md.key != null =>
+      case md: Node.MethodDefinition if hasName(md) =>
         existingMembers = existingMembers :+ propertyKeyName(md.key)
       //case ObjectKeyVal(p, _) =>
       //  existingMembers = existingMembers :+ p
@@ -918,7 +922,7 @@ object Transform {
                   Node.ExpressionStatement {
                     Node.AssignmentExpression (
                       "=",
-                      new Dot(ts, Node.Identifier(propertyKeyName(p.key))),
+                      Dot(ts, Node.Identifier(propertyKeyName(p.key))),
                       p.value.asInstanceOf[Node.Expression]
                     )
                   }.withTokensDeep(p)

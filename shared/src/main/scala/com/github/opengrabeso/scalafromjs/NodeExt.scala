@@ -51,17 +51,20 @@ trait NodeExt {
   type Dot = Node.StaticMemberExpression
 
   object Dot {
-    def unapply(arg: Node.StaticMemberExpression) = arg.property match{
+    def unapply(arg: Node.StaticMemberExpression): Option[(Node.Expression, String)] = arg.property match{
       case Node.Identifier(name) =>
         Some(arg.`object`, name)
       case _ =>
         None
     }
-    def apply(`object`: Node.Expression, property: Node.Expression) = Node.StaticMemberExpression.apply(`object`, property)
+    def apply(`object`: Node.Expression, property: Node.Expression): Node.StaticMemberExpression = Node.StaticMemberExpression(`object`, property, false)
   }
 
   type Sub = Node.ComputedMemberExpression
-  val Sub = Node.ComputedMemberExpression
+  object Sub {
+    def apply(`object`: Node.Expression, property: Node.Expression): Node.ComputedMemberExpression = Node.ComputedMemberExpression(`object`, property, false)
+    def unapply(o: Node.ComputedMemberExpression): Some[(Node.Expression, Node.Expression)] = Some(o.`object`, o.property)
+  }
 
   type Conditional = Node.ConditionalExpression
   val Conditional = Node.ConditionalExpression
@@ -332,6 +335,12 @@ trait NodeExt {
 
   // TODO: DRY with Transform.identifierFromPar
   def parameterName(n: Node.FunctionParameter): (Node.Identifier, Option[Node.Node]) = {
+    def nodeAsName(node: Node.Node) = node match {
+      case id: Node.Identifier =>
+        Some(id.name)
+      case _ =>
+        None
+    }
     (n: @unchecked) match {
       case Node.AssignmentPattern(left: Node.Identifier, right) =>
         left -> Some(right)
@@ -339,6 +348,11 @@ trait NodeExt {
         id -> Option(init)
       case id: Node.Identifier =>
         id -> None
+      case array: Node.ArrayPattern =>
+        // some identifiers should be present inside of the pattern, but there is no Scala equivalent for that
+        Node.Identifier(array.elements.flatMap(nodeAsName).mkString("[", ",", "]")) -> None
+      case obj: Node.ObjectPattern =>
+        Node.Identifier(obj.properties.flatMap(nodeAsName).mkString("{", ",", "}")) -> None
       case Node.RestElement(arg: Node.Identifier, _) =>
         arg -> None
       //case _: Node.ArrowParameterPlaceHolder =>
@@ -352,7 +366,14 @@ trait NodeExt {
 
   object KeyName {
     def unapply(arg: Node.PropertyKey) = {
-      Some(propertyKeyName(arg))
+      arg match {
+        case Node.Identifier(name) =>
+          Some(name)
+        case LiteralAsName(value) =>
+          Some(value)
+        case _ =>
+          None
+      }
     }
   }
 
@@ -373,6 +394,15 @@ trait NodeExt {
           case LiteralAsName(value) =>
             value
         }
+      case p: Node.SpreadElement =>
+        p.argument match {
+          case Node.Identifier(name) =>
+            name
+          case Node.StaticMemberExpression(Node.ThisExpression(), Node.Identifier(name), _) =>
+            name
+          case _ =>
+            "..."
+        }
     }
   }
 
@@ -383,6 +413,20 @@ trait NodeExt {
           case Node.Identifier(name) =>
             name
         }
+    }
+  }
+
+  def hasName(n: Node.ClassBodyElement): Boolean = {
+    n match {
+      case n: Node.MethodDefinition if !n.computed && n.key != null =>
+        n.key match {
+          case Node.Identifier(name) =>
+            true
+          case _ =>
+            false
+        }
+      case _ =>
+        false
     }
   }
 

@@ -99,7 +99,7 @@ object FillVarMembers {
               //println(s"fillVarMembers newMembers $newMembers (${accessor.body.length})")
 
               // remove overwritten members
-              cls.body.body = cls.body.body.filterNot(p => newMembers.contains(methodName(p)))
+              cls.body.body = cls.body.body.filterNot(p => hasName(p) && newMembers.contains(methodName(p)))
             }
           }
 

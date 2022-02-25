@@ -617,8 +617,12 @@ object ScalaOut {
         out(")")
       }
 
-      def outputMethod(key: Node.PropertyKey, value: Node.PropertyValue, kind: String, tpe: Option[Node.TypeAnnotation], decl: String = "def") = {
-        val name = propertyKeyName(key)
+      def outputMethod(key: Node.PropertyKey, value: Node.PropertyValue, kind: String, computed: Boolean, tpe: Option[Node.TypeAnnotation], decl: String = "def") = {
+        val name = if (!computed) {
+          propertyKeyName(key)
+        } else {
+          s"/*computed*/{${nodeSource(key, input.input)}}"
+        }
         val memberSymId = context.findClassScope.map {
           case cls: Node.ClassDeclaration =>
             SymId(name, ScopeContext.getNodeId(cls.body))
@@ -782,7 +786,7 @@ object ScalaOut {
               // probably IndexSignature - we cannot output that in Scala
               out"/* IndexSignature ${astType(Option(tpe)).getOrElse(SymbolTypes.AnyType).toOutResolved} */\n"
             case p: Node.MethodDefinition =>
-              outputMethod(p.key, p.value, p.kind, Option(p.`type`), decl)
+              outputMethod(p.key, p.value, p.kind, p.computed, Option(p.`type`), decl)
             case _ =>
               nodeToOut(pm)
           }
@@ -946,7 +950,9 @@ object ScalaOut {
       //noinspection ScalaUnusedSymbol
       n match {
         //case tn: Node.Atom => "Node.Atom"
-        case tn: Node.RegexLiteral => out""""${tn.raw}".r"""
+        case tn: Node.RegexLiteral =>
+          val flags = if (tn.flags.nonEmpty) s"?(${tn.flags})" else ""
+          out""""${flags + tn.pattern}".r"""
         case StringLiteral(str) =>
           val escaped = escape(str)
           out(s""""$escaped"""")
@@ -1037,16 +1043,16 @@ object ScalaOut {
           }
           out("\n")
 
-        case Node.PropertyEx(kind, key, _, value, _, _, readOnly) =>
+        case Node.PropertyEx(kind, key, computed, value, _, _, readOnly) =>
           out.eol()
-          outputMethod(key, value, kind, None,if (readOnly) "val" else "var")
+          outputMethod(key, value, kind, computed, None,if (readOnly) "val" else "var")
 
         //out"/*${nodeClassName(n)}*/"
         //case tn: Node.ObjectProperty =>
         case tn: Node.MethodDefinition =>
           //out"/*${nodeClassName(n)}*/"
           out.eol()
-          outputMethod(tn.key, tn.value, tn.kind, Option(tn.`type`))
+          outputMethod(tn.key, tn.value, tn.kind, tn.computed, Option(tn.`type`))
 
 
         case tn: OObject =>
@@ -1084,7 +1090,7 @@ object ScalaOut {
             val tpe = ex match {
               case Node.Identifier(rTypeName) =>
                 transform.TypesRule.typeFromIdentifierName(rTypeName, false)(context).map(_.toOutResolved)
-              case Node.StaticMemberExpression(obj, property) =>
+              case Node.StaticMemberExpression(obj, property, _) =>
                 Some(typeNameFromExpression(obj) + "." + nodeToString(property))
               case _ =>
                 None
@@ -1146,7 +1152,7 @@ object ScalaOut {
           termToOut(obj)
           out(".")
           out(identifier(name))
-        case Node.StaticMemberExpression(obj, prop) =>
+        case Node.StaticMemberExpression(obj, prop, _) =>
           termToOut(obj)
           out(".")
           nodeToOut(prop)
@@ -1587,7 +1593,7 @@ object ScalaOut {
                     def isObjectOverride = {
                       // special case: override AnyRef (java.lang.Object) methods:
                       val objectMethods = Set("clone", "toString", "hashCode", "getClass")
-                      getMethodMethod(p).exists(_.params.isEmpty) && objectMethods.contains(propertyKeyName(p.key))
+                      hasName(p) && getMethodMethod(p).exists(_.params.isEmpty) && objectMethods.contains(propertyKeyName(p.key))
                     }
 
                     def isNormalOverride = {
@@ -1686,6 +1692,15 @@ object ScalaOut {
         val moduleName = if (moduleFile.endsWith(".js")) moduleFile.dropRight(2) else moduleFile
         val toOut = outConfig.formatImport(imported_names, moduleName, source)
         out(toOut)
+      case Node.ArrayPattern(pat) =>
+        out("val Array(") // tuple would be better, but the right side is likely to contain array as well
+        var first = true
+        pat.foreach { p =>
+          if (!first) out", "
+          first = false
+          out"$p"
+        }
+        out(")")
         case tn =>
           outputUnknownNode(tn)
           out.eol()

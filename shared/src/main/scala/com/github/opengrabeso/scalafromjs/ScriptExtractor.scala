@@ -46,6 +46,8 @@ object ScriptExtractor {
           attributes match {
             case ExtractType("module" | "javascript") =>
               tryParse(src)
+            case ExtractType("importmap") =>
+              None // maps like "three": "../build/three.module.js"
             case ExtractType(_) =>
               // explicit type, but not JS - some non-js resource (vertex shader...)
               val id = ExtractId.findFirstMatchIn(attributes).map(_.group(1)).getOrElse("htmlcontent")

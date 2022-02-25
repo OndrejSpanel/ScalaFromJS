@@ -18,6 +18,10 @@ object Parameters {
   def isNormalPar(par: Node.Node): Boolean = {
     //
     par match {
+      case _: Node.ArrayPattern =>
+        false
+      case _: Node.ObjectPattern =>
+        false
       case _: Node.FunctionParameter =>
         true
       case _ =>
@@ -34,6 +38,12 @@ object Parameters {
         ap
       case pwt: Node.FunctionParameterWithType =>
         pwt.copy(name = replacedId).copyNode(pwt).asInstanceOf[Node.FunctionParameterWithType]
+      case p: Node.ObjectPattern =>
+        p // patterns cannot be renamed
+      case p: Node.ArrayPattern =>
+        p // patterns cannot be renamed
+      case p: Node.RestElement =>
+        p
       case nn: Node.Identifier =>
         replacedId.withTokens(nn)
     }
@@ -58,7 +68,7 @@ object Parameters {
   }
 
   private def notInlineBody(context: ScopeContext) = {
-    context.parent().collect { case md: Node.MethodDefinition if methodName(md) == Classes.inlineBodyName => md }.isEmpty
+    context.parent().collect { case md: Node.MethodDefinition if hasName(md) && methodName(md) == Classes.inlineBodyName => md }.isEmpty
   }
 
   /**
