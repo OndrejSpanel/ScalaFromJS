@@ -425,7 +425,7 @@ object InferTypes {
       //descend(node, walker)
       implicit val scopeCtx = walker
 
-      def handleAssignment(left: Node.Expression, right: Node.Expression) = {
+      def handleAssignment(left: Node.ExpressionOrPattern, right: Node.Expression) = {
         val log = left match {
           case Node.Identifier(Id(symDef)) if watched(symDef.name) => true
           case _ => false

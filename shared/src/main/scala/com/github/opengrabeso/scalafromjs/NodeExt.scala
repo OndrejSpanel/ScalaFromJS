@@ -88,15 +88,15 @@ trait NodeExt {
   }
 
   object Assign {
-    def unapply(arg: Node.Node): Option[(Node.Expression, String, Node.Expression)] = arg match {
+    def unapply(arg: Node.Node): Option[(Node.ExpressionOrPattern, String, Node.Expression)] = arg match {
       case arg: Node.AssignmentExpression =>
-        Some(arg.left, arg.operator, arg.right)
-      case Node.AssignmentPattern(left: Node.Expression, right) =>
-        Some(left, "=", right)
+        Some((arg.left, arg.operator, arg.right))
+      case Node.AssignmentPattern(left: Node.ExpressionOrPattern, right) =>
+        Some((left, "=", right))
       case _ =>
         None
     }
-    def apply(left: Node.Expression, op: String, right: Node.Expression): Node.AssignmentExpression = Node.AssignmentExpression(op, left, right)
+    def apply(left: Node.ExpressionOrPattern, op: String, right: Node.Expression): Node.AssignmentExpression = Node.AssignmentExpression(op, left, right)
   }
 
   object ObjectKeyVal {
