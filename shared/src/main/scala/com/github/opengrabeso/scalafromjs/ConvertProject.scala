@@ -367,7 +367,7 @@ object ConvertProject {
   def readSourceFile(in: String): String = {
     val code = readFile(in)
     val terminatedCode = if (code.lastOption.contains('\n')) code else code + "\n"
-    terminatedCode
+    terminatedCode.replace("\r\n", "\n") // if there are any CRLF, replace them with LF only (might happen on Windows)
   }
   case class Item(originalCode: String, included: Boolean, fullName: String) {
     assert(!fullName.contains("../")) // must not contain .., because resolveSibling cannot handle it
