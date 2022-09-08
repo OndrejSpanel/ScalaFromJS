@@ -921,7 +921,7 @@ object ScalaOut {
             case _ =>
               false
           }
-          push
+          push.filter(_._3.isInstanceOf[Node.Expression]) // the arg must be expression, otherwise we cannot unwrap it
         }
       }
 
