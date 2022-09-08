@@ -406,6 +406,37 @@ class ClassTests extends AnyFunSuite with TestUtils {
     )
   }
 
+  test("Handle instanceof values defined for classes") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      class Foo {
+        constructor() {
+          this.isFoo = true;
+          this.value = "";
+        }
+      }
+      function f() {
+          var c = new Foo();
+          if (c.isFoo) {}
+      }
+      var ScalaFromJS_settings = {
+          members: [
+              {
+                  cls: ".*",
+                  name: "is(.*)",
+                  operation: "instanceof"
+              }]
+      };
+    """).required(
+      "class Foo",
+      "case c_cast: Foo" // simple if replaced with a match / case
+    ).forbidden(
+      //"var isFoo", // TODO: transform variable into a property
+      ".isFoo"
+    )
+  }
+
   test("Handle constructor call on a class") {
     exec check ConversionCheck(
       // language=JavaScript

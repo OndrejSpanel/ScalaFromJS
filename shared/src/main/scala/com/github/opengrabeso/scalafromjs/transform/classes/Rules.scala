@@ -2,7 +2,6 @@ package com.github.opengrabeso.scalafromjs
 package transform
 package classes
 
-import Transform._
 import Classes._
 import com.github.opengrabeso.scalafromjs.esprima._
 import com.github.opengrabeso.esprima._
@@ -169,19 +168,38 @@ object Rules {
     }
     n.top.walk {
       case cls@Node.ClassDeclaration(Node.Identifier(cName), _, _, _, _) if (member.cls findFirstIn cName).isDefined =>
+        object MatchName {
+          def unapply(n: String): Option[String] = {
+            member.name.findFirstMatchIn(n).filter(_.group(1).contains(cName)).map(_.matched)
+          }
+        }
         val matching = cls.body.body
           .collect{
             // we expect getter, no parameters, containing a single true statement
-            case Node.MethodDefinition(Node.Identifier(name), _, _, AnyFun(Seq(), Defined(ReturnTrue())), _, _) =>
+            case Node.MethodDefinition(Node.Identifier(MatchName(name)), _, _, AnyFun(Seq(), Defined(ReturnTrue())), _, _) =>
               name
-          }.filter { n =>
-            val matched = member.name.findFirstMatchIn(n)
-            matched.fold(false) {matched =>
-              Option(matched.group(1)).contains(cName)
+          }
+        val matchingVar = for {
+          in <- findInlineBody(cls).toSeq
+          body <- getMethodBody(in).toSeq
+          // initialization not inlined yet - will be done in InlineConstructors, which is  done later
+          VarDecl(MatchName(name), _,  _) <- body.body
+          if findConstructor(cls).exists { method =>
+            getMethodBody(method).exists { block =>
+              block.body.exists {
+                case Node.ExpressionStatement(Node.AssignmentExpression("=", Node.ThisExpression() Dot `name`, Node.Literal(OrType(true), _))) =>
+                  true
+                case _ =>
+                  false
+              }
             }
-          }.toSet
-
-        isClassMembers ++= matching.map(_ -> cls)
+          }
+        } yield {
+          name
+        }
+        if (matchingVar.nonEmpty || matching.nonEmpty) {
+          isClassMembers ++= (matching ++ matchingVar).map(_ -> cls)
+        }
         true
       case _ =>
         false
@@ -193,13 +211,16 @@ object Rules {
       def unapply(arg: String): Option[Node.ClassDeclaration] = isClassMembers.get(arg)
     }
 
-    val ret = n.top.transformAfter { (node, _) =>
+    val ret = n.top.transformBefore { (node, descend, transformer) =>
       node match {
+        case a: Node.AssignmentExpression =>
+          // do not replace inside of left side of assignment, only inside of right side
+          a.cloneNode().copy(right = descend(a.right, transformer).asInstanceOf[Node.Expression])
         case callOn Dot GetClass(Node.ClassDeclaration(Defined(propId), _, _, _, _)) =>
           //println(s"Detect call $prop")
-          Binary (callOn, instanceof, propId)
+          Binary(callOn, instanceof, propId)
         case _ =>
-          node
+          descend(node, transformer)
       }
     }
 
