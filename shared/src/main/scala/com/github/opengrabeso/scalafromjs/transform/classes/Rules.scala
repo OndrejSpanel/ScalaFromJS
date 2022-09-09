@@ -152,7 +152,8 @@ object Rules {
 
   def replaceIsClass(n: NodeExtended, member: ConvertProject.MemberDesc): NodeExtended = {
     // first scan for all symbols matching the rule
-    var isClassMembers = Map.empty[String, Node.ClassDeclaration]
+    var isClassProperties = Map.empty[String, Node.ClassDeclaration]
+    var isClassVars = Map.empty[String, Node.ClassDeclaration]
 
     object ReturnTrue {
       def unapply(arg: Node.Node) = arg match {
@@ -197,21 +198,64 @@ object Rules {
         } yield {
           name
         }
-        if (matchingVar.nonEmpty || matching.nonEmpty) {
-          isClassMembers ++= (matching ++ matchingVar).map(_ -> cls)
-        }
+        isClassProperties ++= matching.map(_ -> cls)
+        isClassVars ++= matchingVar.map(_ -> cls)
         true
       case _ =>
         false
     }
 
+    val funNames = isClassVars.map(_.swap)
+
+    // we might introduce properties instead, but using isClass directly in a Scala code is unlikely anyway, removing them should do no harm
+    val removedVariables = n.top.transformBefore { (node, descend, transformer) =>
+      node match {
+        case cd: Node.ClassDeclaration =>
+          funNames.get(cd) match {
+            case Some(funName) =>
+              val clsName = cd.id.name
+              for {
+                c <- findConstructor(cd)
+                cBody <- getMethodBody(c)
+              } {
+                val newBody = cBody.body.flatMap {
+                  case Node.ExpressionStatement(Node.AssignmentExpression("=", Node.ThisExpression() Dot `funName`, Node.Literal(OrType(true), _))) =>
+                    None
+                  case node =>
+                    Some(node)
+                }
+                c.value.asInstanceOf[Node.FunctionExpression].body.body = newBody
+              }
+              for {
+                c <- findInlineBody(cd)
+                cBody <- getMethodBody(c)
+              } {
+                val newBody = cBody.body.flatMap {
+                  case VarDecl(`funName`, None, _) =>
+                    None
+                  case node =>
+                    Some(node)
+                }
+                c.value.asInstanceOf[Node.FunctionExpression].body.body = newBody
+              }
+              cd
+            case None =>
+              // there might be some inner classes, but we expect isClass properties to exist only for the top-level ones
+              node
+          }
+        case _ =>
+          descend(node, transformer)
+      }
+    }
+
     //println(s"Detected isClass members $isClassMembers")
+    val isClassMembers = isClassProperties ++ isClassVars
 
     object GetClass {
       def unapply(arg: String): Option[Node.ClassDeclaration] = isClassMembers.get(arg)
     }
 
-    val ret = n.top.transformBefore { (node, descend, transformer) =>
+    val ret = removedVariables.transformBefore { (node, descend, transformer) =>
       node match {
         case a: Node.AssignmentExpression =>
           // do not replace inside of left side of assignment, only inside of right side

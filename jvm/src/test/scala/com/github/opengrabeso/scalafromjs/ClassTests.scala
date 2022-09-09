@@ -432,7 +432,7 @@ class ClassTests extends AnyFunSuite with TestUtils {
       "class Foo",
       "case c_cast: Foo" // simple if replaced with a match / case
     ).forbidden(
-      //"var isFoo", // TODO: transform variable into a property
+      "var isFoo", "isFoo = true", // the variable and its initialization should be removed
       ".isFoo"
     )
   }
