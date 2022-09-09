@@ -486,6 +486,11 @@ object SymbolTypes {
 
   case class ClassInfo(members: Map[SymbolMapId, Seq[String]] = Map.empty, parents: Map[SymbolMapId, SymbolMapId] = Map.empty) {
 
+    override def toString: String = {
+      // useful for faster debugging
+      s"ClassInfo(members:${members.size},parents:${parents.size})"
+    }
+
     lazy val children = parents.groupBy(_._2).view.mapValues(_.keys.toSet).toMap
 
     //println(s"parents $parents")
@@ -769,8 +774,11 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
     sumTypeInfo(types.values)
   }
 
-  override def toString = {
-    types.mkString("{","\n", "}")
+  override def toString: String = if (types.size < 20) {
+    // useful for faster debugging
+    types.mkString(s"SymbolTypes(locked=$locked,types:\n{","\n", ")}")
+  } else {
+    s"SymbolTypes(locked=$locked,types:${types.size})"
   }
 
   def getParameterTypes(dtsPars: Seq[FunctionParameter])(implicit context: symbols.ScopeContext) = {
