@@ -40,8 +40,11 @@ object ClassList {
         // new XXX()
         case `n` => // the scope itself should never be considered a symbol (can be Node.ClassDeclaration)
           false
+        case Node.NewExpression(namespace Dot call, _) =>
+          // one can remove namespaces using symbols.remove rules (RemoveScopeRule), but rules were not applied at this point yet
+          classNames += ClassId(call)
+          false
         case Node.NewExpression(Node.Identifier(call), _) =>
-          //println(s"Node.New ${call.name}")
           classNames += ClassId(call)
           false
 
