@@ -158,7 +158,7 @@ trait NodeExt {
       case node: Node.BlockStatement =>
         node
       case expr: Node.Expression =>
-        Node.BlockStatement(Seq(Node.ExpressionStatement(expr))).withTokens(expr)
+        Node.BlockStatement(Seq(Node.ExpressionStatement(expr))).copyLoc(expr)
 
     }
 
@@ -329,7 +329,7 @@ trait NodeExt {
     }
 
     def apply(name: String, init: Option[Node.Expression], kind: String, tpe: Option[Node.TypeAnnotation] = None)(fromTokens: Node.Node): Node.VariableDeclaration = {
-      Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name).withTokens(fromTokens), init.orNull, tpe.orNull)), kind).withTokens(fromTokens)
+      Node.VariableDeclaration(Seq(Node.VariableDeclarator(Node.Identifier(name).withTokens(fromTokens), init.orNull, tpe.orNull).withTokens(fromTokens)), kind).withTokens(fromTokens)
     }
   }
 

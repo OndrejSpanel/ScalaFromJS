@@ -119,7 +119,7 @@ object Variables {
               left = Node.Identifier(varName.name).withTokens(node),
               operator = "=",
               right = value.cloneNode()
-            )).withTokens(node), transformer)
+            ).withTokens(node)).withTokens(node), transformer)
           }
         case name@Node.Identifier(Id(id))
           // do not rename symbols used as class member identifiers

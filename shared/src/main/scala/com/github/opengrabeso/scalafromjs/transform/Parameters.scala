@@ -37,7 +37,7 @@ object Parameters {
         ap.left = replacedId.withTokens(ap.left)
         ap
       case pwt: Node.FunctionParameterWithType =>
-        pwt.copy(name = replacedId).copyNode(pwt).asInstanceOf[Node.FunctionParameterWithType]
+        pwt.copy(name = replacedId.withTokens(pwt)).copyNode(pwt).asInstanceOf[Node.FunctionParameterWithType]
       case p: Node.ObjectPattern =>
         p // patterns cannot be renamed
       case p: Node.ArrayPattern =>

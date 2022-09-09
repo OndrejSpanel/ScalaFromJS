@@ -273,15 +273,15 @@ object InlineConstructors {
                 val block = Block(constructor).withTokens(constructor)
                 def newPrivateVarIdentifier = Node.Identifier(privateVar.sym.name).withTokens(privateVar.tokens)
                 val addPrefix: Node.StatementListItem = Node.ExpressionStatement(
-                  Assign(Dot(Node.ThisExpression(), newPrivateVarIdentifier).withTokens(privateVar.tokens), "=", newPrivateVarIdentifier)
-                )
+                  Assign(Dot(Node.ThisExpression(), newPrivateVarIdentifier).withTokens(privateVar.tokens), "=", newPrivateVarIdentifier).withTokens(privateVar.tokens)
+                ).withTokens(privateVar.tokens)
                 block.body = addPrefix +: block.body
                 block
               } else {
                 replaceVariableInit(replaced, privateVar.sym) { (sym, init) =>
                   Node.ExpressionStatement (
-                    Assign(newThisDotMember(sym.name).withTokens(replaced), "=", init.cloneNode())
-                  )
+                    Assign(newThisDotMember(sym.name).withTokensDeep(replaced), "=", init.cloneNode()).withTokens(privateVar.tokens)
+                  ).withTokens(privateVar.tokens)
                 }
               }
             }

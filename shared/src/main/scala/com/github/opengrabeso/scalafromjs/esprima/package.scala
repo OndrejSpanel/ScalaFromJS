@@ -96,9 +96,6 @@ package object esprima extends NodeExt {
           case id: Identifier =>
             needsLoc(id)
             false
-          case id: AssignmentPattern =>
-            needsLoc(id)
-            false
           case dot: StaticMemberExpression =>
             needsLoc(dot)
             false

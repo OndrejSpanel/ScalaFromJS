@@ -474,8 +474,8 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         case Node.VariableDeclaration(Seq(vd@Node.VariableDeclarator(id@Identifier(name), oe: ObjectExpression, tpe)), kind) if enums.contains(name) =>
           val enumMembers = {
             oe.properties.map {
-              case p@Property("init", _: Node.Identifier, false, pvalue@Literal(OrType(_: Double), _), false, _) =>
-                val wrapValue = CallExpression(Identifier("Value"), Seq(pvalue)).withTokens(pvalue)
+              case p@Property("init", pid: Node.Identifier, false, pvalue@Literal(OrType(_: Double), _), false, _) =>
+                val wrapValue = CallExpression(Identifier("Value").withTokens(pvalue), Seq(pvalue)).withTokens(pvalue)
                 val cloned = p.cloneNode()
                 cloned.value = wrapValue
                 cloned.readonly = true
@@ -488,10 +488,10 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
             Node.VariableDeclaration(
               Seq(Node.VariableDeclarator(
                 id, ObjectExpression(enumMembers).withTokens(oe), Node.TypeName(Seq(Node.Identifier("Enumeration").withTokens(oe)))
-              ).copyLoc(vd)),
+              ).withTokens(vd)),
               kind
             ).copyLoc(node),
-            TypeAliasDeclaration(id, TypeName(Seq(id, Identifier("Value").copyLoc(id)))).copyLoc(vd)
+            TypeAliasDeclaration(id, TypeName(Seq(id, Identifier("Value").withTokens(id))).withTokens(id)).withTokens(vd)
           )
         case _ =>
           Seq(node)
