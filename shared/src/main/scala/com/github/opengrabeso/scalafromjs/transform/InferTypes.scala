@@ -14,15 +14,20 @@ import scala.collection.Seq
 
 object InferTypes {
 
-  def scanFunctionReturns(node: Node.BlockStatement)(implicit ctx: ExpressionTypeContext, context: ScopeContext): Option[TypeInfo] = {
+  def scanFunctionReturns(funNode: Node.BlockStatement)(implicit ctx: ExpressionTypeContext, context: ScopeContext): Option[TypeInfo] = {
     import ctx.classOps
 
     var allReturns = Option.empty[TypeInfo]
-    if (node != null) node.walkWithScope(context) { (node, context) =>
-      implicit val scopeCtx = context
+    if (funNode != null) funNode.walkWithScope(context) { (node, context) =>
+      implicit val scopeCtx: ScopeContext = context
       node match {
         // include any sub-scopes, but not local functions
-        case innerFunc: Node.FunctionExpression if innerFunc != node =>
+        case innerFunc: Node.FunctionDeclaration if innerFunc.body != funNode =>
+          true
+        case innerFunc: Node.FunctionExpression if innerFunc.body != funNode =>
+          true
+        case objProperty: Node.Property =>
+          // do not walk into any object properties
           true
         case Node.ReturnStatement(Defined(value)) =>
           //println(s"  return expression ${nodeClassName(value)}")
@@ -39,7 +44,7 @@ object InferTypes {
 
     allReturns.orElse {
       //println("Infer no return function")
-      Option(node).flatMap {
+      Option(funNode).flatMap {
         _.body match {
           case Seq(Node.ExpressionStatement(ex)) => expressionType(ex)
           case _ => None

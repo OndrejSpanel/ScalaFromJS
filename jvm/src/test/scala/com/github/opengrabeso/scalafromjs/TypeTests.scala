@@ -448,4 +448,32 @@ class TypeTests extends AnyFunSuite with TestUtils {
     )
   }
 
+  test("Returns from inner functions should not be included in outer ones") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+      var r, s;
+      if (true) {
+        r = R();
+        s = S();
+      }
+
+      function R() {
+        function p() {
+          return 1;
+        }
+      }
+
+      function S() {
+        function q() {
+          return 1;
+        }
+        return "";
+      }
+    """)
+      .required(
+        "var r",
+        "var s: String"
+      ).forbidden("var r: Double", "|")
+  }
 }

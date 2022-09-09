@@ -253,6 +253,11 @@ object Classes {
   */
   case class ClassListHarmony(classes: Map[SymbolMapId, (Option[SymId], Node.ClassDeclaration)], anonymous: Map[SymbolMapId, Node.ObjectExpression]) {
 
+    override def toString: String = {
+      // useful for faster debugging
+      s"ClassInfo(classes:${classes.size},anonymous:${anonymous.size})"
+    }
+
     def get(name: SymbolMapId): Option[Node.ClassDeclaration] = classes.get(name).map(_._2)
     def getParent(name: SymbolMapId): Option[SymId] = classes.get(name).flatMap(_._1)
     def getAnonymous(name: SymbolMapId): Option[Node.ObjectExpression] = anonymous.get(name)
