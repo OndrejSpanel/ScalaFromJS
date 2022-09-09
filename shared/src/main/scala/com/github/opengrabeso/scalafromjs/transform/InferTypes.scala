@@ -189,10 +189,12 @@ object InferTypes {
                 debug.foreach(s => println("  " + s()))
               }
             }
-          } else  if (true) {
-            if (id.exists(_.isWatched)) {
-              println(s"Watched member not-acceptable ${id.get} type $oldType === $tp from ${tpe.get}")
-              debug.foreach(s => println("  " + s()))
+          } else if (true) {
+            if (!oldType.exists(tp.equivalent)) {
+              if (id.exists(_.isWatched)) {
+                println(s"Watched member not-acceptable ${id.get} type $oldType === $tp from ${tpe.get}")
+                debug.foreach(s => println("  " + s()))
+              }
             }
           }
         }
