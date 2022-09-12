@@ -181,20 +181,10 @@ object Rules {
               name
           }
         val matchingVar = for {
-          in <- findInlineBody(cls).toSeq
-          body <- getMethodBody(in).toSeq
+          c <- findConstructor(cls).toSeq
+          block <- getMethodBody(c).toSeq
           // initialization not inlined yet - will be done in InlineConstructors, which is  done later
-          VarDecl(MatchName(name), _,  _) <- body.body
-          if findConstructor(cls).exists { method =>
-            getMethodBody(method).exists { block =>
-              block.body.exists {
-                case Node.ExpressionStatement(Node.AssignmentExpression("=", Node.ThisExpression() Dot `name`, Node.Literal(OrType(true), _))) =>
-                  true
-                case _ =>
-                  false
-              }
-            }
-          }
+          Node.ExpressionStatement(Node.AssignmentExpression("=", Node.ThisExpression() Dot MatchName(name), Node.Literal(OrType(true), _))) <- block.body
         } yield {
           name
         }
