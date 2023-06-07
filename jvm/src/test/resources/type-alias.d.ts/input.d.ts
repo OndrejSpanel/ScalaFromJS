@@ -1,4 +1,4 @@
-export type AB = 'A' | 'B';
+export type AB = string;
 export type Num = number;
 export type CD = AB;
 

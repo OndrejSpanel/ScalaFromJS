@@ -355,7 +355,7 @@ class TSTest extends AnyFunSuite with TestUtils with ProjectUtils {
   test("Type aliases") {
     exec check ConversionCheckTypeScript(
       """
-      export type X = 'a' | 'b';
+      export type X = number;
       export type Y = string;
 
       class C {
@@ -365,11 +365,30 @@ class TSTest extends AnyFunSuite with TestUtils with ProjectUtils {
       """
     ).required(
       "class C",
-      "def getX(x: String)",
+      "def getX(x: Double)",
       "def getY(y: String)"
     ).forbidden(
       "x: X",
       "y: Y"
     )
+  }
+
+  test("Literal types") {
+    exec check ConversionCheckTypeScript(
+      """
+      export const A: 0;
+      export const B: false;
+      export const C: null;
+      export const D: 1.2;
+      export const E: "Hi";
+      """
+    ).required(
+      "A: 0",
+      "B: false",
+      "C: Null",
+      "D: 1.2",
+      "E: \"Hi\"",
+    )
+      .forbidden("Double", "Any")
   }
 }

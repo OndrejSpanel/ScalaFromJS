@@ -16,7 +16,7 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("eVar")
+    val watched = Set[String]("A", "B", "E")
     name.startsWith("watch_") || watched.contains(name)
   }
 
@@ -103,6 +103,16 @@ object SymbolTypes {
 
   // when any of the following types is used as a global class, it probably means we have failed to convert a TS type
   val forbiddenGlobalTypes = Set("Array", "number", "boolean", "string", "void", "any", "this")
+
+  case class LiteralTypeDesc(value: Any) extends TypeDesc {
+    override def toString = value.toString
+    override def toOut = value match {
+      case x: String => s"\"$value\""
+      case x => x.toString
+    }
+
+    override def knownItems = 1
+  }
 
   case class SimpleType(name: String) extends TypeDesc {
     assert(!forbiddenGlobalTypes.contains(name))

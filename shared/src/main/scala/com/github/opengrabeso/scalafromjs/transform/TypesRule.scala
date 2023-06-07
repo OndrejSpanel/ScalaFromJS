@@ -112,10 +112,19 @@ object TypesRule {
     t
   }
 
+  object IsDouble {
+    def unapply(x: String): Option[Double] = Try(x.toDouble).toOption
+  }
+  object IsInt {
+    def unapply(x: String): Option[Int] = Try(x.toInt).toOption
+  }
+
   def typeFromLiteral(raw: String): Option[TypeDesc] = raw match {
-    case "true" | "false" => Some(SimpleType("Boolean"))
-    case s if Try(s.toDouble).isSuccess || Try(s.toInt).isSuccess => Some(SimpleType("Double"))
-    case s if s.head == '"' && s.last == '"' || s.head == '\'' && s.last == '\'' => Some(SimpleType("String"))
+    case "true" => Some(LiteralTypeDesc(true))
+    case "false" => Some(LiteralTypeDesc(false))
+    case IsInt(x) => Some(LiteralTypeDesc(x))
+    case IsDouble(x) => Some(LiteralTypeDesc(x))
+    case s if s.head == '"' && s.last == '"' || s.head == '\'' && s.last == '\'' => Some(LiteralTypeDesc(s.drop(1).dropRight(1)))
     case "null" => Some(NullType)
     case _ => None
   }
@@ -577,7 +586,12 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
     n.copy(top = ret)
   }
 
+  /** transform enums defined as `const A: 0; const B: 1; type E = typeof A | typeof B` */
+  def transformUnionEnums(n: NodeExtended): NodeExtended = {
+    n
+  }
+
   def transformEnums(n: NodeExtended): NodeExtended = {
-    transformEnumValues(transformEnumObjects(n))
+    transformUnionEnums(transformEnumValues(transformEnumObjects(n)))
   }
 }

@@ -166,7 +166,7 @@ object ScalaOut {
     def outIdentifier(s: String, sid: =>SymId)(implicit input: InputContext, output: Output) = {
       identifierToOut(output, s)
 
-      if (false || SymbolTypes.watched(s)) { // output symbol ids and types
+      if (SymbolTypes.watched(s)) { // output symbol ids and types
         val s = sid
         output.out(s"/*${s.sourcePos}*/")
         output.out(s"/*${input.types.get(s)}*/")
