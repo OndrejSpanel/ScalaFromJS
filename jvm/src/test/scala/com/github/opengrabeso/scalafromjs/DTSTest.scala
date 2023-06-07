@@ -45,6 +45,25 @@ class DTSTest extends AnyFunSuite with TestUtils with ProjectUtils {
       .checkOccurences("object A")
   }
 
+  test("d.ts enum as union type conversion") {
+    val outCode = convertProject("enumUnion.d.ts/input.js")
+    exec check ResultCheck(outCode)
+      .required(
+        "object A",
+        "A0 = Value(0)",
+        "A1 = Value(1)",
+        "A2 = Value(2)",
+        "type A = A.Value",
+        "val A0: A = A.A0",
+        "val A1: A = A.A1",
+        "val A2: A = A.A2",
+        "object A extends Enumeration",
+        "var aVar: A",
+      ).forbidden(
+      )
+      .checkOccurences("object A").checkOccurences("type A")
+  }
+
   test("d.ts base class inference") {
     pendingUntilFixed {
       val outCode = convertProject("base.d.ts/input.js")

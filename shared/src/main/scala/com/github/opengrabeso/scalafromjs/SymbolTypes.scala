@@ -16,7 +16,7 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("A", "B", "E")
+    val watched = Set[String]("A", "A0", "A1", "A2")
     name.startsWith("watch_") || watched.contains(name)
   }
 
@@ -408,6 +408,18 @@ object SymbolTypes {
     }
   }
 
+  def normalizeType(tpe: TypeDesc): TypeDesc = {
+    tpe match {
+      case u: UnionType =>
+        val innerTypes = u.types.map(normalizeType)
+        val (unions, other) = innerTypes.partition(_.isInstanceOf[UnionType])
+        val unionsContent = unions.map(_.asInstanceOf[UnionType]).flatMap(_.types)
+        UnionType(unionsContent ++ other)
+      case x =>
+        x
+    }
+  }
+
   // union: assignment target
   def typeUnion(tpe1Input: TypeDesc, tpe2Input: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
     // special case optimization for a very common case
@@ -640,6 +652,10 @@ object TypeInfo {
     //println(s"both $tpe")
     TypeInfo(tpe, tpe)
   }
+  def certain(tpe: TypeDesc): TypeInfo = {
+    //println(s"both $tpe")
+    TypeInfo(tpe, tpe, true)
+  }
   def unknown: TypeInfo = TypeInfo(AnyType, NoType)
 
 }
@@ -651,7 +667,7 @@ object TypeInfo {
   * @param certain types imported from d.ts can never be overridden
   */
 case class TypeInfo(source: TypeDesc, target: TypeDesc, certain: Boolean = false) {
-  assert(!certain || source == target) // when cerain, source and target need to be the same
+  assert(!certain || source == target) // when certain, source and target need to be the same
   def equivalent(tp: TypeInfo): Boolean = source == tp.source && target == tp.target
 
   def knownItems = source.knownItems max target.knownItems
@@ -760,6 +776,13 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
     copy(types = types + kv)
   }
 
+  def remove(id: SymbolMapId): SymbolTypes = {
+    if (id.name.startsWith("watchJS_")) {
+      println(s"-- Watched $id")
+    }
+    copy(types = types - id)
+  }
+
   def + (kv: (Option[SymbolMapId], TypeInfo)): SymbolTypes = {
     // not generally true, but can be useful during debugging to catch symbols without a proper scope
     //assert(kv._1.forall(!_.isGlobal))
@@ -853,7 +876,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
     //FunctionType(tt, parTypes.map(_.map(_.declType).getOrElse(AnyType)).toIndexedSeq)
 
     for (t <- tt) {
-      types += (symId -> TypeInfo.both(t).copy(certain = true))
+      types += symId -> TypeInfo.certain(t)
     }
 
     this.copy(types = types)

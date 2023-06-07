@@ -6,9 +6,9 @@ import com.github.opengrabeso.scalafromjs.esprima._
 import TypesRule._
 import com.github.opengrabeso.esprima.Node
 import com.github.opengrabeso.esprima.OrType
-import com.github.opengrabeso.esprima.Node.{ArrayType => _, FunctionType => _, _}
+import com.github.opengrabeso.esprima.Node.{ArrayType => _, FunctionType => _, UnionType => _, _}
 import SymbolTypes._
-import com.github.opengrabeso.scalafromjs.esprima.symbols.Id
+import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, ScopeContext, SymId, symId}
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -176,7 +176,7 @@ object TypesRule {
   }
 
   def typeInfoFromAST(tpe: TypeAnnotation)(context: symbols.ScopeContext): Option[TypeInfo] = {
-    typeFromAST(tpe)(context).map(TypeInfo.both(_).copy(certain = true))
+    typeFromAST(tpe)(context).map(TypeInfo.certain)
   }
 }
 case class TypesRule(types: String, root: String) extends ExternalRule {
@@ -343,7 +343,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
                   case VariableDeclarator(Identifier(name), _, Defined(TypeName(Seq(Identifier(tpe))))) if enums.contains(tpe) =>
                     // TODO: proper scoped type (source global, not JS global)
                     val enumType = ClassType(SymbolMapId(tpe, (-1, -1)))
-                    types = types add context.findSymId(name, false) -> TypeInfo.both(enumType).copy(certain = true)
+                    types = types add context.findSymId(name, false) -> TypeInfo.certain(enumType)
                     true
                   case _ =>
                     false
@@ -353,7 +353,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
             } || enumValues.get(name).exists { e =>
               // TODO: proper scoped type (source global, not JS global)
               val enumType = ClassType(SymbolMapId(e.name.name, (-1, -1)))
-              types = types add context.findSymId(name, false) -> TypeInfo.both(enumType).copy(certain = true)
+              types = types add context.findSymId(name, false) -> TypeInfo.certain(enumType)
               true
             }
           case _ =>
@@ -588,7 +588,133 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
 
   /** transform enums defined as `const A: 0; const B: 1; type E = typeof A | typeof B` */
   def transformUnionEnums(n: NodeExtended): NodeExtended = {
-    n
+
+    object NormalizedUnionType {
+
+      private def normalize(t: Node.UnionType): Seq[Node.TypeAnnotation] = {
+        val left = t.left match {
+          case x: Node.UnionType => normalize(x)
+          case x => List(x)
+        }
+        val right = t.right match {
+          case x: Node.UnionType => normalize(x)
+          case x => List(x)
+        }
+        left ++ right
+      }
+
+      def unapplySeq(t: Node.UnionType): Some[Seq[Node.TypeAnnotation]] = {
+        Some(normalize(t))
+      }
+    }
+
+    // gather all possible enum values (all variables with a literal type)
+    val possibleEnumValues = dtsSymbols.flatMap {
+      case (name, VarDeclTyped(xName, _, _, Some(Node.LiteralType(tpe)))) =>
+        assert(name == xName)
+        Some(name -> tpe)
+      case _ =>
+        None
+
+    }
+
+    val enumTypes = dtsSymbols.flatMap {
+      case (_, TypeAliasDeclaration(Identifier(name), NormalizedUnionType(types@_*))) =>
+        val typeNames = types.map {
+          case t: Node.TypeName if t.parent.size == 1 && possibleEnumValues.contains(t.parent.head.name) =>
+            // check if the type name references a literal type
+            Some(t.parent.head.name)
+          case _ =>
+            None
+        }
+        if (typeNames.forall(_.isDefined)) {
+          Some(name -> typeNames.flatten)
+        } else None
+
+      case _ =>
+        None
+    }
+    val enumTypesFromNames = enumTypes.flatMap { case (name, types) =>
+      types.map(_ -> name)
+    }
+
+    // gather all enum values defined in js
+    val values = mutable.ArrayBuffer.empty[(String, VariableDeclaration, SymId)]
+    n.top.walkWithScope { (node, ctx) =>
+      implicit val c = ctx
+      node match {
+        case vd@VarDeclTyped(name, Some(value: Literal), _, _) if possibleEnumValues.get(name).contains(value) =>
+          enumTypesFromNames.get(name) match {
+            case Some(enumType) =>
+              values += ((enumType, vd, symId(name).get))
+              true
+            case None =>
+              false
+          }
+        case _ =>
+          false
+      }
+    }
+
+    // merge all definitions of the same enum into one
+    val grouped = values.groupBy(_._1).map(x => x._1 -> x._2.map(_._2))
+    val firstValues = grouped.view.mapValues(_.head).map(_.swap).toMap
+    val allValues = values.map(x => (x._2, (x._1, x._3))).toMap
+
+    val newBody = n.top.body.flatMap {
+      case tpe: TypeAliasDeclaration if enumTypes.contains(tpe.id.name) =>
+        Nil
+      case node@(vd: VariableDeclaration) =>
+        // first value of each enum is transformed into an enum declaration
+        val first = firstValues.get(vd).toSeq.flatMap { t =>
+          val tEnumValues = grouped(t)
+          val wrappedValues = tEnumValues.map {
+            case vd@VarDeclTyped(name, Some(value@Literal(OrType(_: Double), _)), _, _) =>
+              EnumBodyElement(Identifier(name).withTokens(value), value).withTokens(value)
+          }
+          Seq(
+            EnumDeclaration(Identifier(t), EnumBody(wrappedValues)).withTokensDeep(vd),
+            TypeAliasDeclaration(Identifier(t), TypeName(Seq(Identifier(t), Identifier("Value")))).withTokensDeep(vd)
+          )
+        }
+
+        // all values including the first are transformed into value aliases
+        val dotValues = allValues.get(vd).map { t =>
+          vd match {
+            case vd@VarDeclTyped(name, _, _, _) =>
+              VarDecl(
+                name, Some(Dot(Identifier(t._1), Identifier(name)).withTokensDeep(vd)), "const", Some(TypeName(Seq(Identifier(t._1))).withTokensDeep(vd))
+              )(node)
+          }
+        }
+
+        if (first.nonEmpty || dotValues.nonEmpty) {
+          first ++ dotValues
+        } else {
+          Seq(vd)
+        }
+
+      case node =>
+        Seq(node)
+    }
+
+    val ret = n.top.cloneNode()
+    ret.body = newBody
+
+    // we assume all enums are top-level
+    val globalScopeId = ScopeContext.getNodeId(n.top)
+
+    val overrideEnumValueTypes = values.foldLeft(n.types) { case (types, (enumName, decl, id)) =>
+      types.add(id -> TypeInfo.certain(ClassType(SymId(enumName, globalScopeId))))
+    }
+    val overrideEnumTypes = enumTypes.foldLeft(overrideEnumValueTypes) { case (types, (enumType, enumValues)) =>
+      val enumSymId = SymId(enumType, globalScopeId)
+      types
+        .add(SymId(enumType, globalScopeId) -> TypeInfo.certain(ClassType(enumSymId)))
+        .remove(SymId.global(enumType)) // hotfix: enum type aliases are introduced in the global scope (no corresponding JS source node)
+
+    }
+    n.copy(top = ret, types = overrideEnumTypes)
   }
 
   def transformEnums(n: NodeExtended): NodeExtended = {
