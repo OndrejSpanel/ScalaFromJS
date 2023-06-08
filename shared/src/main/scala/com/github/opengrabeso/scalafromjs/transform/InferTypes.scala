@@ -537,6 +537,11 @@ object InferTypes {
           }
           symInfo.addSymbolInferredType(allCases, target)(()=>s"Infer switch")
 
+        case Node.FunctionParameterWithType(Node.Identifier(Id(symDef)), _, Defined(defValue), _) =>
+          // TODO: FunctionParameterWithType may contain type, if it does, we might want to use it directly
+          val defType = expressionType(defValue)
+          addInferredType(symDef, defType)(()=>s"Infer def.value ${symDef.name}")
+
         case fun@DefFun(Defined(Id(symDef)), _, _, _, _) =>
           val allReturns = scanFunctionReturns(fun.body)
           //println(s"${symDef.name} returns $allReturns")
