@@ -246,12 +246,14 @@ class ValVarTests extends AnyFunSuite with TestUtils {
         var fz = ( z === undefined) ?  0 : z;
         var fw = ( w !== undefined ) ? w : 1;
       }
+      function a(v = 0.0) {}
       """).required(
         "def f(x: Double = 0, y: Double = 0, z: Double = 0, w: Double = 1)",
         "val fx = x",
         "val fy = y",
         "val fz = z",
-        "val fw = w"
+        "val fw = w",
+        "def a(v: Double = 0.0)"
       ).forbidden(
         "val gl"
       )
