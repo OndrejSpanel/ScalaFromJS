@@ -179,8 +179,8 @@ object TypesRule {
     typeFromAST(tpe)(context).map(TypeInfo.certain)
   }
 }
-case class TypesRule(types: String, root: String) extends ExternalRule {
-  val project = ConvertProject.loadControlFile(PathUtils.resolveSibling(root, types))
+case class TypesRule(types: String, root: String, fs: FileEnvironment) extends ExternalRule {
+  val project = ConvertProject.loadControlFile(PathUtils.resolveSibling(root, types), fs)
   // load the d.ts
   val dtsSymbols = loadSymbols(project.code)
   val enums = dtsSymbols.collect {
@@ -669,7 +669,7 @@ case class TypesRule(types: String, root: String) extends ExternalRule {
         val first = firstValues.get(vd).toSeq.flatMap { t =>
           val tEnumValues = grouped(t)
           val wrappedValues = tEnumValues.map {
-            case vd@VarDeclTyped(name, Some(value@Literal(OrType(_: Double), _)), _, _) =>
+            case VarDeclTyped(name, Some(value: Literal), _, _) =>
               EnumBodyElement(Identifier(name).withTokens(value), value).withTokens(value)
           }
           Seq(

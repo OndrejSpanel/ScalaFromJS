@@ -475,9 +475,9 @@ trait NodeExt {
       * @param root filename of the file the config is being loaded from
     */
     def loadConfig(root: Option[String] = None): NodeExtended = {
-      val (config,ast) = ConvertProject.loadConfig(top, root)
+      val (cfg,ast) = ConvertProject.loadConfig(top, root, config.fs)
 
-      copy(top = ast, config = config)
+      copy(top = ast, config = cfg)
     }
 
   }

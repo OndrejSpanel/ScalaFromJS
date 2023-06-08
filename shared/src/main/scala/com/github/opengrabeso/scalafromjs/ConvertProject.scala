@@ -185,7 +185,10 @@ object ConvertProject {
   val configName = prefixName + "settings"
 
 
-  case class ConvertConfig(root: String = "", rules: Seq[Rule] = Seq.empty) {
+  /**
+   * @param dtsFiles in simulated multi-file projects .d.ts files are passed here
+   * */
+  case class ConvertConfig(root: String = "", rules: Seq[Rule] = Seq.empty, fs: FileEnvironment = FileEnvironment.empty) {
     def collectRules[T: ClassTag]: Seq[T] = rules.collect {case x: T => x}
 
     def postprocess(path: String, src: String): String = {
@@ -244,7 +247,7 @@ object ConvertProject {
 
   object ConvertConfig {
 
-    def load(props: Seq[Node.ObjectExpressionProperty], root: Option[String]) = {
+    def load(props: Seq[Node.ObjectExpressionProperty], root: Option[String], fs: FileEnvironment) = {
       val rules: Seq[Rule] = props.flatMap {
         case ObjectKeyVal("members", a: AArray) =>
           a.elements.flatMap {
@@ -351,7 +354,7 @@ object ConvertProject {
               None
           }
         case ObjectKeyVal("types", StringLiteral(types)) =>
-          root.map(r => transform.TypesRule(types, r))
+          root.map(r => transform.TypesRule(types, r, fs))
         case ObjectKeyVal(name, _) =>
           throw new UnsupportedOperationException(s"Unexpected config entry $name")
         case n =>
@@ -364,8 +367,8 @@ object ConvertProject {
 
   def detectTypescript(in: String): Boolean = PathUtils.extension(PathUtils.shortName(in)) == "ts"
 
-  def readSourceFile(in: String): String = {
-    val code = readFile(in)
+  def readSourceFile(in: String, fs: FileEnvironment): String = {
+    val code = fs.virtualFiles.getOrElse(in, readFile(in))
     val terminatedCode = if (code.lastOption.contains('\n')) code else code + "\n"
     terminatedCode.replace("\r\n", "\n") // if there are any CRLF, replace them with LF only (might happen on Windows)
   }
@@ -383,10 +386,10 @@ object ConvertProject {
     }
   }
 
-  def loadControlFile(in: String): ConvertProject = {
+  def loadControlFile(in: String, fs: FileEnvironment): ConvertProject = {
 
     // parse only the control file to read the preprocess rules
-    val code = readSourceFile(in)
+    val code = readSourceFile(in, fs)
     val typescript = detectTypescript(in)
     val ext = NodeExtended(parse(code, typescript)).loadConfig(Some(in)).config
 
@@ -404,7 +407,19 @@ object ConvertProject {
     }
   }
 
-  def loadConfig(ast: Node.Program, root: Option[String]): (ConvertConfig, Node.Program) = {
+  object FileEnvironment {
+    def empty: FileEnvironment = FileEnvironment(
+      virtualFiles = Map.empty
+    )
+  }
+  /**
+   * in simulated multi-file projects additional files (like .d.ts files) are passed here
+   * */
+  case class FileEnvironment(
+    virtualFiles: Map[String, String]
+  )
+
+  def loadConfig(ast: Node.Program, root: Option[String], fs: FileEnvironment): (ConvertConfig, Node.Program) = {
     var readConfig = Option.empty[ConvertConfig]
 
     object GetConfig {
@@ -421,7 +436,7 @@ object ConvertProject {
 
     ast.walk {
       case GetConfig(props) =>
-        readConfig = Some(ConvertConfig.load(props, root))
+        readConfig = Some(ConvertConfig.load(props, root, fs))
         false
       case _: Node.Program =>
         false
@@ -483,7 +498,7 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
   @scala.annotation.tailrec
   final def resolveImportsExports: ConvertProject = {
     def readFileAsJs(path: String): (String, String) = {
-      val aliasedCode = config.handleAliasPreprocess(path)(readSourceFile(path))
+      val aliasedCode = config.handleAliasPreprocess(path)(readSourceFile(path, config.fs))
       val code = config.preprocess(path, aliasedCode)
       // try parsing, if unable, return a comment file instead
       try {
@@ -531,7 +546,7 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
 
     def readJsFromHtmlFile(namePar: String): Option[(String, String)] = {
       val name = namePar.replace('\\', '/')
-      val html = readSourceFile(name)
+      val html = readSourceFile(name, config.fs)
 
       ScriptExtractor.fromHTML(name, html).map(js => config.preprocess(name, config.handleAliasPreprocess(name)(js)) -> name)
     }
@@ -704,7 +719,7 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
       parse(compositeFile, detectTypescript(root))
     }
 
-    val ext = NodeExtended(ast).loadConfig(Some(root))
+    val ext = NodeExtended(ast, config = config).loadConfig(Some(root))
 
     val parts = (fileOffsets lazyZip fileOffsets.drop(1) lazyZip exports).map { case (from, to, item) =>
       val filePath = relativePath(root, item.fullName)

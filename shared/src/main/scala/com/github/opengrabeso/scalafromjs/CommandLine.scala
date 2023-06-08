@@ -2,8 +2,9 @@ package com.github.opengrabeso.scalafromjs
 
 import scala.util.Try
 import PathUtils._
-import ConvertProject.AliasPackageRule
+import ConvertProject.{AliasPackageRule, FileEnvironment}
 import FileAccess._
+
 import scala.collection.Seq
 
 object CommandLine {
@@ -13,7 +14,7 @@ object CommandLine {
     val log = false
     if (log) println(s"Convert $in to $out")
 
-    val project = ConvertProject.loadControlFile(in)
+    val project = ConvertProject.loadControlFile(in, FileEnvironment.empty)
 
     if (log) println(s"Convert ${(project.values.map(_.fullName) zip project.offsets).mkString("\n")}")
 
