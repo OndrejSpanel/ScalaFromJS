@@ -197,7 +197,7 @@ object ScalaOut {
           }
           OutStringContext.outIdentifier(s.name, symId(s.name).get)
         case t: SymbolTypes.TypeDesc =>
-          val resolved = input.types.resolveType(t)
+          val resolved = input.types.resolveTypeForOut(t)
           output(resolved.toOut)
         case n: Node.Node =>
           nodeToOut(n)
@@ -355,7 +355,7 @@ object ScalaOut {
   def nodeToOut(n: Node.Node)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
 
     implicit class OutResolved(t: SymbolTypes.TypeDesc) {
-      def toOutResolved: String = input.types.resolveType(t).toOut
+      def toOutResolved: String = input.types.resolveTypeForOut(t).toOut
     }
 
     assert(n != null)
@@ -523,7 +523,7 @@ object ScalaOut {
       def outputArgType(n: Node.Identifier, init: Option[Node.Node], tpe: Option[Node.TypeAnnotation])(scopeNode: Node.Node) = {
         val scope = ScopeContext.getNodeId(scopeNode)
         val sid = SymId(n.name, scope)
-        val typeDecl = input.types.get(Some(sid)).map(_.declType).orElse(astType(tpe)).getOrElse(SymbolTypes.AnyType)
+        val typeDecl = input.types.get(Some(sid)).map(t => input.types.resolveType(t.declType)).orElse(astType(tpe)).getOrElse(SymbolTypes.AnyType)
         if (SymbolTypes.watched(sid.name)) { // output symbol ids and types
           out"/*$sid*/"
         }

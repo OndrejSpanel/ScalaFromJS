@@ -8,6 +8,7 @@ import com.github.opengrabeso.scalafromjs.esprima.Defined
 import com.github.opengrabeso.scalafromjs.transform.TypesRule.typeInfoFromAST
 
 import scala.collection.Seq
+import scala.reflect.ClassTag
 
 object SymbolTypes {
 
@@ -45,18 +46,43 @@ object SymbolTypes {
   trait TypeResolver {
     def resolveClass(t: ClassType): TypeDesc
 
-    def resolveType(t: TypeDesc): TypeDesc = {
+    def recurse(t: TypeDesc, depth: Int)(f: TypeDesc => TypeDesc): TypeDesc = {
+      assert(depth < 500)
       t match {
         case c: ClassType =>
           resolveClass(c)
         case ArrayType(a) =>
-          ArrayType(resolveType(a))
+          ArrayType(recurse(a, depth + 1)(f))
         case MapType(a) =>
-          MapType(resolveType(a))
+          MapType(recurse(a, depth + 1)(f))
         case UnionType(a) =>
-          UnionType(a.map(resolveType))
+          UnionType(a.map(recurse(_, depth + 1)(f)).distinct)
         case FunctionType(ret, args) =>
-          FunctionType(resolveType(ret), args.map(resolveType))
+          FunctionType(recurse(ret, depth + 1)(f), args.map(recurse(_, depth + 1)(f)))
+        case x =>
+          f(x)
+      }
+    }
+
+    def resolveType(t: TypeDesc): TypeDesc = {
+      recurse(t, 0)(identity)
+    }
+
+    /** type resolution for output is more aggressive o*/
+    def resolveTypeForOut(t: TypeDesc): TypeDesc = {
+      recurse(t, 0) {
+        case x: LiteralTypeDesc =>
+          x.value match {
+            case _: Int => number
+            case _: Double => number
+            case _: String => string
+            case _: Boolean => boolean
+            case _ => x
+          }
+        case UnionType(a) =>
+          val types = a.distinct
+          if (types.sizeIs == 1) types.head
+          else UnionType(types)
         case x =>
           x
       }
@@ -219,6 +245,28 @@ object SymbolTypes {
     def intersect(that: FunctionType)(implicit classOps: ClassOps) = op(that, typeIntersect, typeUnion)
   }
 
+  object UnionType {
+    /** sometimes we create a union type of a single type intentionally, as we need it for some operation */
+    def single(tpe: TypeDesc): UnionType = new UnionType(Seq(tpe))
+    def apply(types: Seq[TypeDesc]): TypeDesc = {
+      def mergeLiterals[Primitive: ClassTag](t: Seq[TypeDesc], merged: TypeDesc) = {
+        if (t.contains(merged)) t.filterNot {
+          case LiteralTypeDesc(_: Primitive) =>
+            true
+          case _ =>
+            false
+        } else t
+      }
+      def mergeDoubles(t: Seq[TypeDesc]) = mergeLiterals[Int](mergeLiterals[Double](t, number), number)
+      def mergeStrings(t: Seq[TypeDesc]) = mergeLiterals[String](t, string)
+      def mergeBooleans(t: Seq[TypeDesc]) = mergeLiterals[Boolean](t, boolean)
+
+      val res = mergeBooleans(mergeStrings(mergeDoubles(types))).distinct
+      if (res.sizeIs > 1) new UnionType(res)
+      else if (res.isEmpty) NoType
+      else res.head
+    }
+  }
   case class UnionType(types: Seq[TypeDesc]) extends TypeDesc {
     override def knownItems = 1
     // distinct because there may be e.g. several anonymous classes which are output as AnyRef
@@ -325,8 +373,13 @@ object SymbolTypes {
     }
   }
 
-  // intersect: assignment source
   def typeIntersect(tpe1Input: TypeDesc, tpe2Input: TypeDesc)(implicit classOps: ClassOps): TypeDesc = {
+    typeIntersect(tpe1Input, tpe2Input, 0)(classOps)
+  }
+
+    // intersect: assignment source
+  def typeIntersect(tpe1Input: TypeDesc, tpe2Input: TypeDesc, depth: Int)(implicit classOps: ClassOps): TypeDesc = {
+    assert(depth < 500)
     val tpe1 = classOps.resolveType(tpe1Input)
     val tpe2 = classOps.resolveType(tpe2Input)
     val r = (tpe1, tpe2) match {
@@ -349,9 +402,9 @@ object SymbolTypes {
       case (u1: UnionType, u2: UnionType) =>
         u1 intersect u2
       case (u: UnionType, t: TypeDesc) =>
-        typeIntersect(u, UnionType(Seq(t)))
+        u intersect UnionType.single(t)
       case (t: TypeDesc, u: UnionType) =>
-        typeIntersect(UnionType(Seq(t)), u)
+        u intersect UnionType.single(t)
       case (a: MapType, IsObject()) => a
       case (IsObject(), a: MapType) => a
       case (c1: ClassType, _) => // while technically incorrect, we always prefer a class type against a non-class one
@@ -376,6 +429,7 @@ object SymbolTypes {
   }
 
   def unionManyTypes(uTypesInput: Seq[TypeDesc])(implicit classOps: ClassOps): TypeDesc = {
+    // merge literal types with their normal counterparts
     val uTypes = uTypesInput.filterNot(_ == NoType).distinct
     if (uTypes.isEmpty) NoType
     else if (uTypes.contains(AnyType)) AnyType
