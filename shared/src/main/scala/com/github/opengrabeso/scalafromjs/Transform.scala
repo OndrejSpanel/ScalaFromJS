@@ -976,8 +976,9 @@ object Transform {
       "removeVarClassScope" -> onTopNode(removeVarClassScope),
       "types" -> TypesRule.transform _,
       "readTypes" -> ReadTypes.apply _,
+      "unionEnums" -> TypesRule.transformUnionEnums _,  // union enums are better handled before type inference
       "multipass" -> InferTypes.multipass _,
-      "enums" -> TypesRule.transformEnums _,
+      "enums" -> TypesRule.transformEnums _,  // normal enums require type inference to be already done
       "removeTrailingBreak" -> onTopNode(removeTrailingBreak), // before removeTrailingReturn, return may be used to terminate cases
       "removeTrailingReturn" -> onTopNode(removeTrailingReturn), // after inferTypes (returns are needed for inferTypes)
       "inlineConstructorVars" -> Parameters.inlineConstructorVars _, // after type inference, so that all types are already inferred

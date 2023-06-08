@@ -373,7 +373,7 @@ class TSTest extends AnyFunSuite with TestUtils with ProjectUtils {
     )
   }
 
-  test("Literal types") {
+  test("Avoid literal types") {
     exec check ConversionCheckTypeScript(
       """
       export const A: 0;
@@ -383,12 +383,12 @@ class TSTest extends AnyFunSuite with TestUtils with ProjectUtils {
       export const E: "Hi";
       """
     ).required(
-      "A: 0",
-      "B: false",
+      "A: Double",
+      "B: Boolean",
       "C: Null",
-      "D: 1.2",
-      "E: \"Hi\"",
+      "D: Double",
+      "E: String",
     )
-      .forbidden("Double", "Any")
+      .forbidden("Any")
   }
 }

@@ -118,4 +118,32 @@ class DTSTest extends AnyFunSuite with TestUtils with ProjectUtils {
     )
   }
 
+  test("d.ts enum type alias used properly") {
+    exec check ConversionCheck(
+      """
+              //file:input.d.ts
+
+              export const A: 300;
+              export const B: 303;
+
+              export type M = typeof A | typeof B
+              export type AM = M
+
+              //file:input.js
+
+              export const A = 300;
+              export const B = 303;
+
+              var ScalaFromJS_settings = {
+                  types: "input.d.ts"
+              };
+        """
+    ).required(
+      "object M extends Enumeration",
+      "type AM = M"
+    ).forbidden(
+      "type AM = M.Value"
+    )
+
+  }
 }

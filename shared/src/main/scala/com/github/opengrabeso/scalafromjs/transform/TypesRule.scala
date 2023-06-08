@@ -31,6 +31,11 @@ object TypesRule {
     rules.foldLeft(n)((c, r) => r.transformEnums(c))
   }
 
+  def transformUnionEnums(n: NodeExtended): NodeExtended = {
+    val rules = n.config.collectRules[TypesRule]
+    rules.foldLeft(n)((c, r) => r.transformUnionEnums(c))
+  }
+
   def countTypes(node: Node): Int = {
     var count = 0
     node.walk {
@@ -718,6 +723,6 @@ case class TypesRule(types: String, root: String, fs: FileEnvironment) extends E
   }
 
   def transformEnums(n: NodeExtended): NodeExtended = {
-    transformUnionEnums(transformEnumValues(transformEnumObjects(n)))
+    transformEnumValues(transformEnumObjects(n))
   }
 }

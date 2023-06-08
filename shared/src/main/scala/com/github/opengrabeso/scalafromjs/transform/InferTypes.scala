@@ -492,7 +492,15 @@ object InferTypes {
         */
 
         case Node.TypeAliasDeclaration(Node.Identifier(Id(symDef)), tpe) =>
-          addInferredType(symDef, TypesRule.typeInfoFromAST(tpe)(scopeCtx))()
+          val name = symDef.name
+          tpe match {
+            case Node.TypeName(Node.Identifier(`name`) :: Node.Identifier("Value") :: Nil) =>
+              // ignore inference of type alias to an enumeration value
+            case _: Node.UnionType =>
+              // ignore inference of type alias to a union type
+            case _ =>
+              addInferredType(symDef, TypesRule.typeInfoFromAST(tpe)(scopeCtx))()
+          }
 
         // a few special forms of assignment should infer no type - cyclic dependencies
         case Assign(SymbolInfo(symLeft), _, SymbolInfo(symRight)) if symLeft == symRight =>
