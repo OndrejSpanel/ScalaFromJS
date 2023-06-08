@@ -70,26 +70,12 @@ object SymbolTypes {
 
     /** type resolution for output is more aggressive o*/
     def resolveTypeForOut(t: TypeDesc): TypeDesc = {
-      recurse(t, 0) {
-        case x: LiteralTypeDesc =>
-          x.value match {
-            case _: Int => number
-            case _: Double => number
-            case _: String => string
-            case _: Boolean => boolean
-            case _ => x
-          }
-        case UnionType(a) =>
-          val types = a.distinct
-          if (types.sizeIs == 1) types.head
-          else UnionType(types)
-        case x =>
-          x
-      }
+      recurse(t, 0)(_.normalizeForOut)
     }
   }
 
   sealed trait TypeDesc {
+    def normalizeForOut: TypeDesc = this
 
     def scalaConstruct: String = "_"
     // should type be written explicitly when initializing a variable of this type?
@@ -132,6 +118,15 @@ object SymbolTypes {
 
   case class LiteralTypeDesc(value: Any) extends TypeDesc {
     override def toString = value.toString
+    override def normalizeForOut: TypeDesc = {
+      value match {
+        case _: Int => number
+        case _: Double => number
+        case _: String => string
+        case _: Boolean => boolean
+        case _ => this
+      }
+    }
     override def toOut = value match {
       case x: String => s"\"$value\""
       case x => x.toString
@@ -269,8 +264,15 @@ object SymbolTypes {
   }
   case class UnionType(types: Seq[TypeDesc]) extends TypeDesc {
     override def knownItems = 1
+
+    override def normalizeForOut: TypeDesc = {
+      val ts = types.distinct
+      if (ts.sizeIs == 1) ts.head
+      else UnionType(ts)
+    }
+
     // distinct because there may be e.g. several anonymous classes which are output as AnyRef
-    override def toOut = types.map(_.toOut).distinct.mkString(" | ")
+    override def toOut = types.map(_.normalizeForOut.toOut).distinct.mkString(" | ")
     override def toString = types.map(_.toString).mkString(" | ")
 
     override def depthComplexity = types.map(_.depthComplexity).max
