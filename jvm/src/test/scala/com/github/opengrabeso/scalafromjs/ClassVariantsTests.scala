@@ -149,4 +149,24 @@ class ClassVariantsTests extends AnyFunSuite with TestUtils {
       )
 
   }
+
+  test("Call prototype new from ES6 only") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+      function A() {}
+
+      class B {
+        constructor() {
+          new A
+        }
+      }
+    """).required(
+      "class A",
+      "class B",
+    ).forbidden(
+      "prototype",
+      "def A"
+    )
+  }
 }

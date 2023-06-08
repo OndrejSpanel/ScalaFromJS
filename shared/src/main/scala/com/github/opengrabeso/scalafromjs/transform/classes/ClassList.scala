@@ -56,7 +56,7 @@ object ClassList {
         case Node.ClassDeclaration(Defined(name), _, _, _, _) =>
           //println(s"Node.ClassDeclaration ${name.name}")
           classNames += ClassId(name)
-          true
+          false // class may contain new XXX, which we may need to detect XXX class existence
 
         /* the rule did more harm than good - functions are sometimes defined externally
       // use of this in a function most likely means the function is a constructor
