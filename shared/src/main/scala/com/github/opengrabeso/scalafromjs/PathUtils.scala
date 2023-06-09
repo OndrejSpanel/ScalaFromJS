@@ -22,20 +22,27 @@ object PathUtils {
   // inspired by https://docs.oracle.com/javase/7/docs/api/java/nio/file/Path.html#resolveSibling(java.nio.file.Path)
   @scala.annotation.tailrec
   def resolveSibling(path: String, short: String): String = {
-    assert(!path.contains("../"))
-    val dir = path.lastIndexOf('/')
-    if (dir < 0) short
-    else {
-      val currentPrefix = "./"
-      val parentPrefix ="../"
-      if (short.startsWith(parentPrefix)) {
-        resolveSibling(path.take(dir), short.drop(parentPrefix.length))
-      } else {
-        if (short.startsWith(currentPrefix)) {
-          resolveSibling(path, short.drop(currentPrefix.length))
+    if (short.startsWith("https:") || short.startsWith("http:")) {
+      // ignore and web URLs - use just the file name (most likely will result in an error)
+      val dir = path.lastIndexOf('/')
+      short.drop(dir + 1) // will handle not found as well
+      short
+    } else {
+      assert(!path.contains("../"))
+      val dir = path.lastIndexOf('/')
+      if (dir < 0) short
+      else {
+        val currentPrefix = "./"
+        val parentPrefix = "../"
+        if (short.startsWith(parentPrefix)) {
+          resolveSibling(path.take(dir), short.drop(parentPrefix.length))
         } else {
-          assert(!short.contains("../"))
-          path.take(dir + 1) + short
+          if (short.startsWith(currentPrefix)) {
+            resolveSibling(path, short.drop(currentPrefix.length))
+          } else {
+            assert(!short.contains("../"))
+            path.take(dir + 1) + short
+          }
         }
       }
     }

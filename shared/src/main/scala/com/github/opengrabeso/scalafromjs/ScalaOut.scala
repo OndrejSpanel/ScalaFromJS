@@ -1322,7 +1322,9 @@ object ScalaOut {
           out.indent()
           out("case ")
           out.indent()
-          nodeToOut(tn.param)
+          if (tn.param != null) {
+            nodeToOut(tn.param)
+          } else out("???")
           out(" =>\n")
           blockToOut(tn.body.body)
           out.unindent()
