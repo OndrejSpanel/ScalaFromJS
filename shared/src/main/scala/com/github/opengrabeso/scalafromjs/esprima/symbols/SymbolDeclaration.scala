@@ -31,8 +31,9 @@ object SymbolDeclaration {
           Seq((f.id, false))
         case f: AsyncFunctionDeclaration =>
           Seq((f.id, false))
-        case MethodDefinition(id: Identifier, _, _, _, _, _) =>
-          Seq((id, true))
+        case MethodDefinition(id: Identifier, _, _, _, kind, _) =>
+          val call = kind != "value" && kind != "get" && kind != "set"
+          Seq((id, call))
         case v: VariableDeclaration =>
           v.declarations.map(d => (d.id, false))
         case c: ClassDeclaration =>
@@ -58,7 +59,7 @@ object SymbolDeclaration {
               case Identifier(name) => true
               case _ => false
             }
-            if (named) Some(prop.key -> true) // object properties should not be resolved using normal variable access
+            if (named) Some(prop.key -> false) // object properties should not be resolved using normal variable access
             else None
           case _ => // spread
             None
@@ -85,7 +86,7 @@ object SymbolDeclaration {
         f.params.map(_ -> false)
       case f: MethodDefinition =>
         Seq(f.key).collect {
-          case id: Identifier => id -> true
+          case id: Identifier => id -> (f.kind != "value" && f.kind != "get" && f.kind != "set")
         }
       case _ =>
         Seq()

@@ -117,7 +117,7 @@ package object esprima extends NodeExt {
       if (ast != null) {
         val cloned = ast.cloneNode()
         transformInto(cloned)(_.cloneDeep())
-        cloned.asInstanceOf[T]
+        cloned
       } else {
         ast
       }

@@ -470,7 +470,7 @@ object ConvertProject {
 case class ConvertProject(root: String, config: ConvertConfig, items: Map[String, Item]) {
   val values = items.values.toIndexedSeq
   lazy val code = values.map(_.code).mkString
-  // offset boundaries for all items, including before the first one (zero), and after the last one (total input lenght)
+  // offset boundaries for all items, including before the first one (zero), and after the last one (total input length)
   lazy val offsets = values.scanLeft(0)((offset, file) => offset + file.code.length)
 
   def checkIntegrity = {

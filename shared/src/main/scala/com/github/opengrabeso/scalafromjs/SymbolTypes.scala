@@ -12,12 +12,12 @@ import scala.reflect.ClassTag
 
 object SymbolTypes {
 
-  val watch = false
+  val watch = true
 
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("context")
+    val watched = Set[String]("context", "a", "x", "aa")
     name.startsWith("watch_") || watched.contains(name)
   }
 

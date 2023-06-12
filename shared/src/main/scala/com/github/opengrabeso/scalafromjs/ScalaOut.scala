@@ -1772,7 +1772,8 @@ object ScalaOut {
 
       override def submitLocation(loc: Int, debug: =>String) = {
         // start new files only when there is no indenting (top-level)
-        if (!isIndented) {
+        // ignore D.TS symbols
+        if (!isIndented && loc < 1_000_000_000) {
           // check if we have crossed a file boundary, start a new output file if needed
           //println(s"loc $loc of ${outConfig.parts}")
           while (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb).to) {

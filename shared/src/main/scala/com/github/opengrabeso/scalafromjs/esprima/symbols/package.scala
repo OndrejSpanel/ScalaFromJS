@@ -203,7 +203,9 @@ package object symbols {
     def findSymId(sym: String, memberCall: Boolean): SymId = {
       val scope = findScope(sym, memberCall)
       // when symbol not found in any scope, consider it a global one
-      scope.fold(SymId(sym, -1 -> -1))(info => SymId(sym, getNodeId(info._1)))
+      scope.fold {
+        SymId(sym, -1 -> -1)
+      }(info => SymId(sym, getNodeId(info._1)))
     }
 
     def parent(level: Int = 0): Option[Node] = if (level + 1 < parents.length) Some(parents(parents.length - 2 - level)) else None

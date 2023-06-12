@@ -14,6 +14,7 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.Try
 import scala.collection.Seq
+import scala.util.chaining.scalaUtilChainingOps
 
 /**
   * Code responsible for parsing d.ts files and matching them to the main project AST
@@ -188,6 +189,7 @@ case class TypesRule(types: String, root: String, fs: FileEnvironment) extends E
   val project = ConvertProject.loadControlFile(PathUtils.resolveSibling(root, types), fs)
   // load the d.ts
   val dtsSymbols = loadSymbols(project.code)
+  val dtsRange = (0, project.offsets.last)
   val enums = dtsSymbols.collect {
     case (k, v: EnumDeclaration) =>
       (k, v)
@@ -261,11 +263,16 @@ case class TypesRule(types: String, root: String, fs: FileEnvironment) extends E
     }.toMap
 
 
+    // scope offsets need to be unique. For identification of symbols coming from D.TS only we pretend D.TS files are appended after all JS files
+    // we do not have access to JS project here. assume there will always be less than 1 GB of JS code
+    //val dtsOffset = 1_000_000_000 // assume there will always be less than 1 GB of JS code
+    val dtsOffset = 1_000_000_000 // assume there will always be less than 1 GB of JS code
     val beginMarker = ConvertProject.prefixName + "begin"
 
+    val dtsTopLevelRange = n.top.range
     // scan the top-level body for the markers, and insert the new content as needed
     // do this before adding types for the symbols, as that should handle the newly added ones as well
-    // markers may have uniqye postfix - see declaredGlobal
+    // markers may have unique postfix - see declaredGlobal
     val newBody = n.top.body.flatMap {
       case node@Node.ExportNamedDeclaration(VarDecl(name, Some(Node.Literal(value, raw)), "const"), Seq(), null) if name.startsWith(beginMarker) =>
         // we want to insert declarations somewhere after the "begin" markers
@@ -273,7 +280,17 @@ case class TypesRule(types: String, root: String, fs: FileEnvironment) extends E
         val dtsFromJS = value.replaceAll(".js$", ".d.ts")
         symbolsToInclude.get(dtsFromJS) match {
           case Some(injectSymbols) =>
-            val symbolsInJS = injectSymbols.toSeq.map(_.withTokensDeep(node))
+            val symbolsInJS = injectSymbols.toSeq.map(_.cloneDeep())
+            def adjustRange(node: Node): Unit = {
+              assert(node.range._1 < dtsOffset)
+              node.range = (node.range._1 + dtsOffset, node.range._2 + dtsOffset)
+            }
+            symbolsInJS.foreach { symNode =>
+              symNode.walk { n =>
+                adjustRange(n)
+                false
+              }
+            }
             node +: symbolsInJS
           case None =>
             Seq(node)
