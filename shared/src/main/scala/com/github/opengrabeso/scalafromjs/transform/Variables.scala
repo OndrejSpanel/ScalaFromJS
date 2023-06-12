@@ -716,7 +716,7 @@ object Variables {
     n.copy(top = inConditionCast)
   }
 
-  def detectGlobalTemporaries(n: Node.Node): Node.Node = Time("detectGlobalTemporaries") {
+  def detectGlobalTemporaries(topNode: Node.Node): Node.Node = Time("detectGlobalTemporaries") {
     // scan the global scope for temporary variables to remove
     // for each variable: first option is erase state (last initialization), second is optional initialization
     var globals = mutable.Map.empty[SymId, Option[Option[Node.Expression]]]
@@ -765,17 +765,56 @@ object Variables {
     def isGlobalTemporary(sym: SymId, init: Node.Node)(implicit context: ScopeContext) = nonScalarInitializer(init) && !recursiveInitializer(sym, init)
 
     object GlobalTemporary {
-      def unapply(node: Node.Node)(implicit context: ScopeContext): Option[(SymId, Option[Node.Expression])] = node match {
+      def unapply(node: Node.StatementListItem)(implicit context: ScopeContext): Option[(SymId, Option[Node.Expression])] = node match {
         case VarDecl(Id(sym), init, _) if matchName(sym.name) && init.forall(isGlobalTemporary(sym, _)) =>
           Some(sym, init)
         case _ =>
           None
       }
     }
-    n.walkWithScope {(node, context) =>
+
+    // first of all move each global variable to the top of the file (just after file marker and imports)
+    // this way we are sure variable is used under its declaration, and is already known there
+    val allGlobalDefs = mutable.Map.empty[String, List[Node.StatementListItem]]
+    var lastBeginMarker = Option.empty[String]
+    val beginMarker = ConvertProject.prefixName + "begin"
+    topNode.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
-        case `n` => // enter into the top node ("module")
+        case node@Node.ExportNamedDeclaration(VarDecl(name, Some(Node.Literal(value, raw)), "const"), Seq(), null) if name.startsWith(beginMarker) =>
+          lastBeginMarker = Some(value)
+          true
+        case `topNode` => // enter into the top node ("module")
+          false
+        case node@GlobalTemporary(sym, init) => // global variable with or without (non-scalar) initialization
+          lastBeginMarker.foreach { filename =>
+            allGlobalDefs += filename -> (allGlobalDefs.getOrElse(sym.name, Nil) :+ node)
+          }
+          true
+        case _ =>
+          true
+      }
+    }
+
+    // reorder - move all global variables
+    val newBody: Seq[Node.StatementListItem] = topNode.asInstanceOf[Node.Program].body.flatMap {
+      case node@Node.ExportNamedDeclaration(VarDecl(name, Some(Node.Literal(value, raw)), "const"), Seq(), null) if name.startsWith(beginMarker) =>
+        lastBeginMarker = Some(value)
+        node +: allGlobalDefs.getOrElse(value, Nil)
+
+      case node if lastBeginMarker.exists(file => allGlobalDefs.getOrElse(file, Nil).contains(node)) =>
+        Nil
+      case node =>
+        Seq(node)
+
+    }
+    val newTopNode = topNode.cloneNode().asInstanceOf[Node.Program]
+    newTopNode.body = newBody
+
+    newTopNode.walkWithScope {(node, context) =>
+      implicit val ctx = context
+      node match {
+        case `newTopNode` => // enter into the top node ("module")
           false
         case GlobalTemporary(sym, init) => // global variable with or without (non-scalar) initialization
           globals += sym -> Some(init)
@@ -796,7 +835,7 @@ object Variables {
     val scopes = mutable.LinkedHashSet.empty[(SymId, Node.Node)] // caution: transform will invalidate Node references
 
     // identify scopes where the variables should be introduced
-    n.walkWithScope { (node, context) =>
+    newTopNode.walkWithScope { (node, context) =>
       implicit val ctx = context
       node match {
         case VarDecl(GlobalVar(_), _, _) =>
@@ -823,7 +862,7 @@ object Variables {
     }
 
     // find and handle all uses of the global variable
-    val handle = n.transformBefore {(node, descend, transformer) =>
+    val handle = newTopNode.transformBefore {(node, descend, transformer) =>
       implicit val ctx = transformer.context
       node match {
         case VarDecl(GlobalVar(sym), init, _) => // remove the original declaration
@@ -831,6 +870,7 @@ object Variables {
             case Some(i) if isGlobalTemporary(sym, i) =>
               // track the last initialization so that replacement uses it, keep the short name
               globals += sym -> Some(init)
+              if (watched(sym.name)) println(s"Erase temporary declaration $sym")
               Node.EmptyStatement().withTokens(node) // erase the declaration
             case None =>
               globals += sym -> Some(None)

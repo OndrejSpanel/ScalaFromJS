@@ -86,6 +86,33 @@ class RemoveTemporary extends AnyFunSuite with TestUtils {
     ).forbidden("_vector")
   }
 
+  test("Temporary variable (global) removal when used before declaration") {
+    exec check ConversionCheck(
+      // language=JavaScript
+      """
+      //file:decl.js
+      class Vector3 {}
+      class Color {}
+
+      //file:a.js
+      function a() {
+        return _color;
+      }
+
+      const _color = new Color();
+
+      //file:b.js
+      const _color = new Vector3();
+
+      function b() {
+        return _color;
+      }
+    """).required(
+      "val color = new Color()",
+      "val color = new Vector3()",
+    ).forbidden("_color")
+  }
+
   test("Do not remove a global variable used from its own declaration") {
     exec check ConversionCheck(
       // language=JavaScript
