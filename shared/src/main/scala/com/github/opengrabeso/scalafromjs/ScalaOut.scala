@@ -195,7 +195,11 @@ object ScalaOut {
               println(s"Warning: class scope detected but not used for ${s.name}")
             }
           }
-          OutStringContext.outIdentifier(s.name, symId(s.name).get)
+          if (context.top.exists(_.isInstanceOf[Node.MethodDefinition]) && context.parent(0).exists(_.isInstanceOf[Node.ClassBody])) {
+            OutStringContext.outIdentifier(s.name, memberFunId(s.name).get)
+          } else {
+            OutStringContext.outIdentifier(s.name, symId(s.name).get)
+          }
         case t: SymbolTypes.TypeDesc =>
           val resolved = input.types.resolveTypeForOut(t)
           output(resolved.toOut)

@@ -151,8 +151,8 @@ package object symbols {
               // when it is a normal scope, it matches everything, call or not
               true
             } else {
-              // class scope matching only when the symbol is a member function and is used as such
-              memberCall && memberFun
+              // class scope matching only when the symbol is used when a member is expected
+              memberCall //&& memberFun
             }
           case None =>
             false
