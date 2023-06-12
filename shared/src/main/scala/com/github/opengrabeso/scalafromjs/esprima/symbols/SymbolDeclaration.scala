@@ -1,7 +1,9 @@
-package com.github.opengrabeso.scalafromjs.esprima
+package com.github.opengrabeso.scalafromjs
+package esprima
 package symbols
 
 import com.github.opengrabeso.esprima.Node._
+
 import scala.collection.Seq
 
 object SymbolDeclaration {
@@ -32,7 +34,7 @@ object SymbolDeclaration {
         case f: AsyncFunctionDeclaration =>
           Seq((f.id, false))
         case MethodDefinition(id: Identifier, _, _, _, kind, _) =>
-          val call = kind != "value" && kind != "get" && kind != "set"
+          val call = SymbolTypes.isMemberCall(kind)
           Seq((id, call))
         case v: VariableDeclaration =>
           v.declarations.map(d => (d.id, false))
@@ -86,7 +88,7 @@ object SymbolDeclaration {
         f.params.map(_ -> false)
       case f: MethodDefinition =>
         Seq(f.key).collect {
-          case id: Identifier => id -> (f.kind != "value" && f.kind != "get" && f.kind != "set")
+          case id: Identifier => id -> SymbolTypes.isMemberCall(f.kind)
         }
       case _ =>
         Seq()

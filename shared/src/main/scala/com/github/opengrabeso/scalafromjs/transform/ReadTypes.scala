@@ -1,10 +1,8 @@
 package com.github.opengrabeso.scalafromjs
 package transform
 
-import com.github.opengrabeso.esprima.Node.FunctionParameter
 import com.github.opengrabeso.esprima._
-import com.github.opengrabeso.scalafromjs.SymbolTypes.watched
-import com.github.opengrabeso.scalafromjs.esprima.symbols.{Id, MemberFunId, memberFunId}
+import com.github.opengrabeso.scalafromjs.esprima.symbols._
 import com.github.opengrabeso.scalafromjs.transform.TypesRule.{typeFromAST, typeInfoFromAST}
 import esprima._
 
@@ -33,10 +31,11 @@ object ReadTypes {
         }
       }
       node match {
-        case Node.MethodDefinition(Node.Identifier(funName), tpe, _, funex@AnyFunEx(pars, retFun, body), _, _) => // member function
-          val symId = memberFunId(funName).get
+        case Node.MethodDefinition(Node.Identifier(funName), tpe, _, funex@AnyFunEx(pars, retFun, body), kind, _) => // member function
+          val memberFun = SymbolTypes.isMemberCall(kind)
+          val sid = if (memberFun) memberFunId(funName).get else symId(funName).get
           val tt = retFun.flatMap(typeFromAST)
-          types = types.handleParameterTypes(symId, tt, pars, pars, symbols.ScopeContext.getNodeId(funex))
+          types = types.handleParameterTypes(sid, tt, pars, pars, symbols.ScopeContext.getNodeId(funex))
           for (t <- Option(tpe).orElse(retFun)) {
             addMemberType(funName, t)
           }

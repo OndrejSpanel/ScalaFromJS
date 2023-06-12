@@ -12,7 +12,7 @@ import scala.reflect.ClassTag
 
 object SymbolTypes {
 
-  val watch = true
+  val watch = false
 
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
@@ -695,6 +695,9 @@ object SymbolTypes {
 
   lazy val stdClassInfo: ClassInfo = ClassInfo(libs, Map.empty)
 
+  def isMemberCall(kind: String): Boolean = {
+    kind != "value" && kind != "get" && kind != "set"
+  }
 }
 
 
@@ -825,7 +828,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
     //assert(!kv._1.isGlobal)
 
     val id = kv._1
-    if (id.name.startsWith("watchJS_")) {
+    if (watched(id.name)) {
       if (types.get(id).exists(_.equivalent(kv._2))) {
         println(s"++ Watched $id type == ${kv._2}")
       } else {
@@ -836,7 +839,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
   }
 
   def remove(id: SymbolMapId): SymbolTypes = {
-    if (id.name.startsWith("watchJS_")) {
+    if (watched(id.name)) {
       println(s"-- Watched $id")
     }
     copy(types = types - id)
@@ -846,7 +849,7 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
     // not generally true, but can be useful during debugging to catch symbols without a proper scope
     //assert(kv._1.forall(!_.isGlobal))
 
-    kv._1.fold(this)(k => copy(types = types + (k -> kv._2)))
+    kv._1.fold(this)(k => add(k -> kv._2))
   }
 
   def addHint(kv: (Option[SymbolMapId], Hint)): SymbolTypes = {
@@ -928,13 +931,12 @@ case class SymbolTypes(stdLibs: StdLibraries, types: Map[SymbolMapId, TypeInfo],
       }
     }
 
-    if (watched(funName)) println(s"Set from d.ts $symId $tt")
-
     // an alternative implementation could store a function type as a type of the member
     // in current implementation we store the result type. Parameter types are stored for the parameter identifiers
     //FunctionType(tt, parTypes.map(_.map(_.declType).getOrElse(AnyType)).toIndexedSeq)
 
     for (t <- tt) {
+      if (watched(funName)) println(s"Set from d.ts $symId $tt")
       types += symId -> TypeInfo.certain(t)
     }
 

@@ -460,6 +460,28 @@ object InferTypes {
         }
       }
 
+      def inferFunctionType(sym: String, fun: Node.FunctionExpression, kind: String): Unit = {
+        val allReturns = scopeCtx.withScope(fun, fun.body) {
+          scanFunctionReturns(fun.body)
+        }
+
+        // method of which class is this?
+        val scope = findThisClass(scopeCtx)
+        for {
+          retType <- allReturns
+          Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _, _, _) <- scope
+          clsId = Id(cls)
+        } {
+            val classId = MemberId(clsId, sym)
+            if (!SymbolTypes.isMemberCall(kind)) { // not a real function, on a value member
+            //println(s"Infer return type for method ${cls.name}.$sym as $retType")
+              addInferredMemberType(Some(classId), Some(retType))(()=>s"Infer return type for member value $cls.$sym as $retType")
+            } else {
+              val funType = FunctionType(retType.declType, IndexedSeq())
+              addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(() => s"Infer return type for method $cls.$sym as $retType")
+            }
+        }
+      }
       node match {
         case Node.VariableDeclarator(Node.Identifier(Id(symDef)), Defined(right), _) =>
           val log = watched(symDef.name)
@@ -555,6 +577,10 @@ object InferTypes {
           }
 
         case Node.MethodDefinition(Node.Identifier(sym), _, _, fun@AnyFun(Seq(), body), "get", _) =>
+          fun match {
+            case funExp: Node.FunctionExpression =>
+              inferFunctionType(sym, funExp, "get")
+          }
           scopeCtx.withScope(fun, body) {
             // check body final value
             //noinspection MatchToPartialFunction
@@ -594,22 +620,7 @@ object InferTypes {
           }
 
         case Node.MethodDefinition(Node.Identifier(sym), _, _, fun: Node.FunctionExpression, kind, _) =>
-          val allReturns = scopeCtx.withScope(fun, fun.body) {
-            scanFunctionReturns(fun.body)
-          }
-
-          // method of which class is this?
-          val scope = findThisClass(scopeCtx)
-          for {
-            retType <- allReturns
-            Node.ClassDeclaration(Defined(Node.Identifier(cls)), _, _, _, _) <- scope
-            clsId = Id(cls)
-          } {
-            //println(s"Infer return type for method ${cls.name}.$sym as $retType")
-            val classId = MemberId(clsId, sym)
-            val funType = FunctionType(retType.declType, IndexedSeq())
-            addInferredMemberType(Some(classId), Some(TypeInfo.target(funType)))(()=>s"Infer return type for method $cls.$sym as $retType")
-          }
+          inferFunctionType(sym, fun, kind)
 
         case Node.MethodDefinition(Node.Identifier(sym), _, _, expr: Node.Expression, kind, _) =>
           val scope = findThisClass(scopeCtx)
@@ -619,7 +630,7 @@ object InferTypes {
             clsId = Id(cls)
           } {
             val classId = MemberId(clsId, sym)
-            if (kind == "value") { // not a real function, on a value member
+            if (!SymbolTypes.isMemberCall(kind)) { // not a real function, on a value member
               //println(s"Infer return type for method ${cls.name}.$sym as $retType")
               addInferredMemberType(Some(classId), Some(retType))(()=>s"Infer return type for member value $cls.$sym as $retType")
             } else {
