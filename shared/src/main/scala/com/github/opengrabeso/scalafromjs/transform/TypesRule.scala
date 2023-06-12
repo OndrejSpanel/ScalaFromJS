@@ -282,8 +282,10 @@ case class TypesRule(types: String, root: String, fs: FileEnvironment) extends E
           case Some(injectSymbols) =>
             val symbolsInJS = injectSymbols.toSeq.map(_.cloneDeep())
             def adjustRange(node: Node): Unit = {
-              assert(node.range._1 < dtsOffset)
-              node.range = (node.range._1 + dtsOffset, node.range._2 + dtsOffset)
+              if (node.range != null) {
+                assert(node.range._1 < dtsOffset)
+                node.range = (node.range._1 + dtsOffset, node.range._2 + dtsOffset)
+              }
             }
             symbolsInJS.foreach { symNode =>
               symNode.walk { n =>
