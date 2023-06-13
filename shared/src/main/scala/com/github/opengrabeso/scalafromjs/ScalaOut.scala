@@ -492,6 +492,30 @@ object ScalaOut {
               if (node.init != null) {
                 out" = ${node.init}"
               }
+              out")"
+            case VarDef(Node.ObjectPattern(names), init, vType) =>
+              out("val (\n")
+              out.indent()
+              var first = true
+              names.foreach { p =>
+                if (!first) out",\n"
+                first = false
+                p match {
+                  case prop: Node.Property =>
+                    // note: value may contain initializer (default value)
+                    prop.value match {
+                      case Node.AssignmentPattern(left, right) =>
+                        out"${prop.key} = if ($left == undefined) $right else $left"
+                      case x =>
+                        out"${prop.key} = ${prop.value}"
+                    }
+                  case _ =>
+                    out"$p"
+                }
+              }
+              out.unindent()
+              out("\n)")
+
             case _ =>
               out"/* Unsupported var */ var ${node.id}"
               if (node.init != null) {
@@ -1707,6 +1731,8 @@ object ScalaOut {
           out"$p"
         }
         out(")")
+        case Node.AssignmentPattern(left, right) =>
+          out"$left = $right"
         case tn =>
           outputUnknownNode(tn)
           out.eol()

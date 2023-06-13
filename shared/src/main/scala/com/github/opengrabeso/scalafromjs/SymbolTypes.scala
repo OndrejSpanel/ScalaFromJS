@@ -17,7 +17,7 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("context", "a", "x", "aa")
+    val watched = Set[String]("context", "_gl")
     name.startsWith("watch_") || watched.contains(name)
   }
 

@@ -246,6 +246,43 @@ object Variables {
     }
 
   }
+
+  /** destructuring assignment is similar to Scala pattern matching, but there are many differences and it is easier
+   * to dissolve it into individual declarations */
+  def destructuring(n: Node.Node): Node.Node = {
+    n.transformAfter { (node, transformer) =>
+      node match {
+        case decl: Node.VariableDeclaration =>
+          val newDeclarations = decl.declarations.flatMap { d =>
+            d.id match {
+              case Node.ObjectPattern(props) =>
+                props.map {
+                  case Node.AssignmentPattern(left: Node.Identifier, right) =>
+                    Node.VariableDeclarator(left, right, null).withTokens(d)
+                  case id: Node.Identifier =>
+                    Node.VariableDeclarator(id, null, null).withTokens(d)
+                  case Node.Property(kind, key: Node.Identifier, false, value: Node.Expression, false, _) =>
+                    Node.VariableDeclarator(key, value, null).withTokens(d)
+                  case Node.Property(kind, key: Node.Identifier, false, value: Node.AssignmentPattern, false, _) =>
+                    // WIP: handle value
+                    Node.VariableDeclarator(key, null, null).withTokens(d)
+                  case prop =>
+                    // WIP: what to do?
+                    ???
+                }
+              case x =>
+                Seq(d)
+            }
+          }
+          val newDecl = decl.cloneNode()
+          newDecl.declarations = newDeclarations
+          newDecl
+        case _ =>
+          node
+      }
+    }
+  }
+
   // merge variable declaration and first assignment if possible
   def varInitialization(n: Node.Node): Node.Node = {
 

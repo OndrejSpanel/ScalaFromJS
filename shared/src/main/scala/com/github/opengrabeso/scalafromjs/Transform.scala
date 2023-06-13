@@ -953,6 +953,7 @@ object Transform {
       "cleanupExports" -> onTopNode(Modules.cleanupExports),
       "inlineImports" -> onTopNode(Modules.inlineImports),
       "handleIncrement" -> onTopNode(handleIncrement),
+      "destructuring" -> onTopNode(Variables.destructuring), // before splitMultipleDefinitions, as it will create multiple definitions in one one
       "splitMultipleDefinitions" -> onTopNode(Variables.splitMultipleDefinitions),
       "varInitialization" -> onTopNode(Variables.varInitialization),
       "readJSDoc" -> readJSDoc,
