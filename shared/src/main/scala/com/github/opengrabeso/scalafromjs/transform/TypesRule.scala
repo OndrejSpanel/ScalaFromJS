@@ -108,6 +108,7 @@ object TypesRule {
       case "number" => Some(SimpleType("Double"))
       case "string" => Some(SimpleType("String"))
       case "boolean" => Some(SimpleType("Boolean"))
+      case "object" => Some(ObjectOrMap)
       case "any" => None // any is usually a placeholder for missing information
       case "never" => Some(NothingType)
       case "void" => Some(NoType)

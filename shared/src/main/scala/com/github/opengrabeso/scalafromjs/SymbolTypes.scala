@@ -321,6 +321,7 @@ object SymbolTypes {
       case "boolean" => Some(boolean)
       case "string" => Some(string)
       case "any" => Some(any)
+      case "object" => Some(ObjectOrMap)
       case _ => None
     }
   }
