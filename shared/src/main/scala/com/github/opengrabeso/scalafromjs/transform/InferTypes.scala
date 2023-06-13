@@ -116,12 +116,14 @@ object InferTypes {
                 }
                 allTypes.t += tid -> tp
               } else {
-                if (tid.exists(watchedSym)) {
-                  println(s"Watched (supressed) ${tid.get} result $tp, type ${tpe.get}, was $oldType")
-                  debug.foreach(s => println("  " + s()))
+                if (false) {
+                  if (tid.exists(watchedSym)) {
+                    println(s"Watched (supressed) ${tid.get} result $tp, type ${tpe.get}, was $oldType")
+                    debug.foreach(s => println("  " + s()))
+                  }
                 }
               }
-            } else if (true) {
+            } else if (false) {
               if (tid.exists(watchedSym)) {
                 println(s"Watched not acceptable ${tid.get} type $oldType === $tp from ${tpe.get}")
                 debug.foreach(s => println("  " + s()))
