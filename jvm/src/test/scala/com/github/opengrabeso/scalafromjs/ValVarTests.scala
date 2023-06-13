@@ -280,4 +280,40 @@ class ValVarTests extends AnyFunSuite with TestUtils {
         "_par"
       )
   }
+
+  test("Handle destructuring assignment") {
+    exec check ConversionCheck(
+      //lang=JavaScript
+      """class Context {};
+
+        var context = "";
+
+        class Pars {
+          get context() {return new Context;}
+        };
+
+        var x, y;
+        if (true) {
+          x = new Pars().context
+          y = new R(new Pars()).c
+        }
+
+        class R {
+          constructor(parameters) {
+
+            const {
+              context = null,
+              options
+            } = parameters;
+
+            this.c = context;
+          }
+        }
+        """
+    ).required(
+      "var x: Context",
+      "var y: Context",
+      "var c: Context"
+    )
+  }
 }

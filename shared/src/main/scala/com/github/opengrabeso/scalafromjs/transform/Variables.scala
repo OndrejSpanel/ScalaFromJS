@@ -262,10 +262,9 @@ object Variables {
                   case id: Node.Identifier =>
                     Node.VariableDeclarator(id, null, null).withTokens(d)
                   case Node.Property(kind, key: Node.Identifier, false, value: Node.Expression, false, _) =>
-                    Node.VariableDeclarator(key, value, null).withTokens(d)
+                    Node.VariableDeclarator(key, Dot(d.init, value).withTokens(d), null).withTokens(d)
                   case Node.Property(kind, key: Node.Identifier, false, value: Node.AssignmentPattern, false, _) =>
-                    // WIP: handle value
-                    Node.VariableDeclarator(key, null, null).withTokens(d)
+                    Node.VariableDeclarator(key, Node.BinaryExpression("||", Dot(d.init, key).withTokens(d.init), value.right).withTokens(value), null).withTokens(d)
                   case prop =>
                     // WIP: what to do?
                     ???
