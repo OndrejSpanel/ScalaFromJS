@@ -145,15 +145,16 @@ object ClassesByMembers {
 
         val noChildren = removeChildren(bestCandidatesIncludingChildren.keySet.toList, bestCandidatesIncludingChildren.keySet)
 
-        val bestCandidates = bestCandidatesIncludingChildren -- (bestCandidatesIncludingChildren.keySet -- noChildren)
+        val bestCandidates = bestCandidatesIncludingChildren.view.filterKeys(noChildren.contains).toMap
 
         //if (bestCandidates.keySet != bestCandidatesIncludingChildren.keySet) println(s"    bestCandidates ${bestCandidates.keys}, with children ${bestCandidatesIncludingChildren.keys}")
 
 
-        val maxCandidates = if (desperate) 5 else 1
+        val maxCandidates = 1
 
         // if there are too many candidates or no match at all, assume nothing
         if (bestCandidates.size > maxCandidates) {
+          if (interesting) println(s"    too many bestCandidates ${bestCandidates.keys.size}")
           None
         } else {
           // multiple candidates - we need to choose based on some secondary criterion
