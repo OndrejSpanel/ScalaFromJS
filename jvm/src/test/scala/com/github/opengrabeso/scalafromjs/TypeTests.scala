@@ -126,9 +126,10 @@ class TypeTests extends AnyFunSuite with TestUtils {
     exec check ConversionCheck(rsc("types/classesByMembers.js"))
       .required(
         //"t: Any",
-        "cx: X",
-        "cy: XY",
-        "cxy: XY",
+        "ca: A",
+        "cb: AB",
+        "cab: AB",
+        "cc: C",
         "cxyz: XYZ"
       ).forbidden(
         "t: X"

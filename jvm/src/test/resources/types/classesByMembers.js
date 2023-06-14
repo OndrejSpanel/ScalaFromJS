@@ -1,23 +1,23 @@
-function X(x) {
-    this.x = x;
+function A(a) {
+    this.a = a;
 }
 
-X.prototype.getX = function(){ return x; };
+A.prototype.getA = function(){ return a; };
 
-function XY(x, y) {
-    X.call(x);
-    this.y = y;
+function AB(a, b) {
+    A.call(a);
+    this.b = b;
 
 }
 
-XY.prototype = new X;
-XY.prototype.getY = function(){ return y; };
+AB.prototype = new A;
+AB.prototype.getB = function(){ return b; };
 
-function Z(z) {
-    this.z = z;
+function C(c) {
+    this.c = c;
 }
 
-Z.prototype.getZ = function(){ return z; };
+C.prototype.getC = function(){ return c; };
 
 
 function XYZ(x, y, z) {
@@ -36,14 +36,14 @@ new Z(0);
 new XYZ(0, 0, 0);
 
 function f() {
-    var cx, cy, cxy, cz, cxyz;
+    var ca, cb, cab, cc, cxyz;
     var t;
-    cx.x = 0;
-    cxy.x = cx.x;
-    cy.y = cx.x;
-    cxy.y = 1;
+    ca.a = 0;
+    cab.a = ca.a;
+    cb.b = ca.a;
+    cab.b = 1;
     cxyz.x = 3;
     cxyz.z = 5;
-    cz.z = cxyz.z;
+    cc.c = cxyz.z;
     t.t = "";
 }

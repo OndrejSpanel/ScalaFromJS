@@ -5,4 +5,6 @@ function demo() {
 
     var q0 = new Quaternion(0, 0, 0, 1);
     q0.dot(q0);
+
+    vy.applyAxisAngle(vx, 0)
 }
