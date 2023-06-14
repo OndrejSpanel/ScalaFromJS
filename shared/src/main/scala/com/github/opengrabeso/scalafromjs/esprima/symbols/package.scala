@@ -29,7 +29,13 @@ package object symbols {
   }
 
   case class SymId(name: String, sourcePos: (Int, Int)) {
-    override def toString = s"$name:$sourcePos"
+    override def toString = {
+      if (isGlobal) {
+        s"$name:global"
+      } else {
+        s"$name:$sourcePos"
+      }
+    }
     def isGlobal = sourcePos._1 < 0
 
     def compare(that: SymId) = {

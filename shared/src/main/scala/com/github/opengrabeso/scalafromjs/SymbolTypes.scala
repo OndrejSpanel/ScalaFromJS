@@ -17,20 +17,15 @@ object SymbolTypes {
   def watchCondition(cond: => Boolean): Boolean = if (watch) cond else false
 
   def watched(name: String): Boolean = watchCondition {
-    val watched = Set[String]("context", "_gl")
+    val watched = Set[String]("object")
     name.startsWith("watch_") || watched.contains(name)
   }
 
   def watchedMember(cls: String, name: String): Boolean = watchCondition {
     val watched = Set[(String, String)](
-      //("WebGLUniformsGroups", "gl"),
-      ("WebGLRenderer", "_gl"),
-      ("WebGLRendererParameters", "context"),
-      //("WebGLMorphtargets", "gl")
+      ("WebGLPrograms", "getParameters"),
     )
-    val watchedAllClasses = Set[String](
-      "context"
-    )
+    val watchedAllClasses = Set[String]()
     name.startsWith("watch_") || watched.contains(cls, name) || watchedAllClasses.contains(name)
   }
 
