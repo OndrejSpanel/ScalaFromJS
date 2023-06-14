@@ -100,15 +100,20 @@ object ClassesByMembers {
       }
     }
 
-    def matchNames(use: String, cls: String): Int = {
-      if (use.head.toLower == cls.head.toLower) 1 // prefer a class with the same first lecheck first identifier letter
-      else 0
-    }
-
     def bestMatch(useName: String, useInfo: ClassUseInfo, desperate: Boolean)(classInfo: ClassInfo): Option[SymbolMapId] = {
       defList.headOption.flatMap { _ => // avoid processing when there are no definitions (would crash)
 
         val interesting = watched(useName)
+
+        def nameMatch(varName: String, className: String): Int = {
+          val v = varName.toLowerCase
+          val c = className.toLowerCase
+          if (v == c) 4
+          else if (c.startsWith(v)) 3
+          else if (v.length >= 2 && c.contains(v)) 2
+          else if (c.head == v.head) 1
+          else 0
+        }
 
         // compute score for each candidate
         val candidates = defList.map { case (cls, ms) =>
@@ -150,50 +155,32 @@ object ClassesByMembers {
         //if (bestCandidates.keySet != bestCandidatesIncludingChildren.keySet) println(s"    bestCandidates ${bestCandidates.keys}, with children ${bestCandidatesIncludingChildren.keys}")
 
 
-        val maxCandidates = 1
-
         // if there are too many candidates or no match at all, assume nothing
-        if (bestCandidates.size > maxCandidates) {
+        if (bestCandidates.size > 1 && !desperate) {
           if (interesting) println(s"    too many bestCandidates ${bestCandidates.keys.size}")
           None
         } else {
           // multiple candidates - we need to choose based on some secondary criterion
           if (interesting) println(s"    bestCandidates ${bestCandidates.keys}, with children ${bestCandidatesIncludingChildren.keys}")
 
-          val best = bestCandidates.map { case (cls, (ms, score)) =>
-
-            val r = (
-              score, // prefer the class having most common members
-              -ms.members.size, // prefer a smaller class
-              -ms.parentCount, // prefer a less derived class
-              matchNames(useName, cls.name), // prefer a class with a matching name
-              cls // keep ordering stable, otherwise each iteration may select a random class
-              //, ms.members intersect useInfo.members, ms.funMembers intersect useInfo.funMembers // debugging
-            )
-            //println(s"  Score $ms -> members: ${useInfo.members}, funs: ${useInfo.funMembers}: $r")
-            r
-          }.max //By(b => (b._1, b._2, b._3, b._4))
-
-
-          // if there are no common members, do not infer any type
-          // if too many members are unmatched, do not infer any type
-          assert(best._1 > 0) // already handled by bestScore <= 0 above
-          if (bestCandidates.size == 1 || best._1 > (useInfo.members.size + useInfo.funMembers.size) / 2) {
-            val dumpUncertain = false
-            if (dumpUncertain && bestCandidates.size != 1) {
-              // matching only a few members from a large class
-              if (best._1 < useInfo.members.size + useInfo.funMembers.size) {
-                println(s"Suspicious $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
-              }
-              else if (best._1 <= 2 && -best._2 > best._1) {
-                println(s"Uncertain $useInfo: Best $best, uses ${useInfo.members.size}+${useInfo.funMembers.size}")
-              }
+          if (bestCandidates.size == 1) {
+            Some(bestCandidates.head._1)
+          } else {
+            val matchByName = bestCandidates.keys.map { cls =>
+              cls -> nameMatch(useName, cls.name)
             }
+            val bestMatchByNameScore = matchByName.map(_._2).max
+            val bestMatchByName = matchByName.filter(_._2 == bestMatchByNameScore)
 
-            //println(s"$useInfo: Best $best")
-            Some(best._5)
+            // if match by name produces a single sensible result, use it
+            if (bestMatchByName.size == 1 && bestMatchByNameScore > 1) {
+              val best = bestMatchByName.head
+
+              if (interesting) println(s"    choose by name ${best._1.name} for $useName")
+              Some(best._1)
+            }
+            else None
           }
-          else None
         }
       }
     }
