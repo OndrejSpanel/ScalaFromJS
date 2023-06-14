@@ -95,7 +95,7 @@ object InferTypes {
     def addInferredType(tid: Option[SymbolMapId], tpeSrc: Option[TypeInfo], kind: TypeInferenceKind = target)(debug: () =>String*) = {
       val tpe = tpeSrc.map(_.copy(certain = false)) // inferred type is never considered certain
       if (tpe.exists(_.known)) {
-        def noType = Seq("undefined", "null", "this", "super") // never infer anything about those identifiers
+        def noType = Seq("undefined", "null", "this", "super", "arguments") // never infer anything about those identifiers
 
         if (tid.exists(t => !(noType contains t.name))) {
           val oldType = allTypes.get(tid)
