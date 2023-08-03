@@ -100,14 +100,16 @@ trait NodeExt {
   }
 
   object ObjectKeyVal {
-    def unapply(arg: Node.Property) = {
-      val key: String = arg.key match {
+    def unapply(arg: Node.Property): Option[(String, Node.PropertyValue)] = {
+      val key: Option[String] = arg.key match {
         case Node.Identifier(name) =>
-          name
+          Some(name)
         case LiteralAsName(value) =>
-          value
+          Some(value)
+        case _ =>
+          None
       }
-      Some(key, arg.value)
+      key.map(_ -> arg.value)
     }
   }
 
@@ -393,6 +395,14 @@ trait NodeExt {
             name
           case LiteralAsName(value) =>
             value
+          case Node.StaticMemberExpression(obj, prop, _) =>
+            val objString = obj match {
+              case Node.Identifier(name) =>
+                name
+              case _ =>
+                "???"
+            }
+            objString + "." + propertyKeyName(prop)
         }
       case p: Node.SpreadElement =>
         p.argument match {
