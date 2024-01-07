@@ -600,7 +600,10 @@ object ScalaOut {
       def outputTypeArguments(typeArgs: Seq[Node.TypeAnnotation]) = {
         if (typeArgs != null) {
           out("[")
+          var first = true
           for (t <- typeArgs) {
+            if (!first) out", "
+            first = false
             val tt = transform.TypesRule.typeFromAST(t)(context).getOrElse(SymbolTypes.AnyType)
             out"$tt"
           }
