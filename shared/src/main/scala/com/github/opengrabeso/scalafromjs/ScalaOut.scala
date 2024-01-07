@@ -1452,6 +1452,12 @@ object ScalaOut {
           out(" => ")
           //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
           blockBracedToOut(tn.body)
+        case tn: Node.AsyncFunctionExpression =>
+          out"/* async */ "
+          outputArgNames(tn.params)(tn)
+          out(" => ")
+          //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
+          blockBracedToOut(tn.body)
         case tn: Node.ArrowFunctionExpression =>
           outputArgNames(tn.params)(tn)
           out(" => ")
