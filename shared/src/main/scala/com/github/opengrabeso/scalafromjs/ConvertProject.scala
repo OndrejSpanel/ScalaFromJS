@@ -527,12 +527,20 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
 
 
     /**@return (content, path) */
-    def readJsFile(name: String): (String, String) = {
+    def readJsFile(jsName: String): (String, String) = {
       // imports often miss .js or .d.ts extension
       val rootExtension = PathUtils.shortName(root).dropWhile(_ != '.')
       val extension = if (rootExtension.nonEmpty) rootExtension else ".js"
+      // even with explicit .js extension we first try to find a corresponding d.ts if the root is d.ts
+      val name = if (rootExtension == ".d.ts" || rootExtension == ".ts") {
+
+        val shortNameStart = jsName.lastIndexOf('/') max 0
+        val extensionPos = jsName.indexOf('.', shortNameStart)
+        if (extensionPos >= 0) jsName.take(extensionPos)
+        else jsName
+      } else jsName
       // first try if it is already loaded
-      items.get(name).orElse(items.get(name + extension)).fold {
+      items.get(name).orElse(items.get(name + extension)).orElse(items.get(name + ".js")).fold {
         try {
           readFileAsJs(name)
         } catch {
