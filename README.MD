@@ -5,16 +5,21 @@ Javascript to Scala.js converter.
 
 This tools makes using JS examples from Web in Scala.js easier, with some effort it can assist in porting complete JS projects.
 
-[Live version][3] - currently in alpha, use at your own risk.
+[Live version][3] - beta version, use at your own risk.
 
 
 Current version understands almost all common Javascript code and emits corresponding Scala counterparts.
-Many Harmony (ES 2015) features are already supported:
-- `let` scoped variables
+Most Harmony (ES 2015) features are already supported:
+- `let` / `const` scoped variables
 - arrow functions
 - classes
+Many Typescript constructs are also accepted:
+- variable and parameter type declarations
+- `enum`, `namespaces`, `interfaces`
 
-Unsupported constructs (like `break` and `continue`) are emitted as they are, with a comment.
+Unsupported constructs (like `break` and `continue`) are emitted as they are, with a comment. Some JS or Typescript keywords
+or constructs are accepted as input, but ignored (eg. `async`)
+
 Argument types for functions are read from JSDoc `@param` comments. The tools also tries to infer types of arguments and
  variables.
 
