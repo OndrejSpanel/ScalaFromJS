@@ -1329,6 +1329,17 @@ object ScalaOut {
               }
             //out("}\n")
           }
+        case tn: Node.ForOfStatement =>
+          val variableName = tn.left match {
+            case Node.VariableDeclaration(Seq(Node.VariableDeclarator(ident, init, _)), kind) =>
+              ident
+            case x =>
+              x
+
+          }
+
+          // TODO: depending on tn.right type we might want to use keys
+          out"for ($variableName <- ${tn.right}) ${tn.body}"
 
         case tn: Node.WhileStatement =>
           out("while (")
@@ -1440,12 +1451,12 @@ object ScalaOut {
 
 
         /*
-      case tn: Node.Accessor =>
-        outputArgNames(tn, true)
-        out(" = ")
-        //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
-        blockBracedToOut(tn.body)
-        out.eol()
+        case tn: Node.Accessor =>
+          outputArgNames(tn, true)
+          out(" = ")
+          //out"${nodeTreeToString(tn)}:${tn.body.map(nodeClassName)}"
+          blockBracedToOut(tn.body)
+          out.eol()
         */
         case tn: Node.FunctionExpression =>
           outputArgNames(tn.params)(tn)
@@ -1703,43 +1714,46 @@ object ScalaOut {
         case tn: Node.DebuggerStatement =>
           outputUnknownNode(tn)
           out.eol()
-      case tn: Node.ExportNamedDeclaration =>
-        if (tn.declaration != null) {
-          out("/* export */ ")
-          nodeToOut(tn.declaration)
-        } else {
+        case tn: Node.ExportNamedDeclaration =>
+          if (tn.declaration != null) {
+            out("/* export */ ")
+            nodeToOut(tn.declaration)
+          } else {
+            out(s"/* ${trimSource(source)} */")
+          }
+        case tn: Node.ExportDefaultDeclaration =>
+          Option(tn.declaration).foreach(nodeToOut)
           out(s"/* ${trimSource(source)} */")
-        }
-      case tn: Node.ExportDefaultDeclaration =>
-        Option(tn.declaration).foreach(nodeToOut)
-        out(s"/* ${trimSource(source)} */")
-      case tn: Node.ExportAllDeclaration =>
-        //out(s"/* export */ def ${tn.exported_definition} name ${tn.module_name} value ${tn.exported_value}\n")
-        out(s"/* ${trimSource(source)} */")
-      case tn: Node.ImportDeclaration =>
-        // try to create a package name from the import directive
-        // start from the root
-        val imported_names = tn.specifiers.flatMap {
-          case i: Node.ImportNamespaceSpecifier =>
-            Some(i.local.name)
-          case i: Node.ImportDefaultSpecifier =>
-            Some(i.local.name)
-          case i: Node.ImportSpecifier =>
-            Some(i.imported.name)
-        }
-        val moduleFile: String = tn.source.value
-        val moduleName = if (moduleFile.endsWith(".js")) moduleFile.dropRight(2) else moduleFile
-        val toOut = outConfig.formatImport(imported_names, moduleName, source)
-        out(toOut)
-      case Node.ArrayPattern(pat) =>
-        out("val Array(") // tuple would be better, but the right side is likely to contain array as well
-        var first = true
-        pat.foreach { p =>
-          if (!first) out", "
-          first = false
-          out"$p"
-        }
-        out(")")
+        case tn: Node.ExportAllDeclaration =>
+          //out(s"/* export */ def ${tn.exported_definition} name ${tn.module_name} value ${tn.exported_value}\n")
+          out(s"/* ${trimSource(source)} */")
+        case tn: Node.ImportDeclaration =>
+          // try to create a package name from the import directive
+          // start from the root
+          val imported_names = tn.specifiers.flatMap {
+            case i: Node.ImportNamespaceSpecifier =>
+              Some(i.local.name)
+            case i: Node.ImportDefaultSpecifier =>
+              Some(i.local.name)
+            case i: Node.ImportSpecifier =>
+              Some(i.imported.name)
+          }
+          val moduleFile: String = tn.source.value
+          val moduleName = if (moduleFile.endsWith(".js")) moduleFile.dropRight(2) else moduleFile
+          val toOut = outConfig.formatImport(imported_names, moduleName, source)
+          out(toOut)
+        case tn: Node.AwaitExpression =>
+          out"/*await*/ "
+          nodeToOut(tn.argument)
+        case Node.ArrayPattern(pat) =>
+          out("val Array(") // tuple would be better, but the right side is likely to contain array as well
+          var first = true
+          pat.foreach { p =>
+            if (!first) out", "
+            first = false
+            out"$p"
+          }
+          out(")")
         case Node.AssignmentPattern(left, right) =>
           out"$left = $right"
         case tn =>
