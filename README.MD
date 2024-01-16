@@ -13,6 +13,7 @@ Most Harmony (ES 2015) features are already supported:
 - `let` / `const` scoped variables
 - arrow functions
 - classes
+
 Many Typescript constructs are also accepted:
 - variable and parameter type declarations
 - `enum`, `namespaces`, `interfaces`
