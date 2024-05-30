@@ -26,12 +26,12 @@ ThisBuild / resolvers += Resolver.githubPackages("OpenGrabeso", "packages")
 
 
 lazy val commonSettings = Seq(
-  version := "0.8.0",
-  scalaVersion := "2.13.12",
+  version := "0.8.1",
+  scalaVersion := "2.13.14",
   scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation"),
-  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.2.19",
-  libraryDependencies += "org.scala-lang.modules" %%% "scala-parser-combinators" % "2.3.0",
-  libraryDependencies += "org.scalatest" %%% "scalatest" % "3.2.2" % "test"
+  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.2.20",
+  libraryDependencies += "org.scala-lang.modules" %%% "scala-parser-combinators" % "2.4.0",
+  libraryDependencies += "org.scalatest" %%% "scalatest" % "3.2.18" % Test
 )
 
 lazy val root = project.in(file("root")).
@@ -50,14 +50,14 @@ lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Full)
   .jvmSettings(
     // Add JVM-specific settings here
     Compile / mainClass  := Some("com.github.opengrabeso.scalafromjs.CommandLine"),
-    libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "2.1.1",
-    libraryDependencies += "com.fifesoft" % "rsyntaxtextarea" % "3.0.8",
+    libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "3.0.0",
+    libraryDependencies += "com.fifesoft" % "rsyntaxtextarea" % "3.3.4",
     assembly / assemblyJarName := name.value + ".jar"
   )
   .jsSettings(
     Compile / mainClass := Some("com.github.opengrabeso.scalafromjs.ScalaFromJS"),
     scalaJSUseMainModuleInitializer := true,
-    libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "1.1.0",
+    libraryDependencies += "org.scala-js" %%% "scalajs-dom" % "2.8.0",
     (Compile / fastOptJS) := (Compile / fastOptJS).dependsOn(generateIndexTask("index-fast.html","fastopt")).value,
     (Compile / fullOptJS) := (Compile / fullOptJS).dependsOn(generateIndexTask("index.html","opt")).value
   )
