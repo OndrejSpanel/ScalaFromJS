@@ -1179,6 +1179,9 @@ object ScalaOut {
           out("(")
           nodeToOut(tn.property)
           out(")")
+        case null Dot name =>
+          out("null.")
+          out(identifier(name))
         case obj Dot name =>
           termToOut(obj)
           out(".")
