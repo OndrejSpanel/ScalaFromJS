@@ -244,16 +244,13 @@ object ConvertProject {
       false
     }
 
-    def handleAliasPreprocess(absPath: String)(content: String): String = {
+    def handleAliasPreprocess(absPath: String)(content: String): Option[String] = {
       val filePath = relativePath(root, absPath)
 
       val shortFileName = shortName(filePath)
       val alias = findAlias(filePath)._2
       val ignore = findIgnore(filePath)
-      if (ignore) { // ignore whole content, use just a single empty line
-        //println(s"Ignore $filePath ($absPath)")
-        "\n"
-      } else {
+      Option.when(!ignore) { // ignore whole content, use just a single empty line
         // package name does not matter here, return the content only
         val ret = alias.map(_.applyJsTemplate(shortFileName, content)).getOrElse(content)
         ret
@@ -524,37 +521,37 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
 
   @scala.annotation.tailrec
   final def resolveImportsExports: ConvertProject = {
-    def readFileAsJs(path: String): (String, String) = {
-      val aliasedCode = config.handleAliasPreprocess(path)(readSourceFile(path, config.fs))
-      val code = config.preprocess(path, aliasedCode)
-      // try parsing, if unable, return a comment file instead
-      try {
-        parse(code, detectTypescript(path))
-        //println(s"Input file $path")
-        code -> path
-      } catch {
-        case ex: Exception =>
-          //println(s"Parse ex: ${ex.toString} in $path")
-          val short = shortName(path)
-          val dot = short.indexOf('.')
-          val simpleName = if (dot < 0) short else short.take(dot)
-          // never attempt to wrap source files as resources
-          // note: this is no longer necessary for Three.js, as they have already wrapped the sources as glsl.js files
-          // it may be handy for other projects, though
-          val neverWrap = Seq(".js", ".ts", ".d.ts")
-          if (dot >= 0 && neverWrap.contains(short.drop(dot))) {
-            throw ex
-          } else {
-            val wrap = ScriptExtractor.wrapAsJS(simpleName, code)
-            wrap -> path
-          }
+    def readFileAsJs(path: String): Option[(String, String)] = {
+      config.handleAliasPreprocess(path)(readSourceFile(path, config.fs)).map { aliasedCode =>
+        val code = config.preprocess(path, aliasedCode)
+        // try parsing, if unable, return a comment file instead
+        try {
+          parse(code, detectTypescript(path))
+          //println(s"Input file $path")
+          code -> path
+        } catch {
+          case ex: Exception =>
+            //println(s"Parse ex: ${ex.toString} in $path")
+            val short = shortName(path)
+            val dot = short.indexOf('.')
+            val simpleName = if (dot < 0) short else short.take(dot)
+            // never attempt to wrap source files as resources
+            // note: this is no longer necessary for Three.js, as they have already wrapped the sources as glsl.js files
+            // it may be handy for other projects, though
+            val neverWrap = Seq(".js", ".ts", ".d.ts")
+            if (dot >= 0 && neverWrap.contains(short.drop(dot))) {
+              throw ex
+            } else {
+              val wrap = ScriptExtractor.wrapAsJS(simpleName, code)
+              (wrap -> path)
+            }
+        }
       }
-
     }
 
 
     /**@return (content, path) */
-    def readJsFile(jsName: String): (String, String) = {
+    def readJsFile(jsName: String): Option[(String, String)] = {
       // imports often miss .js or .d.ts extension
       val rootExtension = PathUtils.shortName(root).dropWhile(_ != '.')
       val extension = if (rootExtension.nonEmpty) rootExtension else ".js"
@@ -567,6 +564,7 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
         else jsName
       } else jsName
       // first try if it is already loaded
+      // TODO: remember ignored files to prevent loading them repeatedly
       items.get(name).orElse(items.get(name + extension)).orElse(items.get(name + ".js")).fold {
         try {
           readFileAsJs(name)
@@ -575,7 +573,7 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
             readFileAsJs(name + extension)
         }
       } { item =>
-        item.code -> item.fullName
+        Some(item.code -> item.fullName)
       }
     }
 
@@ -583,7 +581,11 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
       val name = namePar.replace('\\', '/')
       val html = readSourceFile(name, config.fs)
 
-      ScriptExtractor.fromHTML(name, html).map(js => config.preprocess(name, config.handleAliasPreprocess(name)(js)) -> name)
+      ScriptExtractor.fromHTML(name, html).flatMap { js =>
+        config.handleAliasPreprocess(name)(js).map { code =>
+          config.preprocess(name, code) -> name
+        }
+      }
     }
 
     val ast = try {
@@ -643,7 +645,7 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
         val path = resolveSibling(inFile, importPath)
         try {
           if (!alreadyPresent(target, path)) {
-            target append readJsFile(path)
+            target appendAll readJsFile(path)
           }
         } catch {
           case ex: Exception =>
@@ -675,7 +677,7 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
                   }
                 }
                 else {
-                  includeBuffer append readJsFile(path)
+                  includeBuffer appendAll readJsFile(path)
                 }
               } catch {
                 case ex: Exception =>
@@ -781,6 +783,10 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
       inFile -> outCode
     }
 
-    Converted(outFiles, ext.config)
+    val outFilesFiltered = outFiles.filterNot { case (path, code) =>
+      config.findIgnore(path)
+    }
+
+    Converted(outFilesFiltered, ext.config)
   }
 }
