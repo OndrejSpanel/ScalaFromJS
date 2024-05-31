@@ -166,6 +166,15 @@ object ConvertProject {
     }
   }
 
+  case class SkipPackageRule(folder: String) extends ExternalRule
+  object SkipPackageRule {
+    def load(o: OObject): SkipPackageRule = {
+      val folder = loadRequiredStringValue(o, "folder")
+      SkipPackageRule(terminatedPath(folder))
+    }
+
+  }
+
   trait RegExTransformRule extends ExternalRule {
     def files: Option[String]
     def find: String
@@ -225,11 +234,22 @@ object ConvertProject {
       (filePath.reverse.dropWhile(_ != '/').drop(1).reverse, None)
     }
 
+    def findIgnore(filePath: String): Boolean = {
+      val inRelativePathIndex = filePath.lastIndexOf('/')
+      val inRelativePath = if (inRelativePathIndex < 0) "" else filePath.take(inRelativePathIndex)
+      val terminated = terminatedPath(inRelativePath)
+      for (alias <- collectRules[SkipPackageRule]) {
+        if (terminated.startsWith(alias.folder)) return true
+      }
+      (filePath.reverse.dropWhile(_ != '/').drop(1).reverse, None)
+    }
+
     def handleAliasPreprocess(absPath: String)(content: String): String = {
       val filePath = relativePath(root, absPath)
 
       val shortFileName = shortName(filePath)
-      val (name, alias) = findAlias(filePath)
+      val alias = findAlias(filePath)._2
+      val ignore = findAlias(filePath)._2
       // package name does not matter here, return the content only
       val ret = alias.map(_.applyJsTemplate(shortFileName, content)).getOrElse(content)
       ret
@@ -282,6 +302,8 @@ object ConvertProject {
               op match {
                 case Some("name") =>
                   Some(AliasPackageRule.load(o))
+                case Some("skip") =>
+                  Some(SkipPackageRule.load(o))
                 case Some(opName) =>
                   throw new UnsupportedOperationException(s"Unknown operation $opName for folder $folder")
                 case _ =>
