@@ -20,6 +20,8 @@ ThisBuild / githubRepository := "ScalaFromJS"
 
 ThisBuild / githubActor := "OndrejSpanel"
 
+ThisBuild / scalaVersion := "2.13.18"
+
 ThisBuild / githubTokenSource := TokenSource.Environment("GITHUB_USERTOKEN") || TokenSource.Environment("GITHUB_TOKEN") || TokenSource.GitConfig("github.token")
 
 ThisBuild / resolvers += Resolver.githubPackages("OpenGrabeso", "packages")
@@ -27,7 +29,6 @@ ThisBuild / resolvers += Resolver.githubPackages("OpenGrabeso", "packages")
 
 lazy val commonSettings = Seq(
   version := "0.8.1",
-  scalaVersion := "2.13.14",
   scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation"),
   libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.2.20",
   libraryDependencies += "org.scala-lang.modules" %%% "scala-parser-combinators" % "2.4.0",
@@ -51,7 +52,7 @@ lazy val projs = crossProject(JSPlatform, JVMPlatform).crossType(CrossType.Full)
     // Add JVM-specific settings here
     Compile / mainClass  := Some("com.github.opengrabeso.scalafromjs.CommandLine"),
     libraryDependencies += "org.scala-lang.modules" %% "scala-swing" % "3.0.0",
-    libraryDependencies += "com.fifesoft" % "rsyntaxtextarea" % "3.3.4",
+    libraryDependencies += "com.fifesoft" % "rsyntaxtextarea" % "4.0.1",
     assembly / assemblyJarName := name.value + ".jar"
   )
   .jsSettings(

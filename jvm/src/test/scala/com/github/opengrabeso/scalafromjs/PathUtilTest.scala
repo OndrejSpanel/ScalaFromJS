@@ -15,6 +15,9 @@ class PathUtilTest extends AnyFunSuite with TestUtils {
     assert(resolveSibling("temp/in/on/a.js", "./.././../x.scala") == "temp/x.scala")
 
     assert(resolveSibling("temp/in/on/at/a.js", "../../../x.scala") == "temp/x.scala")
+
+    assert(resolveSibling("examples/webgpu.html", "build/../build/three.webgpu.js.webgpu.js") == "examples/build/three.webgpu.js.webgpu.js")
+    assert(resolveSibling("temp/in/a.js", "build/../../x.scala") == "temp/x.scala")
   }
 
   test("testChangeExtension") {

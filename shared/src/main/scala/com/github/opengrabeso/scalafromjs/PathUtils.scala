@@ -28,20 +28,24 @@ object PathUtils {
       short.drop(dir + 1) // will handle not found as well
       short
     } else {
+      val normalizedShort = short.split('/').foldLeft(List.empty[String]) {
+        case (head :: tail, "..") if head != ".." => tail
+        case (segments, ".") => segments
+        case (segments, segment) => segment :: segments
+      }.reverse.mkString("/")
       assert(!path.contains("../"))
       val dir = path.lastIndexOf('/')
-      if (dir < 0) short
+      if (dir < 0) normalizedShort
       else {
         val currentPrefix = "./"
         val parentPrefix = "../"
-        if (short.startsWith(parentPrefix)) {
-          resolveSibling(path.take(dir), short.drop(parentPrefix.length))
+        if (normalizedShort.startsWith(parentPrefix)) {
+          resolveSibling(path.take(dir), normalizedShort.drop(parentPrefix.length))
         } else {
-          if (short.startsWith(currentPrefix)) {
-            resolveSibling(path, short.drop(currentPrefix.length))
+          if (normalizedShort.startsWith(currentPrefix)) {
+            resolveSibling(path, normalizedShort.drop(currentPrefix.length))
           } else {
-            assert(!short.contains("../"))
-            path.take(dir + 1) + short
+            path.take(dir + 1) + normalizedShort
           }
         }
       }
