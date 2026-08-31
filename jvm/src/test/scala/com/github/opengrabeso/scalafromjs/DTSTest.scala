@@ -146,4 +146,31 @@ class DTSTest extends AnyFunSuite with TestUtils with ProjectUtils {
     )
 
   }
+
+  test("d.ts type-only re-export resolution") {
+    exec check ConversionCheck(
+      """
+        //file:WebGLAttributes.js
+
+        export class WebGLAttributes {}
+
+        //file:input.d.ts
+
+        export type { WebGLAttributes } from "./WebGLAttributes.js";
+        export function createAttributes(): WebGLAttributes;
+
+        //file:input.js
+
+        export function createAttributes() {}
+
+        var ScalaFromJS_settings = {
+          types: "input.d.ts"
+        };
+      """
+    ).required(
+      "def createAttributes(): WebGLAttributes"
+    ).forbidden(
+      "def createAttributes(): Any"
+    )
+  }
 }

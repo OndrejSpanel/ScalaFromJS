@@ -30,7 +30,7 @@ ThisBuild / resolvers += Resolver.githubPackages("OpenGrabeso", "packages")
 lazy val commonSettings = Seq(
   version := "0.8.1",
   scalacOptions ++= Seq("-unchecked", "-feature", "-deprecation"),
-  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.2.20",
+  libraryDependencies += "com.github.opengrabeso" %%% "esprimascala" % "0.2.21",
   libraryDependencies += "org.scala-lang.modules" %%% "scala-parser-combinators" % "2.4.0",
   libraryDependencies += "org.scalatest" %%% "scalatest" % "3.2.18" % Test
 )
