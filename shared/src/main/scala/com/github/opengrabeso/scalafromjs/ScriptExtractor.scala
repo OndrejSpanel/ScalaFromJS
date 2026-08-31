@@ -71,9 +71,14 @@ object ScriptExtractor {
 
           val importLines = lines.map { line =>
             if (line.trim.startsWith("import")) {
-              ModuleSpecifier.replaceAllIn(line, matched =>
+              val remapped = ModuleSpecifier.replaceAllIn(line, matched =>
                 matched.group(1) + matched.group(2) + resolveImport(matched.group(3)) + matched.group(4)
               )
+              // Project preprocessors often move the leading module imports before
+              // wrapping the remaining script in a function. Normalize an omitted,
+              // ASI-provided semicolon so such imports are recognized consistently.
+              val completeStaticImport = ModuleSpecifier.findFirstIn(line).nonEmpty
+              if (completeStaticImport && !remapped.trim.endsWith(";")) remapped + ";" else remapped
             } else {
               line
             }

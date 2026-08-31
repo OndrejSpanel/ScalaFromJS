@@ -592,6 +592,16 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
       //println("** Parse\n" + items.mkString("\n"))
       parse(code, detectTypescript(root))
     } catch {
+      case err: ErrorHandler.Error =>
+        val sourceIndex = indexOfItem(err.index)
+        val source = values.lift(sourceIndex).map(_.fullName).getOrElse(root)
+        val sourceStart = offsets.lift(sourceIndex).getOrElse(0)
+        val sourceLine = code.substring(sourceStart, err.index).count(_ == '\n') + 1
+        val contextStart = (err.index - 80) max 0
+        val contextEnd = (err.index + 80) min code.length
+        println(s"Parse error in $source:$sourceLine at composite offset ${err.index}: ${err.description}")
+        println(code.substring(contextStart, contextEnd))
+        throw err
       case ex: Exception =>
         println(s"Parse error $ex")
         /*
