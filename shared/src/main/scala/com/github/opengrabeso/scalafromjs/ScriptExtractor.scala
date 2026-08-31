@@ -3,7 +3,6 @@ package com.github.opengrabeso.scalafromjs
 import com.github.opengrabeso.esprima.Esprima
 
 import scala.util.Try
-import scala.util.matching.Regex
 import scala.util.parsing.combinator.JavaTokenParsers
 
 object ScriptExtractor {
@@ -60,10 +59,20 @@ object ScriptExtractor {
         def applyImportMaps(code: String): String = {
           val lines = code.split("\n")
           val sortedImportMap = importMap.toSeq.sortBy(-_._1.length) // Sort by key length in descending order, to make sure three/addons matches before three
+          val ModuleSpecifier = """(\b(?:from\s+|import\s+))(['"])([^'"]+)(['"])""".r
+
+          def resolveImport(specifier: String): String = {
+            sortedImportMap.collectFirst {
+              case (key, value) if specifier == key => value
+              case (key, value) if key.endsWith("/") && specifier.startsWith(key) =>
+                value + specifier.drop(key.length)
+            }.getOrElse(specifier)
+          }
+
           val importLines = lines.map { line =>
             if (line.trim.startsWith("import")) {
-              sortedImportMap.foldLeft(line)((currentLine, mapping) =>
-                currentLine.replaceAll("\\b" + Regex.quote(mapping._1) + "\\b", mapping._2)
+              ModuleSpecifier.replaceAllIn(line, matched =>
+                matched.group(1) + matched.group(2) + resolveImport(matched.group(3)) + matched.group(4)
               )
             } else {
               line
