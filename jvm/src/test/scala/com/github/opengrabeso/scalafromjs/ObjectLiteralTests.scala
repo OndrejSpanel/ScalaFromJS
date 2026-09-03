@@ -3,6 +3,17 @@ package com.github.opengrabeso.scalafromjs
 import org.scalatest.funsuite.AnyFunSuite
 
 class ObjectLiteralTests extends AnyFunSuite with TestUtils {
+  test("Object literals with computed template keys use a Map") {
+    exec check ConversionCheck(
+      "const textures = []; const value = { [ `attachments(${ textures.length })` ]: 'ok' };"
+    ).required(
+      "val value = Map(",
+      "attachments(",
+      "textures.length",
+      " -> \"ok\""
+    )
+  }
+
   test("Object literals should respect scope based hints - new") {
     exec check ConversionCheck(
       //language=JavaScript

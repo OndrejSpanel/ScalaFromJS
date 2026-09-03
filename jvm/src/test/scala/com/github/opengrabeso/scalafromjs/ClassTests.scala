@@ -4,6 +4,23 @@ import org.scalatest.funsuite.AnyFunSuite
 
 class ClassTests extends AnyFunSuite with TestUtils {
 
+  test("Class static prototype flag block") {
+    exec check ConversionCheck(
+      "class Vector2 { static { Vector2.prototype.isVector2 = true; } }"
+    ).required(
+      "class Vector2",
+      "isVector2",
+      "true"
+    ).forbidden("static initialization", ".prototype.")
+  }
+
+  test("Dotted JavaScript file names are source files") {
+    assert(ConvertProject.isSourceFileName("build/three.webgpu.js"))
+    assert(ConvertProject.isSourceFileName("build/three.core.js"))
+    assert(ConvertProject.isSourceFileName("types/foo.d.ts"))
+    assert(!ConvertProject.isSourceFileName("shaders/foo.glsl"))
+  }
+
   test("Simple JS 1.8 (ES 5) class") {
     exec check ConversionCheck(rsc("types/simpleClass.js"))
       .required(

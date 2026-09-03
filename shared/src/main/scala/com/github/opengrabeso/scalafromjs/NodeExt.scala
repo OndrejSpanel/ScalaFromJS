@@ -348,6 +348,9 @@ trait NodeExt {
         left -> Some(right)
       case Node.FunctionParameterWithType(id: Node.Identifier, _, init, _) =>
         id -> Option(init)
+      case Node.FunctionParameterWithType(pattern: Node.FunctionParameter, _, init, _) =>
+        val (name, patternDefault) = parameterName(pattern)
+        name -> Option(init).orElse(patternDefault)
       case id: Node.Identifier =>
         id -> None
       case array: Node.ArrayPattern =>

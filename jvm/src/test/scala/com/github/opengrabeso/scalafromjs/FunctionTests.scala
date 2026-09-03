@@ -42,6 +42,18 @@ class FunctionTests extends AnyFunSuite with TestUtils {
     )
   }
 
+  test("Handle aliased object destructuring defaults in function parameters") {
+    exec check ConversionCheck(
+      "const f = ({ normalView: normalViewAlias = normalView }) => normalViewAlias"
+    ).required("def f(normalViewAlias: Any = normalView)")
+  }
+
+  test("Handle a default value for an object destructuring parameter") {
+    exec check ConversionCheck(
+      "class TileCreasedNormalsPlugin { constructor({ creaseAngle = Math.PI / 3 } = {}) {} }"
+    ).required("creaseAngle: Double = Math.PI / 3")
+  }
+
   test("Handle array destructuring in function parameters of arrow functions") {
     exec check ConversionCheck("" +
       """

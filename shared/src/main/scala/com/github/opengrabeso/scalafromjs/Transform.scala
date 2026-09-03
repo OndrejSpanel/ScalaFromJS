@@ -33,6 +33,10 @@ object Transform {
       Some(x, null, None)
     case Node.FunctionParameterWithType(x: Node.Identifier, tpe, defValue, _) =>
       Some(x, tpe, Option(defValue))
+    case Node.FunctionParameterWithType(pattern: Node.FunctionParameter, tpe, defValue, _) =>
+      identifierFromPar(pattern).map { case (name, patternType, patternDefault) =>
+        (name, Option(tpe).getOrElse(patternType), Option(defValue).orElse(patternDefault))
+      }
     case Node.AssignmentPattern(x: Node.Identifier, init) =>
       Some(x, null, Some(init))
     case Node.RestElement(x: Node.Identifier, tpe) =>
@@ -76,6 +80,100 @@ object Transform {
   )
 
   // individual sensible transformations
+
+  /** Convert an object binding parameter into the equivalent flat Scala parameters. */
+  def objectParameterDestructuring(n: Node.Node): Node.Node = {
+    def flatten(pattern: Node.ObjectPattern, outerDefault: Option[Node.Expression]): Seq[Node.FunctionParameter] = {
+      outerDefault.foreach {
+        case Node.ObjectExpression(properties) if properties.isEmpty =>
+        case value =>
+          throw new UnsupportedOperationException(s"Unsupported object destructuring parameter default: $value")
+      }
+
+      pattern.properties.map {
+        case property: Node.Property if !property.computed && !property.method =>
+          property.value match {
+            case id: Node.Identifier =>
+              id
+            case assignment@Node.AssignmentPattern(left: Node.Identifier, right) =>
+              Node.FunctionParameterWithType(left, null, right, optional = false).withTokens(property)
+            case value =>
+              throw new UnsupportedOperationException(s"Unsupported object destructuring property: $value")
+          }
+        case property =>
+          throw new UnsupportedOperationException(s"Unsupported object destructuring property: $property")
+      }
+    }
+
+    def rewrite(params: Seq[Node.FunctionParameter]): Seq[Node.FunctionParameter] = params.flatMap {
+      case pattern: Node.ObjectPattern =>
+        flatten(pattern, None)
+      case Node.FunctionParameterWithType(pattern: Node.ObjectPattern, _, defaultValue, _) =>
+        flatten(pattern, Option(defaultValue))
+      case parameter =>
+        Seq(parameter)
+    }
+
+    n.transformAfter { (node, _) =>
+      node match {
+        case f: Node.FunctionExpression =>
+          f.params = rewrite(f.params); f
+        case f: Node.FunctionDeclaration =>
+          f.params = rewrite(f.params); f
+        case f: Node.ArrowFunctionExpression =>
+          f.params = rewrite(f.params); f
+        case f: Node.AsyncFunctionExpression =>
+          f.params = rewrite(f.params); f
+        case f: Node.AsyncFunctionDeclaration =>
+          f.params = rewrite(f.params); f
+        case f: Node.AsyncArrowFunctionExpression =>
+          f.params = rewrite(f.params); f
+        case _ =>
+          node
+      }
+    }
+  }
+
+  /**
+    * Lower the static initialization-block form used by Three.js for
+    * prototype flags to ordinary instance members. The source statement
+    * `ClassName.prototype.member = value` has exactly that meaning for the
+    * generated Scala class; rejecting other static-block statements keeps the
+    * conversion explicit instead of silently losing initialization code.
+    */
+  def classStaticBlocks(n: Node.Node): Node.Node = {
+    n.transformAfter { (node, _) =>
+      node match {
+        case cls: Node.ClassDeclaration if cls.body != null && cls.id != null =>
+          cls.body.body = cls.body.body.flatMap {
+            case block: Node.StaticBlock =>
+              block.body.map {
+                case statement@Node.ExpressionStatement(
+                  Node.AssignmentExpression(
+                    "=",
+                    Node.StaticMemberExpression(
+                      Node.StaticMemberExpression(Node.Identifier(owner), Node.Identifier("prototype"), _),
+                      member: Node.Identifier,
+                      _
+                    ),
+                    value
+                  )
+                ) if owner == cls.id.name =>
+                  Node.MethodDefinition(member, null, computed = false, value, "value", static = false).withTokens(statement)
+                case statement =>
+                  throw new UnsupportedOperationException(
+                    s"Unsupported static initialization in class ${cls.id.name}: $statement"
+                  )
+              }
+            case member =>
+              Seq(member)
+          }
+          cls
+        case _ =>
+          node
+      }
+    }
+  }
 
   // convert === to ==
   def relations(n: Node.Node): Node.Node = {
@@ -950,6 +1048,8 @@ object Transform {
     import transform._
 
     val transforms = Seq[(String, NodeExtended => NodeExtended)](
+      "objectParameterDestructuring" -> onTopNode(objectParameterDestructuring),
+      "classStaticBlocks" -> onTopNode(classStaticBlocks),
       "cleanupExports" -> onTopNode(Modules.cleanupExports),
       "inlineImports" -> onTopNode(Modules.inlineImports),
       "handleIncrement" -> onTopNode(handleIncrement),

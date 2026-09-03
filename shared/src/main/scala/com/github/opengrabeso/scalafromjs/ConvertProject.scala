@@ -18,6 +18,11 @@ import scala.collection.Seq
 
 object ConvertProject {
 
+  private[scalafromjs] def isSourceFileName(path: String): Boolean = {
+    val short = PathUtils.shortName(path)
+    Seq(".d.ts", ".js", ".ts").exists(short.endsWith)
+  }
+
   implicit class StripSource(s: String) {
     // TODO: consider custom stripMargin acting like Java 13 instead
     def stripSource: String = s.split('\n').map(_.trim).mkString("\n")
@@ -538,8 +543,7 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
             // never attempt to wrap source files as resources
             // note: this is no longer necessary for Three.js, as they have already wrapped the sources as glsl.js files
             // it may be handy for other projects, though
-            val neverWrap = Seq(".js", ".ts", ".d.ts")
-            if (dot >= 0 && neverWrap.contains(short.drop(dot))) {
+            if (isSourceFileName(short)) {
               throw ex
             } else {
               val wrap = ScriptExtractor.wrapAsJS(simpleName, code)

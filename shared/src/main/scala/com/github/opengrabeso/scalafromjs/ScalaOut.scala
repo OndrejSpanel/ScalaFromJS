@@ -416,6 +416,16 @@ object ScalaOut {
           context.scanSymbols(node)
           node match {
 
+            case Node.VariableDeclarator(name: Node.Identifier, oe@OObject(props), _) if props.nonEmpty && isVal && props.exists {
+              case property: Node.Property => property.computed
+              case _ => false
+            } =>
+              out"val $name = "
+              context.withScope(oe) {
+                outputObjectLiteralAsMap(oe, "Map")
+              }
+              out.eol()
+
             case Node.VariableDeclarator(name: Node.Identifier, oe@OObject(props), tpe) if props.nonEmpty && isVal =>
               val propNames = props.map(propertyName)
               //println(s"propNames $propNames")
@@ -753,8 +763,13 @@ object ScalaOut {
                 nodeToOut(argument)
               case Node.PropertyEx(kind, key, computed, value, method, shorthand, readonly) =>
                 // what about method and other properties?
-                val name = propertyKeyName(key)
-                out""""$name" -> """
+                if (computed) {
+                  nodeToOut(key)
+                  out(" -> ")
+                } else {
+                  val name = propertyKeyName(key)
+                  out""""$name" -> """
+                }
                 nodeToOut(value)
             }
           }
@@ -1016,11 +1031,23 @@ object ScalaOut {
               out(value.toString)
           }
         case tn: Node.TemplateLiteral =>
-          // TODO: handle expression interpolation
-          val value = tn.quasis.collect {
-            case s: Node.TemplateElement => s.value.raw
-          }.mkString
-          out(tripleQuote(value))
+          if (tn.expressions.isEmpty) {
+            val value = tn.quasis.collect {
+              case s: Node.TemplateElement => s.value.raw
+            }.mkString
+            out(tripleQuote(value))
+          } else {
+            out("s\"")
+            tn.quasis.zipWithIndex.foreach { case (quasi: Node.TemplateElement, index) =>
+              out(escape(quasi.value.raw).replace("$", "$$"))
+              if (tn.expressions.isDefinedAt(index)) {
+                out("${")
+                nodeToOut(tn.expressions(index))
+                out("}")
+              }
+            }
+            out("\"")
+          }
 
         case Node.ExportNamedDeclaration(VarDecl(name, Some(Node.Literal(value, raw)), "const"), Seq(), null) if name.startsWith(ConvertProject.prefixName) =>
           // markers are syntetic, we do not want them in the output, unless debugging
