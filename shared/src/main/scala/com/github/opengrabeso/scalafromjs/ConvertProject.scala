@@ -559,26 +559,29 @@ case class ConvertProject(root: String, config: ConvertConfig, items: Map[String
       // imports often miss .js or .d.ts extension
       val rootExtension = PathUtils.shortName(root).dropWhile(_ != '.')
       val extension = if (rootExtension.nonEmpty) rootExtension else ".js"
-      // even with explicit .js extension we first try to find a corresponding d.ts if the root is d.ts
-      val name = if (rootExtension == ".d.ts" || rootExtension == ".ts") {
-
-        val shortNameStart = jsName.lastIndexOf('/') max 0
-        val extensionPos = jsName.indexOf('.', shortNameStart)
-        if (extensionPos >= 0) jsName.take(extensionPos)
-        else jsName
-      } else jsName
+      // Even with an explicit .js extension, a TypeScript project first tries
+      // the corresponding declaration. Keep the declaration suffix on the
+      // path passed to readFileAsJs: detectTypescript(path) uses it to select
+      // the TypeScript parser. Passing the stripped path made imported d.ts
+      // files get parsed as JavaScript (e.g. `name?: string`).
+      val names = if (rootExtension == ".d.ts" || rootExtension == ".ts") {
+        val base = jsName match {
+          case value if value.endsWith(".d.ts") => value.dropRight(5)
+          case value if value.endsWith(".ts") => value.dropRight(3)
+          case value if value.endsWith(".js") => value.dropRight(3)
+          case value => value
+        }
+        Seq(base + ".d.ts", base + ".ts", jsName)
+      } else Seq(jsName, jsName + extension, jsName + ".js")
       // first try if it is already loaded
       // TODO: remember ignored files to prevent loading them repeatedly
-      items.get(name).orElse(items.get(name + extension)).orElse(items.get(name + ".js")).fold {
+      names.view.flatMap { name =>
         try {
-          readFileAsJs(name)
+          items.get(name).map(item => item.code -> item.fullName).orElse(readFileAsJs(name))
         } catch {
-          case _: Exception if !name.endsWith(extension) =>
-            readFileAsJs(name + extension)
+          case ex: Exception if FileAccess.matchFileNotFound(ex) => None
         }
-      } { item =>
-        Some(item.code -> item.fullName)
-      }
+      }.headOption
     }
 
     def readJsFromHtmlFile(namePar: String): Option[(String, String)] = {

@@ -173,4 +173,28 @@ class DTSTest extends AnyFunSuite with TestUtils with ProjectUtils {
       "def createAttributes(): Any"
     )
   }
+
+  test("d.ts imports with JavaScript extensions use the TypeScript parser") {
+    exec check ConversionCheck(
+      """
+        //file:dep.d.ts
+        export class Dep {
+          name?: string;
+        }
+
+        //file:input.d.ts
+        import { Dep } from "./dep.js";
+        export function make(): Dep;
+
+        //file:input.js
+        export function make() {}
+
+        var ScalaFromJS_settings = {
+          types: "input.d.ts"
+        };
+      """
+    ).required(
+      "def make(): Dep"
+    )
+  }
 }
