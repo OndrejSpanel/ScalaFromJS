@@ -74,20 +74,44 @@ object InheritConstructors {
               } {
                 //
 
+                // Constructor parameters originate in the base class, which may be in another
+                // source file. Clone them before rebasing the complete synthetic constructor so
+                // output splitting cannot follow a nested default value into the base file.
+                val inheritedParams = params.map { parameter =>
+                  val cloned = parameter.cloneDeep()
+
+                  def rebaseLocation(node: Node.Node): Unit = {
+                    node.range = clsTokenDef.range
+                    node.loc = clsTokenDef.loc
+                    // Comments belong to the base declaration and must not be duplicated by the
+                    // synthetic constructor in the derived class.
+                    node.leadingComments = null
+                    node.innerComments = null
+                    node.trailingComments = null
+                  }
+
+                  rebaseLocation(cloned)
+                  cloned.walk { node =>
+                    rebaseLocation(node)
+                    false
+                  }
+                  cloned
+                }
+
                 // add the constructor call itself, so that type inference binds its parameters and arguments
                 val constructorCall = Node.ExpressionStatement(
                   Node.CallExpression(
                     Node.Super(),
-                    params.map(p => Node.Identifier(parameterNameString(p)))
+                    inheritedParams.map(p => Node.Identifier(parameterNameString(p)))
                   )
                 )
 
                 val body = Node.BlockStatement(Seq(constructorCall))
-                val newConstructorValue = Node.FunctionExpression(null, params, body, false, null)
+                val newConstructorValue = Node.FunctionExpression(null, inheritedParams, body, false, null)
 
                 //println(s"inlineConstructors classInlineBody clone ${accessor.argnames}")
                 val newConstructor = Node.MethodDefinition(
-                  Node.Identifier("constructor").withTokens(constructor),
+                  Node.Identifier("constructor"),
                   null, false, newConstructorValue, "constructor", false
                 ).withTokensDeep(clsTokenDef)
 

@@ -2,6 +2,8 @@ package com.github.opengrabeso.scalafromjs
 
 import org.scalatest.funsuite.AnyFunSuite
 
+import scala.collection.immutable.ListMap
+
 class CommandLineTest extends AnyFunSuite with TestUtils with ProjectUtils {
   import CommandLine._
   import FileAccess._
@@ -22,6 +24,43 @@ class CommandLineTest extends AnyFunSuite with TestUtils with ProjectUtils {
     exec check ResultCheck(outCode)
       .required("/*", "*/", "def ", "() =", "def A", "def B", "def D")
       .forbidden("def C", "def E")
+  }
+
+  test("Inherited constructor stays in the derived output file") {
+    val derivedCode =
+      """
+        |class Derived extends Base {
+        |}
+        |""".stripMargin
+    val baseCode =
+      """
+        |class Base {
+        |  constructor(value = null) {
+        |  }
+        |}
+        |""".stripMargin
+
+    val project = ConvertProject(
+      "input.js",
+      ConvertProject.ConvertConfig(),
+      ListMap(
+        "derived.js" -> ConvertProject.Item(derivedCode, included = true, fullName = "derived.js"),
+        "base.js" -> ConvertProject.Item(baseCode, included = true, fullName = "base.js")
+      )
+    )
+
+    assert(project.values.map(_.fullName) == Seq("derived.js", "base.js"))
+
+    val convertedFiles = project.convert.files.toMap
+    val derivedOutput = convertedFiles("derived.js")
+    val baseOutput = convertedFiles("base.js")
+
+    exec check ResultCheck(derivedOutput)
+      .required("class Derived(", "null", "extends Base(")
+      .forbidden("class Base(")
+    exec check ResultCheck(baseOutput)
+      .required("class Base(")
+      .forbidden("class Derived(", "extends Base(")
   }
 
   test("Multiple file conversion with non-js files") {
