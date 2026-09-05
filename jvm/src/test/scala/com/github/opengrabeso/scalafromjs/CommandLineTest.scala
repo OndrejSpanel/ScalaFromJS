@@ -2,7 +2,10 @@ package com.github.opengrabeso.scalafromjs
 
 import org.scalatest.funsuite.AnyFunSuite
 
+import java.nio.file.{Files, Paths}
+
 import scala.collection.immutable.ListMap
+import PathUtils._
 
 class CommandLineTest extends AnyFunSuite with TestUtils with ProjectUtils {
   import CommandLine._
@@ -61,6 +64,49 @@ class CommandLineTest extends AnyFunSuite with TestUtils with ProjectUtils {
     exec check ResultCheck(baseOutput)
       .required("class Base(")
       .forbidden("class Derived(", "extends Base(")
+  }
+
+  test("Node project conversion keeps file boundaries and removes stale generated outputs") {
+    withTempDir("ScalaFromJS-node-output-boundary-") { temp =>
+      val outputRoot = temp + "scala/"
+      val outputControl = outputRoot + "three-convert.scala"
+
+      val firstOutputs = convertFileToFile(rscPath("nodeOutputBoundary/three-convert.js"), outputControl)
+      val outputByName = firstOutputs.map(path => shortName(path) -> path).toMap
+
+      assert(outputByName.keySet == Set(
+        "three-convert.scala",
+        "IESSpotLightNode.scala",
+        "SpotLightNode.scala",
+        "AnalyticLightNode.scala"
+      ))
+
+      val iesOutput = readFile(outputByName("IESSpotLightNode.scala"))
+      val spotOutput = readFile(outputByName("SpotLightNode.scala"))
+      val analyticOutput = readFile(outputByName("AnalyticLightNode.scala"))
+
+      exec check ResultCheck(iesOutput)
+        .required("class IESSpotLightNode", "extends SpotLightNode")
+        .forbidden("class SpotLightNode", "class AnalyticLightNode")
+      exec check ResultCheck(spotOutput)
+        .required("class SpotLightNode", "extends AnalyticLightNode")
+        .forbidden("class IESSpotLightNode", "class AnalyticLightNode")
+      exec check ResultCheck(analyticOutput)
+        .required("class AnalyticLightNode")
+        .forbidden("class IESSpotLightNode", "class SpotLightNode")
+
+      val staleOutput = outputRoot + "src/nodes/lighting/RemovedNode.scala"
+      mkAllDirs(staleOutput)
+      writeFile(staleOutput, "/*\nScalaFromJS: 0.8.0\nRemovedNode.js\n*/\nclass RemovedNode\n")
+      val handMaintained = outputRoot + "src/nodes/lighting/HandMaintained.scala"
+      writeFile(handMaintained, "class HandMaintained\n")
+
+      val secondOutputs = convertFileToFile(rscPath("nodeOutputBoundary/three-convert.js"), outputControl)
+
+      assert(secondOutputs.toSet == firstOutputs.toSet)
+      assert(!Files.exists(Paths.get(staleOutput)))
+      assert(Files.exists(Paths.get(handMaintained)))
+    }
   }
 
   test("Multiple file conversion with non-js files") {

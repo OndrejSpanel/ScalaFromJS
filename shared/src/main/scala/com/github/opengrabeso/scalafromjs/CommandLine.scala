@@ -20,7 +20,7 @@ object CommandLine {
 
     val converted = project.convert
 
-    for ( (inFile, outCode) <- converted.files) yield {
+    val outputFiles = for ( (inFile, outCode) <- converted.files) yield {
 
       val inRelative = relativePath(in, inFile)
 
@@ -52,6 +52,12 @@ object CommandLine {
       writeFile(outFileCombined, extendedPrefix + outCodeWithPackage)
       outFileCombined
     }
+
+    val outputRootSeparator = math.max(out.lastIndexOf('/'), out.lastIndexOf('\\'))
+    val outputRoot = if (outputRootSeparator < 0) "." else out.take(outputRootSeparator)
+    removeStaleGeneratedFiles(outputRoot, outputFiles)
+
+    outputFiles
   }
 
   def main(argv: Array[String]): Unit = {

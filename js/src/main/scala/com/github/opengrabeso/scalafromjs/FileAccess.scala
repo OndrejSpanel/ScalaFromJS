@@ -1,5 +1,7 @@
 package com.github.opengrabeso.scalafromjs
 
+import scala.collection.Seq
+
 object FileAccess {
   def readFile(path: String): String = {
     throw new NotImplementedError()
@@ -14,6 +16,8 @@ object FileAccess {
   def matchFileNotFound(ex: Exception): Boolean = false
 
   def listFiles(path: String): Seq[String] = throw new NotImplementedError()
+
+  def removeStaleGeneratedFiles(root: String, retained: Seq[String]): Seq[String] = throw new NotImplementedError()
 
 
 }
