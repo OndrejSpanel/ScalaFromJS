@@ -71,8 +71,18 @@ class CommandLineTest extends AnyFunSuite with TestUtils with ProjectUtils {
       val outputRoot = temp + "scala/"
       val outputControl = outputRoot + "three-convert.scala"
 
-      val firstOutputs = convertFileToFile(rscPath("nodeOutputBoundary/three-convert.js"), outputControl)
-      val outputByName = firstOutputs.map(path => shortName(path) -> path).toMap
+      val firstOutputs = convertFileToFile(
+        rscPath("nodeOutputBoundary/three-convert-with-removed.js"),
+        outputControl
+      )
+      val staleOutput = firstOutputs.find(path => shortName(path) == "RemovedNode.scala").get
+      assert(Files.exists(Paths.get(staleOutput)))
+
+      val handMaintained = outputRoot + "src/nodes/lighting/HandMaintained.scala"
+      writeFile(handMaintained, "class HandMaintained\n")
+
+      val secondOutputs = convertFileToFile(rscPath("nodeOutputBoundary/three-convert.js"), outputControl)
+      val outputByName = secondOutputs.map(path => shortName(path) -> path).toMap
 
       assert(outputByName.keySet == Set(
         "three-convert.scala",
@@ -95,15 +105,6 @@ class CommandLineTest extends AnyFunSuite with TestUtils with ProjectUtils {
         .required("class AnalyticLightNode")
         .forbidden("class IESSpotLightNode", "class SpotLightNode")
 
-      val staleOutput = outputRoot + "src/nodes/lighting/RemovedNode.scala"
-      mkAllDirs(staleOutput)
-      writeFile(staleOutput, "/*\nScalaFromJS: 0.8.0\nRemovedNode.js\n*/\nclass RemovedNode\n")
-      val handMaintained = outputRoot + "src/nodes/lighting/HandMaintained.scala"
-      writeFile(handMaintained, "class HandMaintained\n")
-
-      val secondOutputs = convertFileToFile(rscPath("nodeOutputBoundary/three-convert.js"), outputControl)
-
-      assert(secondOutputs.toSet == firstOutputs.toSet)
       assert(!Files.exists(Paths.get(staleOutput)))
       assert(Files.exists(Paths.get(handMaintained)))
     }
