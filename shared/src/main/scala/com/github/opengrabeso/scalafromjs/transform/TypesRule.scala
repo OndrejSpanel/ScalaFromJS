@@ -142,6 +142,11 @@ object TypesRule {
         typeFromLiteral(raw)
       case TypeName(Seq(Identifier(name))) =>
         typeFromIdentifierName(name, false)(context)
+      case TypeName(names) if names == null || names.isEmpty =>
+        // The tolerant TypeScript parser can represent a declaration that
+        // ended in an unsupported construct with an empty type name. Treat
+        // that unknown type as Any instead of crashing while inferring it.
+        Some(AnyType)
       case TypeName(names) =>
         Some(ClassTypeEx(names.init.map(_.name), Id(names.last)))
       case TypeReference(TypeName(Seq(Identifier("Array"))), Seq(genType)) =>

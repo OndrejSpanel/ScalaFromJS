@@ -256,19 +256,27 @@ object Variables {
           val newDeclarations = decl.declarations.flatMap { d =>
             d.id match {
               case Node.ObjectPattern(props) =>
-                props.map {
+                def flatten(source: Node.Expression, properties: Seq[Node.ObjectPatternProperty]): Seq[Node.VariableDeclarator] = {
+                  def member(name: Node.Identifier): Node.Expression =
+                    if (source == null) null else Dot(source, name).withTokens(source)
+                  properties.flatMap {
                   case Node.AssignmentPattern(left: Node.Identifier, right) =>
-                    Node.VariableDeclarator(left, right, null).withTokens(d)
+                    Seq(Node.VariableDeclarator(left, right, null).withTokens(d))
                   case id: Node.Identifier =>
-                    Node.VariableDeclarator(id, null, null).withTokens(d)
+                    Seq(Node.VariableDeclarator(id, null, null).withTokens(d))
+                  case Node.Property(_, key: Node.Identifier, false, value: Node.ObjectPattern, false, _) =>
+                    flatten(member(key), value.properties)
+                  case Node.Property(_, key: Node.Identifier, false, value: Node.Identifier, false, _) =>
+                    Seq(Node.VariableDeclarator(value, member(key), null).withTokens(d))
                   case Node.Property(kind, key: Node.Identifier, false, value: Node.Expression, false, _) =>
-                    Node.VariableDeclarator(key, Dot(d.init, value).withTokens(d), null).withTokens(d)
+                    Seq(Node.VariableDeclarator(key, member(key), null).withTokens(d))
                   case Node.Property(kind, key: Node.Identifier, false, value: Node.AssignmentPattern, false, _) =>
-                    Node.VariableDeclarator(key, Node.BinaryExpression("||", Dot(d.init, key).withTokens(d.init), value.right).withTokens(value), null).withTokens(d)
-                  case prop =>
-                    // WIP: what to do?
-                    ???
+                    Seq(Node.VariableDeclarator(key, Node.BinaryExpression("||", member(key), value.right).withTokens(value), null).withTokens(d))
+                  case _ =>
+                    Seq.empty
+                  }
                 }
+                flatten(d.init, props)
               case x =>
                 Seq(d)
             }
