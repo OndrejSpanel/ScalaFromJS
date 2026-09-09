@@ -54,6 +54,14 @@ class FunctionTests extends AnyFunSuite with TestUtils {
     ).required("creaseAngle: Double = Math.PI / 3")
   }
 
+  test("Handle a defaulted object destructuring parameter in an arrow function") {
+    exec check ConversionCheck(
+      "const f = (texcoord, { color = vec3(1, 1, 1), scale = 0 } = {}) => add(texcoord, color, scale)"
+    ).required(
+      "def f(texcoord: Any, color: Any = vec3(1, 1, 1), scale: Double = 0)"
+    )
+  }
+
   test("Handle array destructuring in function parameters of arrow functions") {
     exec check ConversionCheck("" +
       """

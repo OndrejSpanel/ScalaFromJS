@@ -108,6 +108,8 @@ object Transform {
     def rewrite(params: Seq[Node.FunctionParameter]): Seq[Node.FunctionParameter] = params.flatMap {
       case pattern: Node.ObjectPattern =>
         flatten(pattern, None)
+      case Node.AssignmentPattern(pattern: Node.ObjectPattern, defaultValue) =>
+        flatten(pattern, Some(defaultValue))
       case Node.FunctionParameterWithType(pattern: Node.ObjectPattern, _, defaultValue, _) =>
         flatten(pattern, Option(defaultValue))
       case parameter =>
