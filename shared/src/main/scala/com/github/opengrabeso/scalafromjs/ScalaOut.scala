@@ -1858,7 +1858,10 @@ object ScalaOut {
     val ret = new NiceOutput {
 
       override def out(x: String) = {
-        if (currentSb < sb.length) {
+        // A composite AST also contains declarations from non-exported files.
+        // Such top-level statements have no output Part and must be skipped,
+        // rather than leaking into the previously selected export buffer.
+        if (currentSb >= 0 && currentSb < sb.length) {
           sb(currentSb) append x
         }
       }
@@ -1881,14 +1884,17 @@ object ScalaOut {
         // Select its owner directly instead of advancing a monotonic cursor.
         for (position <- loc if position < 1_000_000_000) {
           val owner = outConfig.parts.indexWhere(p => position >= p.from && position < p.to)
-          if (owner >= 0) currentSb = owner
+          // A declaration from a non-exported composite input has no owner;
+          // select the sink so it cannot be appended to the previous part.
+          currentSb = owner
         }
         topLevelPart = Some(currentSb)
       }
 
       override def endTopLevel(): Unit = topLevelPart = None
 
-      override def currentFile: String = outConfig.parts(currentSb).name
+      override def currentFile: String =
+        if (currentSb >= 0 && currentSb < outConfig.parts.length) outConfig.parts(currentSb).name else ""
 
     }
 

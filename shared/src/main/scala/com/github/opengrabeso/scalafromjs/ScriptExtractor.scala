@@ -57,7 +57,9 @@ object ScriptExtractor {
             parseImportMap(src)
         }.flatten.toMap
         def applyImportMaps(code: String): String = {
-          val lines = code.split("\n")
+          // Keep extracted scripts platform independent. HTML input commonly uses
+          // CRLF on Windows, while the converter and its callers expect LF.
+          val lines = code.replace("\r\n", "\n").split("\n")
           val sortedImportMap = importMap.toSeq.sortBy(-_._1.length) // Sort by key length in descending order, to make sure three/addons matches before three
           val ModuleSpecifier = """(\b(?:from\s+|import\s+))(['"])([^'"]+)(['"])""".r
 
