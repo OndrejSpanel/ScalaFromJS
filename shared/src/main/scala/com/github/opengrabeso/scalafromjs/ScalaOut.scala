@@ -1842,11 +1842,12 @@ object ScalaOut {
   private def blockToOut(body: Seq[Node.StatementListItem], topLevel: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
     for ((s, notLast) <- markEnd(body)) {
       if (topLevel) out.beginTopLevel(s.start)
-      dumpLeadingComments(s)
-      try nodeToOut(s)
-      finally if (topLevel) out.endTopLevel()
-      if (notLast) out.eol()
-      else dumpTrailingComments(s)
+      try {
+        dumpLeadingComments(s)
+        nodeToOut(s)
+        if (notLast) out.eol()
+        else dumpTrailingComments(s)
+      } finally if (topLevel) out.endTopLevel()
     }
   }
 

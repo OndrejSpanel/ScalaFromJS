@@ -25,7 +25,7 @@ class SplitFilesTests extends AnyFunSuite with TestUtils {
   }
 
   test("top-level output part is not changed by a nested token range") {
-    val source = "function first(value = 1) {}\nconst second = 2\n"
+    val source = "function first(value = 1) {}\nconst second = 2 // trailing\n"
     val ast = parse(source)
     val first = ast.body.head.asInstanceOf[Node.FunctionDeclaration]
     val defaultValue = first.params.head.asInstanceOf[Node.FunctionParameterWithType].defValue
@@ -33,8 +33,11 @@ class SplitFilesTests extends AnyFunSuite with TestUtils {
     // Simulate a transformed default expression whose source range belongs to
     // another composite input file.
     defaultValue.range = (secondStart, secondStart + 1)
+    val second = ast.body(1)
+    assert(second.trailingComments.nonEmpty)
+    second.trailingComments.head.range = (0, 1)
 
-    val firstEnd = source.indexOf("const second")
+    val firstEnd = secondStart
     val output = ScalaOut.output(
       NodeExtended(ast), source,
       ScalaOut.Config(parts = Seq(
@@ -45,9 +48,10 @@ class SplitFilesTests extends AnyFunSuite with TestUtils {
 
     assert(output.head.contains("def first"))
     assert(output.head.contains("= 1)"))
-    assert(!output.head.contains("const second"))
+    assert(!output.head.contains("// trailing"))
     assert(!output(1).contains("def first"))
     assert(output(1).contains("val second"))
+    assert(output(1).contains("// trailing"))
   }
 
 
