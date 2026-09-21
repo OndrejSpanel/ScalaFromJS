@@ -74,6 +74,12 @@ object ScalaOut {
   abstract class Output extends (String => Unit) {
     def out(x: String): Unit
 
+    /** Select and lock the output part owned by one top-level statement. */
+    def beginTopLevel(loc: Option[Int]): Unit = ()
+
+    /** Release the top-level statement lock after the complete statement was rendered. */
+    def endTopLevel(): Unit = ()
+
     def appendLine(x: String): Unit = apply(x)
 
     def eol(num: Int = 1): Unit = out("\n")
@@ -1833,10 +1839,12 @@ object ScalaOut {
     out("}")
   }
 
-  private def blockToOut(body: Seq[Node.StatementListItem])(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
+  private def blockToOut(body: Seq[Node.StatementListItem], topLevel: Boolean = false)(implicit outConfig: Config, input: InputContext, out: Output, context: ScopeContext): Unit = {
     for ((s, notLast) <- markEnd(body)) {
+      if (topLevel) out.beginTopLevel(s.start)
       dumpLeadingComments(s)
-      nodeToOut(s)
+      try nodeToOut(s)
+      finally if (topLevel) out.endTopLevel()
       if (notLast) out.eol()
       else dumpTrailingComments(s)
     }
@@ -1845,6 +1853,7 @@ object ScalaOut {
   def output(ast: NodeExtended, input: String, outConfig: Config = Config.default): Seq[String] = {
     val sb = Array.fill(outConfig.parts.size max 1)(new StringBuilder)
     var currentSb = 0
+    var topLevelPart: Option[Int] = None
     val ret = new NiceOutput {
 
       override def out(x: String) = {
@@ -1856,7 +1865,7 @@ object ScalaOut {
       override def submitLocation(loc: Int, debug: =>String) = {
         // start new files only when there is no indenting (top-level)
         // ignore D.TS symbols
-        if (!isIndented && loc < 1_000_000_000) {
+        if (topLevelPart.isEmpty && !isIndented && loc < 1_000_000_000) {
           // check if we have crossed a file boundary, start a new output file if needed
           //println(s"loc $loc of ${outConfig.parts}")
           while (currentSb < outConfig.parts.length && loc >= outConfig.parts(currentSb).to) {
@@ -1866,6 +1875,18 @@ object ScalaOut {
         }
       }
 
+      override def beginTopLevel(loc: Option[Int]): Unit = {
+        // A transformed top-level declaration may be emitted out of source order.
+        // Select its owner directly instead of advancing a monotonic cursor.
+        for (position <- loc if position < 1_000_000_000) {
+          val owner = outConfig.parts.indexWhere(p => position >= p.from && position < p.to)
+          if (owner >= 0) currentSb = owner
+        }
+        topLevelPart = Some(currentSb)
+      }
+
+      override def endTopLevel(): Unit = topLevelPart = None
+
       override def currentFile: String = outConfig.parts(currentSb).name
 
     }
@@ -1874,7 +1895,7 @@ object ScalaOut {
     val inputContext = InputContext(input, ast.types, classListHarmony)
     val scopeContext = new ScopeContext
     scopeContext.withScope(ast.top) {
-      blockToOut(ast.top.body)(outConfig, inputContext, ret, scopeContext)
+      blockToOut(ast.top.body, topLevel = true)(outConfig, inputContext, ret, scopeContext)
       ret.flush()
     }
     sb.map(_.result())
