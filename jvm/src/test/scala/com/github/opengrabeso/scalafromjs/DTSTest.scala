@@ -197,4 +197,43 @@ class DTSTest extends AnyFunSuite with TestUtils with ProjectUtils {
       "def make(): Dep"
     )
   }
+
+  test("d.ts imports parse node material declaration syntax") {
+    val files = ConvertProject.FileEnvironment(Map(
+      "input.d.ts" ->
+        """
+          import Node from "./Node.js";
+          import { texture } from "./TextureNode.js";
+          export { Node, texture };
+        """,
+      "Node.d.ts" ->
+        """
+          export interface NodeElements {
+            "float": Node;
+          }
+          declare class Node {}
+          export default Node;
+        """,
+      "TextureNode.d.ts" ->
+        """
+          type TextureNode<TNodeType = unknown> = {};
+          export const texture: {
+            (): TextureNode;
+            <TNodeType>(): TextureNode<TNodeType>;
+          };
+        """
+    ))
+
+    val root = "input.d.ts"
+    val project = ConvertProject(
+      root,
+      ConvertProject.ConvertConfig(root = root, fs = files),
+      scala.collection.immutable.ListMap(
+        root -> ConvertProject.Item(files.virtualFiles(root), included = true, fullName = root)
+      )
+    ).resolveImportsExports
+    val loaded = project.items.values.map(_.fullName).toSet
+    assert(loaded.contains("Node.d.ts"))
+    assert(loaded.contains("TextureNode.d.ts"))
+  }
 }
