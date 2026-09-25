@@ -660,7 +660,16 @@ object ScalaOut {
         nodeToOut(callee)
         outputTypeArguments(typeArgs)
         out("(")
-        outputNodes(arguments)(nodeToOut)
+        val supportedSpread = arguments.lastOption.collect {
+          case spread: Node.SpreadElement if !arguments.dropRight(1).exists(_.isInstanceOf[Node.SpreadElement]) => spread
+        }
+        outputNodes(arguments) {
+          case spread@Node.SpreadElement(argument) if supportedSpread.contains(spread) =>
+            nodeToOut(argument)
+            out(": _*")
+          case argument =>
+            nodeToOut(argument)
+        }
         out(")")
       }
 
@@ -1139,7 +1148,16 @@ object ScalaOut {
         case tn: AArray =>
           out("Array(")
           out.indent()
-          outputNodes(tn.elements, Some(tn))(nodeToOut)
+          val supportedSpread = tn.elements.lastOption.collect {
+            case spread: Node.SpreadElement if !tn.elements.dropRight(1).exists(_.isInstanceOf[Node.SpreadElement]) => spread
+          }
+          outputNodes(tn.elements, Some(tn)) {
+            case spread@Node.SpreadElement(argument) if supportedSpread.contains(spread) =>
+              nodeToOut(argument)
+              out(": _*")
+            case element =>
+              nodeToOut(element)
+          }
           out.unindent()
           out(")")
         case tn: Node.ConditionalExpression =>

@@ -3,6 +3,34 @@ package com.github.opengrabeso.scalafromjs
 import org.scalatest.funsuite.AnyFunSuite
 
 class ArrayTests extends AnyFunSuite with TestUtils {
+  test("Spread arrays and final call arguments") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+        |function spread(values) {
+        |  consume(1, ...values);
+        |  return [...values];
+        |}
+        |""".stripMargin
+    ).required(
+      "consume(1, values: _*)",
+      "Array(values: _*)"
+    )
+  }
+
+  test("Non-final spread stays explicit") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+        |function spread(values) {
+        |  consume(...values, 1);
+        |  return [...values, 1];
+        |}
+        |""".stripMargin
+    ).required("/* Unsupported: SpreadElement */ ...values")
+      .forbiddenNothing
+  }
+
   test("Map and Array types should be inferred") {
     exec check ConversionCheck(
       //language=JavaScript
