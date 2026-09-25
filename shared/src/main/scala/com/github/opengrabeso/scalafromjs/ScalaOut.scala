@@ -411,6 +411,25 @@ object ScalaOut {
         input.types.types.get(symDef).map(s => (s.declType, s.certain))
       }
 
+      def isMapType(info: TypeInfo): Boolean = {
+        input.types.resolveTypeForOut(info.declType).isInstanceOf[SymbolTypes.MapType]
+      }
+
+      def isMapExpression(expression: Node.Expression): Boolean = expression match {
+        case identifier: Node.Identifier => input.types.get(symId(identifier)).exists(isMapType)
+        case Node.StaticMemberExpression(_, Node.Identifier(property), _) =>
+          val memberTypes = input.types.types.iterator.collect {
+            case (id, info) if id.name == property => info
+          }.toSeq
+          memberTypes.nonEmpty && memberTypes.forall(isMapType)
+        case _ => false
+      }
+
+      def objectSpreadsAreMaps(properties: Seq[Node.ObjectExpressionProperty]): Boolean = {
+        val spreads = properties.collect { case Node.SpreadElement(argument) => argument }
+        spreads.nonEmpty && spreads.forall(isMapExpression)
+      }
+
       def outputDefinitions(isVal: Boolean, tn: Node.VariableDeclaration, types: Boolean = false) = {
         //out"/*outputDefinitions ${tn.definitions}*/"
         //println("outputDefinitions -")
@@ -426,6 +445,15 @@ object ScalaOut {
               case property: Node.Property => property.computed
               case _ => false
             } =>
+              out"val $name = "
+              context.withScope(oe) {
+                outputObjectLiteralAsMap(oe, "Map")
+              }
+              out.eol()
+
+            case Node.VariableDeclarator(name: Node.Identifier, oe@OObject(props), _) if props.nonEmpty && isVal &&
+              props.exists(_.isInstanceOf[Node.SpreadElement]) &&
+              (input.types.get(symId(name)).exists(isMapType) || objectSpreadsAreMaps(props)) =>
               out"val $name = "
               context.withScope(oe) {
                 outputObjectLiteralAsMap(oe, "Map")
@@ -660,17 +688,65 @@ object ScalaOut {
         nodeToOut(callee)
         outputTypeArguments(typeArgs)
         out("(")
-        val supportedSpread = arguments.lastOption.collect {
-          case spread: Node.SpreadElement if !arguments.dropRight(1).exists(_.isInstanceOf[Node.SpreadElement]) => spread
-        }
-        outputNodes(arguments) {
-          case spread@Node.SpreadElement(argument) if supportedSpread.contains(spread) =>
-            nodeToOut(argument)
-            out(": _*")
-          case argument =>
-            nodeToOut(argument)
+        val firstSpread = arguments.indexWhere(_.isInstanceOf[Node.SpreadElement])
+        if (firstSpread < 0) {
+          outputNodes(arguments)(nodeToOut)
+        } else {
+          val fixedArguments = arguments.take(firstSpread)
+          outputNodes(fixedArguments)(nodeToOut)
+          if (fixedArguments.nonEmpty) out(", ")
+          outputSpreadArray(arguments.drop(firstSpread))
+          out(": _*")
         }
         out(")")
+      }
+
+      /**
+        * Materialize JavaScript iterable spreads in source order. Each spread is
+        * consumed before the expressions which follow it, matching array literal
+        * and argument-list evaluation order.
+        */
+      def outputSpreadArray(nodes: Seq[Node.Node]): Unit = {
+        val fragments = scala.collection.mutable.ArrayBuffer.empty[Either[Node.Expression, Seq[Node.Node]]]
+        var plain = scala.collection.mutable.ArrayBuffer.empty[Node.Node]
+
+        def flushPlain(): Unit = {
+          if (plain.nonEmpty) {
+            fragments += Right(plain.toSeq)
+            plain = scala.collection.mutable.ArrayBuffer.empty[Node.Node]
+          }
+        }
+
+        nodes.foreach {
+          case Node.SpreadElement(argument) =>
+            flushPlain()
+            fragments += Left(argument)
+          case node =>
+            plain += node
+        }
+        flushPlain()
+
+        def outputFragment(fragment: Either[Node.Expression, Seq[Node.Node]]): Unit = fragment match {
+          case Left(argument) =>
+            out("Array.from(")
+            nodeToOut(argument)
+            out(")")
+          case Right(elements) =>
+            out("Array(")
+            outputNodes(elements)(nodeToOut)
+            out(")")
+        }
+
+        fragments.toSeq match {
+          case Seq(fragment) => outputFragment(fragment)
+          case many =>
+            out("Array.concat(")
+            many.zipWithIndex.foreach { case (fragment, index) =>
+              if (index > 0) out(", ")
+              outputFragment(fragment)
+            }
+            out(")")
+        }
       }
 
       def outputMethod(key: Node.PropertyKey, value: Node.PropertyValue, kind: String, computed: Boolean, tpe: Option[Node.TypeAnnotation], decl: String = "def") = {
@@ -760,6 +836,38 @@ object ScalaOut {
       }
 
       def outputObjectLiteralAsMap(tn: OObject, identifier: String): Unit = {
+        if (identifier == "Map" && tn.properties.exists(_.isInstanceOf[Node.SpreadElement])) {
+          val fragments = scala.collection.mutable.ArrayBuffer.empty[Either[Node.Expression, Seq[Node.ObjectExpressionProperty]]]
+          var plain = scala.collection.mutable.ArrayBuffer.empty[Node.ObjectExpressionProperty]
+
+          def flushPlain(): Unit = {
+            if (plain.nonEmpty) {
+              fragments += Right(plain.toSeq)
+              plain = scala.collection.mutable.ArrayBuffer.empty[Node.ObjectExpressionProperty]
+            }
+          }
+
+          tn.properties.foreach {
+            case Node.SpreadElement(argument) =>
+              flushPlain()
+              fragments += Left(argument)
+            case property => plain += property
+          }
+          flushPlain()
+
+          if (fragments.headOption.exists(_.isLeft)) out("Map.empty")
+          var emitted = fragments.headOption.exists(_.isLeft)
+          fragments.foreach { fragment =>
+            if (emitted) out(" ++ ")
+            fragment match {
+              case Left(argument) => nodeToOut(argument)
+              case Right(properties) => outputObjectLiteralAsMap(OObject(properties), identifier)
+            }
+            emitted = true
+          }
+          return
+        }
+
         val delimiter = ", "
         // TODO: DRY with outputNodes
         out"$identifier("
@@ -824,15 +932,84 @@ object ScalaOut {
         out("}")
       }
 
+      def requiredRecordMembers(argument: Node.Expression): Option[Seq[String]] = {
+        def membersOf(classId: SymbolTypes.SymbolMapId, visited: Set[SymbolTypes.SymbolMapId]): Option[Seq[String]] = {
+          if (visited.contains(classId)) return None
+
+          input.classes.get(classId).flatMap {
+            case Node.ClassDeclaration(_, _, _, body, "interface") =>
+              val declared = body.body.map {
+                case member: Node.MethodDefinitionEx if member.kind == "value" && !member.computed &&
+                  !member.static && !member.optional && member.key != null =>
+                  Some(propertyKeyName(member.key))
+                case _ => None
+              }
+              if (declared.exists(_.isEmpty)) None
+              else {
+                val inherited = input.classes.getParent(classId) match {
+                  case Some(parent) => SymbolTypes.id(parent).flatMap(membersOf(_, visited + classId))
+                  case None => Some(Seq.empty)
+                }
+                inherited.map(_ ++ declared.flatten)
+              }
+            case _ => None
+          }
+        }
+
+        argument match {
+          // Re-reading a stable identifier does not alter JavaScript evaluation
+          // order. More complex expressions must be evaluated once and therefore
+          // stay explicit until the target runtime has an enumerable-copy helper.
+          case identifier: Node.Identifier =>
+            input.types.get(symId(identifier)).flatMap { info =>
+              input.types.resolveTypeForOut(info.declType) match {
+                case classType: SymbolTypes.ClassTypeEx => membersOf(classType.name, Set.empty)
+                case _ => None
+              }
+            }
+          case _ => None
+        }
+      }
+
+      def recordSpreadMembers(tn: OObject): Option[Map[Node.SpreadElement, Seq[String]]] = {
+        val spreads = tn.properties.collect { case spread: Node.SpreadElement => spread }
+        val expanded = spreads.map(spread => spread -> requiredRecordMembers(spread.argument))
+        if (expanded.exists(_._2.isEmpty)) None
+        else {
+          val explicitNames = tn.properties.collect {
+            case property: Node.PropertyEx if !property.computed => Some(propertyKeyName(property.key))
+            case _: Node.SpreadElement => None
+            case _ => Some("")
+          }
+          val names = explicitNames.flatten ++ expanded.flatMap(_._2.get)
+          // Duplicate fields need assignment semantics so that the earlier value
+          // is still evaluated while the later one wins. Anonymous Scala members
+          // cannot express that safely.
+          if (explicitNames.contains(Some("")) || names.distinct.size != names.size) None
+          else Some(expanded.map { case (spread, members) => spread -> members.get }.toMap)
+        }
+      }
+
       def outputObjectLiteralUsingNew(tn: OObject, prefix: String): Unit = {
         if (tn.properties.isEmpty) {
           out"$prefix {}"
         } else {
+          val expandedSpreads = recordSpreadMembers(tn)
           out"$prefix {\n"
           out.indent()
           tn.properties.foreach { n =>
-            nodeToOut(n)
-            out.eol()
+            n match {
+              case spread: Node.SpreadElement if expandedSpreads.exists(_.contains(spread)) =>
+                expandedSpreads.get(spread).foreach { member =>
+                  out"var $member = "
+                  nodeToOut(spread.argument)
+                  out".$member"
+                  out.eol()
+                }
+              case _ =>
+                nodeToOut(n)
+                out.eol()
+            }
           }
           out.unindent()
           out("}")
@@ -1146,20 +1323,15 @@ object ScalaOut {
           }
 
         case tn: AArray =>
-          out("Array(")
-          out.indent()
-          val supportedSpread = tn.elements.lastOption.collect {
-            case spread: Node.SpreadElement if !tn.elements.dropRight(1).exists(_.isInstanceOf[Node.SpreadElement]) => spread
+          if (tn.elements.exists(_.isInstanceOf[Node.SpreadElement])) {
+            outputSpreadArray(tn.elements)
+          } else {
+            out("Array(")
+            out.indent()
+            outputNodes(tn.elements, Some(tn))(nodeToOut)
+            out.unindent()
+            out(")")
           }
-          outputNodes(tn.elements, Some(tn)) {
-            case spread@Node.SpreadElement(argument) if supportedSpread.contains(spread) =>
-              nodeToOut(argument)
-              out(": _*")
-            case element =>
-              nodeToOut(element)
-          }
-          out.unindent()
-          out(")")
         case tn: Node.ConditionalExpression =>
           out"if (${tn.test}) ${tn.consequent} else ${tn.alternate}"
         //case tn: Node.Assign => outputUnknownNode(tn)

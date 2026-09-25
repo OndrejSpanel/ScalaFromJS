@@ -236,4 +236,67 @@ class DTSTest extends AnyFunSuite with TestUtils with ProjectUtils {
     assert(loaded.contains("Node.d.ts"))
     assert(loaded.contains("TextureNode.d.ts"))
   }
+
+  test("Required interface record spreads expand to typed members") {
+    exec check ConversionCheck(
+      """
+        |//file:input.d.ts
+        |export interface LightData {
+        |  lightDirection: Node;
+        |  lightColor: Node;
+        |}
+        |export function direct(lightData: LightData, lightNode: Node): void;
+        |
+        |//file:input.js
+        |export function direct(lightData, lightNode) {
+        |  consume({ ...lightData, lightNode });
+        |}
+        |var ScalaFromJS_settings = { types: "input.d.ts" };
+        |""".stripMargin
+    ).requiredInOrder(
+      "var lightDirection = lightData.lightDirection",
+      "var lightColor = lightData.lightColor",
+      "var lightNode = lightNode"
+    )
+  }
+
+  test("Optional interface record spreads stay explicit") {
+    exec check ConversionCheck(
+      """
+        |//file:input.d.ts
+        |export interface Options { optional?: number; }
+        |export function configure(options: Options): void;
+        |
+        |//file:input.js
+        |export function configure(options) {
+        |  consume({ required: 1, ...options });
+        |}
+        |var ScalaFromJS_settings = { types: "input.d.ts" };
+        |""".stripMargin
+    ).required("/* Unsupported: SpreadElement */ ...options")
+      .forbiddenNothing
+  }
+
+  test("Index-signature member object spreads lower as Map merges") {
+    exec check ConversionCheck(
+      """
+        |//file:input.d.ts
+        |export class Group {
+        |  values: { [name: string]: Node };
+        |  merge(other: Group): void;
+        |}
+        |
+        |//file:input.js
+        |export class Group {
+        |  merge(other) {
+        |    const merged = { ...this.values, ...other.values };
+        |    this.values = merged;
+        |  }
+        |}
+        |var ScalaFromJS_settings = { types: "input.d.ts" };
+        |""".stripMargin
+    ).required(
+      "val merged = Map.empty ++ this.values ++ other.values"
+    )
+  }
 }

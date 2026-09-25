@@ -3,7 +3,7 @@ package com.github.opengrabeso.scalafromjs
 import org.scalatest.funsuite.AnyFunSuite
 
 class ArrayTests extends AnyFunSuite with TestUtils {
-  test("Spread arrays and final call arguments") {
+  test("Spread arrays and call arguments use eager iterable fragments") {
     exec check ConversionCheck(
       //language=JavaScript
       """
@@ -13,22 +13,33 @@ class ArrayTests extends AnyFunSuite with TestUtils {
         |}
         |""".stripMargin
     ).required(
-      "consume(1, values: _*)",
-      "Array(values: _*)"
+      "consume(1, Array.from(values): _*)",
+      "Array.from(values)"
     )
   }
 
-  test("Non-final spread stays explicit") {
+  test("Non-final and multiple spreads preserve evaluation order") {
     exec check ConversionCheck(
       //language=JavaScript
       """
-        |function spread(values) {
-        |  consume(...values, 1);
-        |  return [...values, 1];
+        |function spread() {
+        |  consume(prefix(), ...middle(), suffix(), ...last());
+        |  return [first(), ...middle(), second(), ...last()];
         |}
         |""".stripMargin
-    ).required("/* Unsupported: SpreadElement */ ...values")
-      .forbiddenNothing
+    ).required(
+      "consume(prefix(), Array.concat(Array.from(middle()), Array(suffix()), Array.from(last())): _*)",
+      "Array.concat(Array(first()), Array.from(middle()), Array(second()), Array.from(last()))"
+    ).requiredInOrder(
+      "consume(prefix()",
+      "Array.from(middle())",
+      "Array(suffix())",
+      "Array.from(last())",
+      "Array(first())",
+      "Array.from(middle())",
+      "Array(second())",
+      "Array.from(last())"
+    )
   }
 
   test("Map and Array types should be inferred") {

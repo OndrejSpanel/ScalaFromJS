@@ -94,4 +94,24 @@ class ObjectLiteralTests extends AnyFunSuite with TestUtils {
         };
       """).required("var a = {mod =>", "mod.x = ").forbidden("var x", "var y")
   }
+
+  test("Map object spreads preserve evaluation order and later keys win") {
+    exec check ConversionCheck(
+      //language=JavaScript
+      """
+        |const value = { first: first(), ...middle(), shared: later(), ...last() };
+        |
+        |var ScalaFromJS_settings = {
+        |  hints: [ { path: ".*//.*value", literals: "Map" } ]
+        |};
+        |""".stripMargin
+    ).required(
+      "Map(\"first\" -> first()) ++ middle() ++ Map(\"shared\" -> later()) ++ last()"
+    ).requiredInOrder(
+      "first()",
+      "middle()",
+      "later()",
+      "last()"
+    )
+  }
 }
